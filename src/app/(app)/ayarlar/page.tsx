@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { KotaCubugu } from "@/components/kota-cubugu";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { tarihYaz } from "@/lib/bicim";
 import { PLACES_KONUM_SAKLAMA_GUN, ROL_ADLARI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { calismaAlaniGetir, davetleriListele, uyeleriListele } from "@/server/repo/calisma-alani";
+import { kotaDurumu } from "@/server/repo/kullanim";
 import { davetiIptalEt } from "./eylemler";
 import { AlanFormu, DavetFormu, UyeCikarFormu } from "./formlar";
 
@@ -28,9 +30,20 @@ export default async function AyarlarSayfasi() {
             <p className="font-medium text-metin">Google Places verisi</p>
             <p className="mt-1">
               İşletme adı, adres, telefon gibi Places içeriği hiç saklanmaz; her görüntülemede canlı çekilir. Places&apos;tan
-              gelen konum (harita işaretçileri için) en fazla {PLACES_KONUM_SAKLAMA_GUN} gün tutulur ve sonra otomatik silinir.
+              gelen konumlar ve tarama merkezleri en fazla {PLACES_KONUM_SAKLAMA_GUN} gün tutulur ve sonra otomatik silinir.
             </p>
           </div>
+        </section>
+
+        <section className="kart lg:col-span-2" aria-label="Places kotası">
+          <h2 className="mb-3 font-semibold">Places kullanımı</h2>
+          <KotaCubugu durum={kotaDurumu(ctx)} />
+          <p className="mt-3 text-xs text-soluk">
+            Aylık kota maliyeti sınırlar: her Places isteğinden önce kontrol edilir. Kota dolduğunda taramalar kısmi
+            olarak durur, kayıt listesi ve detayda işletme bilgileri gösterilmez; kendi verileriniz (durum, notlar,
+            iletişim bilgileri) görünmeye devam eder. Kotayı değiştirmek için sunucu yöneticisi şu komutu çalıştırır:{" "}
+            <code className="rounded bg-zemin px-1">npm run kota -- {alan.slug} &lt;sayı&gt;</code>
+          </p>
         </section>
 
         <section className="kart">

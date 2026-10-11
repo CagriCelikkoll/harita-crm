@@ -4,19 +4,19 @@ import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { PLACES_KONUM_SAKLAMA_GUN, YARIM_KALDI_MESAJI } from "@/lib/sabitler";
 import { db } from "../../db";
 import { invitations, leads, placeLocations, scans, tenants } from "../../db/schema";
-import { yarimKalmaSiniri } from "../taramalar";
+import { yarimKalanKosulu } from "./tarama-kosulu";
 
 const GUN_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Uygulama başlarken: tüm kiracılarda 10 dakikadan uzun süredir "calisiyor" kalan taramaları
- * "hata" yapar (önceki süreç tarama sırasında kapanmış olabilir).
+ * Uygulama başlarken: tüm kiracılarda 10 dakikadan uzun süredir "calisiyor" veya "kuyrukta" kalan
+ * taramaları "hata" yapar (önceki süreç tarama sırasında kapanmış ya da çalıştırma isteği gelmemiş).
  */
 export function tumYarimKalanTaramalariKapat(simdi = new Date()): number {
   return db
     .update(scans)
     .set({ durum: "hata", hataMesaji: YARIM_KALDI_MESAJI, tamamlanmaTarihi: simdi })
-    .where(and(eq(scans.durum, "calisiyor"), lt(scans.baslamaTarihi, yarimKalmaSiniri(simdi))))
+    .where(yarimKalanKosulu(simdi))
     .returning({ id: scans.id })
     .all().length;
 }
@@ -32,13 +32,13 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ placeId: placeLocations.placeId })
       .all().length;
 
-    // 2) Adres aramasıyla (Places) bulunan tarama merkezleri de Google içeriğidir: 30 gün sonra koordinatlar
-    //    silinir. Kullanıcının yazdığı adres metni ve yarıçap kalır (tarama yeniden çalıştırılabilir).
-    //    Haritaya tıklanarak seçilen merkez ('harita') kullanıcı verisidir ve silinmez.
+    // 2) Tarama merkezlerinin koordinatları, kaynağı ne olursa olsun ('harita' veya 'adres') 30 gün sonra
+    //    silinir. Kullanıcının yazdığı adres metni ve yarıçap kalır (tarama "Tekrar kullan" ile yeniden
+    //    çalıştırılabilir: adres varsa yeniden aranır, yoksa haritada yeni nokta seçilir).
     const temizlenenMerkez = tx
       .update(scans)
       .set({ merkezLat: null, merkezLng: null })
-      .where(and(eq(scans.merkezKaynagi, "adres"), lt(scans.olusturmaTarihi, konumSiniri), isNotNull(scans.merkezLat)))
+      .where(and(lt(scans.olusturmaTarihi, konumSiniri), isNotNull(scans.merkezLat)))
       .returning({ id: scans.id })
       .all().length;
 

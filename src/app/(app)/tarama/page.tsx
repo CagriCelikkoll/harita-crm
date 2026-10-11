@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayfaBaglami } from "@/server/oturum";
+import { kotaDurumu } from "@/server/repo/kullanim";
 import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/taramalar";
 import { taramaButcesi } from "@/server/servisler/tarama";
 import { TaramaPaneli } from "./tarama-paneli";
@@ -32,7 +33,12 @@ export default async function TaramaSayfasi() {
         baslik="Bölge taraması"
         aciklama="Haritada merkezi seçin (veya adres yazın), yarıçap ve kategoriyi belirleyip taramayı başlatın. Bulunan işletmeler Kayıtlar'a eklenir."
       />
-      <TaramaPaneli gecmis={gecmis} butce={taramaButcesi()} mock={process.env.PLACES_MOCK === "true"} />
+      <TaramaPaneli
+        gecmis={gecmis}
+        butce={taramaButcesi()}
+        mock={process.env.PLACES_MOCK === "true"}
+        kota={kotaDurumu(ctx)}
+      />
     </>
   );
 }

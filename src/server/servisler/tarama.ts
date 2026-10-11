@@ -1,9 +1,10 @@
 import { kategoriBul } from "@/lib/kategoriler";
+import { KOTA_DOLDU_MESAJI } from "@/lib/sabitler";
 import { placesIstemcisiOlustur } from "../places/istemci";
 import type { TenantContext } from "../repo/baglam";
 import { kayitlariEkle } from "../repo/kayitlar";
 import { konumlariKaydet } from "../repo/konumlar";
-import { placesIstegiSay } from "../repo/kullanim";
+import { kotaKapisi } from "./kota";
 import { taramaBaslat, taramaGetir, taramaGuncelle, type Tarama } from "../repo/taramalar";
 import { bolgeTara } from "../scan/motor";
 
@@ -23,9 +24,9 @@ export async function taramaCalistir(ctx: TenantContext, id: string): Promise<Ta
 
   let istekSayisi = 0;
   const istemci = placesIstemcisiOlustur({
+    kota: kotaKapisi(ctx), // her istekten önce aylık kota (usage_counters) atomik olarak ayrılır
     istekSayaci: (adet) => {
       istekSayisi += adet;
-      placesIstegiSay(ctx, adet);
     },
   });
 
@@ -33,7 +34,7 @@ export async function taramaCalistir(ctx: TenantContext, id: string): Promise<Ta
     const kategori = kategoriBul(tarama.kategori);
     if (!kategori) throw new Error(`Bilinmeyen kategori: ${tarama.kategori}`);
     if (tarama.merkezLat === null || tarama.merkezLng === null) {
-      throw new Error("Merkez konumu 30 gün kuralıyla silinmiş. Adresi yeniden arayıp yeni tarama başlatın.");
+      throw new Error("Merkez konumu 30 gün kuralıyla silinmiş. Tarama geçmişinden \"Tekrar kullan\" ile yeniden başlatın.");
     }
     const sonuc = await bolgeTara({
       merkez: { lat: tarama.merkezLat, lng: tarama.merkezLng },
@@ -51,6 +52,8 @@ export async function taramaCalistir(ctx: TenantContext, id: string): Promise<Ta
       bulunanSayisi: sonuc.placeIdler.length,
       istekSayisi,
       kapsamTamam: sonuc.kapsamTamam,
+      // Kota dolduysa tarama "kısmi" tamamlanır; nedeni kullanıcıya gösterilir.
+      hataMesaji: sonuc.kotaDoldu ? `${KOTA_DOLDU_MESAJI} Tarama kısmi olarak tamamlandı.` : null,
       tamamlanmaTarihi: new Date(),
     });
   } catch (hata) {

@@ -61,6 +61,31 @@ describe("yarıda kalan taramalar", () => {
     expect(yarimKalanTaramalariKapat(A, new Date(simdi.getTime() + 2000))).toBe(1);
   });
 
+  it("10 dakikadan uzun 'kuyrukta' kalan tarama (oluşturma zamanına göre) 'hata' olur", () => {
+    const eskiKuyruk = tarama(A, "kuyrukta", null);
+    const yeniKuyruk = tarama(A, "kuyrukta", null);
+    const baskaKiraci = tarama(B, "kuyrukta", null);
+    db.$client.prepare("update scans set olusturma_tarihi = ? where id in (?, ?)").run(Date.now() - 11 * DAKIKA, eskiKuyruk, baskaKiraci);
+    db.$client.prepare("update scans set olusturma_tarihi = ? where id = ?").run(Date.now() - 5 * DAKIKA, yeniKuyruk);
+
+    expect(yarimKalanTaramalariKapat(A)).toBe(1);
+    expect(taramaGetir(A, eskiKuyruk)).toMatchObject({ durum: "hata", hataMesaji: YARIM_KALDI_MESAJI });
+    expect(taramaGetir(A, yeniKuyruk)!.durum).toBe("kuyrukta");
+    expect(taramaGetir(B, baskaKiraci)!.durum).toBe("kuyrukta"); // başka kiracı etkilenmez
+
+    expect(tumYarimKalanTaramalariKapat()).toBeGreaterThanOrEqual(1); // başlangıç kontrolü
+    expect(taramaGetir(B, baskaKiraci)!.durum).toBe("hata");
+  });
+
+  it("'hata'ya çevrilmiş kuyruktaki tarama artık çalıştırılamaz (Places'a gidilmez)", async () => {
+    const t = tarama(A, "kuyrukta", null);
+    db.$client.prepare("update scans set olusturma_tarihi = ? where id = ?").run(Date.now() - 11 * DAKIKA, t);
+    yarimKalanTaramalariKapat(A);
+    const { taramaCalistir } = await import("@/server/servisler/tarama");
+    const sonuc = await taramaCalistir(A, t);
+    expect(sonuc).toMatchObject({ durum: "hata", istekSayisi: 0 });
+  });
+
   it("uygulama başlangıcı: tüm kiracılardaki eski 'calisiyor' taramalar 'hata' olur", () => {
     const a = tarama(A, "calisiyor", 15);
     const b = tarama(B, "calisiyor", 45);

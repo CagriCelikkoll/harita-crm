@@ -15,6 +15,13 @@
       "when": 1791730492955,
       "tag": "0001_tarama_merkez_kaynagi",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791746055072,
+      "tag": "0002_places_kotasi",
+      "breakpoints": true
     }
   ]
 }

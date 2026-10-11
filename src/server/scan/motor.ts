@@ -10,7 +10,7 @@
 //     En küçük hücre boyutundaysa 3 sayfaya kadar devam et; 3. sayfa da doluysa kapsam eksik sayılır.
 //  5. Sonuçları place_id ile tekilleştir. İstek bütçesi bitince dur ve kapsamın eksik olduğunu bildir.
 //  Kuyruk genişlik öncelikli işlenir; bütçe bittiğinde alanın tamamı kaba çözünürlükte taranmış olur.
-import type { LatLng, PlacesIstemcisi } from "../places/tipler";
+import { KotaDolduHatasi, type LatLng, type PlacesIstemcisi } from "../places/tipler";
 import { daireyiKapsayanKare, hucreIliskisi, hucreKenariM, hucreyiBol, mesafeM } from "./geometri";
 
 export const PLACES_AZAMI_SAYFA = 3;
@@ -35,8 +35,10 @@ export type TaramaSonucu = {
   konumlar: { placeId: string; lat: number; lng: number }[];
   istekSayisi: number;
   hucreSayisi: number;
-  /** false: bütçe bitti veya en küçük hücrede 60'tan fazla sonuç vardı. */
+  /** false: bütçe bitti, aylık kota doldu veya en küçük hücrede 60'tan fazla sonuç vardı. */
   kapsamTamam: boolean;
+  /** Tarama, çalışma alanının aylık Places kotası dolduğu için durdu. */
+  kotaDoldu: boolean;
 };
 
 export async function bolgeTara(p: TaramaParametreleri): Promise<TaramaSonucu> {
@@ -46,6 +48,7 @@ export async function bolgeTara(p: TaramaParametreleri): Promise<TaramaSonucu> {
   let istekSayisi = 0;
   let hucreSayisi = 0;
   let kapsamTamam = true;
+  let kotaDoldu = false;
 
   disDongu: while (kuyruk.length) {
     const hucre = kuyruk.shift()!;
@@ -63,7 +66,16 @@ export async function bolgeTara(p: TaramaParametreleri): Promise<TaramaSonucu> {
         kapsamTamam = false;
         break disDongu;
       }
-      const yanit = await p.istemci.metinAra({ sorgu: p.sorgu, tur: p.tur, alan: hucre, konumIste, sayfaTokeni });
+      let yanit: Awaited<ReturnType<PlacesIstemcisi["metinAra"]>>;
+      try {
+        yanit = await p.istemci.metinAra({ sorgu: p.sorgu, tur: p.tur, alan: hucre, konumIste, sayfaTokeni });
+      } catch (hata) {
+        if (!(hata instanceof KotaDolduHatasi)) throw hata;
+        // Aylık kota doldu: istek yapılmadı. Bütçe bitmiş gibi dur; bulunanlar kısmi sonuçtur.
+        kapsamTamam = false;
+        kotaDoldu = true;
+        break disDongu;
+      }
       istekSayisi++;
 
       for (const yer of yanit.yerler) {
@@ -93,5 +105,6 @@ export async function bolgeTara(p: TaramaParametreleri): Promise<TaramaSonucu> {
     istekSayisi,
     hucreSayisi,
     kapsamTamam,
+    kotaDoldu,
   };
 }

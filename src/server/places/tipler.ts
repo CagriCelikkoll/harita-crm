@@ -45,6 +45,22 @@ export interface PlacesIstemcisi {
   adresBul(metin: string): Promise<(LatLng & { adres?: string }) | null>;
 }
 
+/** Çalışma alanının aylık Places kotası dolu: istek YAPILMADI. */
+export class KotaDolduHatasi extends Error {
+  constructor() {
+    super("Bu ayki veri kotanız doldu.");
+    this.name = "KotaDolduHatasi";
+  }
+}
+
+/** Her Places isteğinden önce ayir(), istek yapılamazsa iade() çağrılır. */
+export type KotaKapisi = { ayir: () => boolean; iade: () => void };
+
+/** İstek öncesi kota kapısı: kota ayrılamazsa KotaDolduHatasi (istek yapılmaz). */
+export function kotaKontrol(kota: KotaKapisi | undefined) {
+  if (kota && !kota.ayir()) throw new KotaDolduHatasi();
+}
+
 export class PlacesHatasi extends Error {
   constructor(
     mesaj: string,

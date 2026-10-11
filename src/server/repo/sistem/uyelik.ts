@@ -4,6 +4,7 @@ import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import { invitations, memberships, tenants, user } from "../../db/schema";
 import { _baglamDamgala, type TenantContext } from "../baglam";
+import { varsayilanKota } from "./kota";
 
 export function kullaniciUyelikleri(userId: string) {
   return db
@@ -50,7 +51,7 @@ export function calismaAlaniKur(userId: string, ad: string): TenantContext {
       slug = `${temel}-${i}`;
     }
     const tenantId = crypto.randomUUID();
-    tx.insert(tenants).values({ id: tenantId, ad: ad.trim(), slug }).run();
+    tx.insert(tenants).values({ id: tenantId, ad: ad.trim(), slug, aylikPlacesKotasi: varsayilanKota() }).run();
     tx.insert(memberships).values({ userId, tenantId, rol: "yonetici" }).run();
     return _baglamDamgala({ tenantId, userId, rol: "yonetici" });
   });

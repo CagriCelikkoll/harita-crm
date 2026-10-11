@@ -11,7 +11,9 @@
 //   Adres arama             : places.location,places.formattedAddress  → Text Search Pro
 import { mockPlacesIstemcisi } from "./mock";
 import {
+  kotaKontrol,
   PlacesHatasi,
+  type KotaKapisi,
   type DetayKapsami,
   type MetinAramaIstegi,
   type MetinAramaYaniti,
@@ -47,7 +49,12 @@ type GooglePlace = {
 };
 
 export type IstemciSecenekleri = {
-  /** Her Places HTTP isteğinden sonra çağrılır (usage_counters / scans.istek_sayisi). */
+  /**
+   * Kiracının aylık kotası. Her istekten ÖNCE ayir() çağrılır; false ise istek yapılmaz ve
+   * KotaDolduHatasi fırlatılır. Ağ hatası veya reddedilen istekte iade() çağrılır.
+   */
+  kota?: KotaKapisi;
+  /** Yapılan her Places isteğinden sonra çağrılır (scans.istek_sayisi). */
   istekSayaci?: (adet: number) => void;
 };
 
@@ -56,10 +63,11 @@ export function placesIstemcisiOlustur(secenekler: IstemciSecenekleri = {}): Pla
   return gercekPlacesIstemcisi(secenekler);
 }
 
-function gercekPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri): PlacesIstemcisi {
+function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): PlacesIstemcisi {
   async function istek<T>(yol: string, alanMaskesi: string, govde?: object): Promise<T | null> {
     const anahtar = process.env.GOOGLE_PLACES_API_KEY;
     if (!anahtar) throw new PlacesHatasi("GOOGLE_PLACES_API_KEY tanımlı değil (veya PLACES_MOCK=true kullanın).");
+    kotaKontrol(kota); // kota yoksa istek YAPILMAZ
     let yanit: Response;
     try {
       yanit = await fetch(`${TABAN}${yol}`, {
@@ -74,11 +82,13 @@ function gercekPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri): PlacesIstem
         signal: AbortSignal.timeout(15_000),
       });
     } catch (hata) {
+      kota?.iade(); // istek Google'a ulaşmadı
       throw new PlacesHatasi(`Places API'ye ulaşılamadı: ${(hata as Error).message}`);
     }
     istekSayaci?.(1);
     if (yanit.status === 404) return null;
     if (!yanit.ok) {
+      kota?.iade(); // başarısız istek faturalanmaz
       const metin = (await yanit.text()).slice(0, 300);
       throw new PlacesHatasi(`Places API hatası (${yanit.status}): ${metin}`, yanit.status);
     }

@@ -9,6 +9,7 @@ import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
 import {
   ILETI_IZNI_ADLARI,
+  KOTA_DOLDU_MESAJI,
   KAYIT_DURUM_ADLARI,
   KAYIT_DURUMLARI,
   OLAY_TURU_ADLARI,
@@ -164,10 +165,12 @@ export function DetayPaneli(props: {
           )}
         </dl>
       ) : (
-        <p className="text-sm text-tehlike">
-          {canli?.durum === "bulunamadi"
-            ? "Bu işletme Google'da artık bulunmuyor."
-            : `İşletme bilgisi alınamadı${canli?.durum === "hata" ? `: ${canli.mesaj}` : "."}`}
+        <p role="alert" className="text-sm text-tehlike">
+          {canli?.durum === "kota"
+            ? `${KOTA_DOLDU_MESAJI} İşletme bilgileri (ad, adres, telefon) gösterilemiyor; aşağıdaki kendi verileriniz ve işlemler kullanılabilir.`
+            : canli?.durum === "bulunamadi"
+              ? "Bu işletme Google'da artık bulunmuyor."
+              : `İşletme bilgisi alınamadı${canli?.durum === "hata" ? `: ${canli.mesaj}` : "."}`}
         </p>
       )}
 

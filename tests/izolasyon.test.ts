@@ -42,7 +42,7 @@ beforeAll(() => {
   bOlay = olaylar.olayEkle(B, bKayit.id, "not", "B'nin olayı")!;
   bKayit = kayitlar.kayitGetir(B, bKayit.id)!; // olayEkle güncelleme tarihini değiştirir
   konumlar.konumlariKaydet(B, [{ placeId: B_PLACE, lat: 41.01, lng: 29.01 }]);
-  kullanim.placesIstegiSay(B, 7);
+  kullanim.kotaAyir(B, 7);
   bDavetId = calismaAlani.davetOlustur(B, { eposta: "davetli-b@ornek.test", rol: "uye" }).id;
 });
 
@@ -78,10 +78,6 @@ const taramaTestleri: Record<keyof typeof taramalar, () => void> = {
   taramaSil: () => {
     expect(taramalar.taramaSil(A, bTarama.id)).toBe(false);
     expect(taramalar.taramaGetir(B, bTarama.id)).not.toBeNull();
-  },
-  yarimKalmaSiniri: () => {
-    const simdi = new Date("2026-10-11T12:00:00Z");
-    expect(taramalar.yarimKalmaSiniri(simdi).toISOString()).toBe("2026-10-11T11:50:00.000Z");
   },
   yarimKalanTaramalariKapat: () => {
     // B'nin 11 dakikadır "calisiyor" kalan taraması A'nın çağrısından etkilenmez.
@@ -169,14 +165,28 @@ const kullanimTestleri: Record<keyof typeof kullanim, () => void> = {
   ayAnahtari: () => {
     expect(kullanim.ayAnahtari(new Date("2026-10-11T00:00:00Z"))).toBe("2026-10");
   },
-  placesIstegiSay: () => {
+  kotaAyir: () => {
+    // A'nın ayırdığı kota yalnızca A'nın sayacına yazılır.
     const once = kullanim.aylikPlacesIstegi(B);
-    kullanim.placesIstegiSay(A, 3);
+    expect(kullanim.kotaAyir(A, 3)).toBe(true);
+    expect(kullanim.aylikPlacesIstegi(B)).toBe(once);
+    kullanim.kotaIadeEt(A, 3);
+  },
+  kotaIadeEt: () => {
+    const once = kullanim.aylikPlacesIstegi(B);
+    kullanim.kotaIadeEt(A, 5);
     expect(kullanim.aylikPlacesIstegi(B)).toBe(once);
   },
   aylikPlacesIstegi: () => {
     expect(kullanim.aylikPlacesIstegi(B)).toBe(7);
-    expect(kullanim.aylikPlacesIstegi(A)).not.toBe(kullanim.aylikPlacesIstegi(A) + 7);
+    expect(kullanim.aylikPlacesIstegi(A)).toBe(0);
+  },
+  kotaDurumu: () => {
+    // A'nın kotası B'nin kullanımını görmez; kota A'nın kendi satırından okunur.
+    db.$client.prepare("update tenants set aylik_places_kotasi = 9 where id = ?").run(B.tenantId);
+    expect(kullanim.kotaDurumu(A)).toMatchObject({ kullanilan: 0, kota: 2000, doldu: false });
+    expect(kullanim.kotaDurumu(B)).toMatchObject({ kullanilan: 7, kota: 9, kalan: 2 });
+    db.$client.prepare("update tenants set aylik_places_kotasi = 2000 where id = ?").run(B.tenantId);
   },
 };
 

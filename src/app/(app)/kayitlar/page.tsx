@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { KotaCubugu } from "@/components/kota-cubugu";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import {
   ILETI_IZINLERI,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { etiketleriListele, kayitGetir, kayitlariListele, type KayitFiltresi } from "@/server/repo/kayitlar";
+import { kotaDurumu } from "@/server/repo/kullanim";
 import { canliBilgiGetir } from "@/server/servisler/canli-bilgi";
 import type { TabloSatiri } from "./kayit-tablosu";
 import { KayitlarEkrani } from "./kayitlar-ekrani";
@@ -39,7 +41,11 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
 
   // Görünen sayfadaki kayıtlar için yalnızca ad ve adres canlı çekilir (Place Details Pro, satır başına
   // bir istek); yalnızca bu isteğin belleğinde yaşar. Telefon/web sitesi yalnızca detay panelinde.
+  // Aylık kota doluysa Places çağrısı yapılmaz (her istekten önce de atomik olarak kontrol edilir);
+  // kullanıcının kendi verisi (durum, ileti izni, etiketler, yetkili) yine gösterilir.
   const canli = await canliBilgiGetir(ctx, liste.kayitlar.map((k) => k.placeId), "liste");
+  const kotaEtkiledi = [...canli.values()].some((c) => c.durum === "kota");
+  const kota = kotaDurumu(ctx);
   const satirlar: TabloSatiri[] = liste.kayitlar.map((k) => {
     const c = canli.get(k.placeId);
     return {
@@ -52,7 +58,14 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
       canli:
         c?.durum === "tamam"
           ? { ad: c.yer.ad, adres: c.yer.adres ?? null }
-          : { hata: c?.durum === "bulunamadi" ? "Google'da artık bulunmuyor" : "Bilgi alınamadı" },
+          : {
+              hata:
+                c?.durum === "kota"
+                  ? "İşletme bilgisi gösterilemiyor (kota doldu)"
+                  : c?.durum === "bulunamadi"
+                    ? "Google'da artık bulunmuyor"
+                    : "Bilgi alınamadı",
+            },
     };
   });
 
@@ -74,6 +87,12 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
           CSV dışa aktar
         </a>
       </SayfaBasligi>
+
+      {(kota.doldu || kotaEtkiledi || kota.uyari) && (
+        <section className={`kart mb-4 ${kota.doldu || kotaEtkiledi ? "border-tehlike/40 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
+          <KotaCubugu durum={kota} aciklama={false} />
+        </section>
+      )}
 
       <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto]">
         <label className="etiket">

@@ -14,6 +14,7 @@ import {
   OLAY_TURLERI,
   ROLLER,
   TARAMA_DURUMLARI,
+  VARSAYILAN_AYLIK_PLACES_KOTASI,
 } from "../../lib/sabitler";
 
 export * from "./auth-schema";
@@ -28,6 +29,9 @@ export const tenants = sqliteTable("tenants", {
   slug: text("slug").notNull().unique(),
   // Kullanıcı verisinin (kayıtlar ve olaylar) saklama süresi; null = süresiz.
   veriSaklamaGun: integer("veri_saklama_gun"),
+  // Aylık Places isteği üst sınırı (maliyet koruması). Yeni alanlar PLACES_AYLIK_KOTA ortam değişkeninden
+  // (yoksa 2.000) başlar; değiştirmek için: npm run kota -- <slug> <sayı>
+  aylikPlacesKotasi: integer("aylik_places_kotasi").notNull().default(VARSAYILAN_AYLIK_PLACES_KOTASI),
   olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
 });
 
@@ -74,10 +78,9 @@ export const scans = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     olusturan: text("olusturan").references(() => user.id, { onDelete: "set null" }),
-    // Merkezin kaynağı:
-    //  'harita' = kullanıcının haritaya tıklayarak / elle girdiği nokta → kullanıcı verisi, saklanır.
-    //  'adres'  = adres aramasıyla (Places) bulunan nokta → Google içeriği; 30 gün sonra merkez_lat/lng
-    //             null yapılır (scripts/cleanup.ts). adres_metni ve yarıçap kalır, tarama yeniden çalıştırılabilir.
+    // Merkezin kaynağı (yalnızca bilgi amaçlı): 'harita' = haritaya tıklama / elle giriş, 'adres' = adres araması.
+    // Kaynaktan BAĞIMSIZ olarak merkez_lat/lng 30 gün sonra null yapılır (scripts/cleanup.ts);
+    // adres_metni ve yarıçap kalır, tarama "Tekrar kullan" ile yeniden çalıştırılabilir.
     merkezKaynagi: text("merkez_kaynagi", { enum: MERKEZ_KAYNAKLARI }).notNull().default("harita"),
     merkezLat: real("merkez_lat"),
     merkezLng: real("merkez_lng"),

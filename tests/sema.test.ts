@@ -11,7 +11,7 @@ function sutunlar(tablo: string): string[] {
 }
 
 const BEYAZ_LISTE: Record<string, string[]> = {
-  tenants: ["id", "ad", "slug", "veri_saklama_gun", "olusturma_tarihi"], // ad = çalışma alanı adı
+  tenants: ["id", "ad", "slug", "veri_saklama_gun", "aylik_places_kotasi", "olusturma_tarihi"], // ad = çalışma alanı adı
   memberships: ["user_id", "tenant_id", "rol", "olusturma_tarihi"],
   invitations: ["id", "tenant_id", "eposta", "rol", "token", "davet_eden", "son_gecerlilik", "kabul_tarihi", "olusturma_tarihi"],
   scans: [

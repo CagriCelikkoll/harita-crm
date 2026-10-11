@@ -11,28 +11,41 @@ const yaslandir = (tablo: string, sutun: string, gun: number, kosul: string, ...
   db.$client.prepare(`update ${tablo} set ${sutun} = ? where ${kosul}`).run(Date.now() - gun * GUN, ...p);
 
 describe("temizlik", () => {
-  it("adres kaynaklı tarama merkezi 30 gün sonra silinir; adres metni ve yarıçap kalır", () => {
+  it("kaynağı ne olursa olsun tüm tarama merkezleri 30 gün sonra silinir; adres metni, yarıçap ve kaynak kalır", () => {
     const { ctx } = kiraciOlustur("Temiz");
     const girdi = { merkezLat: 41.01, merkezLng: 29.02, yaricapM: 3000, kategori: "kafe" };
     const eskiAdres = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "adres", adresMetni: "Bağdat Caddesi" });
+    const eskiHarita = taramaOlustur(ctx, { ...girdi, yaricapM: 1500, merkezKaynagi: "harita" });
     const yeniAdres = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "adres", adresMetni: "Moda" });
-    const eskiHarita = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "harita" });
+    const yeniHarita = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "harita" });
     yaslandir("scans", "olusturma_tarihi", 31, "id in (?, ?)", eskiAdres.id, eskiHarita.id);
-    yaslandir("scans", "olusturma_tarihi", 10, "id = ?", yeniAdres.id);
+    yaslandir("scans", "olusturma_tarihi", 10, "id in (?, ?)", yeniAdres.id, yeniHarita.id);
 
-    const sonuc = temizlikYap();
-    expect(sonuc.temizlenenMerkez).toBe(1);
+    expect(temizlikYap().temizlenenMerkez).toBe(2);
 
-    const e = taramaGetir(ctx, eskiAdres.id)!;
-    expect([e.merkezLat, e.merkezLng]).toEqual([null, null]);
-    expect(e.adresMetni).toBe("Bağdat Caddesi");
-    expect(e.yaricapM).toBe(3000);
-    expect(e.merkezKaynagi).toBe("adres");
+    const a = taramaGetir(ctx, eskiAdres.id)!;
+    expect([a.merkezLat, a.merkezLng]).toEqual([null, null]);
+    expect(a).toMatchObject({ adresMetni: "Bağdat Caddesi", yaricapM: 3000, merkezKaynagi: "adres" });
+
+    const h = taramaGetir(ctx, eskiHarita.id)!;
+    expect([h.merkezLat, h.merkezLng]).toEqual([null, null]); // haritadan seçilen nokta da silinir
+    expect(h).toMatchObject({ adresMetni: null, yaricapM: 1500, merkezKaynagi: "harita" });
 
     expect(taramaGetir(ctx, yeniAdres.id)!.merkezLat).toBe(41.01); // 30 gün dolmadı
-    expect(taramaGetir(ctx, eskiHarita.id)!.merkezLat).toBe(41.01); // kullanıcı verisi: kalır
+    expect(taramaGetir(ctx, yeniHarita.id)!.merkezLat).toBe(41.01);
 
     expect(temizlikYap().temizlenenMerkez).toBe(0); // ikinci çalıştırma bir şey yapmaz
+  });
+
+  it("merkezi silinmiş tarama çalıştırılamaz, açık bir mesajla hata olur", async () => {
+    const { ctx } = kiraciOlustur("Silinmis");
+    const t = taramaOlustur(ctx, { merkezLat: 41, merkezLng: 29, yaricapM: 1000, kategori: "kafe" });
+    db.$client.prepare("update scans set merkez_lat = null, merkez_lng = null where id = ?").run(t.id);
+    const { taramaCalistir } = await import("@/server/servisler/tarama");
+    const sonuc = await taramaCalistir(ctx, t.id);
+    expect(sonuc?.durum).toBe("hata");
+    expect(sonuc?.hataMesaji).toMatch(/Tekrar kullan/);
+    expect(sonuc?.istekSayisi).toBe(0); // Places'a gidilmedi
   });
 
   it("haritadan seçilen merkezde adres metni saklanmaz", () => {

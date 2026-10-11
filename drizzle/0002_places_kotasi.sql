@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `aylik_places_kotasi` integer DEFAULT 2000 NOT NULL;

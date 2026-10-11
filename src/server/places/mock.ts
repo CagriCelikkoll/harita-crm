@@ -3,7 +3,7 @@
 // - Konum yalnızca istenirse döner.
 // Sahte işletmeler sabit bir enlem/boylam ızgarasına deterministik olarak yerleştirilir.
 import type { IstemciSecenekleri } from "./istemci";
-import type { LatLng, MetinAramaIstegi, PlacesIstemcisi, YerBilgisi } from "./tipler";
+import { kotaKontrol, type LatLng, type MetinAramaIstegi, type PlacesIstemcisi, type YerBilgisi } from "./tipler";
 
 const ADIM = 0.004; // ≈ 445 m enlem
 const YOGUNLUK = 0.35; // ızgara noktalarının ne kadarında işletme var
@@ -47,11 +47,12 @@ const TUR_ADI: Record<string, string> = {
 };
 const ISIMLER = ["Yıldız", "Deniz", "Güneş", "Mavi", "Ege", "Anadolu", "Çınar", "Lale", "Pera", "Kordon", "Liman", "Bora"];
 
-export function mockPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri = {}): PlacesIstemcisi {
+export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = {}): PlacesIstemcisi {
   const gecikme = () => new Promise((r) => setTimeout(r, Number(process.env.PLACES_MOCK_GECIKME_MS ?? 120)));
 
   return {
     async metinAra(istek: MetinAramaIstegi) {
+      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       const { alan, tur } = istek;
@@ -76,6 +77,7 @@ export function mockPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri = {}): P
     },
 
     async yerDetayi(placeId: string, kapsam): Promise<YerBilgisi | null> {
+      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       const c = idCoz(placeId);
@@ -86,6 +88,7 @@ export function mockPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri = {}): P
     },
 
     async adresBul(metin: string) {
+      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       // Kadıköy çevresinde metne göre küçük bir sapma.

@@ -1,8 +1,9 @@
-import { and, desc, eq, lt } from "drizzle-orm";
-import { YARIM_KALAN_TARAMA_DAKIKA, YARIM_KALDI_MESAJI, type MerkezKaynagi } from "@/lib/sabitler";
+import { and, desc, eq } from "drizzle-orm";
+import { YARIM_KALDI_MESAJI, type MerkezKaynagi } from "@/lib/sabitler";
 import { db } from "../db";
 import { scans, type Tarama } from "../db/schema";
 import type { TenantContext } from "./baglam";
+import { yarimKalanKosulu } from "./sistem/tarama-kosulu";
 
 export type { Tarama };
 
@@ -36,21 +37,16 @@ export function taramaOlustur(
     .get();
 }
 
-/** Uzun süredir "calisiyor" durumunda kalan taramaların sınır zamanı. */
-export const yarimKalmaSiniri = (simdi = new Date()) =>
-  new Date(simdi.getTime() - YARIM_KALAN_TARAMA_DAKIKA * 60 * 1000);
-
 /**
- * Bu kiracının, 10 dakikadan uzun süredir "calisiyor" durumunda kalan taramalarını "hata" yapar
- * (uygulama tarama sırasında kapandıysa). Tarama listesi yüklenmeden önce çağrılır. Etkilenen sayı döner.
+ * Bu kiracının yarıda kalmış taramalarını "hata" yapar: 10 dakikadan uzun süredir "calisiyor"
+ * (süreç kapandı) veya "kuyrukta" (çalıştırma isteği gelmedi) olanlar. Tarama listesi yüklenmeden
+ * önce çağrılır. Etkilenen sayı döner.
  */
 export function yarimKalanTaramalariKapat(ctx: TenantContext, simdi = new Date()): number {
   return db
     .update(scans)
     .set({ durum: "hata", hataMesaji: YARIM_KALDI_MESAJI, tamamlanmaTarihi: simdi })
-    .where(
-      and(eq(scans.tenantId, ctx.tenantId), eq(scans.durum, "calisiyor"), lt(scans.baslamaTarihi, yarimKalmaSiniri(simdi))),
-    )
+    .where(and(eq(scans.tenantId, ctx.tenantId), yarimKalanKosulu(simdi)))
     .returning({ id: scans.id })
     .all().length;
 }

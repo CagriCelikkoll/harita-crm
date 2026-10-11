@@ -38,6 +38,7 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `GOOGLE_PLACES_API_KEY` | Gerçek veri için | Google Cloud Console → *APIs & Services* → *Credentials* → *Create API key*. **Places API (New)** etkin olmalı. Anahtarı *API restrictions* ile yalnızca "Places API (New)"a, *Application restrictions* ile sunucunuzun IP adresine kısıtlayın. Projede faturalandırma açık olmalı. |
 | `PLACES_MOCK` | Hayır | `true` = örnek veri, Places'a istek yok. Gerçek kullanımda `false`. |
 | `SCAN_MAX_REQUESTS` | Hayır | Tarama başına en fazla Places isteği (varsayılan 50). |
+| `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places isteği kotası (varsayılan 2.000). Mevcut alanlar için `npm run kota`. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Harita için | **Ayrı** bir anahtar oluşturun: yalnızca **Maps JavaScript API**'ye ve *HTTP referrers* ile alan adınıza (`https://crm.ornek.com/*`, geliştirmede `http://localhost:3000/*`) kısıtlayın. Bu anahtar tarayıcıya gider; Places anahtarı gitmez. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Hayır | Gelişmiş işaretçiler için Map ID (Cloud Console → *Map Management*). Boşsa `DEMO_MAP_ID`. |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
@@ -68,7 +69,7 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 ```bash
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
-npm test               # Vitest (8 dosya)
+npm test               # Vitest (9 dosya)
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -81,10 +82,11 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/tarama-motoru.test.ts` | Hücre geometrisi, doymuş hücrenin bölünmesi, `place_id` tekilleştirme, daire dışı sonuçların elenmesi, iç hücrelerde konum istenmemesi, istek bütçesi, 60 sonuç sınırında kapsam uyarısı. |
 | `tests/sema.test.ts` | `leads` tablosunda Places içeriği tutan sütun olmadığı; tüm uygulama sütunlarının beyaz listede olduğu (yeni sütun bilinçli inceleme gerektirir); Places konumunun yalnızca tarihli `place_locations`'ta tutulduğu. |
 | `tests/mesajlasma.test.ts` | 2. aşama iskeleti: ret işaretliler her zaman hariç, sandbox gerçek gönderim yapmaz. |
-| `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
-| `tests/temizlik.test.ts` | Adres kaynaklı tarama merkezinin 30 gün sonra silinip adres metni ve yarıçapın kalması; haritadan seçilen merkezin kalması; 30 günden eski Places konumlarının silinmesi. |
+| `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" veya "kuyrukta" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
+| `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
 | `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
 | `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
+| `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı istekte tam 25 (kota) başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -113,12 +115,12 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
   Ekranda gösterileceği an sunucuda Place Details ile çekilir ve yalnızca o isteğin belleğinde yaşar.
 - **Konum (30 gün):** Places'tan gelen enlem/boylam yalnızca `place_locations` tablosunda `alinma_tarihi` ile tutulur.
   Okurken 30 günden eskiler yok sayılır; `npm run cleanup` fiziksel olarak siler.
-- **Tarama merkezi:** `scans.merkez_kaynagi` merkezin nereden geldiğini işaretler.
-  - `harita`: kullanıcının haritaya tıklayarak (veya elle enlem/boylam girerek) seçtiği nokta → kullanıcı verisi, saklanır.
-  - `adres`: adres aramasıyla (Places Text Search) bulunan nokta → Google içeriği. `npm run cleanup` 30 gün sonra
-    `merkez_lat/lng`'yi siler; kullanıcının yazdığı `adres_metni` ve yarıçap kalır. Geçmişteki "Tekrar kullan"
-    düğmesi koordinat silinmişse adresi yeniden arar, böylece tarama yeniden çalıştırılabilir.
-  - Kaynağı istemci bildirir (arayüz adres aramasından sonra `adres`, haritaya tıklayınca `harita` gönderir).
+- **Tarama merkezi (30 gün):** Merkez koordinatları (`scans.merkez_lat/lng`), **kaynağı ne olursa olsun**
+  `npm run cleanup` ile 30 gün sonra silinir. Kullanıcının yazdığı `adres_metni` ve yarıçap kalır.
+  `merkez_kaynagi` (`harita` = haritaya tıklama / elle giriş, `adres` = adres araması) yalnızca bilgi amaçlıdır;
+  istemcinin bildirdiği bu değere hiçbir saklama kararı bağlı değildir. Geçmişteki "Tekrar kullan" düğmesi,
+  koordinat silinmişse adres metni varsa adresi yeniden arar, yoksa haritada yeni bir nokta seçtirir
+  (nokta seçilene kadar "Taramayı başlat" kapalıdır).
 - **Atıf:** Places içeriği gösterilen ekranlarda "Google Maps" atfı (`src/components/google-atfi.tsx`) ve her kayıtta
   `googleMapsUri` bağlantısı ("Google Haritalar'da aç") vardır. Harita olarak yalnızca Google Maps JavaScript API.
 - **CSV:** Yalnızca kullanıcının kendi verisi: `place_id, durum, ileti_izni, yetkili_adi, eposta, ek_telefon,
@@ -181,31 +183,46 @@ Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır En
 - **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
   (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
 - Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
-- Panelde "Bu ay Places isteği" sayacı tüm bu istekleri gösterir.
+- Panelde ve Ayarlar'da "Bu ayki Places kullanımı" çubuğu tüm bu istekleri kotayla birlikte gösterir.
+
+## Aylık Places kotası (kiracı başına)
+
+Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Places isteği kotası vardır
+(`tenants.aylik_places_kotasi`).
+
+- **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **2.000**) başlar. Mevcut
+  satırlar migration ile 2.000 aldı.
+- **Değiştirmek:** Şimdilik yönetici arayüzü yok; sunucuda:
+  ```bash
+  npm run kota -- <tenant-slug> <sayi>      # ör. npm run kota -- ege-satis-ekibi 5000
+  ```
+  Slug, Ayarlar sayfasındaki komut örneğinde görünür.
+- **Kontrol:** Her Places isteğinden **önce** 1 birim ayrılır (tarama, liste, detay, adres araması). Kota yetmezse
+  istek hiç yapılmaz.
+  - **Tarama:** Kota dolduğunda tarama, bütçe bittiğindeki "kısmi tarama" mantığıyla durur. O ana kadar bulunanlar
+    kaydedilir; tarama "tamamlandı (kısmi)" olur ve "Bu ayki veri kotanız doldu." mesajı gösterilir.
+  - **Liste ve detay:** Places çağrısı yapılmaz; kullanıcının kendi verisi (durum, ileti izni, etiketler, notlar,
+    iletişim bilgileri, etkinlikler) görünmeye devam eder ve "Bu ayki veri kotanız doldu" uyarısı çıkar.
+  - **Adres araması:** 429 ve aynı uyarı.
+- **Uyarı:** Panel ve Ayarlar'daki kullanım çubuğu %80'de sarı uyarı, %100'de kırmızı "kota doldu" gösterir.
+  Kayıtlar sayfası da uyarı eşiği aşıldığında çubuğu gösterir.
+- **Atomiklik:** Kontrol ve artırma tek bir SQL ifadesidir
+  (`INSERT … ON CONFLICT DO UPDATE … WHERE kullanilan + adet <= kota … RETURNING`). SQLite her ifadeyi atomik
+  yürüttüğü için aynı süreçteki eşzamanlı istekler ve ayrı süreçler kotayı aşamaz (`tests/kota.test.ts` 4 ayrı
+  süreçle sınar).
+- **İade:** Ağ hatası veya Google'ın reddettiği (404 dışı hata) istekte ayrılan birim geri verilir; Google başarısız
+  isteği faturalamaz.
+- Kota ay başında (UTC) sıfırlanır: sayaç `usage_counters (tenant_id, ay)` satırındadır.
 
 ## Zamanlanmış temizlik (`npm run cleanup`)
 
 `scripts/cleanup.ts` günde bir kez çalışmalıdır:
 
 - 30 günden eski Places konumlarını (`place_locations`) siler (Google kuralı).
-- `merkez_kaynagi = 'adres'` olan ve 30 günden eski taramaların `merkez_lat/lng` değerlerini siler; adres metni
-  ve yarıçap kalır.
+- 30 günden eski **tüm** taramaların merkez koordinatlarını (`merkez_lat/lng`) siler; adres metni ve yarıçap kalır.
 - Çalışma alanında "veri saklama süresi" ayarlıysa o süredir güncellenmeyen kayıtları ve olaylarını siler.
 - Süresi dolmuş, kabul edilmemiş davetleri siler.
-- 10 dakikadan uzun süredir "calisiyor" kalan taramaları "hata" yapar (aşağıya bakın).
-
-## Yarıda kalan taramalar
-
-Tarama 1. aşamada istek içinde senkron çalışır. Süreç tarama sırasında kapanırsa tarama "calisiyor"da kalırdı.
-Bu yüzden 10 dakikadan uzun süredir "calisiyor" olan taramalar `durum = 'hata'`, `hata_mesaji = "Tarama yarıda
-kaldı, yeniden başlatın."` yapılır:
-
-- **Uygulama başlarken** (`src/instrumentation.ts` → tüm kiracılar),
-- **Tarama listesi yüklenirken** (Bölge taraması ve Panel sayfaları → yalnızca o kiracı),
-- `npm run cleanup` sırasında.
-
-Süre `scans.baslama_tarihi`'nden ("calisiyor"a geçiş anı) ölçülür. Mesaj tarama geçmişinde ve panelde görünür;
-"Tekrar kullan" düğmesi ayarları forma alır.
+- Yarıda kalmış taramaları "hata" yapar (aşağıya bakın).
 
 **Linux (cron):** `crontab -e` ile her gece 03:30'da:
 
@@ -215,6 +232,24 @@ Süre `scans.baslama_tarihi`'nden ("calisiyor"a geçiş anı) ölçülür. Mesaj
 
 **systemd timer** veya **Windows Görev Zamanlayıcı** da kullanılabilir (komut: `npm run cleanup`, çalışma dizini:
 proje klasörü, `DATABASE_PATH` ortam değişkeniyle).
+
+## Yarıda kalan taramalar
+
+Tarama 1. aşamada istek içinde senkron çalışır. Bu yüzden aşağıdaki taramalar `durum = 'hata'`,
+`hata_mesaji = "Tarama yarıda kaldı, yeniden başlatın."` yapılır:
+
+- 10 dakikadan uzun süredir **"calisiyor"** olanlar (süreç tarama sırasında kapanmış); süre `scans.baslama_tarihi`'nden
+  ölçülür,
+- 10 dakikadan uzun süredir **"kuyrukta"** olanlar (çalıştırma isteği hiç gelmemiş, ör. sekme kapanmış); süre
+  `scans.olusturma_tarihi`'nden ölçülür. Bu taramalar Places'a hiç gitmemiştir.
+
+Kontrol şu anlarda yapılır:
+
+- **Uygulama başlarken** (`src/instrumentation.ts` → tüm kiracılar),
+- **Tarama listesi yüklenirken** (Bölge taraması ve Panel sayfaları → yalnızca o kiracı),
+- `npm run cleanup` sırasında.
+
+Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarları forma alır.
 
 ## Barındırma
 
@@ -266,7 +301,8 @@ kuyruğu ve "İletişim" ekranı 2. aşamada yapılacaktır.
 
 ```
 drizzle/                         migration SQL'leri (drizzle-kit)
-scripts/migrate.ts, cleanup.ts   migration ve günlük temizlik
+scripts/migrate.ts, cleanup.ts,  migration, günlük temizlik,
+  kota.ts                        kota değiştirme
 src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kontrol sunucuda)
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
@@ -288,9 +324,10 @@ tests/                           Vitest
 
 - **Liste maliyeti:** Telefon ve web sitesi listeden kaldırıldı; liste yalnızca ad + adres (Place Details Pro),
   detay paneli Enterprise alanlarını ayrı çağrıyla çeker. Ayrıntı ve maliyet yukarıda.
-- **Adres araması:** Adresten bulunan merkez Google içeriği sayılır (`merkez_kaynagi = 'adres'`, 30 gün sonra
-  koordinatlar silinir); haritadan seçilen nokta kullanıcı verisidir.
-- **Yarıda kalan taramalar:** 10 dakika kuralı (yukarıda).
+- **Tarama merkezi:** İmzalı belirteç yerine, kaynağı ne olursa olsun tüm merkez koordinatları 30 gün sonra
+  silinir; `merkez_kaynagi` bilgi amaçlı kalır.
+- **Yarıda kalan taramalar:** 10 dakika kuralı hem "calisiyor" hem "kuyrukta" için (yukarıda).
+- **Aylık Places kotası:** kiracı başına, atomik; yönetici arayüzü yok, `npm run kota` (yukarıda).
 - **Next.js önbelleği:** `cacheComponents`/`partialPrefetching` kapalı; tüm sayfalar oturuma bağlı ve canlı Places
   verisi gösterdiği için klasik dinamik render.
 - **lead_events.sistem** sütunu ve `(tenant_id, lead_id)` bileşik yabancı anahtarı.
@@ -299,12 +336,11 @@ tests/                           Vitest
 
 1. **E-posta gönderimi:** Davetler için `Postaci` arayüzü var; şimdilik yalnızca konsol adaptörü (davet bağlantısı
    Ayarlar'da gösterilir). Gerçek SMTP/sağlayıcı ve e-posta doğrulaması (Better Auth `emailVerification`) sonraya.
-2. **Merkez kaynağına güven:** `merkez_kaynagi`'nı istemci bildirir. Kötü niyetli bir kullanıcı adres sonucunu
-   `harita` olarak gönderip 30 gün kuralından kaçırabilir. Sunucu tarafı doğrulama gerekirse adres aramasının
-   sonucunu kısa süreli imzalı bir belirteçle döndürüp tarama oluştururken kontrol etmek mümkün.
-3. **"kuyrukta" kalan taramalar:** Tarayıcı, oluşturma ile çalıştırma isteği arasında kapanırsa tarama "kuyrukta"
-   kalır (Places isteği yapılmamıştır). 10 dakika kuralı şimdilik yalnızca "calisiyor" için; istenirse aynı kural
-   "kuyrukta"ya da uygulanabilir.
+2. **Kota yönetimi:** Kota yalnızca komut satırından değişir; yönetici arayüzü ve kota dolmadan önce e-posta
+   uyarısı (2. aşamadaki gönderim altyapısıyla) sonraya. Kota aylık ve UTC'ye göre sıfırlanır; Türkiye saatiyle
+   ayın ilk 3 saati önceki aya sayılır.
+3. **Kota birimi:** Kota, SKU'dan bağımsız olarak istek sayısıdır (ücretsiz IDs Only tarama isteği de 1 sayılır).
+   Maliyete göre ağırlıklı kota (ör. Enterprise = 2 birim) istenirse `kotaAyir(ctx, adet)` zaten adet alır.
 4. **Kategori listesi:** `src/lib/kategoriler.ts` içinde 12 kategori (Places Table A türleri). Hedef sektörlere göre
    genişletilmeli.
 5. **Tarama yürütme:** Tarama hâlâ istek içinde senkron çalışır; yüksek bütçeli taramalar için iş kuyruğu gerekecek.

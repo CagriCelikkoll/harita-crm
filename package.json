@@ -12,7 +12,8 @@
     "test:izle": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "cleanup": "tsx scripts/cleanup.ts"
+    "cleanup": "tsx scripts/cleanup.ts",
+    "kota": "tsx scripts/kota.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
