@@ -7,7 +7,9 @@ import { PLACES_KONUM_SAKLAMA_GUN, ROL_ADLARI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { calismaAlaniGetir, davetleriListele, uyeleriListele } from "@/server/repo/calisma-alani";
 import { kotaDurumu } from "@/server/repo/kullanim";
+import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import { davetiIptalEt } from "./eylemler";
+import { MesajlasmaAyarlari } from "./mesajlasma-ayarlari";
 import { AlanFormu, DavetFormu, UyeCikarFormu } from "./formlar";
 
 export const metadata: Metadata = { title: "Ayarlar" };
@@ -74,6 +76,8 @@ export default async function AyarlarSayfasi() {
             </p>
           </div>
         </section>
+
+        <MesajlasmaAyarlari ilk={mesajlasmaAyarlariDto(ctx)} yonetici={yonetici} slug={alan.slug} />
 
         <section className="kart">
           <h2 className="mb-3 font-semibold">Üyeler</h2>

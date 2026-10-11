@@ -4,8 +4,11 @@ declare const marka: unique symbol;
 
 /**
  * Oturumdan doğrulanmış kiracı bağlamı. Markalı tiptir: düz bir nesne literal'i TenantContext
- * yerine geçemez. Yalnızca repo/sistem/uyelik.ts içindeki baglamUret() (oturum + memberships
- * kontrolünden sonra) ve testler üretir. İstemciden gelen tenant_id'ye asla güvenilmez.
+ * yerine geçemez. Kullanıcı istekleri için yalnızca repo/sistem/uyelik.ts içindeki baglamUret()
+ * (oturum + memberships kontrolünden sonra) üretir. İstemciden gelen tenant_id'ye asla güvenilmez.
+ * Kullanıcısız sistem akışları da kendi doğrulamalarından sonra repo/sistem/ içinde üretir:
+ * işçi (kuyruk satırının kiracısı, isci.ts) ve abonelikten çıkma / SMS ret (imzalı belirteç ya da
+ * anahtar, abonelik.ts). Bu bağlamların userId'si kampanyayı oluşturan kullanıcı ya da "" olur.
  */
 export type TenantContext = Readonly<{ tenantId: string; userId: string; rol: Rol }> & {
   readonly [marka]: true;

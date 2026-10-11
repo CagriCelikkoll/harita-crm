@@ -3,7 +3,7 @@ export type ApiSonucu<T> = { ok: true; veri: T } | { ok: false; durum: number; h
 
 export async function apiIstek<T = unknown>(
   url: string,
-  secenek: { method?: "GET" | "POST" | "PATCH" | "DELETE"; govde?: unknown; sinyal?: AbortSignal } = {},
+  secenek: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; govde?: unknown; sinyal?: AbortSignal } = {},
 ): Promise<ApiSonucu<T>> {
   let yanit: Response;
   try {

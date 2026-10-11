@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
+import { ALICI_TURLERI, ALICI_TURU_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
 import {
   ILETI_IZNI_ADLARI,
   KOTA_DOLDU_MESAJI,
@@ -125,7 +126,7 @@ export function DetayPaneli(props: {
     <aside className="kart flex flex-col gap-4 xl:sticky xl:top-5" aria-label="Kayıt detayı" id="kayit-detayi">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">{yer?.ad ?? "İşletme bilgisi alınamadı"}</h2>
+          <h2 className="text-lg font-semibold">{yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı"}</h2>
           {yer?.adres && <p className="text-sm text-soluk">{yer.adres}</p>}
         </div>
         <button type="button" className="dugme shrink-0" onClick={props.onKapat}>
@@ -287,6 +288,8 @@ export function DetayPaneli(props: {
             void guncelle(
               "bilgi",
               {
+                isletmeAdi: al("isletmeAdi"),
+                aliciTuru: al("aliciTuru") as AliciTuru,
                 yetkiliAdi: al("yetkiliAdi"),
                 eposta: al("eposta"),
                 ekTelefon: al("ekTelefon"),
@@ -301,9 +304,32 @@ export function DetayPaneli(props: {
           }}
         >
           <label className="etiket">
-            Yetkili adı
-            <input name="yetkiliAdi" defaultValue={kayit.yetkiliAdi ?? ""} maxLength={120} className="girdi" />
+            İşletme adı (sizin kaydınız)
+            <input name="isletmeAdi" defaultValue={kayit.isletmeAdi ?? ""} maxLength={160} className="girdi" />
+            <span className="text-xs font-normal text-soluk">
+              Kampanya mesajlarındaki {"{isletme}"} yalnızca bu alandan dolar; Google&apos;dan gelen ad mesajlara
+              eklenmez.
+            </span>
           </label>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className="etiket">
+              Yetkili adı
+              <input name="yetkiliAdi" defaultValue={kayit.yetkiliAdi ?? ""} maxLength={120} className="girdi" />
+            </label>
+            <label className="etiket">
+              Alıcı türü
+              <select name="aliciTuru" defaultValue={kayit.aliciTuru} className="girdi">
+                {ALICI_TURLERI.map((t) => (
+                  <option key={t} value={t}>
+                    {ALICI_TURU_ADLARI[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli" && (
+            <p className="text-xs text-soluk">Bireysel kayıtlara yalnızca ileti izni &quot;Onaylı&quot; ise gönderim yapılır.</p>
+          )}
           <div className="grid gap-2.5 sm:grid-cols-2">
             <label className="etiket">
               E-posta

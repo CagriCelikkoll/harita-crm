@@ -1,50 +1,63 @@
-// 2. AŞAMA İÇİN İSKELET — 1. aşamada arayüze bağlı değildir.
+// Mesaj sağlayıcısı arayüzü. TÜM gönderimler bir MessageProvider üzerinden yapılır.
 //
-// Toplu SMS / e-posta gönderimi bu arayüz üzerinden yapılacak:
-//  - Gönderim yalnızca MessageProvider uygulamaları üzerinden yapılır; ilk adaptör "sandbox"
-//    (gerçek gönderim yok, yalnızca kaydeder).
-//  - İleti reddi (ileti_izni = 'ret') işaretli kayıtlar HER ZAMAN hariç tutulur: uygunAlicilar().
-//  - Her iletiye ret seçeneği eklenir; e-postada tek tıkla abonelikten çıkma bağlantısı olur
-//    (aboneliktenCikmaBaglantisi alanı zorunlu tutulmuştur).
-//  - Her gönderim lead_events'e "sms" / "eposta" olarak yazılacak.
-import type { IletiIzni } from "@/lib/sabitler";
+// - Her kanal için varsayılan "sandbox"tır: gerçek gönderim yapmaz, iletiyi kaydeder (işçi metni kuyruk
+//   satırına yazar). Gerçek adaptör (SMTP, Netgsm) yalnızca çalışma alanı kendi sağlayıcı bilgilerini
+//   girdiğinde devreye girer: servisler/saglayici.ts → saglayiciAl().
+// - Abonelikten çıkma / ret bağlantısı zorunludur: bağlantısız ileti gönderilmez.
+// - Alıcı kuralları (ret, engel listesi, bireysel + izinsiz) gönderimden hemen önce işçide uygulanır:
+//   messaging/alici-kurallari.ts → aliciDegerlendir().
+import "server-only";
+import type { AliciTuru, Kanal } from "@/lib/mesajlasma";
 
-export type Kanal = "sms" | "eposta";
+export type { Kanal };
 
 export type Ileti = {
   kanal: Kanal;
-  kayitId: string;
-  alici: string; // telefon veya e-posta
+  /** Normalleştirilmiş adres: e-posta ya da 90XXXXXXXXXX. */
+  alici: string;
   konu?: string;
-  govde: string;
-  /** Tek tıkla abonelikten çıkma / ret bağlantısı. Zorunlu: bağlantısız ileti gönderilemez. */
+  /** Düz metin gövde; altbilgi (gönderen, ret yolu) dahil. */
+  metin: string;
+  html?: string;
+  gonderenAdi?: string;
+  basliklar?: Record<string, string>;
+  /** Tek tıkla abonelikten çıkma / ret bağlantısı. Zorunlu. */
   aboneliktenCikmaBaglantisi: string;
+  /** SMS'te İYS süzgeci (tacir / bireysel) için. */
+  aliciTuru: AliciTuru;
 };
 
-export type GonderimSonucu = { kayitId: string; durum: "gonderildi" | "kaydedildi" | "hata"; saglayiciKimligi?: string; hata?: string };
+export type GonderimSonucu =
+  | { durum: "gonderildi"; saglayiciKimligi?: string }
+  /** İletinin GİTMEDİĞİ kesin olan geçici hata (bağlantı kurulamadı, SMTP 4xx…): sınırlı yeniden deneme. */
+  | { durum: "gecici_hata"; hata: string }
+  /**
+   * Kalıcı hata: yeniden denenmez. ret: alıcı İYS'de ret vermiş. belirsiz: iletinin gidip gitmediği
+   * bilinmiyor (bağlantı yarıda kesildi) — günlük sınırdan düşülmez.
+   */
+  | { durum: "kalici_hata"; hata: string; ret?: boolean; belirsiz?: boolean };
 
 export interface MessageProvider {
   readonly ad: string;
-  readonly kanallar: readonly Kanal[];
+  readonly kanal: Kanal;
+  /** true ise gerçek gönderim yapılmaz. */
+  readonly sandbox: boolean;
   gonder(ileti: Ileti): Promise<GonderimSonucu>;
 }
 
-/** Gerçek gönderim yapmaz; iletiyi bellekte kaydeder (geliştirme ve test için). */
+/** Gerçek gönderim yapmaz; iletiyi kaydeder. Sağlayıcısı tanımlı olmayan kanalların varsayılanı. */
 export class SandboxSaglayici implements MessageProvider {
   readonly ad = "sandbox";
-  readonly kanallar = ["sms", "eposta"] as const;
+  readonly sandbox = true;
   readonly kayit: Ileti[] = [];
+
+  constructor(readonly kanal: Kanal) {}
 
   async gonder(ileti: Ileti): Promise<GonderimSonucu> {
     if (!ileti.aboneliktenCikmaBaglantisi) {
-      return { kayitId: ileti.kayitId, durum: "hata", hata: "Abonelikten çıkma bağlantısı zorunlu." };
+      return { durum: "kalici_hata", hata: "Abonelikten çıkma bağlantısı zorunlu." };
     }
     this.kayit.push(ileti);
-    return { kayitId: ileti.kayitId, durum: "kaydedildi", saglayiciKimligi: `sandbox-${this.kayit.length}` };
+    return { durum: "gonderildi", saglayiciKimligi: `sandbox-${crypto.randomUUID()}` };
   }
-}
-
-/** Ret işaretli kayıtları her zaman çıkarır. Toplu gönderimin tek giriş kapısı olmalıdır. */
-export function uygunAlicilar<T extends { iletiIzni: IletiIzni }>(kayitlar: T[]): T[] {
-  return kayitlar.filter((k) => k.iletiIzni !== "ret");
 }

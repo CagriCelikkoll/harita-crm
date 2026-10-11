@@ -7,6 +7,8 @@ export type KayitDto = {
   placeId: string;
   durum: Kayit["durum"];
   iletiIzni: Kayit["iletiIzni"];
+  isletmeAdi: string | null;
+  aliciTuru: Kayit["aliciTuru"];
   yetkiliAdi: string | null;
   eposta: string | null;
   ekTelefon: string | null;
@@ -30,6 +32,8 @@ export const kayitDto = (k: Kayit): KayitDto => ({
   placeId: k.placeId,
   durum: k.durum,
   iletiIzni: k.iletiIzni,
+  isletmeAdi: k.isletmeAdi,
+  aliciTuru: k.aliciTuru,
   yetkiliAdi: k.yetkiliAdi,
   eposta: k.eposta,
   ekTelefon: k.ekTelefon,

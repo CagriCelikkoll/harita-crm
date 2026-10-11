@@ -8,7 +8,8 @@ import {
   type OlayTuru,
 } from "@/lib/sabitler";
 import { db } from "../db";
-import { leadEvents, leads, scans, type Kayit } from "../db/schema";
+import { engelListesi, leadEvents, leads, scans, type Kayit } from "../db/schema";
+import { kayitAdresOzetleri } from "../messaging/adres";
 import { likeKacir, type TenantContext } from "./baglam";
 
 export type { Kayit };
@@ -35,6 +36,7 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
     const benzer = (kolon: unknown) => sql`${kolon} like ${desen} escape '\\'`;
     kosullar.push(
       or(
+        benzer(leads.isletmeAdi),
         benzer(leads.yetkiliAdi),
         benzer(leads.eposta),
         benzer(leads.ekTelefon),
@@ -107,10 +109,15 @@ export function kayitlariEkle(ctx: TenantContext, scanId: string, placeIdler: st
 }
 
 export type KayitDegisikligi = Partial<
-  Pick<Kayit, "durum" | "yetkiliAdi" | "eposta" | "ekTelefon" | "notlar" | "etiketler" | "iletiIzni">
+  Pick<
+    Kayit,
+    "durum" | "isletmeAdi" | "aliciTuru" | "yetkiliAdi" | "eposta" | "ekTelefon" | "notlar" | "etiketler" | "iletiIzni"
+  >
 >;
 
 const BILGI_ALANLARI: Record<string, string> = {
+  isletmeAdi: "işletme adı",
+  aliciTuru: "alıcı türü",
   yetkiliAdi: "yetkili adı",
   eposta: "e-posta",
   ekTelefon: "ek telefon",
@@ -119,6 +126,7 @@ const BILGI_ALANLARI: Record<string, string> = {
 
 /**
  * Kaydı günceller ve her değişikliği lead_events'e yazar. Kayıt bu kiracıya ait değilse null.
+ * İleti izni 'ret' yapılırsa kaydın adresleri engel listesine de yazılır (ret akışıyla aynı sonuç).
  */
 export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitDegisikligi): Kayit | null {
   return db.transaction((tx) => {
@@ -160,6 +168,15 @@ export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitD
         tur: "not",
         aciklama: `Bilgiler güncellendi: ${degisenBilgiler.map((a) => BILGI_ALANLARI[a]).join(", ")}`,
       });
+    }
+    if (yeni.iletiIzni === "ret") {
+      const adresler = kayitAdresOzetleri(ctx.tenantId, yeni);
+      if (adresler.length) {
+        tx.insert(engelListesi)
+          .values(adresler.map((a) => ({ id: crypto.randomUUID(), tenantId: ctx.tenantId, ...a, kaynak: "kayit_ret" as const, leadId: id })))
+          .onConflictDoNothing({ target: [engelListesi.tenantId, engelListesi.tur, engelListesi.ozet] })
+          .run();
+      }
     }
     if (olaylar.length) {
       tx.insert(leadEvents)

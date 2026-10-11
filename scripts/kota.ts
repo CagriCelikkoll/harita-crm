@@ -1,5 +1,6 @@
 // Çalışma alanının aylık Places kotasını değiştirir.
 // Kullanım: npm run kota -- <tenant-slug> <sayi>      ör. npm run kota -- ege-satis 5000
+import "./ortam";
 import { kotaAyarla } from "../src/server/repo/sistem/kota";
 
 const [slug, sayiMetni] = process.argv.slice(2);

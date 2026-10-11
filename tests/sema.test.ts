@@ -25,11 +25,29 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "id", "tenant_id", "place_id", "scan_id", "durum",
     // kullanıcının girdiği veriler:
     "yetkili_adi", "eposta", "ek_telefon", "notlar", "etiketler", "ileti_izni",
+    // isletme_adi: kullanıcının elle girdiği ad (kampanyalardaki {isletme}); Places'tan gelen ad YAZILMAZ.
+    "isletme_adi", "alici_turu",
     "olusturma_tarihi", "guncelleme_tarihi",
   ],
   lead_events: ["id", "tenant_id", "lead_id", "tur", "aciklama", "kullanici_id", "sistem", "tarih"],
   usage_counters: ["tenant_id", "ay", "places_istek_sayisi"],
   place_locations: ["tenant_id", "place_id", "lat", "lng", "alinma_tarihi"],
+  // Mesajlaşma: çalışma alanı / kullanıcı verisi. Alıcı adresi kuyrukta tutulmaz; engel listesinde yalnızca özet.
+  ileti_ayarlari: [
+    "tenant_id", "gonderen_unvani", "iletisim_bilgisi", "iys_no", "sorumluluk_onay_tarihi", "sorumluluk_onaylayan",
+    "gonderim_baslangic_dk", "gonderim_bitis_dk", "gunluk_eposta_siniri", "gunluk_sms_siniri", "guncelleme_tarihi",
+  ],
+  saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "guncelleyen", "guncelleme_tarihi"],
+  engel_listesi: ["id", "tenant_id", "tur", "ozet", "kaynak", "lead_id", "tarih"],
+  kampanyalar: [
+    "id", "tenant_id", "olusturan", "kanal", "ad", "konu", "sablon", "bos_isim_hitabi", "filtre", "sandbox", "durum",
+    "planlanan_tarih", "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
+  ],
+  message_queue: [
+    "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",
+    "kilit_zamani", "sayac_gunu", "saglayici_kimligi", "sandbox_icerik", "gonderim_tarihi", "olusturma_tarihi",
+  ],
+  gonderim_sayaclari: ["tenant_id", "kanal", "kullanici_id", "donem", "adet"],
 };
 
 // Places'tan gelebilecek içeriği çağrıştıran sütun adları.
@@ -40,8 +58,8 @@ describe("şema: Places saklama kuralı", () => {
   it("leads tablosunda Places içeriği tutan sütun yok", () => {
     const leads = sutunlar("leads");
     expect(leads).toEqual(BEYAZ_LISTE.leads.slice().sort());
-    // Kullanıcının kendi girdiği ek_telefon dışında hiçbir sütun Places içeriği desenine uymamalı.
-    const supheli = leads.filter((s) => PLACES_ICERIK_DESENI.test(s) && s !== "ek_telefon");
+    // Kullanıcının kendi girdiği ek_telefon ve isletme_adi dışında hiçbir sütun Places içeriği desenine uymamalı.
+    const supheli = leads.filter((s) => PLACES_ICERIK_DESENI.test(s) && !["ek_telefon", "isletme_adi"].includes(s));
     expect(supheli).toEqual([]);
   });
 

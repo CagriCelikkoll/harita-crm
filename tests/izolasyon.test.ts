@@ -10,7 +10,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { leadEvents } from "@/server/db/schema";
 import { YetkiHatasi, type TenantContext } from "@/server/repo/baglam";
+import fs from "node:fs";
+import path from "node:path";
 import * as calismaAlani from "@/server/repo/calisma-alani";
+import * as engelListesi from "@/server/repo/engel-listesi";
+import * as gonderimSayaci from "@/server/repo/gonderim-sayaci";
+import * as iletiAyarlari from "@/server/repo/ileti-ayarlari";
+import * as kampanyalar from "@/server/repo/kampanyalar";
+import * as kuyruk from "@/server/repo/kuyruk";
+import * as saglayicilar from "@/server/repo/saglayicilar";
+import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
 import * as kullanim from "@/server/repo/kullanim";
@@ -26,6 +35,9 @@ let bTarama: taramalar.Tarama;
 let bKayit: kayitlar.Kayit;
 let bOlay: olaylar.KayitOlayi;
 let bDavetId: string;
+let bKampanya: kampanyalar.Kampanya;
+let bMesajId: string;
+const B_ENGEL = { tur: "eposta" as const, ozet: "" };
 const B_PLACE = "places-b-1";
 
 beforeAll(() => {
@@ -44,7 +56,33 @@ beforeAll(() => {
   konumlar.konumlariKaydet(B, [{ placeId: B_PLACE, lat: 41.01, lng: 29.01 }]);
   kullanim.kotaAyir(B, 7);
   bDavetId = calismaAlani.davetOlustur(B, { eposta: "davetli-b@ornek.test", rol: "uye" }).id;
+
+  // Mesajlaşma verisi
+  iletiAyarlari.iletiAyarlariGuncelle(B, { gonderenUnvani: "B Ltd.", iysNo: "B-IYS", sorumlulukOnayi: true });
+  saglayicilar.saglayiciKaydet(B, "eposta", "smtp", "v1:B-gizli");
+  B_ENGEL.ozet = adresOzeti(B.tenantId, "eposta", "engel-b@ornek.test");
+  engelListesi.engelEkle(B, [B_ENGEL], "abonelik");
+  gonderimSayaci.sayacAyir(B, "eposta", "2026-10-12", 100);
+  bKampanya = kampanyalar.kampanyaOlustur(
+    B,
+    { kanal: "eposta", ad: "B kampanyası", konu: "K", sablon: "S", bosIsimHitabi: null, filtre: {}, sandbox: true, planlananTarih: null },
+    [{ leadId: bKayit.id }],
+  );
+  bMesajId = kampanyalar.kampanyaMesajlari(B, bKampanya.id).mesajlar[0].id;
+  // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
+  db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
+
+/** B'nin mesajlaşma verisinin değişmediğini doğrular. */
+function bMesajlasmaDegismedi() {
+  expect(iletiAyarlari.iletiAyarlariGetir(B)).toMatchObject({ gonderenUnvani: "B Ltd.", iysNo: "B-IYS" });
+  expect(iletiAyarlari.iletiAyarlariGetir(B).sorumlulukOnayTarihi).not.toBeNull();
+  expect(saglayicilar.saglayiciSifreliGetir(B, "eposta")).toEqual({ saglayici: "smtp", sifreliVeri: "v1:B-gizli" });
+  expect(engelListesi.engelliOzetler(B, [B_ENGEL.ozet]).has(B_ENGEL.ozet)).toBe(true);
+  expect(gonderimSayaci.sayacDegeri(B, "eposta", "2026-10-12")).toBe(1);
+  expect(kampanyalar.kampanyaGetir(B, bKampanya.id)).toMatchObject({ durum: "calisiyor", sayilar: { gonderiliyor: 1 } });
+  expect(kuyruk.mesajGetir(B, bMesajId)).toMatchObject({ durum: "gonderiliyor" });
+}
 
 /** B'nin verisinin hiç değişmediğini doğrular. */
 function bDegismedi() {
@@ -52,6 +90,7 @@ function bDegismedi() {
   expect(kayitlar.kayitGetir(B, bKayit.id)).toEqual(bKayit);
   expect(olaylar.olayGetir(B, bOlay.id)).toEqual(bOlay);
   expect(kayitlar.kayitlariListele(B).toplam).toBe(2);
+  if (bKampanya) bMesajlasmaDegismedi();
 }
 
 const taramaTestleri: Record<keyof typeof taramalar, () => void> = {
@@ -234,6 +273,114 @@ const calismaAlaniTestleri: Record<keyof typeof calismaAlani, () => void> = {
   },
 };
 
+const iletiAyarlariTestleri: Record<keyof typeof iletiAyarlari, () => void> = {
+  iletiAyarlariGetir: () => {
+    expect(iletiAyarlari.iletiAyarlariGetir(A)).toMatchObject({ tenantId: A.tenantId, gonderenUnvani: null, iysNo: null });
+  },
+  iletiAyarlariGuncelle: () => {
+    const a = iletiAyarlari.iletiAyarlariGuncelle(A, { gonderenUnvani: "A Ltd.", sorumlulukOnayi: false });
+    expect(a.tenantId).toBe(A.tenantId);
+    expect(iletiAyarlari.iletiAyarlariGetir(B).gonderenUnvani).toBe("B Ltd.");
+  },
+};
+
+const saglayiciTestleri: Record<keyof typeof saglayicilar, () => void> = {
+  saglayiciDurumlari: () => {
+    expect(saglayicilar.saglayiciDurumlari(A).eposta.tanimli).toBe(false);
+    expect(JSON.stringify(saglayicilar.saglayiciDurumlari(B))).not.toContain("B-gizli"); // şifreli veri dönmez
+  },
+  saglayiciSifreliGetir: () => {
+    expect(saglayicilar.saglayiciSifreliGetir(A, "eposta")).toBeNull();
+  },
+  saglayiciKaydet: () => {
+    saglayicilar.saglayiciKaydet(A, "eposta", "smtp", "v1:A");
+    expect(saglayicilar.saglayiciSifreliGetir(A, "eposta")?.sifreliVeri).toBe("v1:A");
+  },
+  saglayiciSil: () => {
+    expect(saglayicilar.saglayiciSil(A, "eposta")).toBe(true); // yalnızca A'nınki
+    expect(saglayicilar.saglayiciSil(A, "eposta")).toBe(false);
+  },
+};
+
+const engelTestleri: Record<keyof typeof engelListesi, () => void> = {
+  engelliOzetler: () => {
+    expect(engelListesi.engelliOzetler(A, [B_ENGEL.ozet]).size).toBe(0);
+  },
+  engelSayisi: () => {
+    expect(engelListesi.engelSayisi(A)).toBe(0);
+    expect(engelListesi.engelSayisi(B)).toBe(1);
+  },
+  engelEkle: () => {
+    // Aynı özet A'ya eklenince yalnızca A'nın listesine yazılır.
+    engelListesi.engelEkle(A, [B_ENGEL], "abonelik");
+    expect(engelListesi.engelliOzetler(A, [B_ENGEL.ozet]).size).toBe(1);
+    expect(engelListesi.engelSayisi(B)).toBe(1);
+    db.$client.prepare("delete from engel_listesi where tenant_id = ?").run(A.tenantId);
+  },
+  retIsle: () => {
+    // A, B'nin kaydını ret yapamaz; adres yalnızca A'nın engel listesine yazılır.
+    expect(engelListesi.retIsle(A, { leadId: bKayit.id, adresler: [], kaynak: "abonelik", aciklama: "x" })).toBe(false);
+    expect(kayitlar.kayitGetir(B, bKayit.id)?.iletiIzni).toBe("bekliyor");
+  },
+};
+
+const sayacTestleri: Record<keyof typeof gonderimSayaci, () => void> = {
+  sayacAyir: () => {
+    expect(gonderimSayaci.sayacAyir(A, "eposta", "2026-10-12", 1)).toBe(true);
+    expect(gonderimSayaci.sayacAyir(A, "eposta", "2026-10-12", 1)).toBe(false); // A'nın sınırı B'yi saymaz
+  },
+  sayacIade: () => {
+    gonderimSayaci.sayacIade(A, "eposta", "2026-10-12");
+    gonderimSayaci.sayacIade(A, "eposta", "2026-10-12");
+  },
+  sayacDegeri: () => {
+    expect(gonderimSayaci.sayacDegeri(A, "eposta", "2026-10-12")).toBe(0);
+  },
+};
+
+const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
+  kampanyaAdaylari: () => {
+    expect(kampanyalar.kampanyaAdaylari(A, {}).map((k) => k.id)).not.toContain(bKayit.id);
+  },
+  kampanyaOlustur: () => {
+    // B'nin kaydı A'nın kampanyasına giremez.
+    const k = kampanyalar.kampanyaOlustur(
+      A,
+      { kanal: "eposta", ad: "A", konu: "K", sablon: "S", bosIsimHitabi: null, filtre: {}, sandbox: true, planlananTarih: null },
+      [{ leadId: bKayit.id }],
+    );
+    expect(k.tenantId).toBe(A.tenantId);
+    expect(kampanyalar.kampanyaMesajlari(A, k.id).toplam).toBe(0);
+    expect(kampanyalar.kampanyaGetir(B, k.id)).toBeNull();
+  },
+  kampanyalariListele: () => {
+    expect(kampanyalar.kampanyalariListele(A).map((k) => k.id)).not.toContain(bKampanya.id);
+  },
+  kampanyaGetir: () => {
+    expect(kampanyalar.kampanyaGetir(A, bKampanya.id)).toBeNull();
+  },
+  kampanyaMesajlari: () => {
+    expect(kampanyalar.kampanyaMesajlari(A, bKampanya.id)).toMatchObject({ toplam: 0, mesajlar: [] });
+  },
+  kampanyaIptal: () => {
+    expect(kampanyalar.kampanyaIptal(A, bKampanya.id)).toBe(false);
+  },
+};
+
+const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
+  mesajGetir: () => {
+    expect(kuyruk.mesajGetir(A, bMesajId)).toBeNull();
+  },
+  mesajGonderildi: () => {
+    expect(
+      kuyruk.mesajGonderildi(A, bMesajId, { saglayiciKimligi: "x", sandbox: false, sandboxIcerik: null, olayAciklamasi: "x" }),
+    ).toBe(false);
+  },
+  mesajBirak: () => {
+    expect(kuyruk.mesajBirak(A, bMesajId, { durum: "basarisiz", neden: "x" })).toBe(false);
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -241,6 +388,12 @@ const MODULLER = {
   kullanim: [kullanim, kullanimTestleri],
   konumlar: [konumlar, konumTestleri],
   "calisma-alani": [calismaAlani, calismaAlaniTestleri],
+  "ileti-ayarlari": [iletiAyarlari, iletiAyarlariTestleri],
+  saglayicilar: [saglayicilar, saglayiciTestleri],
+  "engel-listesi": [engelListesi, engelTestleri],
+  "gonderim-sayaci": [gonderimSayaci, sayacTestleri],
+  kampanyalar: [kampanyalar, kampanyaTestleri],
+  kuyruk: [kuyruk, kuyrukTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {
@@ -255,6 +408,16 @@ for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {
 }
 
 describe("izolasyon: kapsam ve ek güvenceler", () => {
+  it("src/server/repo/ altındaki her kiracı modülü bu teste kayıtlı (sistem/ ve baglam hariç)", () => {
+    const klasor = path.resolve(__dirname, "../src/server/repo");
+    const dosyalar = fs
+      .readdirSync(klasor)
+      .filter((d) => d.endsWith(".ts") && d !== "baglam.ts")
+      .map((d) => d.replace(/\.ts$/, ""))
+      .sort();
+    expect(dosyalar).toEqual(Object.keys(MODULLER).sort());
+  });
+
   it("her depo fonksiyonunun bir izolasyon testi var", () => {
     for (const [modulAdi, [modul, testler]] of Object.entries(MODULLER)) {
       const disaAktarilan = Object.keys(modul).sort();

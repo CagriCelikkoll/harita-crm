@@ -16,6 +16,16 @@ import {
   TARAMA_DURUMLARI,
   VARSAYILAN_AYLIK_PLACES_KOTASI,
 } from "../../lib/sabitler";
+import {
+  ALICI_TURLERI,
+  ENGEL_KAYNAKLARI,
+  ENGEL_TURLERI,
+  KAMPANYA_DURUMLARI,
+  KANALLAR,
+  MESAJ_DURUMLARI,
+  VARSAYILAN_GONDERIM_BASLANGIC_DK,
+  VARSAYILAN_GONDERIM_BITIS_DK,
+} from "../../lib/mesajlasma";
 
 export * from "./auth-schema";
 
@@ -29,8 +39,8 @@ export const tenants = sqliteTable("tenants", {
   slug: text("slug").notNull().unique(),
   // Kullanıcı verisinin (kayıtlar ve olaylar) saklama süresi; null = süresiz.
   veriSaklamaGun: integer("veri_saklama_gun"),
-  // Aylık Places isteği üst sınırı (maliyet koruması). Yeni alanlar PLACES_AYLIK_KOTA ortam değişkeninden
-  // (yoksa 2.000) başlar; değiştirmek için: npm run kota -- <slug> <sayı>
+  // Aylık Places kotası, BİRİM cinsinden (maliyet koruması; src/lib/places-birimleri.ts). Yeni alanlar
+  // PLACES_AYLIK_KOTA ortam değişkeninden (yoksa 6.000) başlar; değiştirmek için: npm run kota -- <slug> <birim>
   aylikPlacesKotasi: integer("aylik_places_kotasi").notNull().default(VARSAYILAN_AYLIK_PLACES_KOTASI),
   olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
 });
@@ -121,6 +131,9 @@ export const leads = sqliteTable(
     notlar: text("notlar"),
     etiketler: text("etiketler", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     iletiIzni: text("ileti_izni", { enum: ILETI_IZINLERI }).notNull().default("bekliyor"),
+    // Kampanya mesajlarındaki {isletme}: kullanıcının girdiği ad (Places'tan gelen ad buraya YAZILMAZ).
+    isletmeAdi: text("isletme_adi"),
+    aliciTuru: text("alici_turu", { enum: ALICI_TURLERI }).notNull().default("tacir_esnaf"),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
   },
@@ -182,6 +195,167 @@ export const placeLocations = sqliteTable(
   (t) => [primaryKey({ columns: [t.tenantId, t.placeId] }), index("place_locations_alinma_idx").on(t.alinmaTarihi)],
 );
 
+// ---------------------------------------------------------------------------------------------
+// Mesajlaşma (2. aşama). Hepsi kullanıcı / çalışma alanı verisidir; Places içeriği içermez.
+
+/** Çalışma alanı başına ticari ileti bilgileri ve gönderim kuralları (tek satır). */
+export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
+  tenantId: text("tenant_id")
+    .primaryKey()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  gonderenUnvani: text("gonderen_unvani"),
+  iletisimBilgisi: text("iletisim_bilgisi"),
+  iysNo: text("iys_no"),
+  // "Ticari elektronik ileti … sorumluluğu çalışma alanımıza aittir." onayı: kim, ne zaman.
+  sorumlulukOnayTarihi: zaman("sorumluluk_onay_tarihi"),
+  sorumlulukOnaylayan: text("sorumluluk_onaylayan").references(() => user.id, { onDelete: "set null" }),
+  // İstanbul saatiyle gece yarısından itibaren dakika.
+  gonderimBaslangicDk: integer("gonderim_baslangic_dk").notNull().default(VARSAYILAN_GONDERIM_BASLANGIC_DK),
+  gonderimBitisDk: integer("gonderim_bitis_dk").notNull().default(VARSAYILAN_GONDERIM_BITIS_DK),
+  // null = ortam değişkeni / varsayılan. Değiştirmek için: npm run sinir -- <slug> <kanal> <sayı>
+  gunlukEpostaSiniri: integer("gunluk_eposta_siniri"),
+  gunlukSmsSiniri: integer("gunluk_sms_siniri"),
+  guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+});
+
+/**
+ * Sağlayıcı kimlik bilgileri (SMTP, SMS). sifreli_veri: AES-256-GCM, anahtar ILETI_SIFRELEME_ANAHTARI,
+ * ek doğrulanmış veri = kiracı|kanal. Hiçbir API yanıtında döndürülmez.
+ */
+export const saglayiciAyarlari = sqliteTable(
+  "saglayici_ayarlari",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kanal: text("kanal", { enum: KANALLAR }).notNull(),
+    saglayici: text("saglayici").notNull(),
+    sifreliVeri: text("sifreli_veri").notNull(),
+    guncelleyen: text("guncelleyen").references(() => user.id, { onDelete: "set null" }),
+    guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.kanal] })],
+);
+
+/**
+ * Engel listesi (suppression). Ret gelen her adres buraya yazılır; kayıt silinse ya da yeniden bulunsa da
+ * gönderim yapılmaz. Adresin kendisi değil, anahtarlı özeti (HMAC-SHA256) tutulur: eşleşme için yeterlidir
+ * ve Places'tan gelmiş bir telefon numarası bile düz metin olarak saklanmaz. Temizlikte SİLİNMEZ.
+ */
+export const engelListesi = sqliteTable(
+  "engel_listesi",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    tur: text("tur", { enum: ENGEL_TURLERI }).notNull(),
+    ozet: text("ozet").notNull(),
+    kaynak: text("kaynak", { enum: ENGEL_KAYNAKLARI }).notNull(),
+    // Bilgi amaçlı; kayıt silinince de satır kalır (yabancı anahtar yok).
+    leadId: text("lead_id"),
+    tarih: zaman("tarih").notNull().default(simdi),
+  },
+  (t) => [uniqueIndex("engel_listesi_uq").on(t.tenantId, t.tur, t.ozet)],
+);
+
+export type KampanyaFiltresi = {
+  durum?: (typeof KAYIT_DURUMLARI)[number];
+  etiket?: string;
+  aliciTuru?: (typeof ALICI_TURLERI)[number];
+};
+
+export const kampanyalar = sqliteTable(
+  "kampanyalar",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    olusturan: text("olusturan").references(() => user.id, { onDelete: "set null" }),
+    kanal: text("kanal", { enum: KANALLAR }).notNull(),
+    ad: text("ad").notNull(),
+    konu: text("konu"), // yalnızca e-posta
+    sablon: text("sablon").notNull(),
+    // İşletme adı girilmemiş kayıtlarda {isletme} yerine; boşsa yer tutucu çevresiyle birlikte kaldırılır.
+    bosIsimHitabi: text("bos_isim_hitabi"),
+    filtre: text("filtre", { mode: "json" }).$type<KampanyaFiltresi>().notNull(),
+    // true: sağlayıcı yok veya test modu; gerçek gönderim yapılmaz, mesaj kuyruk satırına kaydedilir.
+    sandbox: integer("sandbox", { mode: "boolean" }).notNull(),
+    durum: text("durum", { enum: KAMPANYA_DURUMLARI }).notNull(),
+    planlananTarih: zaman("planlanan_tarih"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    baslamaTarihi: zaman("baslama_tarihi"),
+    tamamlanmaTarihi: zaman("tamamlanma_tarihi"),
+  },
+  (t) => [
+    uniqueIndex("kampanyalar_tenant_id_uq").on(t.tenantId, t.id),
+    index("kampanyalar_tenant_idx").on(t.tenantId, t.olusturmaTarihi),
+    index("kampanyalar_durum_idx").on(t.durum, t.planlananTarih),
+  ],
+);
+
+/**
+ * Gönderim kuyruğu: kampanya × kayıt başına tek satır. Alıcı adresi burada TUTULMAZ; gönderim anında
+ * kayıttan (ve gerekirse canlı Places'tan) okunur, alıcı kuralları o anda yeniden uygulanır.
+ */
+export const messageQueue = sqliteTable(
+  "message_queue",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kampanyaId: text("kampanya_id").notNull(),
+    leadId: text("lead_id").notNull(),
+    kanal: text("kanal", { enum: KANALLAR }).notNull(),
+    durum: text("durum", { enum: MESAJ_DURUMLARI }).notNull(),
+    // Hariç / başarısız / bekleme nedeni (kod) ve sağlayıcı hata metni.
+    neden: text("neden"),
+    hata: text("hata"),
+    denemeSayisi: integer("deneme_sayisi").notNull().default(0),
+    sonrakiDeneme: zaman("sonraki_deneme"),
+    kilitZamani: zaman("kilit_zamani"),
+    // Günlük sınır sayacından ayrılan gün (iade için).
+    sayacGunu: text("sayac_gunu"),
+    saglayiciKimligi: text("saglayici_kimligi"),
+    // Yalnızca sandbox: gönderilecek olan metin (gerçek gönderim yerine kaydedilir).
+    sandboxIcerik: text("sandbox_icerik"),
+    gonderimTarihi: zaman("gonderim_tarihi"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.kampanyaId], foreignColumns: [kampanyalar.tenantId, kampanyalar.id] }).onDelete(
+      "cascade",
+    ),
+    foreignKey({ columns: [t.tenantId, t.leadId], foreignColumns: [leads.tenantId, leads.id] }).onDelete("cascade"),
+    uniqueIndex("message_queue_kampanya_lead_uq").on(t.kampanyaId, t.leadId),
+    index("message_queue_bekleyen_idx").on(t.durum, t.sonrakiDeneme),
+    index("message_queue_kampanya_idx").on(t.tenantId, t.kampanyaId, t.durum),
+  ],
+);
+
+/**
+ * Sayaçlar: kanal bazında günlük gönderim sınırı (İstanbul günü) ve test gönderimi hız sınırı (saat).
+ * kullanici_id '' = çalışma alanı geneli.
+ */
+export const gonderimSayaclari = sqliteTable(
+  "gonderim_sayaclari",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kanal: text("kanal").notNull(),
+    kullaniciId: text("kullanici_id").notNull().default(""),
+    donem: text("donem").notNull(), // "YYYY-MM-DD" ya da test sınırı için "YYYY-MM-DDTHH"
+    adet: integer("adet").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.kanal, t.kullaniciId, t.donem] })],
+);
+
 export type Tarama = typeof scans.$inferSelect;
 export type Kayit = typeof leads.$inferSelect;
 export type KayitOlayi = typeof leadEvents.$inferSelect;
+export type IletiAyarlari = typeof iletiAyarlari.$inferSelect;
+export type Kampanya = typeof kampanyalar.$inferSelect;
+export type KuyrukMesaji = typeof messageQueue.$inferSelect;

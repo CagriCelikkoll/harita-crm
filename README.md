@@ -41,7 +41,14 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places kotası, **birim** cinsinden (varsayılan 6.000). Mevcut alanlar için `npm run kota`. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Harita için | **Ayrı** bir anahtar oluşturun: yalnızca **Maps JavaScript API**'ye ve *HTTP referrers* ile alan adınıza (`https://crm.ornek.com/*`, geliştirmede `http://localhost:3000/*`) kısıtlayın. Bu anahtar tarayıcıya gider; Places anahtarı gitmez. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Hayır | Gelişmiş işaretçiler için Map ID (Cloud Console → *Map Management*). Boşsa `DEMO_MAP_ID`. |
+| `ILETI_SIFRELEME_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Sağlayıcı (SMTP) kimlik bilgilerini AES-256-GCM ile şifreler. Değişirse kayıtlı sağlayıcı bilgileri yeniden girilmelidir. |
+| `ILETI_IMZA_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64 (yukarıdaki komut). Abonelikten çıkma bağlantılarını imzalar ve engel listesi özetlerini üretir. **Değiştirmeyin:** eski bağlantılar geçersiz olur ve engel listesi eşleşmez. Yoksa "ret" işaretleme ve abonelikten çıkma çalışmaz; başlangıçta uyarı yazılır. |
+| `GUNLUK_EPOSTA_SINIRI`, `GUNLUK_SMS_SINIRI` | Hayır | Çalışma alanı başına günlük gönderim sınırı (varsayılan 300 / 200). Alan bazında `npm run sinir`. |
+| `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
+
+Komut satırı betikleri (`db:migrate`, `cleanup`, `kota`, `sinir`, `worker`) de Next.js ile aynı `.env`,
+`.env.production` ve `.env.local` dosyalarını yükler (`scripts/ortam.ts`); süreçte zaten tanımlı değişkenler ezilmez.
 
 ## Veritabanı ve migration'lar
 
@@ -69,7 +76,8 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 ```bash
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
-npm test               # Vitest (9 dosya)
+npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
+npm test               # Vitest (13 dosya)
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -78,10 +86,13 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 
 | Test | Ne doğrular |
 | --- | --- |
-| `tests/izolasyon.test.ts` | İki kiracı (A, B). A'nın bağlamıyla B'nin scans / leads / lead_events (ve davet, üye, sayaç, konum) verisini **listeleme, id ile okuma, güncelleme, silme** denemeleri boş / `null` (404) / `false` döner ve B'nin verisi değişmez. **Her depo fonksiyonu için bir test vardır**; depo modüllerine eklenen ve testi olmayan her yeni fonksiyon "kapsam" testini kırar. Ayrıca bileşik yabancı anahtarın başka kiracının kaydına olay bağlamayı veritabanı seviyesinde reddettiği ve `uye` rolünün yönetici işlemlerini yapamadığı test edilir. |
+| `tests/izolasyon.test.ts` | İki kiracı (A, B). A'nın bağlamıyla B'nin scans / leads / lead_events (ve davet, üye, sayaç, konum) verisini **listeleme, id ile okuma, güncelleme, silme** denemeleri boş / `null` (404) / `false` döner ve B'nin verisi değişmez. **Her depo fonksiyonu için bir test vardır** (mesajlaşma tabloları dahil: ileti ayarları, sağlayıcılar, engel listesi, sayaçlar, kampanyalar, kuyruk); depo modüllerine eklenen ve testi olmayan her yeni fonksiyon ve teste kaydedilmemiş her yeni depo dosyası "kapsam" testini kırar. Ayrıca bileşik yabancı anahtarın başka kiracının kaydına olay bağlamayı veritabanı seviyesinde reddettiği ve `uye` rolünün yönetici işlemlerini yapamadığı test edilir. |
 | `tests/tarama-motoru.test.ts` | Hücre geometrisi, doymuş hücrenin bölünmesi, `place_id` tekilleştirme, daire dışı sonuçların elenmesi, iç hücrelerde konum istenmemesi, istek bütçesi, 60 sonuç sınırında kapsam uyarısı. |
 | `tests/sema.test.ts` | `leads` tablosunda Places içeriği tutan sütun olmadığı; tüm uygulama sütunlarının beyaz listede olduğu (yeni sütun bilinçli inceleme gerektirir); Places konumunun yalnızca tarihli `place_locations`'ta tutulduğu. |
-| `tests/mesajlasma.test.ts` | 2. aşama iskeleti: ret işaretliler her zaman hariç, sandbox gerçek gönderim yapmaz. |
+| `tests/mesajlasma.test.ts` | `{isletme}` şablonu (yalnızca kullanıcının girdiği ad; boşsa hitap ya da çevresiyle kaldırma), telefon/e-posta normalleştirme, **alıcı kuralları** fonksiyonunun her nedeni (ret, bireysel + izinsiz, iletişim yok, engel, cep değil, Places'tan alınacak telefon), sandbox sağlayıcı. |
+| `tests/kampanya.test.ts` | Kampanya oluşturmada ve **gönderim anında** ret / engel listesi / bireysel + izinsiz kayıtların hariç tutulması (kampanyadan sonra gelen ret dahil); elle ret sonrası kayıt silinip aynı adresle yeniden eklense de gönderilmemesi; ticari ileti bilgileri olmadan sandbox dışı kampanyanın başlatılamaması; gerçek gönderimde olay + `yeni → iletisimde`, sandbox'ta durum değişmemesi; **günlük sınır** (ertesi günün 09:00'ına kalma) ve **gönderim saati** (İstanbul); iptal; **idempotans:** tekrar çalıştırma, aynı süreçte eşzamanlı turlar ve **3 ayrı süreçte 40 mesajın her birinin tam bir kez** gönderilmesi; geçici hatada en fazla 3 deneme ve sınır iadesi; çöken işçinin mesajının "belirsiz" kapanıp yeniden denenmemesi; İYS reddinin ret akışına girmesi; zamanlanmış kampanya. |
+| `tests/saglayici-guvenlik.test.ts` | Kimlik bilgilerinin veritabanında düz metin olmaması; başka kiracının / kanalın AAD'siyle ya da başka anahtarla çözülememesi; **ayarlar, sağlayıcı, test gönderimi ve kampanya API yanıtlarının hiçbirinde** sunucu, kullanıcı adı ve şifrenin geçmemesi; üyenin sağlayıcı kaydedememesi; test e-postasının yalnızca kayıtlı gönderen adresine gitmesi ve saatte 5 sınırı; **SMTP SSRF:** iç ağ / loopback / link-local / metadata / IPv4-eşlemeli IPv6 adreslerinin ve izinsiz portların reddi, çözülen adreslerden biri bile iç ağdaysa ret, bağlantının doğrulanan IP'ye yapılması ve her gönderimde yeniden doğrulama (DNS yeniden bağlama). |
+| `tests/abonelik.test.ts` | Belirtecin tek bir baytı bile değiştirilince, kısaltılınca ya da kiracı/kayıt alanı başka kiracınınkiyle değiştirilince reddedilmesi; A'nın geçerli belirtecinin B'nin kaydını ve engel listesini etkilememesi; tek tıkla çıkışta `ret` + engel listesi + olay (tekrar tıklamada çift olay yok); kayıt silinmiş olsa da engel listesine yazma; sayfanın yalnızca gönderen unvanını döndürmesi; e-posta altbilgisi ve ham iletideki `List-Unsubscribe` / `List-Unsubscribe-Post` başlıkları. |
 | `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" veya "kuyrukta" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
 | `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
 | `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
@@ -98,6 +109,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
    markalı (brand) bir tiptir; yalnızca `src/server/oturum.ts` içinde **doğrulanmış Better Auth oturumu +
    `memberships` tablosundan** üretilir (`baglamUret`). İstemciden gelen `tenant_id` hiçbir yerde kullanılmaz.
    Aktif çalışma alanı çerezi yalnızca kullanıcının zaten üye olduğu alanlar arasından seçim yapar.
+   Kullanıcısız sistem akışları bağlamı `src/server/repo/sistem/` içinde, kendi doğrulamalarından sonra üretir:
+   gönderim işçisi (kuyruk satırının kiracısı) ve abonelikten çıkma (imzalı belirtecin kiracısı).
 3. **Her sorguda tenant koşulu:** Her SELECT/UPDATE/DELETE `tenant_id = ctx.tenantId` koşulunu depo fonksiyonu
    içinde ekler. INSERT'te `tenant_id` dışarıdan alınmaz, bağlamdan yazılır.
 4. **Id ile işlemler:** Sahiplik aynı sorguda doğrulanır (`WHERE id = ? AND tenant_id = ?`). Kayıt yoksa veya başka
@@ -309,33 +322,152 @@ Cloudflare R2, Backblaze B2, MinIO) kopyalar. Uygulama zaten WAL modunda çalı�
    `litestream restore -o /var/lib/harita-crm/app.db s3://harita-crm-yedek/app.db`
 5. Geri yükleme provasını düzenli olarak ayrı bir makinede yapın.
 
-## 2. aşama için hazırlık
+## Mesajlaşma (e-posta kampanyaları)
 
-`src/server/messaging/saglayici.ts`: `MessageProvider` arayüzü, gerçek gönderim yapmayan `SandboxSaglayici` ve ret
-işaretli kayıtları her zaman hariç tutan `uygunAlicilar()`. İletilerde abonelikten çıkma bağlantısı zorunlu alandır.
-`lead_events.tur` zaten `sms`, `eposta`, `ret` değerlerini içerir. Tek tıkla abonelikten çıkma sayfası, gönderim
-kuyruğu ve "İletişim" ekranı 2. aşamada yapılacaktır.
+Gönderen her zaman çalışma alanının kendisidir. Tüm gönderimler `MessageProvider` arayüzünden geçer
+(`src/server/messaging/saglayici.ts`). Bir kanalın sağlayıcısı tanımlı değilse kampanya **sandbox**'tır: gerçek
+gönderim yapılmaz, gönderilecek metin kuyruk satırına kaydedilir ve kampanya detayında görülür. Sağlayıcı tanımlıyken
+de "Test modu" ile sandbox kampanya başlatılabilir.
+
+**Alıcı kuralları** — tek fonksiyon: `aliciDegerlendir()` (`src/server/messaging/alici-kurallari.ts`). Kampanya
+özetinde, kuyruğa eklerken ve işçide **her mesajdan hemen önce** çağrılır:
+
+1. `ileti_izni = 'ret'` → her zaman hariç.
+2. `alici_turu = 'bireysel'` → yalnızca `ileti_izni = 'onayli'` ise gönderilir (Places'tan gelen kayıtlar
+   varsayılan olarak `tacir_esnaf`'tır; kayıt detayından değiştirilir).
+3. E-posta yalnızca kaydın kullanıcı tarafından girilen `eposta` alanına gider (Places e-posta vermez).
+4. Adres **engel listesindeyse** hariç.
+
+**Engel listesi** (`engel_listesi`): ret gelen her adres (abonelikten çıkma, elle "ileti reddi" işaretleme, İYS
+reddi) buraya yazılır; kayıt silinse ya da işletme yeni bir taramada tekrar bulunsa bile o adrese gönderilmez.
+Adresin kendisi değil, kiracıya bağlı anahtarlı özeti (HMAC-SHA256, `ILETI_IMZA_ANAHTARI`) tutulur. Temizlikte
+silinmez.
+
+**Ret akışı** (`retIsle`, tek yer): kayıt `ileti_izni = 'ret'`, adres(ler) engel listesine, `lead_events`'e `ret`.
+
+**Ticari ileti** (Ayarlar): gönderen unvanı, iletişim bilgisi, İYS kayıt numarası ve *"Ticari elektronik ileti
+gönderimlerinde İYS kaydı ve 6563 sayılı Kanun kapsamındaki yükümlülüklerin sorumluluğu çalışma alanımıza aittir."*
+onayı (kim / ne zaman kaydedilir). Bunlar olmadan sandbox dışı kampanya başlatılamaz; işçi de gönderimden önce
+yeniden kontrol eder.
+
+**E-posta** (`src/server/messaging/smtp.ts`, nodemailer): çalışma alanı kendi SMTP sunucusu, kullanıcı, şifre ve
+gönderen adresini girer. Her e-postada gönderen unvanı, iletişim bilgisi, İYS no, tek tıkla abonelikten çıkma
+bağlantısı ve `List-Unsubscribe` / `List-Unsubscribe-Post: List-Unsubscribe=One-Click` başlıkları bulunur.
+
+- **Kimlik bilgileri** `saglayici_ayarlari.sifreli_veri`'de AES-256-GCM ile şifreli (`ILETI_SIFRELEME_ANAHTARI`; ek
+  doğrulanmış veri = kiracı|kanal). Hiçbir API yanıtında dönmez; arayüz yalnızca "tanımlı / tanımlı değil" gösterir.
+- **SSRF koruması** (`ag-guvenligi.ts`): port yalnızca 25, 465, 587, 2525. Sunucu adı kaydederken ve **her
+  bağlantıdan önce** DNS ile çözülür; çözülen adreslerden biri bile loopback, özel ağ (10/8, 172.16/12,
+  192.168/16), CGNAT, link-local (169.254/16, bulut metadata dahil), 0.0.0.0, çok noktaya yayın ya da bunların IPv6
+  karşılıklarıysa (::1, fc00::/7, fe80::/10, IPv4-eşlemeli adresler) reddedilir. Bağlantı doğrulanan IP'ye yapılır,
+  TLS sertifikası sunucu adına göre denetlenir (DNS yeniden bağlamaya karşı).
+- **Test e-postası** yalnızca kayıtlı gönderen adresine gider (alıcı istemciden alınmaz); kiracı başına saatte 5.
+
+**Abonelikten çıkma:** `https://<BETTER_AUTH_URL>/abonelik/<belirteç>`. Belirteç 82 baytlık, imzalı (HMAC-SHA256,
+`ILETI_IMZA_ANAHTARI`'ndan türetilen anahtar) ve kiracı + kayıt + kanal + adres özetine bağlıdır; kişisel veri
+taşımaz. Sayfa (oturumsuz) yalnızca gönderen unvanını gösterir; "Abonelikten çık" butonu ya da e-posta istemcisinin
+tek tıkla çıkışı (`POST /api/abonelik/<belirteç>`) ret akışını çalıştırır. Sahte/değiştirilmiş belirteç reddedilir;
+bir kiracının belirteci başka kiracının kaydını etkileyemez.
+
+**Kampanya akışı** (İletişim sayfası): kanal, alıcı grubu (durum, etiket, alıcı türü), `{isletme}` yer tutuculu
+şablon ve canlı önizleme → **gönderim özeti** (gönderilecek alıcı sayısı; hariç tutulanların nedenlere göre
+dökümü; günlük sınır nedeniyle sonraki günlere kalacaklar; "İşletme adı girilmemiş: N kayıt") → hemen başlat ya da
+ileri tarihe zamanla. Kampanya detayı: ilerleme, nedenlere göre döküm, alıcı bazında durum ve hata, iptal.
+
+`{isletme}` **yalnızca** kaydın "İşletme adı (sizin kaydınız)" alanından (`leads.isletme_adi`, kullanıcı verisi)
+dolar; Google'dan gelen ad hiçbir koşulda mesaja girmez. Alan boşsa kampanyada tanımlanan "boş isim hitabı"
+kullanılır; o da yoksa yer tutucu çevresindeki boşluk ve virgülle birlikte kaldırılır
+(`"Merhaba {isletme},"` → `"Merhaba,"`).
+
+**Kuyruk ve sınırlar:**
+
+- `message_queue`: kampanya × kayıt başına bir satır; alıcı adresi tutulmaz, gönderim anında kayıttan okunur.
+- **Günlük sınır**: kiracı ve kanal başına, İstanbul gününe göre, atomik sayaçla (`gonderim_sayaclari`; Places
+  kotasıyla aynı tek ifade kalıbı). Varsayılan e-posta 300, SMS 200; ortam değişkeni ya da
+  `npm run sinir -- <slug> <eposta|sms> <sayı|varsayilan>`. Sınıra takılan mesaj ertesi günün gönderim
+  başlangıcına kalır.
+- **Gönderim saatleri**: varsayılan 09:00–20:00 İstanbul, Ayarlar'dan değiştirilir; dışında kalan mesaj bekler.
+- Her gönderim `lead_events`'e yazılır; durumu `yeni` olan kayıt `iletisimde` olur.
+
+### Gönderim işçisi (`npm run worker`)
+
+İşçi, web sunucusundan **ayrı** sürekli çalışan bir süreçtir; kuyruğu küçük partiler halinde işler:
+
+1. Zamanı gelen kampanyaları başlatır; 10 dakikadan uzun "gönderiliyor" kalan mesajları "belirsiz" kapatır.
+2. Hazır mesajları **tek bir SQL ifadesiyle** (`UPDATE … WHERE durum='kuyrukta' … RETURNING`) alır: aynı mesajı iki
+   işçi alamaz, tekrar çalıştırmak çift gönderim yapmaz.
+3. Her mesaj için: gönderim saati → alıcı kuralları (yeniden) → ticari ileti ön koşulları → günlük sınır → gönderim.
+4. Geçici hata (iletinin gitmediği kesin: bağlantı kurulamadı, SMTP 4xx) en fazla 3 deneme (1, 5 dk arayla);
+   kalıcı ya da belirsiz sonuç yeniden denenmez. Gönderilemeyen mesajın günlük sınır birimi iade edilir.
+
+```bash
+npm run worker               # sürekli (WORKER_ARALIK_SN, varsayılan 30 sn)
+npm run worker -- --bir-kez  # tek tur (ör. cron ile dakikada bir)
+```
+
+**systemd** (`/etc/systemd/system/harita-crm-worker.service`):
+
+```ini
+[Unit]
+Description=Harita CRM gönderim işçisi
+After=network-online.target
+
+[Service]
+WorkingDirectory=/srv/harita-crm
+EnvironmentFile=/srv/harita-crm/.env.local
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+User=harita-crm
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`sudo systemctl enable --now harita-crm-worker`. SIGTERM'de eldeki turu bitirip çıkar. Birden fazla işçi aynı
+veritabanında güvenle çalışabilir (tek sunucu, tek SQLite dosyası).
+
+### Gerçek e-posta göndermek için çalışma alanının hazırlaması gerekenler
+
+1. **İYS:** Ticari elektronik ileti göndermek için İleti Yönetim Sistemi'ne (iys.org.tr) hizmet sağlayıcı olarak
+   kayıt; İYS kayıt numarası Ayarlar → Ticari ileti'ye girilir. Tacir/esnaf alıcılar için İYS'de ret kontrolü,
+   bireysel alıcılar için açık onay gerekir (6563 sayılı Kanun ve Ticari İletişim ve Ticari Elektronik İletiler
+   Hakkında Yönetmelik). Hukuki sorumluluk çalışma alanındadır (Ayarlar'daki onay).
+2. **SMTP hesabı:** kendi alan adına ait bir gönderen adresi ve SMTP erişimi (kurumsal e-posta sağlayıcısı ya da
+   işlemsel e-posta servisi). Toplu gönderime izin verdiğinden ve gönderim sınırlarından emin olun.
+3. **Alan adı doğrulaması:** gönderen alan adı için SPF, DKIM ve DMARC kayıtları (sağlayıcının belgelerine göre).
+   Aksi halde iletiler spam'e düşer; Gmail/Yahoo toplu gönderimde bunları ve tek tıkla abonelikten çıkmayı zorunlu
+   tutar.
+4. Ayarlar → E-posta (SMTP) → bilgileri kaydet → **Test e-postası gönder** (gönderen adresine gelir).
+5. Önce **Test modu** ile bir kampanya oluşturup kaydedilen metni kontrol edin; sonra gerçek kampanya.
+6. Sunucuda `ILETI_SIFRELEME_ANAHTARI`, `ILETI_IMZA_ANAHTARI` ve `BETTER_AUTH_URL` (abonelik bağlantıları bu adresle
+   üretilir) tanımlı olmalı ve işçi çalışıyor olmalı.
 
 ## Proje yapısı
 
 ```
 drizzle/                         migration SQL'leri (drizzle-kit)
 scripts/migrate.ts, cleanup.ts,  migration, günlük temizlik,
-  kota.ts                        kota değiştirme
+  kota.ts, sinir.ts, worker.ts   kota / günlük sınır değiştirme, gönderim işçisi
+  ortam.ts                       betikler için .env yükleme
 src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kontrol sunucuda)
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
-src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim, ayarlar
-src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar
+src/app/abonelik/[belirtec]/     herkese açık abonelikten çıkma sayfası
+src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim (+kampanya/[id]), ayarlar
+src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar,
+                                 ayarlar/ileti, ayarlar/saglayicilar/[kanal] (+test), kampanyalar (+ozet, [id]),
+                                 abonelik/[belirtec]
 src/instrumentation.ts           başlangıçta yarıda kalan taramaları kapatır
 src/components/                  menü, harita, Google atfı
-src/lib/                         sabitler, kategoriler, biçimlendirme
+src/lib/                         sabitler, mesajlaşma sabitleri, şablon, İstanbul saati, Places birimleri
 src/server/db/                   bağlantı, şema, güvenli migration (yalnızca repo/ ve auth erişir)
 src/server/repo/                 kiracıya bağlı depo fonksiyonları; sistem/ = bağlam öncesi işler
 src/server/places/               Places istemcisi + mock
 src/server/scan/                 hücre geometrisi + tarama motoru (saf)
-src/server/servisler/            tarama ve canlı bilgi servisleri
-src/server/messaging/            2. aşama iskeleti
+src/server/servisler/            tarama, canlı bilgi, kampanya, işçi, sağlayıcı, abonelik servisleri
+src/server/messaging/            sağlayıcı arayüzü + sandbox, SMTP, alıcı kuralları, şifreleme, abonelik belirteci,
+                                 SMTP SSRF koruması
 tests/                           Vitest
 ```
 
@@ -351,11 +483,20 @@ tests/                           Vitest
 - **Next.js önbelleği:** `cacheComponents`/`partialPrefetching` kapalı; tüm sayfalar oturuma bağlı ve canlı Places
   verisi gösterdiği için klasik dinamik render.
 - **lead_events.sistem** sütunu ve `(tenant_id, lead_id)` bileşik yabancı anahtarı.
+- **`{isletme}`** yalnızca kullanıcının girdiği `leads.isletme_adi`'ndan; Places içeriği mesaj gövdesine hiçbir
+  koşulda girmez. Boşsa kampanyanın "boş isim hitabı" ya da yer tutucunun çevresiyle kaldırılması.
+- **Abonelikten çıkma:** e-postadaki bağlantı butonlu bir sayfa açar (GET işlem yapmaz; tarayıcı ön açmaları ret
+  üretmez); `List-Unsubscribe-Post` (RFC 8058) doğrudan işler. Sayfa gönderen unvanından başka bilgi göstermez.
+- **Sandbox** gönderimi lead_events'e "(test)" olayı yazar, kayıt durumunu değiştirmez, günlük sınırı kullanır.
+- **En fazla bir kez gönderim:** gönderim ortasında çöken işçinin mesajı "belirsiz" kapanır, yeniden denenmez.
+- **SMTP güvenliği:** port 25/465/587/2525; her bağlantıdan önce DNS çözümü ve iç ağ reddi; bağlantı doğrulanan IP'ye.
+- **Test gönderimi** yalnızca kayıtlı gönderen adresine, kiracı başına saatte 5.
 
 ## Açık kararlar
 
-1. **E-posta gönderimi:** Davetler için `Postaci` arayüzü var; şimdilik yalnızca konsol adaptörü (davet bağlantısı
-   Ayarlar'da gösterilir). Gerçek SMTP/sağlayıcı ve e-posta doğrulaması (Better Auth `emailVerification`) sonraya.
+1. **Davet e-postaları:** Davetler hâlâ konsol adaptörüyle (bağlantı Ayarlar'da). Kampanyalar çalışma alanının
+   SMTP'sini kullanır; davetler için uygulama geneli bir SMTP ve e-posta doğrulaması (Better Auth
+   `emailVerification`) sonraya.
 2. **Kota yönetimi:** Kota yalnızca komut satırından değişir; yönetici arayüzü ve kota dolmadan önce e-posta
    uyarısı sonraya.
 3. **Birimler ve ücretsiz kotalar:** Birimler yalnızca fiyata oranlıdır; Google'ın SKU başına aylık ücretsiz
@@ -367,3 +508,11 @@ tests/                           Vitest
    yorumu da mümkün; ürün kararı.
 7. **Places politikaları:** Atıf metni "Google Maps" olarak eklendi. Yayın öncesi Google'ın güncel atıf ve marka
    kurallarını (logo kullanımı, üçüncü taraf atıfları) hukuki açıdan gözden geçirin.
+8. **Kampanya yetkisi:** Kampanyayı her üye başlatabilir (sağlayıcı ve ticari ileti ayarları yalnızca yönetici).
+   Gerçek gönderimi yöneticiye sınırlamak isterseniz `kampanyaBaslat` içinde `yoneticiOlmali` eklenebilir.
+9. **Engel listesinden çıkarma:** Arayüz yok; ret veren adres kalıcı olarak engellidir. Yanlışlıkla "ret" işaretlenen
+   bir kaydın adresi de engellenir (kayıt izni geri alınsa bile). Gerekirse yönetici için denetim kayıtlı bir
+   "engeli kaldır" işlemi eklenebilir.
+10. **Geri dönen e-postalar (bounce) ve şikâyetler** işlenmiyor; SMTP sağlayıcısının panelinden izlenmeli.
+11. **Sandbox mesaj metni** (`message_queue.sandbox_icerik`) kampanya silinene kadar tutulur; kampanya silme /
+    saklama süresi yok.

@@ -1,0 +1,198 @@
+// Kampanyalar ve kuyruğa ekleme. Alıcı kuralları çağıran serviste (servisler/kampanya.ts) uygulanır;
+// burada yalnızca bu kiracının kayıtları kuyruğa yazılır.
+import { and, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { KAMPANYA_AZAMI_ALICI, type HaricNedeni, type MesajDurumu } from "@/lib/mesajlasma";
+import { SAYFA_BOYUTU } from "@/lib/sabitler";
+import { db } from "../db";
+import { kampanyalar, leads, messageQueue, type Kampanya, type KampanyaFiltresi, type Kayit } from "../db/schema";
+import type { TenantContext } from "./baglam";
+
+export type { Kampanya, KampanyaFiltresi };
+
+export type KampanyaAdayi = Pick<
+  Kayit,
+  "id" | "placeId" | "durum" | "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "isletmeAdi"
+>;
+
+function adayKosulu(ctx: TenantContext, f: KampanyaFiltresi): SQL {
+  const kosullar: SQL[] = [eq(leads.tenantId, ctx.tenantId)];
+  if (f.durum) kosullar.push(eq(leads.durum, f.durum));
+  if (f.aliciTuru) kosullar.push(eq(leads.aliciTuru, f.aliciTuru));
+  if (f.etiket) {
+    kosullar.push(sql`exists (select 1 from json_each(${leads.etiketler}) where json_each.value = ${f.etiket})`);
+  }
+  return and(...kosullar)!;
+}
+
+/** Filtreye uyan kayıtlar (en fazla KAMPANYA_AZAMI_ALICI + 1: fazlası "çok fazla alıcı" demektir). */
+export function kampanyaAdaylari(ctx: TenantContext, f: KampanyaFiltresi): KampanyaAdayi[] {
+  return db
+    .select({
+      id: leads.id,
+      placeId: leads.placeId,
+      durum: leads.durum,
+      iletiIzni: leads.iletiIzni,
+      aliciTuru: leads.aliciTuru,
+      eposta: leads.eposta,
+      ekTelefon: leads.ekTelefon,
+      isletmeAdi: leads.isletmeAdi,
+    })
+    .from(leads)
+    .where(adayKosulu(ctx, f))
+    .orderBy(leads.olusturmaTarihi, leads.id)
+    .limit(KAMPANYA_AZAMI_ALICI + 1)
+    .all();
+}
+
+export type YeniKampanya = Pick<Kampanya, "kanal" | "ad" | "konu" | "sablon" | "bosIsimHitabi" | "filtre" | "sandbox"> & {
+  planlananTarih: Date | null;
+};
+export type KuyrukGirdisi = { leadId: string; haric?: HaricNedeni };
+
+/** Kampanyayı ve kuyruk satırlarını tek işlemde yazar. Başka kiracının kayıtları sessizce atlanır. */
+export function kampanyaOlustur(ctx: TenantContext, k: YeniKampanya, alicilar: KuyrukGirdisi[], simdi = new Date()): Kampanya {
+  return db.transaction((tx) => {
+    const zamanlandi = k.planlananTarih !== null && k.planlananTarih > simdi;
+    const kampanya = tx
+      .insert(kampanyalar)
+      .values({
+        id: crypto.randomUUID(),
+        tenantId: ctx.tenantId,
+        olusturan: ctx.userId,
+        ...k,
+        durum: zamanlandi ? "zamanlandi" : "calisiyor",
+        planlananTarih: k.planlananTarih,
+        baslamaTarihi: zamanlandi ? null : simdi,
+      })
+      .returning()
+      .get();
+    for (let i = 0; i < alicilar.length; i += 200) {
+      const parca = alicilar.slice(i, i + 200);
+      const gecerli = new Set(
+        tx
+          .select({ id: leads.id })
+          .from(leads)
+          .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, parca.map((a) => a.leadId))))
+          .all()
+          .map((s) => s.id),
+      );
+      const satirlar = parca
+        .filter((a) => gecerli.has(a.leadId))
+        .map((a) => ({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          kampanyaId: kampanya.id,
+          leadId: a.leadId,
+          kanal: k.kanal,
+          durum: (a.haric ? "haric" : "kuyrukta") as MesajDurumu,
+          neden: a.haric ?? null,
+        }));
+      if (satirlar.length) tx.insert(messageQueue).values(satirlar).onConflictDoNothing().run();
+    }
+    return kampanya;
+  });
+}
+
+type Sayilar = Record<MesajDurumu, number>;
+const bosSayilar = (): Sayilar => ({ kuyrukta: 0, gonderiliyor: 0, gonderildi: 0, basarisiz: 0, haric: 0, iptal: 0 });
+
+function sayilariGetir(ctx: TenantContext, kampanyaIdleri: string[]): Map<string, Sayilar> {
+  const sonuc = new Map<string, Sayilar>();
+  if (!kampanyaIdleri.length) return sonuc;
+  const satirlar = db
+    .select({ kampanyaId: messageQueue.kampanyaId, durum: messageQueue.durum, n: count() })
+    .from(messageQueue)
+    .where(and(eq(messageQueue.tenantId, ctx.tenantId), inArray(messageQueue.kampanyaId, kampanyaIdleri)))
+    .groupBy(messageQueue.kampanyaId, messageQueue.durum)
+    .all();
+  for (const s of satirlar) {
+    const say = sonuc.get(s.kampanyaId) ?? bosSayilar();
+    say[s.durum] = s.n;
+    sonuc.set(s.kampanyaId, say);
+  }
+  return sonuc;
+}
+
+export function kampanyalariListele(ctx: TenantContext, limit = 50) {
+  const liste = db
+    .select()
+    .from(kampanyalar)
+    .where(eq(kampanyalar.tenantId, ctx.tenantId))
+    .orderBy(desc(kampanyalar.olusturmaTarihi))
+    .limit(limit)
+    .all();
+  const sayilar = sayilariGetir(ctx, liste.map((k) => k.id));
+  return liste.map((k) => ({ ...k, sayilar: sayilar.get(k.id) ?? bosSayilar() }));
+}
+
+export function kampanyaGetir(ctx: TenantContext, id: string) {
+  const kampanya = db
+    .select()
+    .from(kampanyalar)
+    .where(and(eq(kampanyalar.id, id), eq(kampanyalar.tenantId, ctx.tenantId)))
+    .get();
+  if (!kampanya) return null;
+  const nedenler = db
+    .select({ durum: messageQueue.durum, neden: messageQueue.neden, n: count() })
+    .from(messageQueue)
+    .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.kampanyaId, id)))
+    .groupBy(messageQueue.durum, messageQueue.neden)
+    .all();
+  return { ...kampanya, sayilar: sayilariGetir(ctx, [id]).get(id) ?? bosSayilar(), nedenler };
+}
+
+/** Kampanyanın alıcı bazında durumu (sayfalı). Alıcı adresi gösterilmez; kaydın kullanıcı verisi gösterilir. */
+export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: number; durum?: MesajDurumu } = {}) {
+  const sayfa = Math.max(1, Math.floor(f.sayfa ?? 1));
+  const kosul = and(
+    eq(messageQueue.tenantId, ctx.tenantId),
+    eq(messageQueue.kampanyaId, id),
+    f.durum ? eq(messageQueue.durum, f.durum) : undefined,
+  );
+  const toplam = db.select({ n: count() }).from(messageQueue).where(kosul).get()?.n ?? 0;
+  const mesajlar = db
+    .select({
+      id: messageQueue.id,
+      leadId: messageQueue.leadId,
+      isletmeAdi: leads.isletmeAdi,
+      durum: messageQueue.durum,
+      neden: messageQueue.neden,
+      hata: messageQueue.hata,
+      denemeSayisi: messageQueue.denemeSayisi,
+      sonrakiDeneme: messageQueue.sonrakiDeneme,
+      gonderimTarihi: messageQueue.gonderimTarihi,
+      sandboxIcerik: messageQueue.sandboxIcerik,
+    })
+    .from(messageQueue)
+    .innerJoin(leads, and(eq(leads.id, messageQueue.leadId), eq(leads.tenantId, messageQueue.tenantId)))
+    .where(kosul)
+    .orderBy(messageQueue.olusturmaTarihi, messageQueue.id)
+    .limit(SAYFA_BOYUTU)
+    .offset((sayfa - 1) * SAYFA_BOYUTU)
+    .all();
+  return { mesajlar, toplam, sayfa, sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)) };
+}
+
+/** Bekleyen mesajlar iptal edilir; gönderilmiş olanlar etkilenmez. Tamamlanmış kampanya iptal edilemez. */
+export function kampanyaIptal(ctx: TenantContext, id: string): boolean {
+  return db.transaction((tx) => {
+    const k = tx
+      .update(kampanyalar)
+      .set({ durum: "iptal", tamamlanmaTarihi: new Date() })
+      .where(
+        and(
+          eq(kampanyalar.id, id),
+          eq(kampanyalar.tenantId, ctx.tenantId),
+          inArray(kampanyalar.durum, ["zamanlandi", "calisiyor"]),
+        ),
+      )
+      .returning({ id: kampanyalar.id })
+      .get();
+    if (!k) return false;
+    tx.update(messageQueue)
+      .set({ durum: "iptal", neden: "iptal" })
+      .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.kampanyaId, id), eq(messageQueue.durum, "kuyrukta")))
+      .run();
+    return true;
+  });
+}

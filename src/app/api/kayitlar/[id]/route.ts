@@ -2,6 +2,7 @@
 // Her değişiklik depo fonksiyonu içinde lead_events'e yazılır.
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ALICI_TURLERI } from "@/lib/mesajlasma";
 import { ILETI_IZINLERI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
@@ -43,6 +44,9 @@ const Degisiklik = z
   .object({
     durum: z.enum(KAYIT_DURUMLARI),
     iletiIzni: z.enum(ILETI_IZINLERI),
+    // Kullanıcının girdiği işletme adı (kampanyalardaki {isletme}). Places'tan gelen ad buraya yazılmaz.
+    isletmeAdi: metin(160, "İşletme adı"),
+    aliciTuru: z.enum(ALICI_TURLERI),
     yetkiliAdi: metin(120, "Yetkili adı"),
     eposta: z
       .string()

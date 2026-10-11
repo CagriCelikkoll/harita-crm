@@ -1,4 +1,5 @@
 // Kullanım: npm run cleanup   (cron ile günde bir kez çalıştırın, README'ye bakın)
+import "./ortam";
 import { temizlikYap, tumYarimKalanTaramalariKapat } from "../src/server/repo/sistem/bakim";
 
 const sonuc = temizlikYap();
