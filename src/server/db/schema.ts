@@ -160,7 +160,8 @@ export const usageCounters = sqliteTable(
     tenantId: text("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    ay: text("ay").notNull(), // "YYYY-MM" (UTC)
+    ay: text("ay").notNull(), // "YYYY-MM" (Europe/Istanbul)
+    // Tarihsel ad: değer, ayın kullanılan Places BİRİMİdir (src/lib/places-birimleri.ts).
     placesIstekSayisi: integer("places_istek_sayisi").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.ay] })],

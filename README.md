@@ -38,7 +38,7 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `GOOGLE_PLACES_API_KEY` | Gerçek veri için | Google Cloud Console → *APIs & Services* → *Credentials* → *Create API key*. **Places API (New)** etkin olmalı. Anahtarı *API restrictions* ile yalnızca "Places API (New)"a, *Application restrictions* ile sunucunuzun IP adresine kısıtlayın. Projede faturalandırma açık olmalı. |
 | `PLACES_MOCK` | Hayır | `true` = örnek veri, Places'a istek yok. Gerçek kullanımda `false`. |
 | `SCAN_MAX_REQUESTS` | Hayır | Tarama başına en fazla Places isteği (varsayılan 50). |
-| `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places isteği kotası (varsayılan 2.000). Mevcut alanlar için `npm run kota`. |
+| `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places kotası, **birim** cinsinden (varsayılan 6.000). Mevcut alanlar için `npm run kota`. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Harita için | **Ayrı** bir anahtar oluşturun: yalnızca **Maps JavaScript API**'ye ve *HTTP referrers* ile alan adınıza (`https://crm.ornek.com/*`, geliştirmede `http://localhost:3000/*`) kısıtlayın. Bu anahtar tarayıcıya gider; Places anahtarı gitmez. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Hayır | Gelişmiş işaretçiler için Map ID (Cloud Console → *Map Management*). Boşsa `DEMO_MAP_ID`. |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
@@ -86,7 +86,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
 | `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
 | `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
-| `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı istekte tam 25 (kota) başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
+| `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (3 birim) kota 75 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
+| `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -183,22 +184,38 @@ Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır En
 - **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
   (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
 - Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
-- Panelde ve Ayarlar'da "Bu ayki Places kullanımı" çubuğu tüm bu istekleri kotayla birlikte gösterir.
+- Panelde ve Ayarlar'da "Bu ayki Places kullanımı" çubuğu bu işlemlerin birimlerini kotayla birlikte gösterir.
 
 ## Aylık Places kotası (kiracı başına)
 
-Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Places isteği kotası vardır
-(`tenants.aylik_places_kotasi`).
+Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Places kotası vardır
+(`tenants.aylik_places_kotasi`). Kota **maliyet ağırlıklı birim** cinsindendir.
 
-- **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **2.000**) başlar. Mevcut
-  satırlar migration ile 2.000 aldı.
+**Birimler** — tek kaynak `src/lib/places-birimleri.ts` (Ayarlar'daki "Hangi işlem kaç birim?" tablosu da buradan
+okur). En ucuz ücretli SKU (Place Details Essentials, $5/1000) = 1 birim; diğerleri fiyatına oranla, tam sayıya
+yuvarlanır; ücretsiz SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki fiyatlar güncellenir.
+
+| İşlem | SKU | $/1000 | Birim |
+| --- | --- | --- | --- |
+| Tarama, dairenin içi | Text Search Essentials (IDs Only) | 0 | 0 |
+| Tarama, dairenin sınırı; adres araması | Text Search Pro | 32 | 6 |
+| Kayıt listesi satırı (ad + adres) | Place Details Pro | 17 | 3 |
+| Kayıt detayı (telefon, web, puan) | Place Details Enterprise | 20 | 4 |
+
+Ücretsiz istekler kotadan düşmez (kota doluyken de yapılabilir) ama `SCAN_MAX_REQUESTS` tarama sınırına sayılmaya
+devam eder. Yukarıdaki maliyet varsayımı (1.000 liste sayfası + 300 detay) ≈ 60.000 + 1.200 = **61.200 birim/ay**
+eder; varsayılan 6.000 birim bunun yaklaşık onda biridir (≈ 100 liste sayfası).
+
+- **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **6.000 birim**) başlar.
+  Birime geçiş migration'ı (`0003_places_birim_kotasi`) mevcut kotaları ve sayaçları 3 ile çarptı (liste satırı 3
+  birim olduğu için kullanım oranı korunur; 2.000 istek → 6.000 birim).
 - **Değiştirmek:** Şimdilik yönetici arayüzü yok; sunucuda:
   ```bash
-  npm run kota -- <tenant-slug> <sayi>      # ör. npm run kota -- ege-satis-ekibi 5000
+  npm run kota -- <tenant-slug> <birim>     # ör. npm run kota -- ege-satis-ekibi 15000
   ```
   Slug, Ayarlar sayfasındaki komut örneğinde görünür.
-- **Kontrol:** Her Places isteğinden **önce** 1 birim ayrılır (tarama, liste, detay, adres araması). Kota yetmezse
-  istek hiç yapılmaz.
+- **Kontrol:** Her ücretli Places isteğinden **önce** o işlemin birimi ayrılır (tarama, liste, detay, adres
+  araması). Kalan birim yetmezse istek hiç yapılmaz (ör. 3 birim kalmışsa detay yapılmaz, liste satırı yapılır).
   - **Tarama:** Kota dolduğunda tarama, bütçe bittiğindeki "kısmi tarama" mantığıyla durur. O ana kadar bulunanlar
     kaydedilir; tarama "tamamlandı (kısmi)" olur ve "Bu ayki veri kotanız doldu." mesajı gösterilir.
   - **Liste ve detay:** Places çağrısı yapılmaz; kullanıcının kendi verisi (durum, ileti izni, etiketler, notlar,
@@ -210,9 +227,11 @@ Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Pla
   (`INSERT … ON CONFLICT DO UPDATE … WHERE kullanilan + adet <= kota … RETURNING`). SQLite her ifadeyi atomik
   yürüttüğü için aynı süreçteki eşzamanlı istekler ve ayrı süreçler kotayı aşamaz (`tests/kota.test.ts` 4 ayrı
   süreçle sınar).
-- **İade:** Ağ hatası veya Google'ın reddettiği (404 dışı hata) istekte ayrılan birim geri verilir; Google başarısız
-  isteği faturalamaz.
-- Kota ay başında (UTC) sıfırlanır: sayaç `usage_counters (tenant_id, ay)` satırındadır.
+- **İade:** Ağ hatası veya Google'ın reddettiği (404 dışı hata) istekte ayrılan birimler, **ayrıldıkları aya**
+  geri verilir; Google başarısız isteği faturalamaz.
+- **Ay sınırı:** Kota ayı **Europe/Istanbul** takvimine göredir; her ayın 1'inde 00:00'da (İstanbul) yeni sayaç
+  başlar. Sayaç `usage_counters (tenant_id, ay)` satırındadır (sütun adı `places_istek_sayisi` tarihseldir, değer
+  birimdir). `tests/kota-birim.test.ts` 31 Ekim 23:30 → 1 Kasım 00:30 geçişini sınar.
 
 ## Zamanlanmış temizlik (`npm run cleanup`)
 
@@ -328,6 +347,7 @@ tests/                           Vitest
   silinir; `merkez_kaynagi` bilgi amaçlı kalır.
 - **Yarıda kalan taramalar:** 10 dakika kuralı hem "calisiyor" hem "kuyrukta" için (yukarıda).
 - **Aylık Places kotası:** kiracı başına, atomik; yönetici arayüzü yok, `npm run kota` (yukarıda).
+- **Kota birimi:** maliyet ağırlıklı (Essentials tabanı), varsayılan 6.000 birim; kota ayı İstanbul saatine göre.
 - **Next.js önbelleği:** `cacheComponents`/`partialPrefetching` kapalı; tüm sayfalar oturuma bağlı ve canlı Places
   verisi gösterdiği için klasik dinamik render.
 - **lead_events.sistem** sütunu ve `(tenant_id, lead_id)` bileşik yabancı anahtarı.
@@ -337,10 +357,9 @@ tests/                           Vitest
 1. **E-posta gönderimi:** Davetler için `Postaci` arayüzü var; şimdilik yalnızca konsol adaptörü (davet bağlantısı
    Ayarlar'da gösterilir). Gerçek SMTP/sağlayıcı ve e-posta doğrulaması (Better Auth `emailVerification`) sonraya.
 2. **Kota yönetimi:** Kota yalnızca komut satırından değişir; yönetici arayüzü ve kota dolmadan önce e-posta
-   uyarısı (2. aşamadaki gönderim altyapısıyla) sonraya. Kota aylık ve UTC'ye göre sıfırlanır; Türkiye saatiyle
-   ayın ilk 3 saati önceki aya sayılır.
-3. **Kota birimi:** Kota, SKU'dan bağımsız olarak istek sayısıdır (ücretsiz IDs Only tarama isteği de 1 sayılır).
-   Maliyete göre ağırlıklı kota (ör. Enterprise = 2 birim) istenirse `kotaAyir(ctx, adet)` zaten adet alır.
+   uyarısı sonraya.
+3. **Birimler ve ücretsiz kotalar:** Birimler yalnızca fiyata oranlıdır; Google'ın SKU başına aylık ücretsiz
+   kullanımı (Pro 5.000, Enterprise 1.000) hesaba katılmaz ve faturalandırma hesabı tüm kiracılar için ortaktır.
 4. **Kategori listesi:** `src/lib/kategoriler.ts` içinde 12 kategori (Places Table A türleri). Hedef sektörlere göre
    genişletilmeli.
 5. **Tarama yürütme:** Tarama hâlâ istek içinde senkron çalışır; yüksek bütçeli taramalar için iş kuyruğu gerekecek.

@@ -2,7 +2,7 @@
 // - Text Search istek başına en fazla 20, toplam en fazla 60 sonuç (3 sayfa) döndürür.
 // - Konum yalnızca istenirse döner.
 // Sahte işletmeler sabit bir enlem/boylam ızgarasına deterministik olarak yerleştirilir.
-import type { IstemciSecenekleri } from "./istemci";
+import { cagriBirimi, type IstemciSecenekleri } from "./istemci";
 import { kotaKontrol, type LatLng, type MetinAramaIstegi, type PlacesIstemcisi, type YerBilgisi } from "./tipler";
 
 const ADIM = 0.004; // ≈ 445 m enlem
@@ -52,7 +52,7 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
 
   return {
     async metinAra(istek: MetinAramaIstegi) {
-      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
+      kotaKontrol(kota, cagriBirimi(istek.konumIste ? "taramaKonumlu" : "taramaYalnizcaId")); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       const { alan, tur } = istek;
@@ -77,7 +77,7 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
     },
 
     async yerDetayi(placeId: string, kapsam): Promise<YerBilgisi | null> {
-      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
+      kotaKontrol(kota, cagriBirimi(kapsam)); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       const c = idCoz(placeId);
@@ -88,7 +88,7 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
     },
 
     async adresBul(metin: string) {
-      kotaKontrol(kota); // gerçek istemci gibi: kota yoksa istek yapılmaz
+      kotaKontrol(kota, cagriBirimi("adres")); // gerçek istemci gibi: kota yoksa istek yapılmaz
       await gecikme();
       istekSayaci?.(1);
       // Kadıköy çevresinde metne göre küçük bir sapma.

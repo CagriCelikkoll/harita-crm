@@ -7,7 +7,7 @@ import { db } from "@/server/db";
 import { placesIstemcisiOlustur } from "@/server/places/istemci";
 import { KotaDolduHatasi } from "@/server/places/tipler";
 import type { TenantContext } from "@/server/repo/baglam";
-import { aylikPlacesIstegi, kotaAyir, kotaDurumu, kotaIadeEt } from "@/server/repo/kullanim";
+import { aylikPlacesBirimi, kotaAyir, kotaDurumu, kotaIadeEt } from "@/server/repo/kullanim";
 import { kotaAyarla, varsayilanKota } from "@/server/repo/sistem/kota";
 import { calismaAlaniKur } from "@/server/repo/sistem/uyelik";
 import { taramaOlustur } from "@/server/repo/taramalar";
@@ -31,31 +31,31 @@ afterEach(() => {
 });
 
 describe("kota: temel kurallar", () => {
-  it("yeni çalışma alanı varsayılan 2.000 kota ile başlar; PLACES_AYLIK_KOTA ile değiştirilebilir", () => {
-    expect(kotaDurumu(kiraciOlustur("Varsayilan").ctx).kota).toBe(2000);
+  it("yeni çalışma alanı varsayılan 6.000 birim kota ile başlar; PLACES_AYLIK_KOTA ile değiştirilebilir", () => {
+    expect(kotaDurumu(kiraciOlustur("Varsayilan").ctx).kota).toBe(6000);
     vi.stubEnv("PLACES_AYLIK_KOTA", "750");
     expect(varsayilanKota()).toBe(750);
     const k = kullaniciOlustur("Ortam");
     expect(kotaDurumu(calismaAlaniKur(k.id, "Ortam Alanı")).kota).toBe(750);
     vi.stubEnv("PLACES_AYLIK_KOTA", "gecersiz");
-    expect(varsayilanKota()).toBe(2000);
+    expect(varsayilanKota()).toBe(6000);
   });
 
   it("kotaya kadar ayırır, sonra reddeder ve sayacı aşmaz", () => {
     const ctx = kotaliKiraci(5);
     expect([1, 2, 3, 4, 5, 6, 7].map(() => kotaAyir(ctx))).toEqual([true, true, true, true, true, false, false]);
-    expect(aylikPlacesIstegi(ctx)).toBe(5);
+    expect(aylikPlacesBirimi(ctx)).toBe(5);
     expect(kotaAyir(ctx, 0 + 1)).toBe(false);
     kotaIadeEt(ctx);
     expect(kotaAyir(ctx)).toBe(true); // iade edilen birim yeniden kullanılabilir
     expect(kotaAyir(ctx, 3)).toBe(false); // çoklu ayırma da sınırı aşamaz
-    expect(aylikPlacesIstegi(ctx)).toBe(5);
+    expect(aylikPlacesBirimi(ctx)).toBe(5);
   });
 
   it("ilk ayırma (satır yokken) da kotaya tabidir", () => {
     const ctx = kotaliKiraci(2);
     expect(kotaAyir(ctx, 3)).toBe(false);
-    expect(aylikPlacesIstegi(ctx)).toBe(0);
+    expect(aylikPlacesBirimi(ctx)).toBe(0);
     expect(kotaAyir(ctx, 2)).toBe(true);
   });
 
@@ -82,15 +82,15 @@ describe("kota: temel kurallar", () => {
 
 describe("kota: eşzamanlılık (atomiklik)", () => {
   it("aynı süreçte eşzamanlı canlı bilgi istekleri kotayı aşmaz", async () => {
-    const ctx = kotaliKiraci(25);
-    // 4 paralel liste yüklemesi × 10 yer = 40 istek denemesi, kota 25.
+    const ctx = kotaliKiraci(75);
+    // 4 paralel liste yüklemesi × 10 yer = 40 istek denemesi × 3 birim; kota 75 birim = 25 satır.
     const sonuclar = await Promise.all(
       [0, 1, 2, 3].map((i) => canliBilgiGetir(ctx, mockIdleri(40).slice(i * 10, i * 10 + 10), "liste")),
     );
     const hepsi = sonuclar.flatMap((m) => [...m.values()]);
     expect(hepsi.filter((s) => s.durum === "tamam")).toHaveLength(25);
     expect(hepsi.filter((s) => s.durum === "kota")).toHaveLength(15);
-    expect(aylikPlacesIstegi(ctx)).toBe(25);
+    expect(aylikPlacesBirimi(ctx)).toBe(75);
   });
 
   it("ayrı süreçler aynı veritabanında aynı anda ayırsa da toplam tam olarak kota kadardır", async () => {
@@ -122,26 +122,28 @@ describe("kota: eşzamanlılık (atomiklik)", () => {
 
     expect(ciktilar.reduce((a, b) => a + b, 0)).toBe(KOTA); // başarılı ayırmaların toplamı
     expect(ciktilar.filter((n) => n > 0).length).toBeGreaterThan(1); // gerçekten birden fazla süreç ayırdı
-    expect(aylikPlacesIstegi(ctx)).toBe(KOTA); // sayaç kotayı aşmadı
+    expect(aylikPlacesBirimi(ctx)).toBe(KOTA); // sayaç kotayı aşmadı
   }, 60_000);
 });
 
 describe("kota: Places çağrıları", () => {
   it("tarama sırasında kota dolarsa tarama kısmi olarak tamamlanır ve Places'a fazladan gidilmez", async () => {
-    const ctx = kotaliKiraci(3);
+    // Sınır hücreleri Text Search Pro'dur (6 birim): kota 18 birim = 3 ücretli istek.
+    const ctx = kotaliKiraci(18);
     const t = taramaOlustur(ctx, { merkezLat: 40.99, merkezLng: 29.03, yaricapM: 8000, kategori: "emlak_ofisi" });
     const sonuc = await taramaCalistir(ctx, t.id);
-    expect(sonuc).toMatchObject({ durum: "tamamlandi", kapsamTamam: false, istekSayisi: 3 });
+    expect(sonuc).toMatchObject({ durum: "tamamlandi", kapsamTamam: false });
     expect(sonuc?.hataMesaji).toContain(KOTA_DOLDU_MESAJI);
     expect(sonuc!.bulunanSayisi).toBeGreaterThan(0); // o ana kadar bulunanlar kaydedildi
-    expect(aylikPlacesIstegi(ctx)).toBe(3);
+    expect(sonuc!.istekSayisi).toBeGreaterThanOrEqual(3); // ücretsiz istekler de tarama sınırına sayılır
+    expect(aylikPlacesBirimi(ctx)).toBe(18);
   });
 
   it("kota doluyken liste/detay çağrısı yapılmaz, sonuç 'kota' olur", async () => {
     const ctx = kotaliKiraci(0);
     const sonuc = await canliBilgiGetir(ctx, mockIdleri(3), "detay");
     expect([...sonuc.values()]).toEqual([{ durum: "kota" }, { durum: "kota" }, { durum: "kota" }]);
-    expect(aylikPlacesIstegi(ctx)).toBe(0);
+    expect(aylikPlacesBirimi(ctx)).toBe(0);
   });
 
   it("gerçek istemci: kota doluyken HTTP isteği hiç gönderilmez", async () => {
@@ -164,14 +166,14 @@ describe("kota: Places çağrıları", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response("hata", { status: 500 })));
     await expect(istemci.yerDetayi("ChIJabc", "liste")).rejects.toThrow(/500/);
-    expect(aylikPlacesIstegi(ctx)).toBe(0);
+    expect(aylikPlacesBirimi(ctx)).toBe(0);
 
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("ağ yok"); }));
     await expect(istemci.yerDetayi("ChIJabc", "liste")).rejects.toThrow(/ulaşılamadı/);
-    expect(aylikPlacesIstegi(ctx)).toBe(0);
+    expect(aylikPlacesBirimi(ctx)).toBe(0);
 
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "ChIJabc", displayName: { text: "Deneme" } })));
     expect((await istemci.yerDetayi("ChIJabc", "liste"))?.ad).toBe("Deneme");
-    expect(aylikPlacesIstegi(ctx)).toBe(1);
+    expect(aylikPlacesBirimi(ctx)).toBe(3); // liste satırı: Place Details Pro = 3 birim
   });
 });

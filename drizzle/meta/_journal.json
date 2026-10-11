@@ -22,6 +22,13 @@
       "when": 1791746055072,
       "tag": "0002_places_kotasi",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791755983964,
+      "tag": "0003_places_birim_kotasi",
+      "breakpoints": true
     }
   ]
 }

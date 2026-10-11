@@ -167,26 +167,26 @@ const kullanimTestleri: Record<keyof typeof kullanim, () => void> = {
   },
   kotaAyir: () => {
     // A'nın ayırdığı kota yalnızca A'nın sayacına yazılır.
-    const once = kullanim.aylikPlacesIstegi(B);
+    const once = kullanim.aylikPlacesBirimi(B);
     expect(kullanim.kotaAyir(A, 3)).toBe(true);
-    expect(kullanim.aylikPlacesIstegi(B)).toBe(once);
+    expect(kullanim.aylikPlacesBirimi(B)).toBe(once);
     kullanim.kotaIadeEt(A, 3);
   },
   kotaIadeEt: () => {
-    const once = kullanim.aylikPlacesIstegi(B);
+    const once = kullanim.aylikPlacesBirimi(B);
     kullanim.kotaIadeEt(A, 5);
-    expect(kullanim.aylikPlacesIstegi(B)).toBe(once);
+    expect(kullanim.aylikPlacesBirimi(B)).toBe(once);
   },
-  aylikPlacesIstegi: () => {
-    expect(kullanim.aylikPlacesIstegi(B)).toBe(7);
-    expect(kullanim.aylikPlacesIstegi(A)).toBe(0);
+  aylikPlacesBirimi: () => {
+    expect(kullanim.aylikPlacesBirimi(B)).toBe(7);
+    expect(kullanim.aylikPlacesBirimi(A)).toBe(0);
   },
   kotaDurumu: () => {
     // A'nın kotası B'nin kullanımını görmez; kota A'nın kendi satırından okunur.
     db.$client.prepare("update tenants set aylik_places_kotasi = 9 where id = ?").run(B.tenantId);
-    expect(kullanim.kotaDurumu(A)).toMatchObject({ kullanilan: 0, kota: 2000, doldu: false });
+    expect(kullanim.kotaDurumu(A)).toMatchObject({ kullanilan: 0, kota: 6000, doldu: false });
     expect(kullanim.kotaDurumu(B)).toMatchObject({ kullanilan: 7, kota: 9, kalan: 2 });
-    db.$client.prepare("update tenants set aylik_places_kotasi = 2000 where id = ?").run(B.tenantId);
+    db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(B.tenantId);
   },
 };
 

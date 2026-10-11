@@ -2,7 +2,7 @@ import { sayiYaz } from "@/lib/bicim";
 import { KOTA_DOLDU_MESAJI, KOTA_UYARI_ORANI } from "@/lib/sabitler";
 import type { KotaDurumu } from "@/server/repo/kullanim";
 
-/** Aylık Places kullanımı: kullanılan / kota çubuğu; %80'de uyarı, %100'de "kota doldu". */
+/** Aylık Places kullanımı (birim): kullanılan / kota çubuğu; %80'de uyarı, %100'de "kota doldu". */
 export function KotaCubugu({ durum, aciklama = true }: { durum: KotaDurumu; aciklama?: boolean }) {
   const yuzde = Math.round(durum.oran * 100);
   const renk = durum.doldu ? "bg-tehlike" : durum.uyari ? "bg-amber-500" : "bg-ana";
@@ -11,7 +11,7 @@ export function KotaCubugu({ durum, aciklama = true }: { durum: KotaDurumu; acik
       <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
         <span className="font-medium">Bu ayki Places kullanımı</span>
         <span className="tabular-nums">
-          {sayiYaz(durum.kullanilan)} / {sayiYaz(durum.kota)}
+          {sayiYaz(durum.kullanilan)} / {sayiYaz(durum.kota)} birim
         </span>
       </div>
       <div
@@ -21,7 +21,7 @@ export function KotaCubugu({ durum, aciklama = true }: { durum: KotaDurumu; acik
         aria-valuemin={0}
         aria-valuemax={durum.kota}
         aria-valuenow={Math.min(durum.kullanilan, durum.kota)}
-        aria-valuetext={`${durum.kullanilan} / ${durum.kota} (%${yuzde})`}
+        aria-valuetext={`${durum.kullanilan} / ${durum.kota} birim (%${yuzde})`}
       >
         <div className={`h-2.5 rounded-full ${renk}`} style={{ width: `${yuzde}%` }} />
       </div>
@@ -33,12 +33,13 @@ export function KotaCubugu({ durum, aciklama = true }: { durum: KotaDurumu; acik
       ) : durum.uyari ? (
         <p role="status" className="mt-1.5 text-xs font-medium text-amber-700">
           Kotanın %{yuzde}&apos;i kullanıldı (uyarı eşiği %{Math.round(KOTA_UYARI_ORANI * 100)}). Kalan:{" "}
-          {sayiYaz(durum.kalan)} istek.
+          {sayiYaz(durum.kalan)} birim.
         </p>
       ) : (
         aciklama && (
           <p className="mt-1.5 text-xs text-soluk">
-            Tarama, kayıt listesi ve detay görüntülemeleri Places isteği kullanır. Kota her ayın başında (UTC) sıfırlanır.
+            Tarama, kayıt listesi ve detay görüntülemeleri kota birimi kullanır. Kota her ayın başında (İstanbul saati)
+            sıfırlanır.
           </p>
         )
       )}

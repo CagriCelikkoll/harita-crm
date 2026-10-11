@@ -9,6 +9,7 @@
 //                             (displayName Pro katmanındadır; ad istenince Essentials mümkün değil)
 //   Detay paneli (ayrı)     : telefon, web sitesi, puan + ad/adres/konum/googleMapsUri → Place Details Enterprise
 //   Adres arama             : places.location,places.formattedAddress  → Text Search Pro
+import { PLACES_BIRIMLERI, type PlacesSku } from "@/lib/places-birimleri";
 import { mockPlacesIstemcisi } from "./mock";
 import {
   kotaKontrol,
@@ -34,6 +35,17 @@ export const ALAN_MASKELERI = {
   adres: "places.location,places.formattedAddress",
 } as const;
 
+/** Her çağrının faturalandığı SKU; kota birimi buradan (src/lib/places-birimleri.ts) okunur. */
+export const CAGRI_SKULARI = {
+  taramaYalnizcaId: "textSearchIdsOnly",
+  taramaKonumlu: "textSearchPro",
+  liste: "placeDetailsPro",
+  detay: "placeDetailsEnterprise",
+  adres: "textSearchPro",
+} as const satisfies Record<keyof typeof ALAN_MASKELERI, PlacesSku>;
+
+export const cagriBirimi = (cagri: keyof typeof CAGRI_SKULARI) => PLACES_BIRIMLERI[CAGRI_SKULARI[cagri]];
+
 type GooglePlace = {
   id?: string;
   displayName?: { text?: string };
@@ -50,11 +62,11 @@ type GooglePlace = {
 
 export type IstemciSecenekleri = {
   /**
-   * Kiracının aylık kotası. Her istekten ÖNCE ayir() çağrılır; false ise istek yapılmaz ve
-   * KotaDolduHatasi fırlatılır. Ağ hatası veya reddedilen istekte iade() çağrılır.
+   * Kiracının aylık kotası. Her ücretli istekten ÖNCE SKU'nun birimi ayrılır; ayrılamazsa istek
+   * yapılmaz ve KotaDolduHatasi fırlatılır. Ağ hatası veya reddedilen istekte birimler iade edilir.
    */
   kota?: KotaKapisi;
-  /** Yapılan her Places isteğinden sonra çağrılır (scans.istek_sayisi). */
+  /** Yapılan her Places isteğinden (ücretsizler dahil) sonra çağrılır (scans.istek_sayisi). */
   istekSayaci?: (adet: number) => void;
 };
 
@@ -64,10 +76,11 @@ export function placesIstemcisiOlustur(secenekler: IstemciSecenekleri = {}): Pla
 }
 
 function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): PlacesIstemcisi {
-  async function istek<T>(yol: string, alanMaskesi: string, govde?: object): Promise<T | null> {
+  async function istek<T>(yol: string, cagri: keyof typeof ALAN_MASKELERI, govde?: object): Promise<T | null> {
+    const alanMaskesi = ALAN_MASKELERI[cagri];
     const anahtar = process.env.GOOGLE_PLACES_API_KEY;
     if (!anahtar) throw new PlacesHatasi("GOOGLE_PLACES_API_KEY tanımlı değil (veya PLACES_MOCK=true kullanın).");
-    kotaKontrol(kota); // kota yoksa istek YAPILMAZ
+    const iade = kotaKontrol(kota, cagriBirimi(cagri)); // kota yoksa istek YAPILMAZ
     let yanit: Response;
     try {
       yanit = await fetch(`${TABAN}${yol}`, {
@@ -82,13 +95,13 @@ function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): Place
         signal: AbortSignal.timeout(15_000),
       });
     } catch (hata) {
-      kota?.iade(); // istek Google'a ulaşmadı
+      iade(); // istek Google'a ulaşmadı
       throw new PlacesHatasi(`Places API'ye ulaşılamadı: ${(hata as Error).message}`);
     }
     istekSayaci?.(1);
     if (yanit.status === 404) return null;
     if (!yanit.ok) {
-      kota?.iade(); // başarısız istek faturalanmaz
+      iade(); // başarısız istek faturalanmaz
       const metin = (await yanit.text()).slice(0, 300);
       throw new PlacesHatasi(`Places API hatası (${yanit.status}): ${metin}`, yanit.status);
     }
@@ -126,8 +139,8 @@ function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): Place
         },
         ...(i.sayfaTokeni ? { pageToken: i.sayfaTokeni } : {}),
       };
-      const maske = i.konumIste ? ALAN_MASKELERI.taramaKonumlu : ALAN_MASKELERI.taramaYalnizcaId;
-      const veri = await istek<{ places?: GooglePlace[]; nextPageToken?: string }>("/places:searchText", maske, govde);
+      const cagri = i.konumIste ? "taramaKonumlu" : "taramaYalnizcaId";
+      const veri = await istek<{ places?: GooglePlace[]; nextPageToken?: string }>("/places:searchText", cagri, govde);
       return {
         yerler: (veri?.places ?? [])
           .filter((p): p is GooglePlace & { id: string } => Boolean(p.id))
@@ -143,13 +156,13 @@ function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): Place
       if (!/^[A-Za-z0-9_-]+$/.test(placeId)) return null;
       const veri = await istek<GooglePlace>(
         `/places/${placeId}?languageCode=tr&regionCode=TR`,
-        kapsam === "detay" ? ALAN_MASKELERI.detay : ALAN_MASKELERI.liste,
+        kapsam,
       );
       return veri ? yerDonustur(veri) : null;
     },
 
     async adresBul(metin: string) {
-      const veri = await istek<{ places?: GooglePlace[] }>("/places:searchText", ALAN_MASKELERI.adres, {
+      const veri = await istek<{ places?: GooglePlace[] }>("/places:searchText", "adres", {
         textQuery: metin,
         pageSize: 1,
         languageCode: "tr",

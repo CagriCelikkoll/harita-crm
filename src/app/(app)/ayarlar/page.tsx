@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { KotaCubugu } from "@/components/kota-cubugu";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { tarihYaz } from "@/lib/bicim";
+import { PLACES_BIRIMLERI, PLACES_FIYAT_TARIHI, PLACES_ISLEMLERI, PLACES_SKULARI } from "@/lib/places-birimleri";
 import { PLACES_KONUM_SAKLAMA_GUN, ROL_ADLARI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { calismaAlaniGetir, davetleriListele, uyeleriListele } from "@/server/repo/calisma-alani";
@@ -39,11 +40,39 @@ export default async function AyarlarSayfasi() {
           <h2 className="mb-3 font-semibold">Places kullanımı</h2>
           <KotaCubugu durum={kotaDurumu(ctx)} />
           <p className="mt-3 text-xs text-soluk">
-            Aylık kota maliyeti sınırlar: her Places isteğinden önce kontrol edilir. Kota dolduğunda taramalar kısmi
-            olarak durur, kayıt listesi ve detayda işletme bilgileri gösterilmez; kendi verileriniz (durum, notlar,
-            iletişim bilgileri) görünmeye devam eder. Kotayı değiştirmek için sunucu yöneticisi şu komutu çalıştırır:{" "}
-            <code className="rounded bg-zemin px-1">npm run kota -- {alan.slug} &lt;sayı&gt;</code>
+            Aylık kota maliyeti sınırlar ve birim cinsindendir: her ücretli Places isteğinden önce o işlemin birimi
+            ayrılır. Kota dolduğunda taramalar kısmi olarak durur, kayıt listesi ve detayda işletme bilgileri
+            gösterilmez; kendi verileriniz (durum, notlar, iletişim bilgileri) görünmeye devam eder. Kota her ayın
+            1&apos;inde 00:00&apos;da (İstanbul saati) sıfırlanır. Kotayı değiştirmek için sunucu yöneticisi şu komutu
+            çalıştırır: <code className="rounded bg-zemin px-1">npm run kota -- {alan.slug} &lt;birim&gt;</code>
           </p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-xs">
+              <caption className="mb-1.5 text-left font-medium text-metin">Hangi işlem kaç birim?</caption>
+              <thead className="text-soluk">
+                <tr className="border-b border-kenar">
+                  <th className="py-1.5 pr-3 text-left font-medium">İşlem</th>
+                  <th className="py-1.5 pr-3 text-left font-medium">Google SKU</th>
+                  <th className="py-1.5 text-right font-medium">Birim</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PLACES_ISLEMLERI.map((i) => (
+                  <tr key={i.islem} className="border-b border-kenar last:border-0">
+                    <td className="py-1.5 pr-3">{i.islem}</td>
+                    <td className="py-1.5 pr-3 text-soluk">{PLACES_SKULARI[i.sku].ad}</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {PLACES_BIRIMLERI[i.sku] === 0 ? "0 (ücretsiz)" : PLACES_BIRIMLERI[i.sku]}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1.5 text-xs text-soluk">
+              Birimler Google&apos;ın fiyatlarına orantılıdır ({PLACES_FIYAT_TARIHI} fiyat listesi; en ucuz ücretli
+              işlem 1 birim). Ücretsiz istekler kotadan düşmez ama tarama başına istek sınırına sayılır.
+            </p>
+          </div>
         </section>
 
         <section className="kart">

@@ -4,7 +4,7 @@ import { VARSAYILAN_AYLIK_PLACES_KOTASI } from "@/lib/sabitler";
 import { db } from "../../db";
 import { tenants } from "../../db/schema";
 
-/** Yeni çalışma alanlarının başlangıç kotası: PLACES_AYLIK_KOTA (geçerli bir tam sayıysa) ya da 2.000. */
+/** Yeni çalışma alanlarının başlangıç kotası (birim): PLACES_AYLIK_KOTA (geçerli bir tam sayıysa) ya da 6.000. */
 export function varsayilanKota(): number {
   const deger = Number(process.env.PLACES_AYLIK_KOTA);
   return Number.isInteger(deger) && deger >= 0 ? deger : VARSAYILAN_AYLIK_PLACES_KOTASI;

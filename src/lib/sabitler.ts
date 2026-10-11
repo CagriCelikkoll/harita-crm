@@ -56,8 +56,11 @@ export const PLACES_KONUM_SAKLAMA_GUN = 30;
 export const YARIM_KALAN_TARAMA_DAKIKA = 10;
 export const YARIM_KALDI_MESAJI = "Tarama yarıda kaldı, yeniden başlatın.";
 
-/** Yeni çalışma alanlarının aylık Places isteği kotası (PLACES_AYLIK_KOTA ile değiştirilebilir). */
-export const VARSAYILAN_AYLIK_PLACES_KOTASI = 2000;
+/**
+ * Yeni çalışma alanlarının aylık Places kotası, BİRİM cinsinden (PLACES_AYLIK_KOTA ile değiştirilebilir).
+ * Birim ağırlıkları: src/lib/places-birimleri.ts.
+ */
+export const VARSAYILAN_AYLIK_PLACES_KOTASI = 6000;
 /** Kullanım bu orana ulaşınca uyarı gösterilir. */
 export const KOTA_UYARI_ORANI = 0.8;
 export const KOTA_DOLDU_MESAJI = "Bu ayki veri kotanız doldu.";

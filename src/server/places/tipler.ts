@@ -53,12 +53,22 @@ export class KotaDolduHatasi extends Error {
   }
 }
 
-/** Her Places isteğinden önce ayir(), istek yapılamazsa iade() çağrılır. */
-export type KotaKapisi = { ayir: () => boolean; iade: () => void };
+/**
+ * Her ücretli Places isteğinden önce ayir(birim) çağrılır: kota yetiyorsa birimler ayrılır ve istek
+ * yapılamazsa çağrılacak iade fonksiyonu döner; yetmiyorsa null (istek yapılmaz).
+ */
+export type KotaKapisi = { ayir: (birim: number) => { iade: () => void } | null };
 
-/** İstek öncesi kota kapısı: kota ayrılamazsa KotaDolduHatasi (istek yapılmaz). */
-export function kotaKontrol(kota: KotaKapisi | undefined) {
-  if (kota && !kota.ayir()) throw new KotaDolduHatasi();
+/**
+ * İstek öncesi kota kapısı. Ücretsiz SKU (0 birim) kotadan düşmez ve kota dolu olsa da yapılabilir.
+ * Kota ayrılamazsa KotaDolduHatasi (istek yapılmaz). Dönen fonksiyon, istek başarısız olursa
+ * ayrılan birimleri geri verir.
+ */
+export function kotaKontrol(kota: KotaKapisi | undefined, birim: number): () => void {
+  if (!kota || birim <= 0) return () => {};
+  const ayrilan = kota.ayir(birim);
+  if (!ayrilan) throw new KotaDolduHatasi();
+  return ayrilan.iade;
 }
 
 export class PlacesHatasi extends Error {

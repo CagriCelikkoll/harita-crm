@@ -1,26 +1,27 @@
-// Places kullanım sayacı ve aylık kota.
+// Places kullanım sayacı ve aylık kota (birim cinsinden; ağırlıklar src/lib/places-birimleri.ts).
 //
-// Her Places isteğinden ÖNCE kotaAyir() çağrılır. Kontrol ve artırma TEK bir SQL ifadesindedir
+// Her ücretli Places isteğinden ÖNCE kotaAyir() çağrılır. Kontrol ve artırma TEK bir SQL ifadesindedir
 // (INSERT … ON CONFLICT DO UPDATE … WHERE … RETURNING): SQLite her ifadeyi atomik yürüttüğü için
 // eşzamanlı istekler — aynı süreçte ya da ayrı süreçlerde — kotayı aşamaz.
+// Kota ayı Europe/Istanbul takvimine göredir. (Sütun adı places_istek_sayisi tarihseldir; değer birimdir.)
 import { and, eq, sql } from "drizzle-orm";
 import { KOTA_UYARI_ORANI } from "@/lib/sabitler";
+import { ayAnahtari } from "@/lib/zaman";
 import { db } from "../db";
 import { tenants, usageCounters } from "../db/schema";
 import type { TenantContext } from "./baglam";
 
-export const ayAnahtari = (tarih = new Date()) => tarih.toISOString().slice(0, 7); // "YYYY-MM" (UTC)
+export { ayAnahtari };
 
 /**
- * Bu ay için `adet` kadar Places isteği ayırır. Kota yetiyorsa sayacı artırıp true, yetmiyorsa
- * hiçbir şey yazmadan false döner.
+ * `ay` için `birim` kadar kota ayırır. Kota yetiyorsa sayacı artırıp true, yetmiyorsa hiçbir şey
+ * yazmadan false döner.
  */
-export function kotaAyir(ctx: TenantContext, adet = 1): boolean {
-  const ay = ayAnahtari();
+export function kotaAyir(ctx: TenantContext, birim = 1, ay = ayAnahtari()): boolean {
   const kota = sql`(select ${tenants.aylikPlacesKotasi} from ${tenants} where ${tenants.id} = ${ctx.tenantId})`;
   const satir = db.get<{ n: number } | undefined>(sql`
     insert into ${usageCounters} (tenant_id, ay, places_istek_sayisi)
-    select ${ctx.tenantId}, ${ay}, ${adet} where ${adet} <= ${kota}
+    select ${ctx.tenantId}, ${ay}, ${birim} where ${birim} <= ${kota}
     on conflict (tenant_id, ay) do update
       set places_istek_sayisi = ${usageCounters}.places_istek_sayisi + excluded.places_istek_sayisi
       where ${usageCounters}.places_istek_sayisi + excluded.places_istek_sayisi <= ${kota}
@@ -28,15 +29,15 @@ export function kotaAyir(ctx: TenantContext, adet = 1): boolean {
   return satir !== undefined;
 }
 
-/** Yapılamayan (ağ hatası / Google tarafından reddedilen) istek için ayrılan kotayı geri verir. */
-export function kotaIadeEt(ctx: TenantContext, adet = 1) {
+/** Yapılamayan (ağ hatası / Google tarafından reddedilen) istek için ayrılan birimleri, ayrıldığı aya iade eder. */
+export function kotaIadeEt(ctx: TenantContext, birim = 1, ay = ayAnahtari()) {
   db.update(usageCounters)
-    .set({ placesIstekSayisi: sql`max(0, ${usageCounters.placesIstekSayisi} - ${adet})` })
-    .where(and(eq(usageCounters.tenantId, ctx.tenantId), eq(usageCounters.ay, ayAnahtari())))
+    .set({ placesIstekSayisi: sql`max(0, ${usageCounters.placesIstekSayisi} - ${birim})` })
+    .where(and(eq(usageCounters.tenantId, ctx.tenantId), eq(usageCounters.ay, ay)))
     .run();
 }
 
-export function aylikPlacesIstegi(ctx: TenantContext, ay = ayAnahtari()): number {
+export function aylikPlacesBirimi(ctx: TenantContext, ay = ayAnahtari()): number {
   return (
     db
       .select({ n: usageCounters.placesIstekSayisi })
@@ -56,9 +57,9 @@ export type KotaDurumu = {
   doldu: boolean;
 };
 
-export function kotaDurumu(ctx: TenantContext): KotaDurumu {
+export function kotaDurumu(ctx: TenantContext, ay = ayAnahtari()): KotaDurumu {
   const kota = db.select({ k: tenants.aylikPlacesKotasi }).from(tenants).where(eq(tenants.id, ctx.tenantId)).get()?.k ?? 0;
-  const kullanilan = aylikPlacesIstegi(ctx);
+  const kullanilan = aylikPlacesBirimi(ctx, ay);
   const oran = kota > 0 ? Math.min(1, kullanilan / kota) : 1;
   return {
     kullanilan,
