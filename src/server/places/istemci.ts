@@ -1,11 +1,13 @@
 // Google Places API (New) — TÜM Places çağrıları bu modülden geçer ve yalnızca sunucuda çalışır.
 // API anahtarı (GOOGLE_PLACES_API_KEY) tarayıcıya asla gönderilmez.
 //
-// Alan maskeleri ve SKU'lar (Ekim 2026 fiyat listesi, README'de ayrıntı):
+// Alan maskeleri ve SKU'lar (Ekim 2026 fiyat listesi, README'de ayrıntı). Bir istek, maskedeki
+// en yüksek katmandan TEK olay olarak faturalanır.
 //   Tarama, daire içi hücre : places.id,nextPageToken                 → Text Search Essentials (IDs Only), ücretsiz
 //   Tarama, sınır hücresi   : places.id,places.location,nextPageToken → Text Search Pro
-//   Liste satırı            : ad, adres, ulusal telefon, googleMapsUri → Place Details Enterprise
-//   Detay paneli            : + web sitesi, puan, konum, işletme durumu → Place Details Enterprise
+//   Liste satırı            : id,displayName,formattedAddress          → Place Details Pro
+//                             (displayName Pro katmanındadır; ad istenince Essentials mümkün değil)
+//   Detay paneli (ayrı)     : telefon, web sitesi, puan + ad/adres/konum/googleMapsUri → Place Details Enterprise
 //   Adres arama             : places.location,places.formattedAddress  → Text Search Pro
 import { mockPlacesIstemcisi } from "./mock";
 import {
@@ -22,7 +24,8 @@ const TABAN = "https://places.googleapis.com/v1";
 export const ALAN_MASKELERI = {
   taramaYalnizcaId: "places.id,nextPageToken",
   taramaKonumlu: "places.id,places.location,nextPageToken",
-  liste: "id,displayName,formattedAddress,nationalPhoneNumber,googleMapsUri",
+  // Enterprise alanı (telefon, web sitesi, puan, çalışma saatleri) EKLEMEYİN: tüm liste Enterprise'a çıkar.
+  liste: "id,displayName,formattedAddress",
   detay:
     "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri," +
     "googleMapsUri,rating,userRatingCount,location,businessStatus",

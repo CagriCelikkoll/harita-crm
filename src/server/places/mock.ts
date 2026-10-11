@@ -75,28 +75,14 @@ export function mockPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri = {}): P
       };
     },
 
-    async yerDetayi(placeId: string): Promise<YerBilgisi | null> {
+    async yerDetayi(placeId: string, kapsam): Promise<YerBilgisi | null> {
       await gecikme();
       istekSayaci?.(1);
       const c = idCoz(placeId);
       if (!c) return null;
-      const konum = noktaKonumu(c.tur, c.i, c.j);
-      const n = Math.floor(ozet("no", placeId) * 900) + 100;
-      const tel = String(Math.floor(ozet("tel", placeId) * 1e7)).padStart(7, "0");
-      const isim = ISIMLER[Math.floor(ozet("ad", placeId) * ISIMLER.length)];
-      return {
-        id: placeId,
-        ad: `${isim} ${TUR_ADI[c.tur] ?? "İşletme"} ${n}`,
-        adres: `Örnek Mah. ${n % 90}. Sk. No:${(n % 40) + 1}, Kadıköy/İstanbul (örnek veri)`,
-        telefon: `0 (216) ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
-        telefonUluslararasi: `+90 216 ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
-        webSitesi: ozet("web", placeId) < 0.5 ? `https://ornek-${n}.example.com` : undefined,
-        googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${konum.lat},${konum.lng}`,
-        puan: Math.round((3 + ozet("puan", placeId) * 2) * 10) / 10,
-        puanSayisi: Math.floor(ozet("sayi", placeId) * 300),
-        konum,
-        isletmeDurumu: "OPERATIONAL",
-      };
+      const temel = mockTemelBilgi(placeId, c);
+      // Gerçek API gibi: liste maskesi yalnızca ad ve adres döndürür.
+      return kapsam === "liste" ? { id: placeId, ad: temel.ad, adres: temel.adres } : temel;
     },
 
     async adresBul(metin: string) {
@@ -109,5 +95,25 @@ export function mockPlacesIstemcisi({ istekSayaci }: IstemciSecenekleri = {}): P
         adres: `${metin} (örnek konum)`,
       };
     },
+  };
+}
+
+function mockTemelBilgi(placeId: string, c: { tur: string; i: number; j: number }): YerBilgisi {
+  const konum = noktaKonumu(c.tur, c.i, c.j);
+  const n = Math.floor(ozet("no", placeId) * 900) + 100;
+  const tel = String(Math.floor(ozet("tel", placeId) * 1e7)).padStart(7, "0");
+  const isim = ISIMLER[Math.floor(ozet("ad", placeId) * ISIMLER.length)];
+  return {
+    id: placeId,
+    ad: `${isim} ${TUR_ADI[c.tur] ?? "İşletme"} ${n}`,
+    adres: `Örnek Mah. ${n % 90}. Sk. No:${(n % 40) + 1}, Kadıköy/İstanbul (örnek veri)`,
+    telefon: `0 (216) ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
+    telefonUluslararasi: `+90 216 ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
+    webSitesi: ozet("web", placeId) < 0.5 ? `https://ornek-${n}.example.com` : undefined,
+    googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${konum.lat},${konum.lng}`,
+    puan: Math.round((3 + ozet("puan", placeId) * 2) * 10) / 10,
+    puanSayisi: Math.floor(ozet("sayi", placeId) * 300),
+    konum,
+    isletmeDurumu: "OPERATIONAL",
   };
 }

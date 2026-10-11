@@ -1,4 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
+import { YARIM_KALAN_TARAMA_DAKIKA, YARIM_KALDI_MESAJI, type MerkezKaynagi } from "@/lib/sabitler";
 import { db } from "../db";
 import { scans, type Tarama } from "../db/schema";
 import type { TenantContext } from "./baglam";
@@ -7,22 +8,51 @@ export type { Tarama };
 
 export function taramaOlustur(
   ctx: TenantContext,
-  girdi: { merkezLat: number; merkezLng: number; yaricapM: number; kategori: string },
+  girdi: {
+    merkezLat: number;
+    merkezLng: number;
+    yaricapM: number;
+    kategori: string;
+    merkezKaynagi?: MerkezKaynagi;
+    adresMetni?: string | null;
+  },
 ): Tarama {
+  const kaynak = girdi.merkezKaynagi ?? "harita";
   return db
     .insert(scans)
     .values({
       id: crypto.randomUUID(),
       tenantId: ctx.tenantId, // her zaman bağlamdan
       olusturan: ctx.userId,
+      merkezKaynagi: kaynak,
       merkezLat: girdi.merkezLat,
       merkezLng: girdi.merkezLng,
+      adresMetni: kaynak === "adres" ? (girdi.adresMetni?.trim() || null) : null,
       yaricapM: girdi.yaricapM,
       kategori: girdi.kategori,
       durum: "kuyrukta",
     })
     .returning()
     .get();
+}
+
+/** Uzun süredir "calisiyor" durumunda kalan taramaların sınır zamanı. */
+export const yarimKalmaSiniri = (simdi = new Date()) =>
+  new Date(simdi.getTime() - YARIM_KALAN_TARAMA_DAKIKA * 60 * 1000);
+
+/**
+ * Bu kiracının, 10 dakikadan uzun süredir "calisiyor" durumunda kalan taramalarını "hata" yapar
+ * (uygulama tarama sırasında kapandıysa). Tarama listesi yüklenmeden önce çağrılır. Etkilenen sayı döner.
+ */
+export function yarimKalanTaramalariKapat(ctx: TenantContext, simdi = new Date()): number {
+  return db
+    .update(scans)
+    .set({ durum: "hata", hataMesaji: YARIM_KALDI_MESAJI, tamamlanmaTarihi: simdi })
+    .where(
+      and(eq(scans.tenantId, ctx.tenantId), eq(scans.durum, "calisiyor"), lt(scans.baslamaTarihi, yarimKalmaSiniri(simdi))),
+    )
+    .returning({ id: scans.id })
+    .all().length;
 }
 
 export function taramalariListele(ctx: TenantContext, limit = 20): Tarama[] {
@@ -47,7 +77,7 @@ export function taramaBaslat(ctx: TenantContext, id: string): Tarama | null {
   return (
     db
       .update(scans)
-      .set({ durum: "calisiyor" })
+      .set({ durum: "calisiyor", baslamaTarihi: new Date() })
       .where(and(eq(scans.id, id), eq(scans.tenantId, ctx.tenantId), eq(scans.durum, "kuyrukta")))
       .returning()
       .get() ?? null

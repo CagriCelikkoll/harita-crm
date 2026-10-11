@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { gecersiz, yetkisiz } from "@/server/api-yardimci";
+import { ayniKaynakMi, gecersiz, yetkisiz, yasak } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { adresiKonumaCevir } from "@/server/servisler/canli-bilgi";
 
 const Govde = z.object({ metin: z.string().trim().min(2).max(200) });
 
-/** Adres → konum (yalnızca haritayı ortalamak için; sonuç saklanmaz). */
+/**
+ * Adres → konum. Sonuç Google içeriğidir: bununla başlatılan taramada merkez_kaynagi = 'adres' olur ve
+ * koordinatlar 30 gün sonra temizlenir (scripts/cleanup.ts).
+ */
 export async function POST(istek: Request) {
+  if (!ayniKaynakMi(istek)) return yasak();
   const ctx = await apiBaglami();
   if (!ctx) return yetkisiz();
   const sonuc = Govde.safeParse(await istek.json().catch(() => null));

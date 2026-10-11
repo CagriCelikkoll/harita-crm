@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GoogleAtfi } from "@/components/google-atfi";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
-import { sayiYaz } from "@/lib/bicim";
 import {
   ILETI_IZINLERI,
   ILETI_IZNI_ADLARI,
@@ -15,8 +13,8 @@ import {
 import { sayfaBaglami } from "@/server/oturum";
 import { etiketleriListele, kayitGetir, kayitlariListele, type KayitFiltresi } from "@/server/repo/kayitlar";
 import { canliBilgiGetir } from "@/server/servisler/canli-bilgi";
-import { KayitDetayi } from "./kayit-detayi";
-import { KayitTablosu, type TabloSatiri } from "./kayit-tablosu";
+import type { TabloSatiri } from "./kayit-tablosu";
+import { KayitlarEkrani } from "./kayitlar-ekrani";
 
 export const metadata: Metadata = { title: "Kayıtlar" };
 
@@ -35,10 +33,12 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   const seciliId = tek(p.secili);
 
   const liste = kayitlariListele(ctx, filtre);
-  const seciliKayit = seciliId ? kayitGetir(ctx, seciliId) : null;
-  if (seciliId && !seciliKayit) notFound(); // başka kiracının veya silinmiş kayıt → 404
+  // Paylaşılan ?secili= bağlantısı: başka kiracının veya silinmiş kayıt → 404. (Detayın kendisi
+  // istemcide /api/kayitlar/[id] ile yüklenir.)
+  if (seciliId && !kayitGetir(ctx, seciliId)) notFound();
 
-  // Görünen sayfadaki kayıtlar için Places bilgisi canlı çekilir; yalnızca bu isteğin belleğinde yaşar.
+  // Görünen sayfadaki kayıtlar için yalnızca ad ve adres canlı çekilir (Place Details Pro, satır başına
+  // bir istek); yalnızca bu isteğin belleğinde yaşar. Telefon/web sitesi yalnızca detay panelinde.
   const canli = await canliBilgiGetir(ctx, liste.kayitlar.map((k) => k.placeId), "liste");
   const satirlar: TabloSatiri[] = liste.kayitlar.map((k) => {
     const c = canli.get(k.placeId);
@@ -51,7 +51,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
       guncellemeTarihi: k.guncellemeTarihi.toISOString(),
       canli:
         c?.durum === "tamam"
-          ? { ad: c.yer.ad, adres: c.yer.adres ?? null, telefon: c.yer.telefon ?? null }
+          ? { ad: c.yer.ad, adres: c.yer.adres ?? null }
           : { hata: c?.durum === "bulunamadi" ? "Google'da artık bulunmuyor" : "Bilgi alınamadı" },
     };
   });
@@ -69,7 +69,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
 
   return (
     <>
-      <SayfaBasligi baslik="Kayıtlar" aciklama={`${sayiYaz(liste.toplam)} kayıt`}>
+      <SayfaBasligi baslik="Kayıtlar">
         <a href={`/api/kayitlar/disa-aktar${sorgu.size ? `?${sorgu}` : ""}`} className="dugme">
           CSV dışa aktar
         </a>
@@ -130,37 +130,18 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         </p>
       </form>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="kart min-w-0">
-          <KayitTablosu satirlar={satirlar} seciliId={seciliId ?? null} sorgu={sorgu.toString()} sayfa={liste.sayfa} />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <GoogleAtfi />
-            {liste.sayfaSayisi > 1 && (
-              <nav aria-label="Sayfalar" className="flex items-center gap-2 text-sm">
-                {liste.sayfa > 1 && (
-                  <Link className="dugme" href={sayfaBaglantisi(liste.sayfa - 1)}>
-                    Önceki
-                  </Link>
-                )}
-                <span className="text-soluk">
-                  Sayfa {liste.sayfa} / {liste.sayfaSayisi}
-                </span>
-                {liste.sayfa < liste.sayfaSayisi && (
-                  <Link className="dugme" href={sayfaBaglantisi(liste.sayfa + 1)}>
-                    Sonraki
-                  </Link>
-                )}
-              </nav>
-            )}
-          </div>
-        </section>
-
-        {seciliKayit ? (
-          <KayitDetayi ctx={ctx} kayit={seciliKayit} kapatBaglantisi={sayfaBaglantisi(liste.sayfa)} />
-        ) : (
-          <aside className="kart hidden text-sm text-soluk xl:block">Ayrıntıları görmek için listeden bir kayıt seçin.</aside>
-        )}
-      </div>
+      <KayitlarEkrani
+        key={sayfaBaglantisi(liste.sayfa)}
+        satirlar={satirlar}
+        toplam={liste.toplam}
+        seciliIlk={seciliId ?? null}
+        kullaniciId={ctx.userId}
+        sorgu={new URLSearchParams(sayfaBaglantisi(liste.sayfa).split("?")[1] ?? "").toString()}
+        sayfa={liste.sayfa}
+        sayfaSayisi={liste.sayfaSayisi}
+        oncekiBaglanti={liste.sayfa > 1 ? sayfaBaglantisi(liste.sayfa - 1) : null}
+        sonrakiBaglanti={liste.sayfa < liste.sayfaSayisi ? sayfaBaglantisi(liste.sayfa + 1) : null}
+      />
     </>
   );
 }

@@ -79,6 +79,20 @@ const taramaTestleri: Record<keyof typeof taramalar, () => void> = {
     expect(taramalar.taramaSil(A, bTarama.id)).toBe(false);
     expect(taramalar.taramaGetir(B, bTarama.id)).not.toBeNull();
   },
+  yarimKalmaSiniri: () => {
+    const simdi = new Date("2026-10-11T12:00:00Z");
+    expect(taramalar.yarimKalmaSiniri(simdi).toISOString()).toBe("2026-10-11T11:50:00.000Z");
+  },
+  yarimKalanTaramalariKapat: () => {
+    // B'nin 11 dakikadır "calisiyor" kalan taraması A'nın çağrısından etkilenmez.
+    const yarim = taramalar.taramaOlustur(B, { merkezLat: 41, merkezLng: 29, yaricapM: 1000, kategori: "kafe" });
+    db.$client
+      .prepare("update scans set durum = 'calisiyor', baslama_tarihi = ? where id = ?")
+      .run(Date.now() - 11 * 60 * 1000, yarim.id);
+    expect(taramalar.yarimKalanTaramalariKapat(A)).toBe(0);
+    expect(taramalar.taramaGetir(B, yarim.id)?.durum).toBe("calisiyor");
+    taramalar.taramaSil(B, yarim.id);
+  },
 };
 
 const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {

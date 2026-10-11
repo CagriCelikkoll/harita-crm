@@ -8,7 +8,7 @@ import { KAYIT_DURUM_ADLARI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { durumSayilari } from "@/server/repo/kayitlar";
 import { aylikPlacesIstegi } from "@/server/repo/kullanim";
-import { taramalariListele } from "@/server/repo/taramalar";
+import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/taramalar";
 
 export const metadata: Metadata = { title: "Panel" };
 
@@ -16,6 +16,7 @@ export default async function PanelSayfasi() {
   const { ctx } = await sayfaBaglami();
   const sayilar = durumSayilari(ctx);
   const toplam = KAYIT_DURUMLARI.reduce((t, d) => t + sayilar[d], 0);
+  yarimKalanTaramalariKapat(ctx);
   const taramalar = taramalariListele(ctx, 5);
   const istek = aylikPlacesIstegi(ctx);
   const enBuyuk = Math.max(1, ...KAYIT_DURUMLARI.map((d) => sayilar[d]));
@@ -74,6 +75,7 @@ export default async function PanelSayfasi() {
                     <p className="text-xs text-soluk">
                       {tarihYaz(t.olusturmaTarihi)} · {sayiYaz(t.bulunanSayisi)} işletme · {t.istekSayisi} istek
                     </p>
+                    {t.durum === "hata" && t.hataMesaji && <p className="text-xs text-tehlike">{t.hataMesaji}</p>}
                   </div>
                   <TaramaDurumuRozeti durum={t.durum} />
                 </li>

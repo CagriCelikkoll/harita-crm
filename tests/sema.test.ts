@@ -15,9 +15,11 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   memberships: ["user_id", "tenant_id", "rol", "olusturma_tarihi"],
   invitations: ["id", "tenant_id", "eposta", "rol", "token", "davet_eden", "son_gecerlilik", "kabul_tarihi", "olusturma_tarihi"],
   scans: [
-    "id", "tenant_id", "olusturan", "merkez_lat", "merkez_lng", // merkez: kullanıcının seçtiği nokta
+    "id", "tenant_id", "olusturan",
+    // merkez: 'harita' = kullanıcının seçtiği nokta (saklanır); 'adres' = Places sonucu (30 gün sonra null)
+    "merkez_kaynagi", "merkez_lat", "merkez_lng", "adres_metni",
     "yaricap_m", "kategori", "durum", "bulunan_sayisi", "istek_sayisi", "kapsam_tamam", "hata_mesaji",
-    "olusturma_tarihi", "tamamlanma_tarihi",
+    "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
   ],
   leads: [
     "id", "tenant_id", "place_id", "scan_id", "durum",

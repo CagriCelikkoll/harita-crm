@@ -11,8 +11,8 @@ process.env.PLACES_MOCK_GECIKME_MS = "0";
 delete (globalThis as { __haritaCrmDb?: unknown }).__haritaCrmDb;
 
 const { db } = await import("@/server/db");
-const { migrate } = await import("drizzle-orm/better-sqlite3/migrator");
-migrate(db, { migrationsFolder: path.resolve(__dirname, "../../drizzle") });
+const { migrasyonlariUygula } = await import("@/server/db/migrasyon");
+migrasyonlariUygula(db, path.resolve(__dirname, "../../drizzle"));
 
 afterAll(() => {
   db.$client.close();

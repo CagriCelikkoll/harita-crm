@@ -54,13 +54,21 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 - Better Auth şeması (`src/server/db/auth-schema.ts`) `npx auth@latest generate` ile üretildi. Better Auth
   yükseltmesinden sonra aynı komutla yenileyip `npm run db:generate` çalıştırın.
 - Bağlantı WAL modunda, `foreign_keys = ON` ve `busy_timeout = 5000` ile açılır.
+- **Migration'ları her zaman `npm run db:migrate` ile uygulayın** (`drizzle-kit migrate` ile değil).
+  SQLite'ta sütun kısıtını değiştirmek tabloyu yeniden oluşturmayı gerektirir; yabancı anahtarlar açıkken
+  `DROP TABLE` bağlı tablolardaki `ON DELETE SET NULL/CASCADE` kurallarını tetikler. drizzle-kit'in migration
+  içine yazdığı `PRAGMA foreign_keys=OFF` transaction içinde etkisizdir. `src/server/db/migrasyon.ts` denetimi
+  transaction dışında kapatır, migration sonrası `PRAGMA foreign_key_check` ile doğrular ve yeniden açar.
+  (`0001` için drizzle-kit'in ürettiği `INSERT … SELECT` de eski tabloda olmayan sütunları okuduğu için elle
+  düzeltildi; yeni migration'ları gözden geçirin.)
+- Canlı veritabanında migration öncesi yedek alın (Litestream bölümüne bakın).
 
 ## Çalıştırma ve test
 
 ```bash
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
-npm test               # Vitest: izolasyon, tarama motoru, şema, mesajlaşma iskeleti
+npm test               # Vitest (8 dosya)
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -73,6 +81,10 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/tarama-motoru.test.ts` | Hücre geometrisi, doymuş hücrenin bölünmesi, `place_id` tekilleştirme, daire dışı sonuçların elenmesi, iç hücrelerde konum istenmemesi, istek bütçesi, 60 sonuç sınırında kapsam uyarısı. |
 | `tests/sema.test.ts` | `leads` tablosunda Places içeriği tutan sütun olmadığı; tüm uygulama sütunlarının beyaz listede olduğu (yeni sütun bilinçli inceleme gerektirir); Places konumunun yalnızca tarihli `place_locations`'ta tutulduğu. |
 | `tests/mesajlasma.test.ts` | 2. aşama iskeleti: ret işaretliler her zaman hariç, sandbox gerçek gönderim yapmaz. |
+| `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
+| `tests/temizlik.test.ts` | Adres kaynaklı tarama merkezinin 30 gün sonra silinip adres metni ve yarıçapın kalması; haritadan seçilen merkezin kalması; 30 günden eski Places konumlarının silinmesi. |
+| `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
+| `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -86,7 +98,9 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 3. **Her sorguda tenant koşulu:** Her SELECT/UPDATE/DELETE `tenant_id = ctx.tenantId` koşulunu depo fonksiyonu
    içinde ekler. INSERT'te `tenant_id` dışarıdan alınmaz, bağlamdan yazılır.
 4. **Id ile işlemler:** Sahiplik aynı sorguda doğrulanır (`WHERE id = ? AND tenant_id = ?`). Kayıt yoksa veya başka
-   kiracınınsa depo `null`/`false` döner; route handler'lar **404**, server action'lar `notFound()` verir.
+   kiracınınsa depo `null`/`false` döner ve route handler **404** verir. Kayıt ve olay işlemleri REST
+   route'larıdır (`/api/kayitlar/[id]`, `/api/kayitlar/[id]/olaylar`, `/api/olaylar/[id]`); Ayarlar'daki server
+   action'lar `notFound()` kullanır. Değişiklik yapan tüm API isteklerinde Origin kontrolü vardır (yabancı → 403).
 5. **Veritabanı güvencesi:** `lead_events (tenant_id, lead_id)` → `leads (tenant_id, id)` bileşik yabancı anahtarı,
    kod hatası olsa bile olayın başka kiracının kaydına bağlanmasını engeller.
 
@@ -98,8 +112,13 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
   (`fetch(..., { cache: "no-store" })`). Veritabanında süresiz tutulan tek Places verisi `place_id`'dir.
   Ekranda gösterileceği an sunucuda Place Details ile çekilir ve yalnızca o isteğin belleğinde yaşar.
 - **Konum (30 gün):** Places'tan gelen enlem/boylam yalnızca `place_locations` tablosunda `alinma_tarihi` ile tutulur.
-  Okurken 30 günden eskiler yok sayılır; `npm run cleanup` fiziksel olarak siler. `scans.merkez_lat/lng`
-  kullanıcının haritada seçtiği noktadır, Places içeriği değildir.
+  Okurken 30 günden eskiler yok sayılır; `npm run cleanup` fiziksel olarak siler.
+- **Tarama merkezi:** `scans.merkez_kaynagi` merkezin nereden geldiğini işaretler.
+  - `harita`: kullanıcının haritaya tıklayarak (veya elle enlem/boylam girerek) seçtiği nokta → kullanıcı verisi, saklanır.
+  - `adres`: adres aramasıyla (Places Text Search) bulunan nokta → Google içeriği. `npm run cleanup` 30 gün sonra
+    `merkez_lat/lng`'yi siler; kullanıcının yazdığı `adres_metni` ve yarıçap kalır. Geçmişteki "Tekrar kullan"
+    düğmesi koordinat silinmişse adresi yeniden arar, böylece tarama yeniden çalıştırılabilir.
+  - Kaynağı istemci bildirir (arayüz adres aramasından sonra `adres`, haritaya tıklayınca `harita` gönderir).
 - **Atıf:** Places içeriği gösterilen ekranlarda "Google Maps" atfı (`src/components/google-atfi.tsx`) ve her kayıtta
   `googleMapsUri` bağlantısı ("Google Haritalar'da aç") vardır. Harita olarak yalnızca Google Maps JavaScript API.
 - **CSV:** Yalnızca kullanıcının kendi verisi: `place_id, durum, ileti_izni, yetkili_adi, eposta, ek_telefon,
@@ -116,8 +135,8 @@ Fiyatlar Google'ın Ekim 2026 global fiyat listesinden alınmıştır (1.000 ola
 | --- | --- | --- | --- | --- |
 | Tarama, dairenin **içindeki** hücre | Text Search: `places.id,nextPageToken` | Text Search Essentials (IDs Only) | Sınırsız | $0 |
 | Tarama, dairenin **sınırını kesen** hücre | Text Search: `places.id,places.location,nextPageToken` | Text Search Pro | 5.000 | $32 |
-| Kayıt listesi (satır başına) | Place Details: ad, adres, ulusal telefon, googleMapsUri | Place Details Enterprise | 1.000 | $20 |
-| Kayıt detayı | + uluslararası telefon, web sitesi, puan, konum, işletme durumu | Place Details Enterprise | 1.000 | $20 |
+| Kayıt listesi (satır başına) | Place Details: `id,displayName,formattedAddress` | **Place Details Pro** | 5.000 | $17 |
+| Kayıt detayı (panel açılınca, ayrı çağrı) | ad, adres, telefonlar, web sitesi, puan, konum, işletme durumu, googleMapsUri | Place Details Enterprise | 1.000 | $20 |
 | Adres → konum | Text Search: `places.location,places.formattedAddress` | Text Search Pro | 5.000 | $32 |
 | Harita yüklemesi | Maps JavaScript API | Dynamic Maps | 10.000 | $7 |
 
@@ -137,24 +156,56 @@ dikdörtgen kabul ettiği için daire kare hücrelere bölünür:
 Her Places isteği hem `scans.istek_sayisi`'na hem `usage_counters`'a (kiracı + ay) işlenir; panelde "Bu ay Places
 isteği" olarak görünür.
 
-**Tahmini maliyet** (ücretsiz kotalar aşıldıktan sonra):
+**Liste ve detay neden ayrı:** Places bir isteği maskedeki en yüksek katmandan **tek** olay olarak faturalar.
+Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır Enterprise olurdu. Bu yüzden:
 
-- **Bir tarama:** En kötü durumda 50 isteğin tamamı Pro → 50 × $0,032 = **en fazla ~$1,60**. Pratikte iç hücreler
-  ücretsiz olduğundan daha az. Ayda 5.000 Pro isteği ücretsizdir (≈100 tam bütçeli tarama).
-- **Kayıt listesi:** Her sayfa görüntüleme 20 Place Details Enterprise = **~$0,40**. Maliyetin asıl kaynağı budur.
-  Örnek: ayda 1.000 liste sayfası görüntüleme ≈ 20.000 istek ≈ (20.000 − 1.000) × $0,02 ≈ **$380/ay**.
-- **Detay:** görüntüleme başına ~$0,02.
+- Liste yalnızca **ad + adres** ister. `displayName` Pro katmanında olduğundan en ucuz uygun katman **Place Details
+  Pro**'dur (yalnızca adres isteseydik Essentials olurdu, ama ad gerekli).
+- Telefon, web sitesi ve puan yalnızca **detay paneli açıldığında**, tek bir Enterprise çağrısıyla çekilir.
+- Detay paneli istemcide açılır; kayıt seçmek veya kayıt üzerinde işlem yapmak (durum, not, ret, e-posta) listeyi
+  **yeniden çekmez** ve Places'a gitmez. Liste yalnızca filtre/sayfa değiştiğinde çekilir.
+  (`tests/places-maske.test.ts` liste maskesine Enterprise alanı eklenmesini engeller.)
 
-> Not: Kayıt listesi ve detay aynı işletmeyi ayrı ayrı çeker; Places içeriği istekler arasında önbelleğe alınamadığı
-> için bu bilinçli bir maliyettir. Azaltma seçenekleri "Açık kararlar" bölümündedir.
+**Tahmini aylık maliyet** — varsayım: ayda **1.000 liste sayfası** + **300 detay görüntüleme** (tek çalışma alanı,
+ücretsiz kotalar Google faturalandırma hesabı başına ve SKU başına aylıktır):
+
+| Kalem | İstek | Ücretsiz | Ücretli | Tutar |
+| --- | --- | --- | --- | --- |
+| Liste: 1.000 sayfa × 20 satır, Place Details Pro | 20.000 | 5.000 | 15.000 × $17/1000 | **$255** |
+| Detay: 300 görüntüleme, Place Details Enterprise | 300 | 1.000 | 0 | **$0** |
+| **Toplam** | | | | **≈ $255/ay** |
+
+- Detay kotayı aşarsa (ayda 1.000'den fazla görüntüleme) her biri ~$0,02 ekler.
+- Karşılaştırma: önceki tasarım (listede telefon, Enterprise; her detay açılışında listenin yeniden çekilmesi) aynı
+  varsayımla ≈ 26.300 Enterprise isteği ≈ **$506/ay** ederdi.
+- **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
+  (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
+- Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
+- Panelde "Bu ay Places isteği" sayacı tüm bu istekleri gösterir.
 
 ## Zamanlanmış temizlik (`npm run cleanup`)
 
 `scripts/cleanup.ts` günde bir kez çalışmalıdır:
 
 - 30 günden eski Places konumlarını (`place_locations`) siler (Google kuralı).
+- `merkez_kaynagi = 'adres'` olan ve 30 günden eski taramaların `merkez_lat/lng` değerlerini siler; adres metni
+  ve yarıçap kalır.
 - Çalışma alanında "veri saklama süresi" ayarlıysa o süredir güncellenmeyen kayıtları ve olaylarını siler.
 - Süresi dolmuş, kabul edilmemiş davetleri siler.
+- 10 dakikadan uzun süredir "calisiyor" kalan taramaları "hata" yapar (aşağıya bakın).
+
+## Yarıda kalan taramalar
+
+Tarama 1. aşamada istek içinde senkron çalışır. Süreç tarama sırasında kapanırsa tarama "calisiyor"da kalırdı.
+Bu yüzden 10 dakikadan uzun süredir "calisiyor" olan taramalar `durum = 'hata'`, `hata_mesaji = "Tarama yarıda
+kaldı, yeniden başlatın."` yapılır:
+
+- **Uygulama başlarken** (`src/instrumentation.ts` → tüm kiracılar),
+- **Tarama listesi yüklenirken** (Bölge taraması ve Panel sayfaları → yalnızca o kiracı),
+- `npm run cleanup` sırasında.
+
+Süre `scans.baslama_tarihi`'nden ("calisiyor"a geçiş anı) ölçülür. Mesaj tarama geçmişinde ve panelde görünür;
+"Tekrar kullan" düğmesi ayarları forma alır.
 
 **Linux (cron):** `crontab -e` ile her gece 03:30'da:
 
@@ -219,11 +270,12 @@ scripts/migrate.ts, cleanup.ts   migration ve günlük temizlik
 src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kontrol sunucuda)
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
-src/app/(app)/                   panel, tarama, kayitlar, iletisim, ayarlar (+ server action'lar)
-src/app/api/                     auth, taramalar, adres, kayitlar/disa-aktar
+src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim, ayarlar
+src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar
+src/instrumentation.ts           başlangıçta yarıda kalan taramaları kapatır
 src/components/                  menü, harita, Google atfı
 src/lib/                         sabitler, kategoriler, biçimlendirme
-src/server/db/                   bağlantı ve şema (yalnızca repo/ ve auth erişir)
+src/server/db/                   bağlantı, şema, güvenli migration (yalnızca repo/ ve auth erişir)
 src/server/repo/                 kiracıya bağlı depo fonksiyonları; sistem/ = bağlam öncesi işler
 src/server/places/               Places istemcisi + mock
 src/server/scan/                 hücre geometrisi + tarama motoru (saf)
@@ -232,25 +284,31 @@ src/server/messaging/            2. aşama iskeleti
 tests/                           Vitest
 ```
 
+## Alınan kararlar
+
+- **Liste maliyeti:** Telefon ve web sitesi listeden kaldırıldı; liste yalnızca ad + adres (Place Details Pro),
+  detay paneli Enterprise alanlarını ayrı çağrıyla çeker. Ayrıntı ve maliyet yukarıda.
+- **Adres araması:** Adresten bulunan merkez Google içeriği sayılır (`merkez_kaynagi = 'adres'`, 30 gün sonra
+  koordinatlar silinir); haritadan seçilen nokta kullanıcı verisidir.
+- **Yarıda kalan taramalar:** 10 dakika kuralı (yukarıda).
+- **Next.js önbelleği:** `cacheComponents`/`partialPrefetching` kapalı; tüm sayfalar oturuma bağlı ve canlı Places
+  verisi gösterdiği için klasik dinamik render.
+- **lead_events.sistem** sütunu ve `(tenant_id, lead_id)` bileşik yabancı anahtarı.
+
 ## Açık kararlar
 
-1. **Liste maliyeti:** Listede telefon gösterilmesi her satırı Enterprise SKU'suna taşır (sayfa başı ~$0,40).
-   Seçenekler: listede yalnızca ad ve adres gösterip telefonu detaya bırakmak (Place Details Pro, $17/1000; düşüş
-   küçük), sayfa boyutunu düşürmek ya da listeyi yalnızca kullanıcı verisiyle gösterip Places bilgisini "göster"
-   düğmesiyle istemek.
-2. **Adres araması:** Adres → konum için Places Text Search (Pro) kullanılıyor; sonuç yalnızca haritayı ortalar.
-   Kullanıcı bu noktayla tarama başlatırsa `scans.merkez_lat/lng` olarak saklanır. Bunu "kullanıcının seçtiği nokta"
-   saymak bir yorumdur. Daha temkinli seçenek: merkezi yuvarlamak veya adres sonucunu ayrıca onaylatmak.
-3. **E-posta gönderimi:** Davetler için `Postaci` arayüzü var; 1. aşamada yalnızca konsol adaptörü. Davet bağlantısı
-   Ayarlar'da gösterilir. Gerçek SMTP/sağlayıcı seçimi ve e-posta doğrulaması (Better Auth `emailVerification`)
-   bekliyor.
+1. **E-posta gönderimi:** Davetler için `Postaci` arayüzü var; şimdilik yalnızca konsol adaptörü (davet bağlantısı
+   Ayarlar'da gösterilir). Gerçek SMTP/sağlayıcı ve e-posta doğrulaması (Better Auth `emailVerification`) sonraya.
+2. **Merkez kaynağına güven:** `merkez_kaynagi`'nı istemci bildirir. Kötü niyetli bir kullanıcı adres sonucunu
+   `harita` olarak gönderip 30 gün kuralından kaçırabilir. Sunucu tarafı doğrulama gerekirse adres aramasının
+   sonucunu kısa süreli imzalı bir belirteçle döndürüp tarama oluştururken kontrol etmek mümkün.
+3. **"kuyrukta" kalan taramalar:** Tarayıcı, oluşturma ile çalıştırma isteği arasında kapanırsa tarama "kuyrukta"
+   kalır (Places isteği yapılmamıştır). 10 dakika kuralı şimdilik yalnızca "calisiyor" için; istenirse aynı kural
+   "kuyrukta"ya da uygulanabilir.
 4. **Kategori listesi:** `src/lib/kategoriler.ts` içinde 12 kategori (Places Table A türleri). Hedef sektörlere göre
    genişletilmeli.
-5. **Tarama yürütme:** 1. aşamada tarama, istek içinde senkron çalışır. Uzun taramalar için (yüksek bütçe) bir iş
-   kuyruğuna taşınması gerekecek; uygulama kapanırsa "çalışıyor"da kalan taramalar için kurtarma yok.
+5. **Tarama yürütme:** Tarama hâlâ istek içinde senkron çalışır; yüksek bütçeli taramalar için iş kuyruğu gerekecek.
 6. **Veri saklama süresi:** Ayarlar'daki süre, o süredir **güncellenmeyen** kayıtları siler. "Oluşturulmadan bu yana"
    yorumu da mümkün; ürün kararı.
-7. **Next.js önbelleği:** Şablonun açtığı `cacheComponents`/`partialPrefetching` kapatıldı; tüm sayfalar oturuma bağlı
-   ve canlı Places verisi gösterdiği için klasik dinamik render kullanılıyor.
-8. **Places politikaları:** Atıf metni "Google Maps" olarak eklendi. Yayın öncesi Google'ın güncel atıf ve marka
+7. **Places politikaları:** Atıf metni "Google Maps" olarak eklendi. Yayın öncesi Google'ın güncel atıf ve marka
    kurallarını (logo kullanımı, üçüncü taraf atıfları) hukuki açıdan gözden geçirin.

@@ -11,23 +11,21 @@ export type TabloSatiri = {
   etiketler: string[];
   yetkiliAdi: string | null;
   guncellemeTarihi: string;
-  // Places içeriği: canlı çekildi, saklanmıyor.
-  canli: { ad: string; adres: string | null; telefon: string | null } | { hata: string };
+  // Places içeriği (yalnızca ad ve adres, Place Details Pro): canlı çekildi, saklanmıyor.
+  canli: { ad: string; adres: string | null } | { hata: string };
 };
 
-export function KayitTablosu(props: { satirlar: TabloSatiri[]; seciliId: string | null; sorgu: string; sayfa: number }) {
+export function KayitTablosu(props: {
+  satirlar: TabloSatiri[];
+  seciliId: string | null;
+  seciliBaglantisi: (id: string) => string;
+  onSec: (id: string) => void;
+}) {
   const [suzgec, setSuzgec] = useState("");
   const kucuk = suzgec.trim().toLocaleLowerCase("tr");
   const gorunen = kucuk
     ? props.satirlar.filter((s) => "ad" in s.canli && s.canli.ad.toLocaleLowerCase("tr").includes(kucuk))
     : props.satirlar;
-
-  const baglanti = (id: string) => {
-    const s = new URLSearchParams(props.sorgu);
-    if (props.sayfa > 1) s.set("sayfa", String(props.sayfa));
-    s.set("secili", id);
-    return `/kayitlar?${s}`;
-  };
 
   if (props.satirlar.length === 0) {
     return (
@@ -44,12 +42,11 @@ export function KayitTablosu(props: { satirlar: TabloSatiri[]; seciliId: string 
         <input value={suzgec} onChange={(e) => setSuzgec(e.target.value)} className="girdi" placeholder="ör. emlak" />
       </label>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[680px] text-left text-sm">
           <thead className="border-b border-kenar text-xs text-soluk">
             <tr>
               <th className="py-2 pr-3 font-medium">İşletme</th>
               <th className="py-2 pr-3 font-medium">Adres</th>
-              <th className="py-2 pr-3 font-medium">Telefon</th>
               <th className="py-2 pr-3 font-medium">Durum</th>
               <th className="py-2 pr-3 font-medium">İleti izni</th>
               <th className="py-2 pr-3 font-medium">Etiketler</th>
@@ -60,13 +57,21 @@ export function KayitTablosu(props: { satirlar: TabloSatiri[]; seciliId: string 
             {gorunen.map((s) => (
               <tr key={s.id} className={s.id === props.seciliId ? "bg-ana-acik/60" : "hover:bg-zemin"}>
                 <td className="py-2 pr-3">
-                  <Link href={baglanti(s.id)} scroll={false} className="font-medium text-ana hover:underline">
+                  <a
+                    href={props.seciliBaglantisi(s.id)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // yeni sekme vb.
+                      e.preventDefault();
+                      props.onSec(s.id);
+                    }}
+                    aria-current={s.id === props.seciliId ? "true" : undefined}
+                    className="font-medium text-ana hover:underline"
+                  >
                     {"ad" in s.canli ? s.canli.ad : <span className="text-soluk italic">{s.canli.hata}</span>}
-                  </Link>
+                  </a>
                   {s.yetkiliAdi && <p className="text-xs text-soluk">{s.yetkiliAdi}</p>}
                 </td>
-                <td className="max-w-64 py-2 pr-3 text-soluk">{"ad" in s.canli ? s.canli.adres : "—"}</td>
-                <td className="py-2 pr-3 whitespace-nowrap">{"ad" in s.canli ? (s.canli.telefon ?? "—") : "—"}</td>
+                <td className="max-w-72 py-2 pr-3 text-soluk">{"ad" in s.canli ? (s.canli.adres ?? "—") : "—"}</td>
                 <td className="py-2 pr-3">
                   <span className="rozet">{KAYIT_DURUM_ADLARI[s.durum]}</span>
                 </td>

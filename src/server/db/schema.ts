@@ -7,7 +7,14 @@
 import { sql } from "drizzle-orm";
 import { foreignKey, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { user } from "./auth-schema";
-import { ILETI_IZINLERI, KAYIT_DURUMLARI, OLAY_TURLERI, ROLLER, TARAMA_DURUMLARI } from "../../lib/sabitler";
+import {
+  ILETI_IZINLERI,
+  KAYIT_DURUMLARI,
+  MERKEZ_KAYNAKLARI,
+  OLAY_TURLERI,
+  ROLLER,
+  TARAMA_DURUMLARI,
+} from "../../lib/sabitler";
 
 export * from "./auth-schema";
 
@@ -67,9 +74,14 @@ export const scans = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     olusturan: text("olusturan").references(() => user.id, { onDelete: "set null" }),
-    // Kullanıcının haritada seçtiği nokta (Places içeriği değil).
-    merkezLat: real("merkez_lat").notNull(),
-    merkezLng: real("merkez_lng").notNull(),
+    // Merkezin kaynağı:
+    //  'harita' = kullanıcının haritaya tıklayarak / elle girdiği nokta → kullanıcı verisi, saklanır.
+    //  'adres'  = adres aramasıyla (Places) bulunan nokta → Google içeriği; 30 gün sonra merkez_lat/lng
+    //             null yapılır (scripts/cleanup.ts). adres_metni ve yarıçap kalır, tarama yeniden çalıştırılabilir.
+    merkezKaynagi: text("merkez_kaynagi", { enum: MERKEZ_KAYNAKLARI }).notNull().default("harita"),
+    merkezLat: real("merkez_lat"),
+    merkezLng: real("merkez_lng"),
+    adresMetni: text("adres_metni"), // kullanıcının yazdığı adres (kullanıcı verisi)
     yaricapM: integer("yaricap_m").notNull(),
     kategori: text("kategori").notNull(),
     durum: text("durum", { enum: TARAMA_DURUMLARI }).notNull().default("kuyrukta"),
@@ -79,9 +91,14 @@ export const scans = sqliteTable(
     kapsamTamam: integer("kapsam_tamam", { mode: "boolean" }),
     hataMesaji: text("hata_mesaji"),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    // "calisiyor" durumuna geçiş anı; uzun süre bu durumda kalan taramalar yarıda kalmış sayılır.
+    baslamaTarihi: zaman("baslama_tarihi"),
     tamamlanmaTarihi: zaman("tamamlanma_tarihi"),
   },
-  (t) => [index("scans_tenant_idx").on(t.tenantId, t.olusturmaTarihi)],
+  (t) => [
+    index("scans_tenant_idx").on(t.tenantId, t.olusturmaTarihi),
+    index("scans_durum_idx").on(t.durum, t.baslamaTarihi),
+  ],
 );
 
 export const leads = sqliteTable(

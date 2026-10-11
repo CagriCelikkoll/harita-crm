@@ -5,12 +5,15 @@ import { Harita, type Isaret } from "@/components/harita";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import { KATEGORILER, kategoriBul } from "@/lib/kategoriler";
-import { YARICAP_MAX_KM, YARICAP_MIN_KM, type TaramaDurumu } from "@/lib/sabitler";
+import { YARICAP_MAX_KM, YARICAP_MIN_KM, type MerkezKaynagi, type TaramaDurumu } from "@/lib/sabitler";
 
 type TaramaOzeti = {
   id: string;
-  merkezLat: number;
-  merkezLng: number;
+  merkezKaynagi: MerkezKaynagi;
+  // 'adres' kaynaklı merkezler 30 gün sonra silinir (null).
+  merkezLat: number | null;
+  merkezLng: number | null;
+  adresMetni: string | null;
   yaricapM: number;
   kategori: string;
   durum: TaramaDurumu;
@@ -27,11 +30,23 @@ const bitti = (d: TaramaDurumu) => d === "tamamlandi" || d === "hata";
 export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; butce: number; mock: boolean }) {
   const router = useRouter();
   const son = gecmis[0];
-  const [merkez, setMerkez] = useState(son ? { lat: son.merkezLat, lng: son.merkezLng } : VARSAYILAN_MERKEZ);
+  const sonMerkez = son && son.merkezLat !== null && son.merkezLng !== null ? { lat: son.merkezLat, lng: son.merkezLng } : null;
+  const [merkez, setMerkezDurumu] = useState(sonMerkez ?? VARSAYILAN_MERKEZ);
+  // Merkezin kaynağı: haritaya tıklama / elle giriş = 'harita' (kullanıcı verisi), adres araması = 'adres'
+  // (Google içeriği; taramada 30 gün sonra koordinatlar silinir).
+  const [kaynak, setKaynak] = useState<{ tur: MerkezKaynagi; adresMetni: string | null }>(
+    sonMerkez && son ? { tur: son.merkezKaynagi, adresMetni: son.adresMetni } : { tur: "harita", adresMetni: null },
+  );
   const [yaricapKm, setYaricapKm] = useState(son ? son.yaricapM / 1000 : 3);
   const [kategori, setKategori] = useState(son?.kategori ?? KATEGORILER[0].anahtar);
   const [adres, setAdres] = useState("");
   const [adresMesaji, setAdresMesaji] = useState<string | null>(null);
+
+  /** Kullanıcının haritada veya elle seçtiği merkez. */
+  function merkezSec(m: { lat: number; lng: number }) {
+    setMerkezDurumu(m);
+    setKaynak({ tur: "harita", adresMetni: null });
+  }
   const [aktif, setAktif] = useState<TaramaOzeti | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [isaretler, setIsaretler] = useState<Isaret[]>([]);
@@ -54,20 +69,23 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
     if (yoklama.current) clearInterval(yoklama.current);
   }, []);
 
-  async function adresBul() {
+  async function adresBul(metin = adres) {
     setAdresMesaji(null);
     const yanit = await fetch("/api/adres", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metin: adres }),
+      body: JSON.stringify({ metin }),
     });
     const veri = await yanit.json();
     if (!yanit.ok) {
       setAdresMesaji(veri.hata ?? "Adres bulunamadı.");
       return;
     }
-    setMerkez({ lat: veri.lat, lng: veri.lng });
-    setAdresMesaji(veri.adres ? `Merkez: ${veri.adres}` : "Merkez güncellendi.");
+    setMerkezDurumu({ lat: veri.lat, lng: veri.lng });
+    setKaynak({ tur: "adres", adresMetni: metin.trim() });
+    setAdresMesaji(
+      `${veri.adres ? `Merkez: ${veri.adres}. ` : ""}Adresten bulunan konum Google içeriğidir; taramada 30 gün saklanır.`,
+    );
   }
 
   async function baslat() {
@@ -77,7 +95,14 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
     const yanit = await fetch("/api/taramalar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ merkezLat: merkez.lat, merkezLng: merkez.lng, yaricapKm, kategori }),
+      body: JSON.stringify({
+        merkezLat: merkez.lat,
+        merkezLng: merkez.lng,
+        yaricapKm,
+        kategori,
+        merkezKaynagi: kaynak.tur,
+        adresMetni: kaynak.adresMetni ?? undefined,
+      }),
     });
     const tarama = await yanit.json();
     if (!yanit.ok) {
@@ -104,11 +129,28 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
     router.refresh();
   }
 
-  function gecmistenGoster(t: TaramaOzeti) {
-    setMerkez({ lat: t.merkezLat, lng: t.merkezLng });
+  /** Geçmişteki taramanın ayarlarını forma alır. Merkez 30 gün kuralıyla silindiyse adres yeniden aranır. */
+  function tekrarKullan(t: TaramaOzeti) {
     setYaricapKm(t.yaricapM / 1000);
     setKategori(t.kategori);
+    setHata(null);
+    if (t.merkezLat !== null && t.merkezLng !== null) {
+      setMerkezDurumu({ lat: t.merkezLat, lng: t.merkezLng });
+      setKaynak({ tur: t.merkezKaynagi, adresMetni: t.adresMetni });
+      if (t.adresMetni) setAdres(t.adresMetni);
+      setAdresMesaji("Ayarlar forma alındı; taramayı başlatabilirsiniz.");
+    } else if (t.adresMetni) {
+      setAdres(t.adresMetni);
+      void adresBul(t.adresMetni); // koordinatlar silinmiş: adresi yeniden ara
+    }
+  }
+
+  function gecmistenGoster(t: TaramaOzeti) {
     setAktif(t);
+    if (t.merkezLat !== null && t.merkezLng !== null) {
+      setMerkezDurumu({ lat: t.merkezLat, lng: t.merkezLng });
+      setYaricapKm(t.yaricapM / 1000);
+    }
     void isaretleriGetir(t.id);
   }
 
@@ -122,7 +164,7 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
             merkez={merkez}
             yaricapM={yaricapKm * 1000}
             isaretler={isaretler}
-            onMerkezSec={(m) => !calisiyor && setMerkez(m)}
+            onMerkezSec={(m) => !calisiyor && merkezSec(m)}
             onIsaretSec={(id) => router.push(`/kayitlar?secili=${id}`)}
           />
         </div>
@@ -154,7 +196,7 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
                   type="number"
                   step="0.000001"
                   value={merkez.lat}
-                  onChange={(e) => setMerkez((m) => ({ ...m, lat: Number(e.target.value) }))}
+                  onChange={(e) => merkezSec({ ...merkez, lat: Number(e.target.value) })}
                   className="girdi"
                 />
               </label>
@@ -164,11 +206,15 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
                   type="number"
                   step="0.000001"
                   value={merkez.lng}
-                  onChange={(e) => setMerkez((m) => ({ ...m, lng: Number(e.target.value) }))}
+                  onChange={(e) => merkezSec({ ...merkez, lng: Number(e.target.value) })}
                   className="girdi"
                 />
               </label>
             </div>
+            <p className="text-xs text-soluk">
+              Merkez kaynağı:{" "}
+              <strong>{kaynak.tur === "adres" ? `adres araması (“${kaynak.adresMetni}”)` : "haritada / elle seçildi"}</strong>
+            </p>
 
             <label className="etiket">
               Yarıçap: {yaricapKm} km
@@ -253,11 +299,12 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
           <p className="text-sm text-soluk">Henüz tarama yok.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="border-b border-kenar text-xs text-soluk">
                 <tr>
                   <th className="py-2 pr-3 font-medium">Tarih</th>
                   <th className="py-2 pr-3 font-medium">Kategori</th>
+                  <th className="py-2 pr-3 font-medium">Merkez</th>
                   <th className="py-2 pr-3 font-medium">Yarıçap</th>
                   <th className="py-2 pr-3 font-medium">Durum</th>
                   <th className="py-2 pr-3 text-right font-medium">Bulunan</th>
@@ -270,16 +317,34 @@ export function TaramaPaneli({ gecmis, butce, mock }: { gecmis: TaramaOzeti[]; b
                   <tr key={t.id}>
                     <td className="py-2 pr-3 whitespace-nowrap">{tarihYaz(t.olusturmaTarihi)}</td>
                     <td className="py-2 pr-3">{kategoriBul(t.kategori)?.etiket ?? t.kategori}</td>
+                    <td className="max-w-48 py-2 pr-3 text-xs">
+                      {t.merkezKaynagi === "adres" ? (
+                        <>
+                          <span className="block truncate" title={t.adresMetni ?? ""}>
+                            Adres: {t.adresMetni}
+                          </span>
+                          {t.merkezLat === null && <span className="text-soluk">konum silindi (30 gün)</span>}
+                        </>
+                      ) : (
+                        "Haritadan"
+                      )}
+                    </td>
                     <td className="py-2 pr-3">{t.yaricapM / 1000} km</td>
                     <td className="py-2 pr-3">
                       <TaramaDurumuRozeti durum={t.durum} />
                       {t.kapsamTamam === false && <span className="ml-1 text-xs text-amber-700">kısmi</span>}
+                      {t.durum === "hata" && t.hataMesaji && (
+                        <span className="mt-0.5 block text-xs text-tehlike">{t.hataMesaji}</span>
+                      )}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{sayiYaz(t.bulunanSayisi)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{t.istekSayisi}</td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right whitespace-nowrap">
                       <button type="button" className="dugme" onClick={() => gecmistenGoster(t)} disabled={calisiyor}>
                         Haritada göster
+                      </button>{" "}
+                      <button type="button" className="dugme" onClick={() => tekrarKullan(t)} disabled={calisiyor}>
+                        Tekrar kullan
                       </button>
                     </td>
                   </tr>

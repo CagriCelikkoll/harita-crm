@@ -32,6 +32,9 @@ export async function taramaCalistir(ctx: TenantContext, id: string): Promise<Ta
   try {
     const kategori = kategoriBul(tarama.kategori);
     if (!kategori) throw new Error(`Bilinmeyen kategori: ${tarama.kategori}`);
+    if (tarama.merkezLat === null || tarama.merkezLng === null) {
+      throw new Error("Merkez konumu 30 gün kuralıyla silinmiş. Adresi yeniden arayıp yeni tarama başlatın.");
+    }
     const sonuc = await bolgeTara({
       merkez: { lat: tarama.merkezLat, lng: tarama.merkezLng },
       yaricapM: tarama.yaricapM,

@@ -5,12 +5,14 @@ export const TARAMA_DURUMLARI = ["kuyrukta", "calisiyor", "tamamlandi", "hata"] 
 export const KAYIT_DURUMLARI = ["yeni", "iletisimde", "gorusme", "kazanildi", "ilgilenmiyor"] as const;
 export const ILETI_IZINLERI = ["bekliyor", "onayli", "ret"] as const;
 export const OLAY_TURLERI = ["eklendi", "durum", "arama", "eposta", "sms", "not", "ret"] as const;
+export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
 
 export type Rol = (typeof ROLLER)[number];
 export type TaramaDurumu = (typeof TARAMA_DURUMLARI)[number];
 export type KayitDurumu = (typeof KAYIT_DURUMLARI)[number];
 export type IletiIzni = (typeof ILETI_IZINLERI)[number];
 export type OlayTuru = (typeof OLAY_TURLERI)[number];
+export type MerkezKaynagi = (typeof MERKEZ_KAYNAKLARI)[number];
 
 export const ROL_ADLARI: Record<Rol, string> = { yonetici: "Yönetici", uye: "Üye" };
 
@@ -50,3 +52,6 @@ export const YARICAP_MIN_KM = 1;
 export const YARICAP_MAX_KM = 25;
 /** Google kuralı: Places'tan gelen enlem/boylam en fazla 30 gün saklanabilir. */
 export const PLACES_KONUM_SAKLAMA_GUN = 30;
+/** Bu süreden uzun "calisiyor" durumunda kalan tarama yarıda kalmış sayılır. */
+export const YARIM_KALAN_TARAMA_DAKIKA = 10;
+export const YARIM_KALDI_MESAJI = "Tarama yarıda kaldı, yeniden başlatın.";

@@ -8,6 +8,13 @@
       "when": 1791727858509,
       "tag": "0000_baslangic",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791730492955,
+      "tag": "0001_tarama_merkez_kaynagi",
+      "breakpoints": true
     }
   ]
 }
