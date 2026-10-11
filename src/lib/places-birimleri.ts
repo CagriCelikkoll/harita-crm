@@ -40,4 +40,5 @@ export const PLACES_ISLEMLERI: { islem: string; sku: PlacesSku }[] = [
   { islem: "Adresle merkez arama", sku: "textSearchPro" },
   { islem: "Kayıt listesinde bir satır (ad + adres)", sku: "placeDetailsPro" },
   { islem: "Kayıt detayı (telefon, web sitesi, puan)", sku: "placeDetailsEnterprise" },
+  { islem: "SMS / WhatsApp: kayıtta telefon yoksa gönderim anında telefon", sku: "placeDetailsEnterprise" },
 ];

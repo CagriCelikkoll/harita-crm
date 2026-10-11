@@ -27,23 +27,26 @@ export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici
   const [a, setA] = useState(props.ilk);
   const [mesaj, setMesaj] = useState<Mesaj>(null);
   const [mesgul, setMesgul] = useState(false);
+  const [webhookAdresi, setWebhookAdresi] = useState<string | null>(null);
   const surum = JSON.stringify(a); // kayıttan sonra formlar güncel değerlerle yeniden oluşsun
 
   async function gonder(alan: string, url: string, method: "PUT" | "DELETE" | "POST", govde?: unknown, tamam?: string) {
     setMesgul(true);
     setMesaj(null);
-    const s = await apiIstek<{ ayarlar?: MesajlasmaAyarlariDto; mesaj?: string }>(url, { method, govde });
+    const s = await apiIstek<{ ayarlar?: MesajlasmaAyarlariDto; mesaj?: string; webhookAdresi?: string }>(url, { method, govde });
     setMesgul(false);
     if (!s.ok) {
       setMesaj({ tur: "hata", metin: s.hata, alan });
       return false;
     }
     if (s.veri.ayarlar) setA(s.veri.ayarlar);
+    if (s.veri.webhookAdresi) setWebhookAdresi(s.veri.webhookAdresi);
     setMesaj({ tur: "tamam", metin: s.veri.mesaj ?? tamam ?? "Kaydedildi.", alan });
     return true;
   }
 
   const smtp = a.saglayicilar.eposta;
+  const sms = a.saglayicilar.sms;
 
   return (
     <>
@@ -251,6 +254,135 @@ export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici
             {smtp.tanimli && (
               <p className="text-xs text-soluk">
                 Test e-postası yalnızca kayıtlı gönderen adresinize gider (saatte en fazla {TEST_GONDERIM_SAATLIK_SINIR}).
+              </p>
+            )}
+          </form>
+        ) : (
+          <p className="text-xs text-soluk">Sağlayıcı bilgilerini yalnızca yöneticiler değiştirebilir.</p>
+        )}
+      </section>
+
+      <section className="kart lg:col-span-2" aria-labelledby="sms-baslik">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 id="sms-baslik" className="font-semibold">
+            SMS gönderimi (Netgsm)
+          </h2>
+          <span className={`rozet ${sms.tanimli ? "" : "bg-zemin text-soluk"}`}>
+            {sms.tanimli ? "Tanımlı" : "Tanımlı değil — SMS kampanyaları sandbox modunda"}
+          </span>
+        </div>
+        <p className="mb-3 text-xs text-soluk">
+          SMS&apos;ler kendi Netgsm hesabınızdan, onaylı başlığınızla gider. İYS süzgeci alıcı türüne göre uygulanır
+          (bireysel / tacir). Her SMS&apos;in sonuna gönderen unvanı ve &quot;RET yazıp &lt;ret numarası&gt; numarasına
+          gönderin&quot; metni eklenir. Gelen RET yanıtlarının işlenmesi için aşağıdaki webhook adresini Netgsm&apos;de gelen
+          SMS yönlendirmesi olarak tanımlayın.
+        </p>
+        <form
+          key={`smsayar-${surum}`}
+          className="mb-4 grid gap-2.5 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            void gonder("smsayar", "/api/ayarlar/ileti", "PUT", {
+              smsRetNumarasi: String(f.get("smsRetNumarasi") ?? ""),
+              yetkiliTelefonu: String(f.get("yetkiliTelefonu") ?? ""),
+            });
+          }}
+        >
+          <fieldset disabled={!props.yonetici || mesgul} className="contents">
+            <label className="etiket">
+              Ret numarası
+              <input name="smsRetNumarasi" defaultValue={a.smsRetNumarasi ?? ""} maxLength={20} inputMode="tel" className="girdi" placeholder="Ör. 0850 000 00 00" />
+              <span className="text-xs font-normal text-soluk">Gelen SMS alabilen numaranız; SMS&apos;lerde ret yolu olarak yazılır.</span>
+            </label>
+            <label className="etiket">
+              Yetkili cep telefonu
+              <input name="yetkiliTelefonu" defaultValue={a.yetkiliTelefonu ?? ""} maxLength={20} inputMode="tel" className="girdi" placeholder="05XX XXX XX XX" />
+              <span className="text-xs font-normal text-soluk">Test SMS&apos;leri yalnızca bu numaraya gider.</span>
+            </label>
+          </fieldset>
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <MesajGoster mesaj={mesaj} alan="smsayar" />
+            {props.yonetici && (
+              <button type="submit" className="dugme-ana self-start" disabled={mesgul}>
+                Kaydet
+              </button>
+            )}
+          </div>
+        </form>
+        {props.yonetici ? (
+          <form
+            key={`sms-${surum}`}
+            className="flex flex-col gap-2.5 border-t border-kenar pt-4"
+            autoComplete="off"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const f = new FormData(form);
+              const yenile = f.get("webhookYenile") === "on";
+              const tamam = await gonder(
+                "sms",
+                `/api/ayarlar/saglayicilar/sms${yenile ? "?webhookYenile=1" : ""}`,
+                "PUT",
+                { kullanici: String(f.get("kullanici") ?? ""), sifre: String(f.get("sifre") ?? ""), baslik: String(f.get("baslik") ?? "") },
+                "Netgsm bilgileri kaydedildi.",
+              );
+              if (tamam) form.reset();
+            }}
+          >
+            <fieldset disabled={mesgul} className="grid gap-2.5 sm:grid-cols-3">
+              <label className="etiket">
+                Netgsm kullanıcı kodu
+                <input name="kullanici" required maxLength={40} className="girdi" autoComplete="off" />
+              </label>
+              <label className="etiket">
+                API şifresi
+                <input name="sifre" type="password" required maxLength={200} className="girdi" autoComplete="new-password" />
+              </label>
+              <label className="etiket">
+                Onaylı SMS başlığı
+                <input name="baslik" required maxLength={11} className="girdi" placeholder="Ör. EGEEMLAK" />
+              </label>
+            </fieldset>
+            {sms.tanimli && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="webhookYenile" /> Webhook adresini de yenile (eski adres çalışmaz)
+              </label>
+            )}
+            {webhookAdresi && (
+              <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-medium">Gelen SMS webhook adresi (yalnızca şimdi gösterilir):</p>
+                <input readOnly value={webhookAdresi} className="girdi mt-1 text-xs" aria-label="Webhook adresi" onFocus={(e) => e.currentTarget.select()} />
+                <p className="mt-1 text-xs">
+                  Bu adresi Netgsm panelinde gelen SMS yönlendirmesi olarak tanımlayın. Adres gizlidir; kaybederseniz
+                  yenileyin.
+                </p>
+              </div>
+            )}
+            <MesajGoster mesaj={mesaj} alan="sms" />
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" className="dugme-ana" disabled={mesgul}>
+                {sms.tanimli ? "Bilgileri değiştir" : "Kaydet"}
+              </button>
+              {sms.tanimli && (
+                <>
+                  <button type="button" className="dugme" disabled={mesgul} onClick={() => void gonder("sms", "/api/ayarlar/saglayicilar/sms/test", "POST")}>
+                    Test SMS&apos;i gönder
+                  </button>
+                  <button
+                    type="button"
+                    className="dugme-tehlike"
+                    disabled={mesgul}
+                    onClick={() => void gonder("sms", "/api/ayarlar/saglayicilar/sms", "DELETE", undefined, "Netgsm bilgileri kaldırıldı.")}
+                  >
+                    Kaldır
+                  </button>
+                </>
+              )}
+            </div>
+            {sms.tanimli && (
+              <p className="text-xs text-soluk">
+                Test SMS&apos;i yalnızca yetkili cep telefonuna gider (saatte en fazla {TEST_GONDERIM_SAATLIK_SINIR}).
               </p>
             )}
           </form>

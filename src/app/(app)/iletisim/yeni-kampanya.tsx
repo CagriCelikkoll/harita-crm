@@ -15,6 +15,7 @@ import {
 } from "@/lib/mesajlasma";
 import { KAYIT_DURUM_ADLARI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sablonDoldur } from "@/lib/sablon";
+import { smsUzunlugu, type SmsKodlama } from "@/lib/sms-uzunluk";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import type { KampanyaOzeti } from "@/server/servisler/kampanya";
 
@@ -24,6 +25,8 @@ export function YeniKampanya(props: {
   etiketler: string[];
   saglayicilar: MesajlasmaAyarlariDto["saglayicilar"];
   eksikAyarlar: string[];
+  /** Her SMS'e eklenen gönderen + ret yolu (sunucuda hesaplanır). */
+  smsAltbilgisi: string;
 }) {
   const router = useRouter();
   const [kanal, setKanal] = useState<Kanal>("eposta");
@@ -106,9 +109,7 @@ export function YeniKampanya(props: {
               Kanal
               <select value={kanal} onChange={(e) => degisti(setKanal)(e.target.value as Kanal)} className="girdi">
                 <option value="eposta">{KANAL_ADLARI.eposta}</option>
-                <option value="sms" disabled>
-                  {KANAL_ADLARI.sms} (yakında)
-                </option>
+                <option value="sms">{KANAL_ADLARI.sms}</option>
               </select>
             </label>
             <label className="etiket">
@@ -174,9 +175,13 @@ export function YeniKampanya(props: {
             />
             <span className="text-xs font-normal text-soluk">
               {"{isletme}"} kaydın &quot;İşletme adı (sizin kaydınız)&quot; alanıyla doldurulur. Google&apos;dan gelen
-              ad mesaja eklenmez. Gönderen bilgileri ve abonelikten çıkma bağlantısı otomatik eklenir.
+              ad mesaja eklenmez.{" "}
+              {kanal === "eposta"
+                ? "Gönderen bilgileri ve abonelikten çıkma bağlantısı otomatik eklenir."
+                : "Gönderen unvanı ve ret yolu (RET yazıp …) otomatik eklenir."}
             </span>
           </label>
+          {kanal === "sms" && <SmsSayaci metin={`${ornekAdli}\n${props.smsAltbilgisi}`} altbilgi={props.smsAltbilgisi} />}
           <label className="etiket">
             İşletme adı girilmemişse hitap <span className="text-xs font-normal text-soluk">(isteğe bağlı)</span>
             <input
@@ -268,6 +273,22 @@ export function YeniKampanya(props: {
               </tr>
             </tbody>
           </table>
+          {ozet.kanal === "sms" && (
+            <div className="rounded-md border border-kenar p-3 text-sm">
+              <p>
+                Telefonu kayıtta olmayan, gönderim anında Google&apos;dan alınacak:{" "}
+                <strong className="tabular-nums">{sayiYaz(ozet.placesTelefonGerekli)}</strong> kayıt
+              </p>
+              <p className="text-xs text-soluk">
+                Tahmini kota maliyeti {sayiYaz(ozet.tahminiKotaBirimi)} birim (bu ay kalan {sayiYaz(ozet.kotaKalan)}). Numara
+                saklanmaz; cep telefonu değilse o kayıt gönderim anında atlanır.
+                {ozet.tahminiKotaBirimi > ozet.kotaKalan && " Kota yetmezse kalan mesajlar ay başını bekler."}
+              </p>
+              {ozet.smsParca !== null && (
+                <p className="mt-1 text-xs text-soluk">İlk alıcının mesajı (altbilgi dahil): {ozet.smsParca} SMS</p>
+              )}
+            </div>
+          )}
           {ozet.isletmeAdiEksik > 0 && (
             <p className="text-sm">
               İşletme adı girilmemiş: <strong className="tabular-nums">{sayiYaz(ozet.isletmeAdiEksik)}</strong> kayıt{" "}
@@ -307,5 +328,28 @@ export function YeniKampanya(props: {
         </div>
       )}
     </section>
+  );
+}
+
+const KODLAMA_ADI: Record<SmsKodlama, string> = {
+  gsm7: "standart",
+  "gsm7-turkce": "Türkçe karakterli (ç ğ ı İ ş 2 karakter sayılır)",
+  ucs2: "Unicode (emoji vb.; parça başına 70/67 karakter)",
+};
+
+function SmsSayaci({ metin, altbilgi }: { metin: string; altbilgi: string }) {
+  const u = smsUzunlugu(metin);
+  return (
+    <div className="rounded-md bg-zemin p-2 text-xs" aria-live="polite">
+      <p>
+        <strong className="tabular-nums">{u.karakter}</strong> karakter ·{" "}
+        <strong className={`tabular-nums ${u.parca > 1 ? "text-amber-700" : ""}`}>{u.parca} SMS</strong> · kodlama:{" "}
+        {KODLAMA_ADI[u.kodlama]} · bu parçada kalan {u.kalan}
+      </p>
+      <p className="mt-0.5 text-soluk">
+        Altbilgi dahil ({altbilgi.length} karakter), işletme adı &quot;Örnek İşletme&quot; varsayılarak. Tahminidir;
+        faturalamada sağlayıcının hesabı esastır.
+      </p>
+    </div>
   );
 }

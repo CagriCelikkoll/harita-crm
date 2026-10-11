@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI } from "@/lib/mesajlasma";
+import { smsAltbilgisi } from "@/lib/sablon";
 import { sayfaBaglami } from "@/server/oturum";
 import { kampanyalariListele } from "@/server/repo/kampanyalar";
 import { etiketleriListele } from "@/server/repo/kayitlar";
@@ -20,13 +21,14 @@ export default async function IletisimSayfasi() {
     <>
       <SayfaBasligi
         baslik="İletişim"
-        aciklama="E-posta kampanyaları. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
+        aciklama="E-posta ve SMS kampanyaları. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <YeniKampanya
           etiketler={etiketleriListele(ctx)}
           saglayicilar={ayarlar.saglayicilar}
           eksikAyarlar={ayarlar.eksikAyarlar}
+          smsAltbilgisi={smsAltbilgisi(ayarlar)}
         />
 
         <section className="kart self-start" aria-labelledby="kampanyalar-baslik">

@@ -9,6 +9,8 @@ export type MesajlasmaAyarlariDto = {
   gonderenUnvani: string | null;
   iletisimBilgisi: string | null;
   iysNo: string | null;
+  smsRetNumarasi: string | null;
+  yetkiliTelefonu: string | null;
   sorumlulukOnayi: boolean;
   sorumlulukOnayTarihi: string | null;
   gonderimBaslangicDk: number;
@@ -16,6 +18,8 @@ export type MesajlasmaAyarlariDto = {
   gunlukSinirlar: Record<Kanal, number>;
   saglayicilar: Record<Kanal, { tanimli: boolean; saglayici: string | null; guncellemeTarihi: string | null }>;
   eksikAyarlar: string[];
+  /** SMS için ayrıca eksik olanlar (ret numarası). */
+  smsEksikAyarlar: string[];
 };
 
 export function mesajlasmaAyarlariDto(ctx: TenantContext): MesajlasmaAyarlariDto {
@@ -25,6 +29,8 @@ export function mesajlasmaAyarlariDto(ctx: TenantContext): MesajlasmaAyarlariDto
     gonderenUnvani: a.gonderenUnvani,
     iletisimBilgisi: a.iletisimBilgisi,
     iysNo: a.iysNo,
+    smsRetNumarasi: a.smsRetNumarasi,
+    yetkiliTelefonu: a.yetkiliTelefonu,
     sorumlulukOnayi: Boolean(a.sorumlulukOnayTarihi),
     sorumlulukOnayTarihi: a.sorumlulukOnayTarihi?.toISOString() ?? null,
     gonderimBaslangicDk: a.gonderimBaslangicDk,
@@ -37,5 +43,6 @@ export function mesajlasmaAyarlariDto(ctx: TenantContext): MesajlasmaAyarlariDto
       ]),
     ) as MesajlasmaAyarlariDto["saglayicilar"],
     eksikAyarlar: ticariIletiEksikleri(a),
+    smsEksikAyarlar: ticariIletiEksikleri(a, "sms"),
   };
 }

@@ -84,7 +84,9 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
       if (!c) return null;
       const temel = mockTemelBilgi(placeId, c);
       // Gerçek API gibi: liste maskesi yalnızca ad ve adres döndürür.
-      return kapsam === "liste" ? { id: placeId, ad: temel.ad, adres: temel.adres } : temel;
+      if (kapsam === "liste") return { id: placeId, ad: temel.ad, adres: temel.adres };
+      if (kapsam === "telefon") return { id: placeId, ad: "", telefon: temel.telefon, telefonUluslararasi: temel.telefonUluslararasi };
+      return temel;
     },
 
     async adresBul(metin: string) {
@@ -106,12 +108,14 @@ function mockTemelBilgi(placeId: string, c: { tur: string; i: number; j: number 
   const n = Math.floor(ozet("no", placeId) * 900) + 100;
   const tel = String(Math.floor(ozet("tel", placeId) * 1e7)).padStart(7, "0");
   const isim = ISIMLER[Math.floor(ozet("ad", placeId) * ISIMLER.length)];
+  const alan = ozet("cep", placeId) < 0.5 ? "532" : "216";
   return {
     id: placeId,
     ad: `${isim} ${TUR_ADI[c.tur] ?? "İşletme"} ${n}`,
     adres: `Örnek Mah. ${n % 90}. Sk. No:${(n % 40) + 1}, Kadıköy/İstanbul (örnek veri)`,
-    telefon: `0 (216) ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
-    telefonUluslararasi: `+90 216 ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
+    // Yaklaşık yarısı cep telefonu (SMS/WhatsApp akışlarını denemek için).
+    telefon: `0 (${alan}) ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
+    telefonUluslararasi: `+90 ${alan} ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
     webSitesi: ozet("web", placeId) < 0.5 ? `https://ornek-${n}.example.com` : undefined,
     googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${konum.lat},${konum.lng}`,
     puan: Math.round((3 + ozet("puan", placeId) * 2) * 10) / 10,

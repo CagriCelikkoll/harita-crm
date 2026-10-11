@@ -23,3 +23,16 @@ export function sablonDoldur(sablon: string, isletmeAdi: string | null | undefin
 }
 
 export const yerTutucuVarMi = (sablon: string) => sablon.includes(ISLETME_YER_TUTUCUSU);
+
+/**
+ * Her ticari SMS'in sonuna eklenen gönderen ve ret yolu. Ret yolu: alıcı "RET" yazıp çalışma alanının gelen
+ * SMS alabilen numarasına gönderir (Ayarlar → SMS); gelen yanıt webhook'la ret akışına girer.
+ */
+export function smsAltbilgisi(a: { gonderenUnvani: string | null; iysNo: string | null; smsRetNumarasi: string | null }) {
+  const unvan = a.gonderenUnvani?.trim() || "(gönderen unvanı girilmemiş)";
+  const iys = a.iysNo?.trim() ? ` İYS No:${a.iysNo.trim()}` : "";
+  return `${unvan}${iys}. ${smsRetYolu(a.smsRetNumarasi)}`;
+}
+
+export const smsRetYolu = (numara: string | null) =>
+  `Ret için RET yazıp ${numara?.trim() || "(ret numarası tanımlı değil)"} numarasına gönderin.`;

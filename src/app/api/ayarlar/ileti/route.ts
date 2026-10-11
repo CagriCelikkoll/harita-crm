@@ -5,6 +5,7 @@ import { ayniKaynakMi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { YetkiHatasi } from "@/server/repo/baglam";
 import { iletiAyarlariGuncelle } from "@/server/repo/ileti-ayarlari";
+import { telefonNormallestir } from "@/server/messaging/adres";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 
 const BASLIK = { "Cache-Control": "no-store" };
@@ -29,6 +30,15 @@ const Degisiklik = z
     gonderenUnvani: metin(160, "Gönderen unvanı"),
     iletisimBilgisi: metin(300, "İletişim bilgisi"),
     iysNo: metin(40, "İYS numarası"),
+    // SMS ret numarası: alıcıların RET yazıp gönderdiği, gelen SMS alabilen numara (kısa numara da olabilir).
+    smsRetNumarasi: metin(20, "SMS ret numarası").refine(
+      (s) => s === null || /^\+?[0-9 ]{3,20}$/.test(s),
+      "Ret numarası yalnızca rakam içermeli.",
+    ),
+    yetkiliTelefonu: metin(20, "Yetkili telefonu").refine(
+      (s) => s === null || /^905\d{9}$/.test(telefonNormallestir(s) ?? ""),
+      "Yetkili telefonu bir cep telefonu olmalı (5XX XXX XX XX).",
+    ),
     sorumlulukOnayi: z.boolean(),
     gonderimBaslangicDk: dakika,
     gonderimBitisDk: dakika,

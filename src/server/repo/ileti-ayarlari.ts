@@ -18,6 +18,8 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   gonderimBitisDk: VARSAYILAN_GONDERIM_BITIS_DK,
   gunlukEpostaSiniri: null,
   gunlukSmsSiniri: null,
+  smsRetNumarasi: null,
+  yetkiliTelefonu: null,
   guncellemeTarihi: new Date(0),
 });
 
@@ -32,6 +34,8 @@ export type IletiAyarDegisikligi = Partial<{
   gonderenUnvani: string | null;
   iletisimBilgisi: string | null;
   iysNo: string | null;
+  smsRetNumarasi: string | null;
+  yetkiliTelefonu: string | null;
   /** true: sorumluluk onayı verilir (zaman ve onaylayan kaydedilir); false: geri alınır. */
   sorumlulukOnayi: boolean;
   gonderimBaslangicDk: number;

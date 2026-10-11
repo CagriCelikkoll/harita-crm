@@ -30,7 +30,14 @@ const gonderiliyorKosulu = (ctx: TenantContext, id: string) =>
 export function mesajGonderildi(
   ctx: TenantContext,
   id: string,
-  g: { saglayiciKimligi: string | null; sandbox: boolean; sandboxIcerik: string | null; olayAciklamasi: string },
+  g: {
+    saglayiciKimligi: string | null;
+    sandbox: boolean;
+    sandboxIcerik: string | null;
+    olayAciklamasi: string;
+    /** Gönderilen adresin engel listesi özeti (adresin kendisi saklanmaz). */
+    adresOzeti?: string | null;
+  },
   simdi = new Date(),
 ): boolean {
   return db.transaction((tx) => {
@@ -41,6 +48,7 @@ export function mesajGonderildi(
         neden: null,
         hata: null,
         saglayiciKimligi: g.saglayiciKimligi,
+        adresOzeti: g.adresOzeti ?? null,
         sandboxIcerik: g.sandbox ? g.sandboxIcerik : null,
         gonderimTarihi: simdi,
         kilitZamani: null,
@@ -109,4 +117,14 @@ export function mesajBirak(
       .returning({ id: messageQueue.id })
       .get(),
   );
+}
+
+/** Bu adrese (özetine) gönderim yapılmış kayıtlar: gelen SMS RET yanıtını kayda bağlamak için. */
+export function adreseGonderilenKayitlar(ctx: TenantContext, adresOzeti: string): string[] {
+  return db
+    .selectDistinct({ leadId: messageQueue.leadId })
+    .from(messageQueue)
+    .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.adresOzeti, adresOzeti)))
+    .all()
+    .map((s) => s.leadId);
 }

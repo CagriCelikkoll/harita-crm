@@ -10,9 +10,12 @@ import {
   type Kanal,
 } from "@/lib/mesajlasma";
 import { KAYIT_DURUMLARI } from "@/lib/sabitler";
-import { sablonDoldur } from "@/lib/sablon";
+import { sablonDoldur, smsAltbilgisi } from "@/lib/sablon";
+import { smsUzunlugu } from "@/lib/sms-uzunluk";
 import { gunAnahtari } from "@/lib/zaman";
+import { cagriBirimi } from "../places/istemci";
 import type { TenantContext } from "../repo/baglam";
+import { kotaDurumu } from "../repo/kullanim";
 import { sayacDegeri } from "../repo/gonderim-sayaci";
 import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { kampanyaAdaylari, kampanyaOlustur, type Kampanya } from "../repo/kampanyalar";
@@ -48,6 +51,9 @@ export const KampanyaGirdisi = z
   .strict()
   .superRefine((k, c) => {
     if (k.kanal === "eposta" && !k.konu) c.addIssue({ code: "custom", message: "E-posta konusu gerekli.", path: ["konu"] });
+    if (k.kanal === "sms" && k.sablon.length > 900) {
+      c.addIssue({ code: "custom", message: "SMS metni en fazla 900 karakter olabilir.", path: ["sablon"] });
+    }
   });
 export type KampanyaGirdisi = z.infer<typeof KampanyaGirdisi>;
 
@@ -66,6 +72,12 @@ export type KampanyaOzeti = {
   /** Sandbox dışı gönderim için Ayarlar'da eksik olanlar. */
   eksikAyarlar: string[];
   onizleme: string | null;
+  /** SMS: telefonu kayıtta olmayan, gönderim anında Places'tan alınacak alıcılar ve tahmini kota maliyeti. */
+  placesTelefonGerekli: number;
+  tahminiKotaBirimi: number;
+  kotaKalan: number;
+  /** SMS: ilk alıcının mesajı (altbilgi dahil) kaç parça. */
+  smsParca: number | null;
 };
 
 function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
@@ -81,17 +93,20 @@ function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
   const haricler = Object.fromEntries(HARIC_NEDENLERI.map((n) => [n, 0])) as Record<HaricNedeni, number>;
   let gonderilecek = 0;
   let isletmeAdiEksik = 0;
+  let placesTelefonGerekli = 0;
   for (const { kayit, karar } of kararlar) {
     if (!karar.uygun) haricler[karar.neden]++;
     else {
       gonderilecek++;
       if (!kayit.isletmeAdi?.trim()) isletmeAdiEksik++;
+      if (karar.adres === null) placesTelefonGerekli++;
     }
   }
   const baslangic = g.planlananTarih ? new Date(g.planlananTarih) : simdi;
   const sinir = gunlukSinir(ayar, g.kanal);
   const bugunKalan = Math.max(0, sinir - sayacDegeri(ctx, g.kanal, gunAnahtari(baslangic)));
   const ilk = kararlar.find((x) => x.karar.uygun)?.kayit;
+  const onizleme = ilk ? sablonDoldur(g.sablon, ilk.isletmeAdi, g.bosIsimHitabi) : null;
 
   const ozet: KampanyaOzeti = {
     kanal: g.kanal,
@@ -103,8 +118,13 @@ function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
     bugunKalan,
     sonrakiGunlereKalacak: Math.max(0, gonderilecek - bugunKalan),
     sandbox,
-    eksikAyarlar: sandbox ? [] : ticariIletiEksikleri(ayar),
-    onizleme: ilk ? sablonDoldur(g.sablon, ilk.isletmeAdi, g.bosIsimHitabi) : null,
+    eksikAyarlar: sandbox ? [] : ticariIletiEksikleri(ayar, g.kanal),
+    onizleme,
+    placesTelefonGerekli,
+    tahminiKotaBirimi: placesTelefonGerekli * cagriBirimi("telefon"),
+    kotaKalan: kotaDurumu(ctx).kalan,
+    smsParca: g.kanal === "sms" && onizleme !== null ? smsUzunlugu(`${onizleme}
+${smsAltbilgisi(ayar)}`).parca : null,
   };
   return { ozet, kararlar };
 }

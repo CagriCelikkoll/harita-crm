@@ -27,7 +27,7 @@ export async function POST(istek: Request, { params }: RouteContext<"/api/ayarla
     throw hata;
   }
   return NextResponse.json(
-    { tamam: true, mesaj: kanal === "eposta" ? "Test e-postası gönderen adresinize gönderildi." : "Test SMS'i gönderildi." },
+    { tamam: true, mesaj: kanal === "eposta" ? "Test e-postası gönderen adresinize gönderildi." : "Test SMS'i yetkili cep telefonunuza gönderildi." },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

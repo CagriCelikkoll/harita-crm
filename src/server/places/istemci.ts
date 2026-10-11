@@ -9,6 +9,7 @@
 //                             (displayName Pro katmanındadır; ad istenince Essentials mümkün değil)
 //   Detay paneli (ayrı)     : telefon, web sitesi, puan + ad/adres/konum/googleMapsUri → Place Details Enterprise
 //   Adres arama             : places.location,places.formattedAddress  → Text Search Pro
+//   SMS/WhatsApp telefonu   : id,nationalPhoneNumber,internationalPhoneNumber → Place Details Enterprise
 import { PLACES_BIRIMLERI, type PlacesSku } from "@/lib/places-birimleri";
 import { mockPlacesIstemcisi } from "./mock";
 import {
@@ -33,6 +34,8 @@ export const ALAN_MASKELERI = {
     "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri," +
     "googleMapsUri,rating,userRatingCount,location,businessStatus",
   adres: "places.location,places.formattedAddress",
+  // SMS / WhatsApp gönderimi anında, kayıtta telefon yoksa. Sonuç SAKLANMAZ (yalnızca o gönderimde kullanılır).
+  telefon: "id,nationalPhoneNumber,internationalPhoneNumber",
 } as const;
 
 /** Her çağrının faturalandığı SKU; kota birimi buradan (src/lib/places-birimleri.ts) okunur. */
@@ -42,6 +45,7 @@ export const CAGRI_SKULARI = {
   liste: "placeDetailsPro",
   detay: "placeDetailsEnterprise",
   adres: "textSearchPro",
+  telefon: "placeDetailsEnterprise",
 } as const satisfies Record<keyof typeof ALAN_MASKELERI, PlacesSku>;
 
 export const cagriBirimi = (cagri: keyof typeof CAGRI_SKULARI) => PLACES_BIRIMLERI[CAGRI_SKULARI[cagri]];

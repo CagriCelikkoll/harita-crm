@@ -36,6 +36,13 @@
       "when": 1791756787476,
       "tag": "0004_mesajlasma",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791758858579,
+      "tag": "0005_sms",
+      "breakpoints": true
     }
   ]
 }

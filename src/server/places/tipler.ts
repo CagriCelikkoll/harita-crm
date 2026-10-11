@@ -35,7 +35,8 @@ export type YerBilgisi = {
   isletmeDurumu?: string;
 };
 
-export type DetayKapsami = "liste" | "detay";
+/** liste: ad + adres (Pro). detay: panel (Enterprise). telefon: yalnızca telefon, SMS/WhatsApp gönderimi anında (Enterprise). */
+export type DetayKapsami = "liste" | "detay" | "telefon";
 
 export interface PlacesIstemcisi {
   metinAra(istek: MetinAramaIstegi): Promise<MetinAramaYaniti>;

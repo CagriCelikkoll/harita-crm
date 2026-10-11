@@ -1,7 +1,7 @@
 // Gönderilecek iletinin oluşturulması: şablon ({isletme} yalnızca kullanıcının girdiği addan), gönderen
 // altbilgisi ve ret yolu. E-postada tek tıkla abonelikten çıkma bağlantısı ve RFC 8058 başlıkları.
 import type { AliciTuru, Kanal } from "@/lib/mesajlasma";
-import { sablonDoldur } from "@/lib/sablon";
+import { sablonDoldur, smsAltbilgisi, smsRetYolu } from "@/lib/sablon";
 import type { Kampanya } from "../repo/kampanyalar";
 import { abonelikBaglantisi, abonelikBelirteciUret, abonelikPostAdresi } from "../messaging/abonelik-belirteci";
 import { adresOzeti } from "../messaging/adres";
@@ -48,8 +48,9 @@ export function iletiOlustur(girdi: {
     gonderenAdi: ayar.gonderenUnvani?.trim() || undefined,
   };
   if (kanal === "sms") {
-    // SMS altbilgisi ve ret yolu C bölümünde (sağlayıcının İYS ret mekanizması) eklenir.
-    return { ...ortak, metin: govde };
+    // SMS'te bağlantı yerine ret yolu: "RET yazıp <numara>" (gelen yanıt webhook'la ret akışına girer).
+    return { ...ortak, aboneliktenCikmaBaglantisi: smsRetYolu(ayar.smsRetNumarasi), metin: `${govde}
+${smsAltbilgisi(ayar)}` };
   }
   const altbilgi = epostaAltbilgisi(ayar, baglanti);
   const metin = `${govde}\n\n${altbilgi}`;

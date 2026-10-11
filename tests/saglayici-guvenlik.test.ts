@@ -133,6 +133,22 @@ describe("kimlik bilgileri: hiçbir API yanıtında dönmez", () => {
     expect(ayar.ayarlar.saglayicilar.eposta).toEqual({ tanimli: false, saglayici: null, guncellemeTarihi: null });
   });
 
+  it("Netgsm: şifre, kullanıcı kodu ve başlık hiçbir yanıtta dönmez; webhook adresi yalnızca ilk kayıtta bir kez", async () => {
+    const { ctx } = kiraciOlustur("NetgsmYanit");
+    oturum.ctx = ctx;
+    const NETGSM = { kullanici: "8509990001", sifre: "NETGSM-gizli-sifre", baslik: "GIZLIBASLK" };
+    const ilk = await saglayiciRotasi.PUT(istek("/x", "PUT", NETGSM), baglam({ kanal: "sms" }));
+    const ilkGovde = await ilk.text();
+    expect(ilk.status).toBe(200);
+    expect(JSON.parse(ilkGovde).webhookAdresi).toMatch(/^https:\/\/crm\.ornek\.test\/api\/webhook\/sms\/[A-Za-z0-9_-]{32}$/);
+    const ikinci = await saglayiciRotasi.PUT(istek("/x", "PUT", NETGSM), baglam({ kanal: "sms" }));
+    const govdeler = [ilkGovde, await ikinci.text(), await (await iletiRotasi.GET()).text()];
+    expect(JSON.parse(govdeler[1]).webhookAdresi).toBeUndefined();
+    for (const g of govdeler) for (const gizli of Object.values(NETGSM)) expect(g).not.toContain(gizli);
+    const ham = JSON.stringify(db.$client.prepare("select * from saglayici_ayarlari where tenant_id = ?").all(ctx.tenantId));
+    for (const gizli of Object.values(NETGSM)) expect(ham).not.toContain(gizli);
+  });
+
   it("yönetici olmayan üye sağlayıcı bilgisi kaydedemez ve test gönderemez", async () => {
     const { ctx } = kiraciOlustur("Rol");
     const uye = kullaniciOlustur("RolUye");

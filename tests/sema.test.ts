@@ -36,8 +36,9 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ileti_ayarlari: [
     "tenant_id", "gonderen_unvani", "iletisim_bilgisi", "iys_no", "sorumluluk_onay_tarihi", "sorumluluk_onaylayan",
     "gonderim_baslangic_dk", "gonderim_bitis_dk", "gunluk_eposta_siniri", "gunluk_sms_siniri", "guncelleme_tarihi",
+    "sms_ret_numarasi", "yetkili_telefonu", // çalışma alanının kendi numaraları
   ],
-  saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "guncelleyen", "guncelleme_tarihi"],
+  saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "webhook_ozeti", "guncelleyen", "guncelleme_tarihi"],
   engel_listesi: ["id", "tenant_id", "tur", "ozet", "kaynak", "lead_id", "tarih"],
   kampanyalar: [
     "id", "tenant_id", "olusturan", "kanal", "ad", "konu", "sablon", "bos_isim_hitabi", "filtre", "sandbox", "durum",
@@ -46,6 +47,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   message_queue: [
     "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",
     "kilit_zamani", "sayac_gunu", "saglayici_kimligi", "sandbox_icerik", "gonderim_tarihi", "olusturma_tarihi",
+    "adres_ozeti", // gönderilen adresin özeti; adresin kendisi (Places telefonu dahil) saklanmaz
   ],
   gonderim_sayaclari: ["tenant_id", "kanal", "kullanici_id", "donem", "adet"],
 };

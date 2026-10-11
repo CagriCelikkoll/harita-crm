@@ -215,6 +215,10 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   // null = ortam değişkeni / varsayılan. Değiştirmek için: npm run sinir -- <slug> <kanal> <sayı>
   gunlukEpostaSiniri: integer("gunluk_eposta_siniri"),
   gunlukSmsSiniri: integer("gunluk_sms_siniri"),
+  // SMS ret yolu: alıcıların "RET" yazıp gönderdiği (gelen SMS alabilen) numara. Her SMS'e eklenir.
+  smsRetNumarasi: text("sms_ret_numarasi"),
+  // Test SMS'leri YALNIZCA bu numaraya gider.
+  yetkiliTelefonu: text("yetkili_telefonu"),
   guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
 });
 
@@ -231,10 +235,12 @@ export const saglayiciAyarlari = sqliteTable(
     kanal: text("kanal", { enum: KANALLAR }).notNull(),
     saglayici: text("saglayici").notNull(),
     sifreliVeri: text("sifreli_veri").notNull(),
+    // SMS ret webhook'u: kiracıya özgü gizli anahtarın özeti (HMAC). Anahtarın kendisi saklanmaz.
+    webhookOzeti: text("webhook_ozeti"),
     guncelleyen: text("guncelleyen").references(() => user.id, { onDelete: "set null" }),
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
   },
-  (t) => [primaryKey({ columns: [t.tenantId, t.kanal] })],
+  (t) => [primaryKey({ columns: [t.tenantId, t.kanal] }), uniqueIndex("saglayici_webhook_uq").on(t.webhookOzeti)],
 );
 
 /**
@@ -319,6 +325,8 @@ export const messageQueue = sqliteTable(
     // Günlük sınır sayacından ayrılan gün (iade için).
     sayacGunu: text("sayac_gunu"),
     saglayiciKimligi: text("saglayici_kimligi"),
+    // Gönderildiği adresin engel listesi özeti (adresin kendisi değil): gelen RET yanıtını kayda bağlamak için.
+    adresOzeti: text("adres_ozeti"),
     // Yalnızca sandbox: gönderilecek olan metin (gerçek gönderim yerine kaydedilir).
     sandboxIcerik: text("sandbox_icerik"),
     gonderimTarihi: zaman("gonderim_tarihi"),
@@ -332,6 +340,7 @@ export const messageQueue = sqliteTable(
     uniqueIndex("message_queue_kampanya_lead_uq").on(t.kampanyaId, t.leadId),
     index("message_queue_bekleyen_idx").on(t.durum, t.sonrakiDeneme),
     index("message_queue_kampanya_idx").on(t.tenantId, t.kampanyaId, t.durum),
+    index("message_queue_adres_idx").on(t.tenantId, t.adresOzeti),
   ],
 );
 

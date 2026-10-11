@@ -77,7 +77,7 @@ beforeAll(() => {
 function bMesajlasmaDegismedi() {
   expect(iletiAyarlari.iletiAyarlariGetir(B)).toMatchObject({ gonderenUnvani: "B Ltd.", iysNo: "B-IYS" });
   expect(iletiAyarlari.iletiAyarlariGetir(B).sorumlulukOnayTarihi).not.toBeNull();
-  expect(saglayicilar.saglayiciSifreliGetir(B, "eposta")).toEqual({ saglayici: "smtp", sifreliVeri: "v1:B-gizli" });
+  expect(saglayicilar.saglayiciSifreliGetir(B, "eposta")).toMatchObject({ saglayici: "smtp", sifreliVeri: "v1:B-gizli" });
   expect(engelListesi.engelliOzetler(B, [B_ENGEL.ozet]).has(B_ENGEL.ozet)).toBe(true);
   expect(gonderimSayaci.sayacDegeri(B, "eposta", "2026-10-12")).toBe(1);
   expect(kampanyalar.kampanyaGetir(B, bKampanya.id)).toMatchObject({ durum: "calisiyor", sayilar: { gonderiliyor: 1 } });
@@ -176,6 +176,15 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
   },
   kayitlariGetir: () => {
     expect(kayitlar.kayitlariGetir(A, [bKayit.id])).toEqual([]);
+  },
+  ekTelefonluKayitlar: () => {
+    // B'nin ikinci kaydına telefon yaz: A görmez, B görür.
+    db.$client
+      .prepare("update leads set ek_telefon = '0532 999 88 77' where tenant_id = ? and place_id = 'places-b-2'")
+      .run(B.tenantId);
+    expect(kayitlar.ekTelefonluKayitlar(A)).toEqual([]);
+    expect(kayitlar.ekTelefonluKayitlar(B)).toHaveLength(1);
+    db.$client.prepare("update leads set ek_telefon = null where tenant_id = ? and place_id = 'places-b-2'").run(B.tenantId);
   },
 };
 
@@ -368,6 +377,11 @@ const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
 };
 
 const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
+  adreseGonderilenKayitlar: () => {
+    db.$client.prepare("update message_queue set adres_ozeti = 'ozet-b' where id = ?").run(bMesajId);
+    expect(kuyruk.adreseGonderilenKayitlar(A, "ozet-b")).toEqual([]);
+    expect(kuyruk.adreseGonderilenKayitlar(B, "ozet-b")).toEqual([bKayit.id]);
+  },
   mesajGetir: () => {
     expect(kuyruk.mesajGetir(A, bMesajId)).toBeNull();
   },

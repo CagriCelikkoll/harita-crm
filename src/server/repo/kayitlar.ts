@@ -250,3 +250,12 @@ export function kayitlariGetir(ctx: TenantContext, idler: string[]): Kayit[] {
     .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, idler)))
     .all();
 }
+
+/** Ek telefonu girilmiş kayıtlar (gelen RET yanıtını numarayla eşleştirmek için; normalleştirme çağıranda). */
+export function ekTelefonluKayitlar(ctx: TenantContext): { id: string; ekTelefon: string }[] {
+  return db
+    .select({ id: leads.id, ekTelefon: leads.ekTelefon })
+    .from(leads)
+    .where(and(eq(leads.tenantId, ctx.tenantId), sql`${leads.ekTelefon} is not null`))
+    .all() as { id: string; ekTelefon: string }[];
+}

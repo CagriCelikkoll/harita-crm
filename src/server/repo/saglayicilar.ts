@@ -1,6 +1,6 @@
 // Sağlayıcı kimlik bilgileri (saglayici_ayarlari). Değer yalnızca şifreli olarak yazılır ve okunur;
 // şifre çözme servisler/saglayici.ts'tedir. Durum fonksiyonu şifreli veriyi DÖNDÜRMEZ.
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { KANALLAR, type Kanal } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { saglayiciAyarlari } from "../db/schema";
@@ -27,17 +27,36 @@ export function saglayiciDurumlari(ctx: TenantContext): Record<Kanal, SaglayiciD
 export function saglayiciSifreliGetir(ctx: TenantContext, kanal: Kanal) {
   return (
     db
-      .select({ saglayici: saglayiciAyarlari.saglayici, sifreliVeri: saglayiciAyarlari.sifreliVeri })
+      .select({
+        saglayici: saglayiciAyarlari.saglayici,
+        sifreliVeri: saglayiciAyarlari.sifreliVeri,
+        webhookTanimli: sql<boolean>`${saglayiciAyarlari.webhookOzeti} is not null`.mapWith(Boolean),
+      })
       .from(saglayiciAyarlari)
       .where(and(eq(saglayiciAyarlari.tenantId, ctx.tenantId), eq(saglayiciAyarlari.kanal, kanal)))
       .get() ?? null
   );
 }
 
-/** Yalnızca yönetici. sifreliVeri, servisler/saglayici.ts'te kiracı|kanal AAD'siyle şifrelenmiş olmalı. */
-export function saglayiciKaydet(ctx: TenantContext, kanal: Kanal, saglayici: string, sifreliVeri: string) {
+/**
+ * Yalnızca yönetici. sifreliVeri, servisler/saglayici.ts'te kiracı|kanal AAD'siyle şifrelenmiş olmalı.
+ * webhookOzeti verilmezse mevcut değer korunur.
+ */
+export function saglayiciKaydet(
+  ctx: TenantContext,
+  kanal: Kanal,
+  saglayici: string,
+  sifreliVeri: string,
+  webhookOzeti?: string | null,
+) {
   yoneticiOlmali(ctx);
-  const degerler = { saglayici, sifreliVeri, guncelleyen: ctx.userId, guncellemeTarihi: new Date() };
+  const degerler = {
+    saglayici,
+    sifreliVeri,
+    guncelleyen: ctx.userId,
+    guncellemeTarihi: new Date(),
+    ...(webhookOzeti !== undefined ? { webhookOzeti } : {}),
+  };
   db.insert(saglayiciAyarlari)
     .values({ tenantId: ctx.tenantId, kanal, ...degerler })
     .onConflictDoUpdate({ target: [saglayiciAyarlari.tenantId, saglayiciAyarlari.kanal], set: degerler })

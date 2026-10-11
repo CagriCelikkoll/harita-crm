@@ -44,6 +44,7 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `ILETI_SIFRELEME_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Sağlayıcı (SMTP) kimlik bilgilerini AES-256-GCM ile şifreler. Değişirse kayıtlı sağlayıcı bilgileri yeniden girilmelidir. |
 | `ILETI_IMZA_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64 (yukarıdaki komut). Abonelikten çıkma bağlantılarını imzalar ve engel listesi özetlerini üretir. **Değiştirmeyin:** eski bağlantılar geçersiz olur ve engel listesi eşleşmez. Yoksa "ret" işaretleme ve abonelikten çıkma çalışmaz; başlangıçta uyarı yazılır. |
 | `GUNLUK_EPOSTA_SINIRI`, `GUNLUK_SMS_SINIRI` | Hayır | Çalışma alanı başına günlük gönderim sınırı (varsayılan 300 / 200). Alan bazında `npm run sinir`. |
+| `NETGSM_API_URL` | Hayır | Netgsm API kök adresi (varsayılan `https://api.netgsm.com.tr`); testte sahte sunucu için. |
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
 
@@ -77,7 +78,7 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
 npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
-npm test               # Vitest (13 dosya)
+npm test               # Vitest (14 dosya)
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -92,6 +93,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/mesajlasma.test.ts` | `{isletme}` şablonu (yalnızca kullanıcının girdiği ad; boşsa hitap ya da çevresiyle kaldırma), telefon/e-posta normalleştirme, **alıcı kuralları** fonksiyonunun her nedeni (ret, bireysel + izinsiz, iletişim yok, engel, cep değil, Places'tan alınacak telefon), sandbox sağlayıcı. |
 | `tests/kampanya.test.ts` | Kampanya oluşturmada ve **gönderim anında** ret / engel listesi / bireysel + izinsiz kayıtların hariç tutulması (kampanyadan sonra gelen ret dahil); elle ret sonrası kayıt silinip aynı adresle yeniden eklense de gönderilmemesi; ticari ileti bilgileri olmadan sandbox dışı kampanyanın başlatılamaması; gerçek gönderimde olay + `yeni → iletisimde`, sandbox'ta durum değişmemesi; **günlük sınır** (ertesi günün 09:00'ına kalma) ve **gönderim saati** (İstanbul); iptal; **idempotans:** tekrar çalıştırma, aynı süreçte eşzamanlı turlar ve **3 ayrı süreçte 40 mesajın her birinin tam bir kez** gönderilmesi; geçici hatada en fazla 3 deneme ve sınır iadesi; çöken işçinin mesajının "belirsiz" kapanıp yeniden denenmemesi; İYS reddinin ret akışına girmesi; zamanlanmış kampanya. |
 | `tests/saglayici-guvenlik.test.ts` | Kimlik bilgilerinin veritabanında düz metin olmaması; başka kiracının / kanalın AAD'siyle ya da başka anahtarla çözülememesi; **ayarlar, sağlayıcı, test gönderimi ve kampanya API yanıtlarının hiçbirinde** sunucu, kullanıcı adı ve şifrenin geçmemesi; üyenin sağlayıcı kaydedememesi; test e-postasının yalnızca kayıtlı gönderen adresine gitmesi ve saatte 5 sınırı; **SMTP SSRF:** iç ağ / loopback / link-local / metadata / IPv4-eşlemeli IPv6 adreslerinin ve izinsiz portların reddi, çözülen adreslerden biri bile iç ağdaysa ret, bağlantının doğrulanan IP'ye yapılması ve her gönderimde yeniden doğrulama (DNS yeniden bağlama). |
+| `tests/sms.test.ts` | SMS uzunluğu (160/153, Türkçe 155/149, UCS-2 70/67); **Netgsm isteği** (uç nokta, Basic Auth, msgheader, messages, encoding, iysfilter 11/12) ve hata kodu sınıflaması; ek_telefon cep / sabit hat; **Places telefonu** gönderim anında alınıp 4 birim düşmesi ve numaranın hiçbir tabloya yazılmaması; Places numarasının engel listesine takılması; kota dolunca ay başını bekleme; ret numarası olmadan gerçek SMS kampanyası başlatılamaması; **RET webhook'u** (anahtar yalnızca özet, yenileme, ek_telefon ve adres özetiyle eşleşme, RET olmayan mesajın yok sayılması, kiracılar arası etki olmaması, geçersiz anahtar 404); test SMS'inin yalnızca yetkili telefona `iysfilter=0` ile gitmesi ve saatte 5 sınırı. |
 | `tests/abonelik.test.ts` | Belirtecin tek bir baytı bile değiştirilince, kısaltılınca ya da kiracı/kayıt alanı başka kiracınınkiyle değiştirilince reddedilmesi; A'nın geçerli belirtecinin B'nin kaydını ve engel listesini etkilememesi; tek tıkla çıkışta `ret` + engel listesi + olay (tekrar tıklamada çift olay yok); kayıt silinmiş olsa da engel listesine yazma; sayfanın yalnızca gönderen unvanını döndürmesi; e-posta altbilgisi ve ham iletideki `List-Unsubscribe` / `List-Unsubscribe-Post` başlıkları. |
 | `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" veya "kuyrukta" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
 | `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
@@ -322,7 +324,7 @@ Cloudflare R2, Backblaze B2, MinIO) kopyalar. Uygulama zaten WAL modunda çalı�
    `litestream restore -o /var/lib/harita-crm/app.db s3://harita-crm-yedek/app.db`
 5. Geri yükleme provasını düzenli olarak ayrı bir makinede yapın.
 
-## Mesajlaşma (e-posta kampanyaları)
+## Mesajlaşma (e-posta ve SMS kampanyaları)
 
 Gönderen her zaman çalışma alanının kendisidir. Tüm gönderimler `MessageProvider` arayüzünden geçer
 (`src/server/messaging/saglayici.ts`). Bir kanalın sağlayıcısı tanımlı değilse kampanya **sandbox**'tır: gerçek
@@ -443,6 +445,90 @@ veritabanında güvenle çalışabilir (tek sunucu, tek SQLite dosyası).
 6. Sunucuda `ILETI_SIFRELEME_ANAHTARI`, `ILETI_IMZA_ANAHTARI` ve `BETTER_AUTH_URL` (abonelik bağlantıları bu adresle
    üretilir) tanımlı olmalı ve işçi çalışıyor olmalı.
 
+### SMS kampanyaları (Netgsm)
+
+**Sağlayıcı seçimi: Netgsm.** Netgsm ve İleti Merkezi'nin ikisinin de REST API'si var. Netgsm'i seçme nedenleri:
+
+1. Netgsm'in GitHub'daki resmî SDK'sı (`github.com/netgsm/netgsm-sms-python`) güncel REST v2 uç noktalarını,
+   istek alanlarını ve hata kodlarını açıkça gösteriyor. Adaptör bu kaynaktan doğrulandı.
+2. İYS süzgeci (`iysfilter`) doğrudan bizim `alici_turu` ayrımıyla eşleşiyor: bireysele ticari `11`, tacire
+   ticari `12`, bilgilendirme `0`.
+3. Kimlik doğrulama sade (HTTP Basic). İleti Merkezi her istekte API anahtarı + gizli anahtardan hash üretimi
+   istiyor.
+
+**Doğrulanan alanlar** (`src/server/messaging/netgsm.ts`; kaynak: resmî SDK'nın `netgsm/sms/sms_service.py`,
+`netgsm/exceptions/api_exception.py`, `tests/test_sms_service.py`):
+
+| Alan | Değer |
+| --- | --- |
+| Uç nokta | `POST https://api.netgsm.com.tr/sms/rest/v2/send` (`NETGSM_API_URL` ile değiştirilebilir) |
+| Kimlik | HTTP Basic: Netgsm kullanıcı kodu : API şifresi |
+| Gövde | `{ msgheader, messages: [{ msg, no }], encoding?: "tr", iysfilter }`; `no` = `5XXXXXXXXX` |
+| `encoding` | Yalnızca Türkçe karakter varsa `"tr"` (SDK: "Only use 'tr' if your message contains Turkish characters") |
+| Başarı | HTTP 200 + `{ code: "00", description, jobid }` |
+| Hata | HTTP 406 + `{ code }`: 20 metin, 30 kimlik, 40 başlık, 50/51 İYS hesabı, 70 parametre, 80 gönderim sınırı, 85 mükerrer; 100/101 sistem |
+
+Hata sınıflaması: 80, 85, 100, 101 ve bağlantının hiç kurulamaması **geçici** (yeniden denenir); diğer kodlar
+**kalıcı**; zaman aşımı ya da beklenmeyen yanıt **belirsiz** (SMS gitmiş olabilir; yeniden denenmez).
+
+**DOĞRULANMADI** (resmî kaynakta bulunamadı; canlıya almadan önce Netgsm'den teyit edin):
+
+- `code` 01 ve 02'nin anlamı: topluluk kaynakları başarılı sayıyor, adaptör de öyle sayıyor.
+- **Gelen SMS'in bir URL'ye iletilmesi (push) ve biçimi.** Resmî SDK yalnızca çekme (pull) API'sini gösteriyor:
+  `GET /sms/rest/v2/inbox?startdate&stopdate` (`ddMMyyyyHHmmss`), ama yanıt alanlarını göstermiyor. Webhook
+  (`/api/webhook/sms/<anahtar>`) bu yüzden toleranslı yazıldı: GET sorgusu, JSON ya da form gövdesi; numara için
+  `no / gsmno / telefon / phone / msisdn / numara / from`, mesaj için `msg / mesaj / message / text` alanlarını okur.
+  Netgsm panelinde gelen SMS yönlendirmesi yoksa inbox çekme API'siyle işçiye bir adım eklenmesi gerekir.
+- **Kişi bazında İYS reddinin bildirilmesi.** `iysfilter` ile Netgsm, İYS'de ret vermiş alıcıya göndermez. Ama
+  bunun gönderim yanıtında mı, raporda mı, hangi kodla döndüğü doğrulanamadı; adaptör şu an kişi bazında
+  `ret: true` üretmiyor. Bu alıcılar ret yolu (RET yanıtı) ile ya da elle işaretlenir.
+
+**Numara:** SMS yalnızca cep telefonuna gider (`90 5XX…`).
+
+- Numara önce kullanıcının girdiği `ek_telefon`'dan alınır; girilmiş ama cep değilse kayıt "cep telefonu değil"
+  nedeniyle hariç tutulur.
+- `ek_telefon` yoksa numara **gönderim anında** Places'tan canlı alınır (yalnızca telefon alanı, Place Details
+  Enterprise, **4 birim**) ve hiçbir yere yazılmaz. Kuyrukta yalnızca gönderildiği adresin anahtarlı özeti kalır;
+  gelen RET yanıtını kayda bağlamak için kullanılır.
+- Places çağrısı günlük sınır ayrıldıktan sonra yapılır. Böylece sınıra takılacak mesaj için kota harcanmaz.
+- Kota doluysa mesaj "Places kotası bekleniyor" nedeniyle ayın 1'ine (İstanbul, gönderim başlangıç saati) kalır.
+- Kampanya özeti "Google'dan alınacak: N kayıt ≈ N×4 birim" ve bu ay kalan kotayı gösterir.
+
+**Ret yolu:**
+
+- Her SMS'in sonuna `<gönderen unvanı> İYS No:<no>. Ret için RET yazıp <ret numarası> numarasına gönderin.` eklenir.
+- Ret numarası, çalışma alanının gelen SMS alabilen numarasıdır (Ayarlar → SMS). Sandbox dışı SMS kampanyası
+  bunsuz başlatılamaz.
+- Gelen "RET" yanıtı kiracıya özgü webhook adresine düşer: `https://<alan>/api/webhook/sms/<anahtar>`.
+  - Anahtar Netgsm ilk kaydedildiğinde üretilir ve **yalnızca bir kez** gösterilir; veritabanında HMAC özeti
+    tutulur. "Webhook adresini de yenile" ile değiştirilebilir.
+  - Ret yanıtı e-postadaki abonelikten çıkmayla aynı sonucu doğurur: kayıt `ret`, numara engel listesine,
+    `lead_events`'e `ret`.
+  - Numara kayda iki yolla bağlanır: o numaraya gönderilmiş kuyruk satırları (adres özeti) ve `ek_telefon`'u
+    eşleşen kayıtlar.
+
+**Karakter sayacı** (`src/lib/sms-uzunluk.ts`, kampanya formunda canlı):
+
+- Standart GSM karakterleri: 160 / 153 karakter.
+- Türkçe karakterler (ç ğ ı İ ş Ş Ğ; GSM Türkçe tek kaydırma tablosu, her biri 2 karakter): 155 / 149.
+- Emoji vb. (UCS-2): 70 / 67.
+- Sayaç altbilgiyi de sayar. Tahminidir; faturalamada sağlayıcının hesabı esastır.
+
+**Test SMS'i** yalnızca Ayarlar'daki yetkili cep telefonuna, bilgilendirme (`iysfilter=0`) olarak gider; kiracı
+başına saatte 5 ile sınırlıdır.
+
+### Gerçek SMS göndermek için çalışma alanının hazırlaması gerekenler
+
+1. **Netgsm hesabı** ve API kullanıcısı (kullanıcı kodu + API şifresi). IP kısıtı varsa sunucunun IP'sini Netgsm'de
+   tanımlayın.
+2. **Onaylı SMS başlığı** (en fazla 11 karakter; operatör onayı birkaç gün sürebilir).
+3. **İYS:** Hesabınızda İYS marka bilgisi tanımlı olmalı (aksi halde Netgsm 50/51 döner). Tacirlere ticari ileti
+   için İYS ret kontrolü, bireysel alıcılar için İYS'de kayıtlı onay gerekir.
+4. **Gelen SMS numarası** (ret numarası) ve Netgsm panelinde gelen SMS'lerin webhook adresine yönlendirilmesi
+   (bkz. "DOĞRULANMADI").
+5. Ayarlar → SMS: ret numarası, yetkili cep telefonu, Netgsm bilgileri → **Test SMS'i gönder**.
+6. Önce **Test modu** ile kampanya oluşturup kaydedilen metni ve parça sayısını kontrol edin.
+
 ## Proje yapısı
 
 ```
@@ -457,7 +543,7 @@ src/app/abonelik/[belirtec]/     herkese açık abonelikten çıkma sayfası
 src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim (+kampanya/[id]), ayarlar
 src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar,
                                  ayarlar/ileti, ayarlar/saglayicilar/[kanal] (+test), kampanyalar (+ozet, [id]),
-                                 abonelik/[belirtec]
+                                 abonelik/[belirtec], webhook/sms/[anahtar]
 src/instrumentation.ts           başlangıçta yarıda kalan taramaları kapatır
 src/components/                  menü, harita, Google atfı
 src/lib/                         sabitler, mesajlaşma sabitleri, şablon, İstanbul saati, Places birimleri
@@ -466,8 +552,8 @@ src/server/repo/                 kiracıya bağlı depo fonksiyonları; sistem/ 
 src/server/places/               Places istemcisi + mock
 src/server/scan/                 hücre geometrisi + tarama motoru (saf)
 src/server/servisler/            tarama, canlı bilgi, kampanya, işçi, sağlayıcı, abonelik servisleri
-src/server/messaging/            sağlayıcı arayüzü + sandbox, SMTP, alıcı kuralları, şifreleme, abonelik belirteci,
-                                 SMTP SSRF koruması
+src/server/messaging/            sağlayıcı arayüzü + sandbox, SMTP, Netgsm, alıcı kuralları, şifreleme, abonelik
+                                 belirteci, SMTP SSRF koruması
 tests/                           Vitest
 ```
 
@@ -491,6 +577,8 @@ tests/                           Vitest
 - **En fazla bir kez gönderim:** gönderim ortasında çöken işçinin mesajı "belirsiz" kapanır, yeniden denenmez.
 - **SMTP güvenliği:** port 25/465/587/2525; her bağlantıdan önce DNS çözümü ve iç ağ reddi; bağlantı doğrulanan IP'ye.
 - **Test gönderimi** yalnızca kayıtlı gönderen adresine, kiracı başına saatte 5.
+- **SMS sağlayıcısı Netgsm** (resmî SDK ile doğrulanan REST v2 alanları); ret yolu "RET yazıp <ret numarası>" metni +
+  kiracıya özgü gizli webhook. Places'tan alınan telefon saklanmaz; gönderim anında 4 birim.
 
 ## Açık kararlar
 
@@ -514,5 +602,6 @@ tests/                           Vitest
    bir kaydın adresi de engellenir (kayıt izni geri alınsa bile). Gerekirse yönetici için denetim kayıtlı bir
    "engeli kaldır" işlemi eklenebilir.
 10. **Geri dönen e-postalar (bounce) ve şikâyetler** işlenmiyor; SMTP sağlayıcısının panelinden izlenmeli.
+    SMS teslim raporları (`/sms/rest/v2/report`) da çekilmiyor; "gönderildi" Netgsm'in kabulü demektir.
 11. **Sandbox mesaj metni** (`message_queue.sandbox_icerik`) kampanya silinene kadar tutulur; kampanya silme /
     saklama süresi yok.
