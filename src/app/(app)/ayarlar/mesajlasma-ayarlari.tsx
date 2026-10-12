@@ -4,7 +4,14 @@
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
-import { dakikadanSaate, SMTP_IZINLI_PORTLAR, TEST_GONDERIM_SAATLIK_SINIR, ZORUNLU_ONAY_METNI } from "@/lib/mesajlasma";
+import {
+  dakikadanSaate,
+  SMTP_IZINLI_PORTLAR,
+  TEST_GONDERIM_SAATLIK_SINIR,
+  WHATSAPP_AZAMI_GUNLUK,
+  ZORUNLU_ONAY_METNI,
+} from "@/lib/mesajlasma";
+import { sablonDoldur, whatsappAltbilgisi } from "@/lib/sablon";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
@@ -390,6 +397,78 @@ export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici
           <p className="text-xs text-soluk">Sağlayıcı bilgilerini yalnızca yöneticiler değiştirebilir.</p>
         )}
       </section>
+
+      <WhatsappAyarlari a={a} yonetici={props.yonetici} mesgul={mesgul} mesaj={mesaj} surum={surum}
+        kaydet={(govde) => void gonder("wa", "/api/ayarlar/ileti", "PUT", govde)} />
     </>
+  );
+}
+
+function WhatsappAyarlari(props: {
+  a: MesajlasmaAyarlariDto;
+  yonetici: boolean;
+  mesgul: boolean;
+  mesaj: Mesaj;
+  surum: string;
+  kaydet: (govde: { whatsappSablonu: string; whatsappGunlukSinir: number | null }) => void;
+}) {
+  const { a } = props;
+  const [sablon, setSablon] = useState(a.whatsappSablonu ?? "Merhaba {isletme}, ");
+  const ornek = `${sablonDoldur(sablon, "Örnek İşletme")}\n\n${whatsappAltbilgisi(a.gonderenUnvani)}`;
+  return (
+    <section className="kart lg:col-span-2" aria-labelledby="wa-baslik">
+      <h2 id="wa-baslik" className="mb-1 font-semibold">
+        WhatsApp günlük liste
+      </h2>
+      <p className="mb-3 text-xs text-soluk">
+        Mesajları kullanıcılar kendi WhatsApp&apos;larından, her sohbeti kendileri açarak gönderir; uygulama yalnızca
+        sırayı ve mesajı hazırlar. {"{isletme}"} kaydın kullanıcı tarafından girilen işletme adıyla dolar. Mesajın
+        sonuna gönderen unvanı ve &quot;RET yazmanız yeterli&quot; notu eklenir.
+      </p>
+      <form
+        key={`wa-${props.surum}`}
+        className="grid gap-3 sm:grid-cols-[2fr_1fr]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const sinir = String(f.get("whatsappGunlukSinir") ?? "").trim();
+          props.kaydet({ whatsappSablonu: sablon, whatsappGunlukSinir: sinir ? Number(sinir) : null });
+        }}
+      >
+        <fieldset disabled={!props.yonetici || props.mesgul} className="contents">
+          <label className="etiket">
+            WhatsApp mesaj şablonu
+            <textarea value={sablon} onChange={(e) => setSablon(e.target.value)} rows={4} maxLength={1000} className="girdi font-normal" />
+          </label>
+          <label className="etiket">
+            Kullanıcı başına günlük sınır
+            <input
+              name="whatsappGunlukSinir"
+              type="number"
+              min={1}
+              max={WHATSAPP_AZAMI_GUNLUK}
+              defaultValue={a.whatsappSinirOzel ?? ""}
+              placeholder={`Varsayılan (${a.whatsappGunlukSinir})`}
+              className="girdi"
+            />
+            <span className="text-xs font-normal text-soluk">En fazla {WHATSAPP_AZAMI_GUNLUK}. Gün İstanbul saatiyle sıfırlanır.</span>
+          </label>
+        </fieldset>
+        <div className="rounded-md bg-zemin p-3 text-sm sm:col-span-2">
+          <p className="mb-1 text-xs font-medium text-soluk">Önizleme</p>
+          <p className="whitespace-pre-wrap break-words">{ornek}</p>
+        </div>
+        <div className="flex flex-col gap-1 sm:col-span-2">
+          <MesajGoster mesaj={props.mesaj} alan="wa" />
+          {props.yonetici ? (
+            <button type="submit" className="dugme-ana self-start" disabled={props.mesgul}>
+              Kaydet
+            </button>
+          ) : (
+            <p className="text-xs text-soluk">Bu ayarları yalnızca yöneticiler değiştirebilir.</p>
+          )}
+        </div>
+      </form>
+    </section>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from "@/lib/sabitler";
 import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
 import type { KayitDto, OlayDto } from "@/server/servisler/kayit-dto";
+import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
 
 type DetayVerisi = { kayit: KayitDto; olaylar: OlayDto[]; canli?: CanliSonuc };
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
@@ -228,6 +229,7 @@ export function DetayPaneli(props: {
           <MesajGoster mesaj={mesaj} alan="eposta" />
         </form>
       )}
+      <WhatsappButonu key={`wa-${kayit.iletiIzni}-${kayit.aliciTuru}-${kayit.ekTelefon ?? ""}`} id={kayit.id} onGonderildi={yenile} />
       <MesajGoster mesaj={mesaj} alan="iletisim" />
       <GoogleAtfi />
 
@@ -488,5 +490,75 @@ function MesajGoster({ mesaj, alan }: { mesaj: Mesaj; alan: string }) {
     <p role={mesaj.tur === "hata" ? "alert" : "status"} className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>
       {mesaj.metin}
     </p>
+  );
+}
+
+/**
+ * Tek kayıt için WhatsApp: "WhatsApp'ta aç" sunucu yönlendirmesidir (/api/whatsapp/ac-kayit/[id]); numara yalnızca
+ * orada çözülür (ek_telefon ya da Places, saklanmaz). Ret / engel / izinsiz bireysel / günlük sınır / şablon yoksa
+ * pasif. "Gönderdim" kullanıcının günlük WhatsApp sayacına işlenir.
+ */
+function WhatsappButonu({ id, onGonderildi }: { id: string; onGonderildi: () => Promise<void> }) {
+  const [durum, setDurum] = useState<KayitWhatsapp | null>(null);
+  const [acildi, setAcildi] = useState(false);
+  const [mesgul, setMesgul] = useState(false);
+  const [mesaj, setMesaj] = useState<{ tur: "hata" | "tamam"; metin: string } | null>(null);
+
+  useEffect(() => {
+    const iptal = new AbortController();
+    apiIstek<KayitWhatsapp>(`/api/kayitlar/${id}/whatsapp`, { sinyal: iptal.signal })
+      .then((s) => s.ok && setDurum(s.veri))
+      .catch(() => {});
+    return () => iptal.abort();
+  }, [id]);
+
+  if (!durum) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {durum.durum === "hazir" && durum.baglanti ? (
+          <a href={durum.baglanti} target="_blank" rel="noopener noreferrer" className="dugme" onClick={() => setAcildi(true)}>
+            WhatsApp&apos;ta aç
+          </a>
+        ) : (
+          <button type="button" className="dugme" disabled title={durum.mesaj ?? undefined}>
+            WhatsApp&apos;ta aç
+          </button>
+        )}
+        {durum.durum === "hazir" && (
+          <button
+            type="button"
+            className="dugme"
+            disabled={!acildi || mesgul}
+            title={acildi ? undefined : "Önce sohbeti açın"}
+            onClick={async () => {
+              setMesgul(true);
+              const s = await apiIstek<KayitWhatsapp>(`/api/kayitlar/${id}/whatsapp`, { method: "POST" });
+              setMesgul(false);
+              if (!s.ok) {
+                setMesaj({ tur: "hata", metin: s.hata });
+                return;
+              }
+              setDurum(s.veri);
+              setAcildi(false);
+              setMesaj({ tur: "tamam", metin: "WhatsApp gönderimi kaydedildi." });
+              await onGonderildi();
+            }}
+          >
+            Gönderdim
+          </button>
+        )}
+        <span className="text-xs text-soluk tabular-nums">Bugün kalan: {durum.kalan}</span>
+      </div>
+      {durum.durum !== "hazir" && durum.mesaj && <p className="text-xs text-soluk">WhatsApp: {durum.mesaj}</p>}
+      {durum.durum === "hazir" && !durum.telefon && (
+        <p className="text-xs text-soluk">Numara kayıtta yok; açarken Google&apos;dan alınır (4 birim, saklanmaz).</p>
+      )}
+      {mesaj && (
+        <p role={mesaj.tur === "hata" ? "alert" : "status"} className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>
+          {mesaj.metin}
+        </p>
+      )}
+    </div>
   );
 }

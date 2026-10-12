@@ -81,3 +81,42 @@ export const ZORUNLU_ONAY_METNI =
 
 export const dakikadanSaate = (dk: number) =>
   `${String(Math.floor(dk / 60)).padStart(2, "0")}:${String(dk % 60).padStart(2, "0")}`;
+
+// --- WhatsApp günlük liste (yarı otomatik: hazırlık uygulamada, gönderim kullanıcıda) ---
+export const WHATSAPP_DURUMLARI = ["bekliyor", "gonderildi", "atlandi", "ret", "otomatik_atlandi"] as const;
+export type WhatsappDurumu = (typeof WHATSAPP_DURUMLARI)[number];
+export const WHATSAPP_DURUM_ADLARI: Record<WhatsappDurumu, string> = {
+  bekliyor: "Sırada",
+  gonderildi: "Gönderildi",
+  atlandi: "Atlandı",
+  ret: "Ret istedi",
+  otomatik_atlandi: "Otomatik atlandı",
+};
+/** Kullanıcı başına günlük WhatsApp sınırı: varsayılan 30, çalışma alanı en fazla 50'ye çıkarabilir. */
+export const WHATSAPP_VARSAYILAN_GUNLUK = 30;
+export const WHATSAPP_AZAMI_GUNLUK = 50;
+
+/** wa.me bağlantısı: numara yalnızca rakam ve 90 ile başlar; metin encodeURIComponent ile. */
+export function waMeBaglantisi(normalNumara: string, mesaj: string): string {
+  if (!/^90\d{10}$/.test(normalNumara)) throw new Error("Numara 90 ile başlayan 12 haneli olmalı.");
+  return `https://wa.me/${normalNumara}?text=${encodeURIComponent(mesaj)}`;
+}
+
+/** "WhatsApp'ta aç" yönlendirmesi başarısız olunca listeye / kayda dönüşte gösterilen mesajlar (?wa=<kod>). */
+export const WHATSAPP_DONUS_MESAJLARI: Record<string, string> = {
+  atlandi: "Kayıt otomatik atlandı",
+  sinir_doldu: "Bugünkü WhatsApp sınırınıza ulaştınız; yarın (İstanbul saatiyle) sıfırlanır.",
+  kota: "Bu ayki veri kotanız doldu; telefonu kayıtta olmayan işletmelerin numarası alınamıyor.",
+  hata: "Numara alınamadı; biraz sonra tekrar deneyin.",
+  sablon_yok: "Ayarlar'da WhatsApp mesaj şablonu tanımlı değil.",
+  bulunamadi: "Bu liste kaydı bulunamadı ya da sonucu zaten bildirildi.",
+  kural: "Bu kayda WhatsApp mesajı gönderilemez",
+  capraz: "İstek başka bir siteden geldiği için reddedildi.",
+};
+
+/** Yönlendirme başarısız olunca (?wa=<kod>&neden=<neden>) gösterilen metin; bilinmeyen kodda null. */
+export function whatsappDonusMetni(kod: string | undefined, neden: string | undefined): string | null {
+  if (!kod || !Object.hasOwn(WHATSAPP_DONUS_MESAJLARI, kod)) return null;
+  const n = neden && Object.hasOwn(HARIC_NEDEN_ADLARI, neden) ? HARIC_NEDEN_ADLARI[neden as HaricNedeni] : undefined;
+  return n ? `${WHATSAPP_DONUS_MESAJLARI[kod]}: ${n}.` : WHATSAPP_DONUS_MESAJLARI[kod];
+}

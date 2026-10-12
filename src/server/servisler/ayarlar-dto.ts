@@ -4,6 +4,7 @@ import type { TenantContext } from "../repo/baglam";
 import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { saglayiciDurumlari } from "../repo/saglayicilar";
 import { gunlukSinir, ticariIletiEksikleri } from "./ileti";
+import { whatsappSiniri } from "./whatsapp";
 
 export type MesajlasmaAyarlariDto = {
   gonderenUnvani: string | null;
@@ -11,6 +12,10 @@ export type MesajlasmaAyarlariDto = {
   iysNo: string | null;
   smsRetNumarasi: string | null;
   yetkiliTelefonu: string | null;
+  whatsappSablonu: string | null;
+  /** Kullanıcı başına geçerli günlük WhatsApp sınırı ve çalışma alanına özel değer (null = varsayılan). */
+  whatsappGunlukSinir: number;
+  whatsappSinirOzel: number | null;
   sorumlulukOnayi: boolean;
   sorumlulukOnayTarihi: string | null;
   gonderimBaslangicDk: number;
@@ -31,6 +36,9 @@ export function mesajlasmaAyarlariDto(ctx: TenantContext): MesajlasmaAyarlariDto
     iysNo: a.iysNo,
     smsRetNumarasi: a.smsRetNumarasi,
     yetkiliTelefonu: a.yetkiliTelefonu,
+    whatsappSablonu: a.whatsappSablonu,
+    whatsappGunlukSinir: whatsappSiniri(a),
+    whatsappSinirOzel: a.whatsappGunlukSinir,
     sorumlulukOnayi: Boolean(a.sorumlulukOnayTarihi),
     sorumlulukOnayTarihi: a.sorumlulukOnayTarihi?.toISOString() ?? null,
     gonderimBaslangicDk: a.gonderimBaslangicDk,

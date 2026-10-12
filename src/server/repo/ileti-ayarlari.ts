@@ -20,6 +20,8 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   gunlukSmsSiniri: null,
   smsRetNumarasi: null,
   yetkiliTelefonu: null,
+  whatsappSablonu: null,
+  whatsappGunlukSinir: null,
   guncellemeTarihi: new Date(0),
 });
 
@@ -36,6 +38,9 @@ export type IletiAyarDegisikligi = Partial<{
   iysNo: string | null;
   smsRetNumarasi: string | null;
   yetkiliTelefonu: string | null;
+  whatsappSablonu: string | null;
+  /** Kullanıcı başına günlük WhatsApp sınırı (1–50); null = varsayılan. */
+  whatsappGunlukSinir: number | null;
   /** true: sorumluluk onayı verilir (zaman ve onaylayan kaydedilir); false: geri alınır. */
   sorumlulukOnayi: boolean;
   gonderimBaslangicDk: number;

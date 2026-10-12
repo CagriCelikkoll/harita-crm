@@ -37,6 +37,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "tenant_id", "gonderen_unvani", "iletisim_bilgisi", "iys_no", "sorumluluk_onay_tarihi", "sorumluluk_onaylayan",
     "gonderim_baslangic_dk", "gonderim_bitis_dk", "gunluk_eposta_siniri", "gunluk_sms_siniri", "guncelleme_tarihi",
     "sms_ret_numarasi", "yetkili_telefonu", // çalışma alanının kendi numaraları
+    "whatsapp_sablonu", "whatsapp_gunluk_sinir",
   ],
   saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "webhook_ozeti", "guncelleyen", "guncelleme_tarihi"],
   engel_listesi: ["id", "tenant_id", "tur", "ozet", "kaynak", "lead_id", "tarih"],
@@ -49,6 +50,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "kilit_zamani", "sayac_gunu", "saglayici_kimligi", "sandbox_icerik", "gonderim_tarihi", "olusturma_tarihi",
     "adres_ozeti", // gönderilen adresin özeti; adresin kendisi (Places telefonu dahil) saklanmaz
   ],
+  // Telefon numarası yok; yalnızca "WhatsApp'ta aç"ta çözülen numaranın özeti.
+  whatsapp_listesi: ["id", "tenant_id", "kullanici_id", "gun", "lead_id", "sira", "durum", "neden", "adres_ozeti", "guncelleme_tarihi"],
   gonderim_sayaclari: ["tenant_id", "kanal", "kullanici_id", "donem", "adet"],
 };
 

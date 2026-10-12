@@ -2,30 +2,34 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
-import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI } from "@/lib/mesajlasma";
+import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI, whatsappDonusMetni } from "@/lib/mesajlasma";
 import { smsAltbilgisi } from "@/lib/sablon";
 import { sayfaBaglami } from "@/server/oturum";
 import { kampanyalariListele } from "@/server/repo/kampanyalar";
 import { etiketleriListele } from "@/server/repo/kayitlar";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
+import { WhatsappListesi } from "./whatsapp-listesi";
 import { YeniKampanya } from "./yeni-kampanya";
 
 export const metadata: Metadata = { title: "İletişim" };
 
-export default async function IletisimSayfasi() {
+export default async function IletisimSayfasi({ searchParams }: PageProps<"/iletisim">) {
+  const p = await searchParams;
+  const tek = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const { ctx } = await sayfaBaglami();
   const kampanyalar = kampanyalariListele(ctx);
   const ayarlar = mesajlasmaAyarlariDto(ctx);
+  const etiketler = etiketleriListele(ctx);
 
   return (
     <>
       <SayfaBasligi
         baslik="İletişim"
-        aciklama="E-posta ve SMS kampanyaları. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
+        aciklama="E-posta ve SMS kampanyaları, WhatsApp günlük liste. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <YeniKampanya
-          etiketler={etiketleriListele(ctx)}
+          etiketler={etiketler}
           saglayicilar={ayarlar.saglayicilar}
           eksikAyarlar={ayarlar.eksikAyarlar}
           smsAltbilgisi={smsAltbilgisi(ayarlar)}
@@ -65,6 +69,10 @@ export default async function IletisimSayfasi() {
             </ul>
           )}
         </section>
+
+        <div className="xl:col-span-2">
+          <WhatsappListesi etiketler={etiketler} donus={whatsappDonusMetni(tek(p.wa), tek(p.neden))} />
+        </div>
       </div>
     </>
   );

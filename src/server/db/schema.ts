@@ -25,6 +25,7 @@ import {
   MESAJ_DURUMLARI,
   VARSAYILAN_GONDERIM_BASLANGIC_DK,
   VARSAYILAN_GONDERIM_BITIS_DK,
+  WHATSAPP_DURUMLARI,
 } from "../../lib/mesajlasma";
 
 export * from "./auth-schema";
@@ -219,6 +220,9 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   smsRetNumarasi: text("sms_ret_numarasi"),
   // Test SMS'leri YALNIZCA bu numaraya gider.
   yetkiliTelefonu: text("yetkili_telefonu"),
+  // WhatsApp günlük liste: {isletme} yer tutuculu şablon ve kullanıcı başına günlük sınır (null = varsayılan 30, en fazla 50).
+  whatsappSablonu: text("whatsapp_sablonu"),
+  whatsappGunlukSinir: integer("whatsapp_gunluk_sinir"),
   guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
 });
 
@@ -360,6 +364,37 @@ export const gonderimSayaclari = sqliteTable(
     adet: integer("adet").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.kanal, t.kullaniciId, t.donem] })],
+);
+
+/**
+ * WhatsApp günlük liste: kullanıcının bugünkü (İstanbul günü) sırası. Gönderimi kullanıcı yapar (wa.me bağlantısı);
+ * uygulama yalnızca sırayı hazırlar ve sonucu kaydeder. Telefon numarası burada TUTULMAZ (yalnızca özeti).
+ * Benzersiz (kiracı, gün, kayıt): aynı kayıt aynı gün iki kullanıcının listesine girmez.
+ */
+export const whatsappListesi = sqliteTable(
+  "whatsapp_listesi",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kullaniciId: text("kullanici_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    gun: text("gun").notNull(), // "YYYY-MM-DD" (Europe/Istanbul)
+    leadId: text("lead_id").notNull(),
+    sira: integer("sira").notNull(),
+    durum: text("durum", { enum: WHATSAPP_DURUMLARI }).notNull().default("bekliyor"),
+    neden: text("neden"),
+    // "WhatsApp'ta aç" sırasında çözülen numaranın engel listesi özeti (numaranın kendisi değil): "Ret istedi" için.
+    adresOzeti: text("adres_ozeti"),
+    guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.leadId], foreignColumns: [leads.tenantId, leads.id] }).onDelete("cascade"),
+    uniqueIndex("whatsapp_listesi_uq").on(t.tenantId, t.gun, t.leadId),
+    index("whatsapp_listesi_kullanici_idx").on(t.tenantId, t.kullaniciId, t.gun, t.sira),
+  ],
 );
 
 export type Tarama = typeof scans.$inferSelect;

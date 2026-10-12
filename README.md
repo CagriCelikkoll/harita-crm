@@ -45,6 +45,7 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `ILETI_IMZA_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64 (yukarıdaki komut). Abonelikten çıkma bağlantılarını imzalar ve engel listesi özetlerini üretir. **Değiştirmeyin:** eski bağlantılar geçersiz olur ve engel listesi eşleşmez. Yoksa "ret" işaretleme ve abonelikten çıkma çalışmaz; başlangıçta uyarı yazılır. |
 | `GUNLUK_EPOSTA_SINIRI`, `GUNLUK_SMS_SINIRI` | Hayır | Çalışma alanı başına günlük gönderim sınırı (varsayılan 300 / 200). Alan bazında `npm run sinir`. |
 | `NETGSM_API_URL` | Hayır | Netgsm API kök adresi (varsayılan `https://api.netgsm.com.tr`); testte sahte sunucu için. |
+| `WHATSAPP_GUNLUK_VARSAYILAN` | Hayır | Kullanıcı başına günlük WhatsApp sınırı varsayılanı (30; en fazla 50). Alan bazında Ayarlar'dan ya da `npm run sinir -- <slug> whatsapp <sayı>`. |
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
 
@@ -78,7 +79,7 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
 npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
-npm test               # Vitest (14 dosya)
+npm test               # Vitest (15 dosya)
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -94,6 +95,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/kampanya.test.ts` | Kampanya oluşturmada ve **gönderim anında** ret / engel listesi / bireysel + izinsiz kayıtların hariç tutulması (kampanyadan sonra gelen ret dahil); elle ret sonrası kayıt silinip aynı adresle yeniden eklense de gönderilmemesi; ticari ileti bilgileri olmadan sandbox dışı kampanyanın başlatılamaması; gerçek gönderimde olay + `yeni → iletisimde`, sandbox'ta durum değişmemesi; **günlük sınır** (ertesi günün 09:00'ına kalma) ve **gönderim saati** (İstanbul); iptal; **idempotans:** tekrar çalıştırma, aynı süreçte eşzamanlı turlar ve **3 ayrı süreçte 40 mesajın her birinin tam bir kez** gönderilmesi; geçici hatada en fazla 3 deneme ve sınır iadesi; çöken işçinin mesajının "belirsiz" kapanıp yeniden denenmemesi; İYS reddinin ret akışına girmesi; zamanlanmış kampanya. |
 | `tests/saglayici-guvenlik.test.ts` | Kimlik bilgilerinin veritabanında düz metin olmaması; başka kiracının / kanalın AAD'siyle ya da başka anahtarla çözülememesi; **ayarlar, sağlayıcı, test gönderimi ve kampanya API yanıtlarının hiçbirinde** sunucu, kullanıcı adı ve şifrenin geçmemesi; üyenin sağlayıcı kaydedememesi; test e-postasının yalnızca kayıtlı gönderen adresine gitmesi ve saatte 5 sınırı; **SMTP SSRF:** iç ağ / loopback / link-local / metadata / IPv4-eşlemeli IPv6 adreslerinin ve izinsiz portların reddi, çözülen adreslerden biri bile iç ağdaysa ret, bağlantının doğrulanan IP'ye yapılması ve her gönderimde yeniden doğrulama (DNS yeniden bağlama). |
 | `tests/sms.test.ts` | SMS uzunluğu (160/153, Türkçe 155/149, UCS-2 70/67); **Netgsm isteği** (uç nokta, Basic Auth, msgheader, messages, encoding, iysfilter 11/12) ve hata kodu sınıflaması; ek_telefon cep / sabit hat; **Places telefonu** gönderim anında alınıp 4 birim düşmesi ve numaranın hiçbir tabloya yazılmaması; Places numarasının engel listesine takılması; kota dolunca ay başını bekleme; ret numarası olmadan gerçek SMS kampanyası başlatılamaması; **RET webhook'u** (anahtar yalnızca özet, yenileme, ek_telefon ve adres özetiyle eşleşme, RET olmayan mesajın yok sayılması, kiracılar arası etki olmaması, geçersiz anahtar 404); test SMS'inin yalnızca yetkili telefona `iysfilter=0` ile gitmesi ve saatte 5 sınırı. |
+| `tests/whatsapp.test.ts` | wa.me bağlantısı (yalnızca rakam, 90 ile başlayan numara; `encodeURIComponent`); mesaj şablonu ve altbilgi; liste hazırlamada ret / engel / izinsiz bireysel dışlama, günlük sınır kapasitesi (en fazla 50), aynı kaydın iki kullanıcıya verilmemesi; **liste ekranını açmak ve 5 kez yenilemek kota birimi düşürmez**, Places numarası ekranda görünmez; ek_telefon cep değilse Places'sız otomatik atlama; "WhatsApp'ta aç": ek_telefon ile 0 birim, Places ile 4 birim ve numaranın hiçbir tabloya yazılmaması, cep değilse `otomatik_atlandi`, kota doluysa bekleme; "Gönderdim" (olay, `yeni → iletisimde`, sayaç, sınırda 429, detay panelinin aynı sayacı kullanması, İstanbul gününe göre sıfırlanma); "Ret istedi" (Places numarasının özeti engel listesine) ve "Atla"; detay panelinde pasif durumlar; **yönlendirme rotaları:** oturumsuz → giriş, `Sec-Fetch-Site: cross-site` → işlem yok, uygunsa 302 wa.me, başka kiracının öğesi / kaydı bulunamadı, cep değilse nedenle listeye dönüş. |
 | `tests/abonelik.test.ts` | Belirtecin tek bir baytı bile değiştirilince, kısaltılınca ya da kiracı/kayıt alanı başka kiracınınkiyle değiştirilince reddedilmesi; A'nın geçerli belirtecinin B'nin kaydını ve engel listesini etkilememesi; tek tıkla çıkışta `ret` + engel listesi + olay (tekrar tıklamada çift olay yok); kayıt silinmiş olsa da engel listesine yazma; sayfanın yalnızca gönderen unvanını döndürmesi; e-posta altbilgisi ve ham iletideki `List-Unsubscribe` / `List-Unsubscribe-Post` başlıkları. |
 | `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" veya "kuyrukta" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
 | `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
@@ -324,7 +326,7 @@ Cloudflare R2, Backblaze B2, MinIO) kopyalar. Uygulama zaten WAL modunda çalı�
    `litestream restore -o /var/lib/harita-crm/app.db s3://harita-crm-yedek/app.db`
 5. Geri yükleme provasını düzenli olarak ayrı bir makinede yapın.
 
-## Mesajlaşma (e-posta ve SMS kampanyaları)
+## Mesajlaşma (e-posta ve SMS kampanyaları, WhatsApp günlük liste)
 
 Gönderen her zaman çalışma alanının kendisidir. Tüm gönderimler `MessageProvider` arayüzünden geçer
 (`src/server/messaging/saglayici.ts`). Bir kanalın sağlayıcısı tanımlı değilse kampanya **sandbox**'tır: gerçek
@@ -529,6 +531,66 @@ başına saatte 5 ile sınırlıdır.
 5. Ayarlar → SMS: ret numarası, yetkili cep telefonu, Netgsm bilgileri → **Test SMS'i gönder**.
 6. Önce **Test modu** ile kampanya oluşturup kaydedilen metni ve parça sayısını kontrol edin.
 
+### WhatsApp günlük liste (yarı otomatik)
+
+Amaç hazırlığı otomatikleştirmek, gönderimi kullanıcıya bırakmak. **WhatsApp Web otomasyonu, gayriresmî kütüphane,
+otomatik gönderim ya da kullanıcı tıklamadan sekme açma yoktur**; bu bilinçli bir ürün sınırıdır.
+
+- **Ayarlar → WhatsApp günlük liste:**
+  - `{isletme}` yer tutuculu mesaj şablonu. Yer tutucu yalnızca kaydın kullanıcı tarafından girilen işletme adıyla
+    dolar.
+  - Mesajın sonuna gönderen unvanı ve "Bu mesajları almak istemiyorsanız RET yazmanız yeterli." eklenir.
+  - Kullanıcı başına günlük sınır: varsayılan 30 (`WHATSAPP_GUNLUK_VARSAYILAN`), çalışma alanı en fazla 50.
+    `npm run sinir -- <slug> whatsapp <sayı>` ile de değiştirilebilir.
+- **İletişim → WhatsApp günlük liste:** kullanıcı alıcı grubunu (durum, etiket, alıcı türü) seçer.
+  - Uygulama alıcı kurallarını (ret, engel listesi, izinsiz bireysel) uygular ve kayıtları sıraya koyar. Sıraya alınan
+    sayı, kullanıcının bugünkü kalan sınırı kadardır (sırada bekleyenler de sayılır).
+  - Aynı kayıt aynı gün iki kullanıcının listesine girmez. Liste kullanıcıya özeldir.
+- **Akış:** Ekranda sıradaki işletme ve kişiselleştirilmiş mesaj görünür.
+  1. **"WhatsApp'ta aç"**, yeni sekmede sunucu yönlendirmesini açar (aşağıda).
+  2. Kullanıcı WhatsApp'ta gönderip geri döner ve sonucu seçer:
+     - **Gönderdim:** `lead_events`'e `whatsapp` olayı yazılır, `yeni` durumu `iletisimde` olur, günlük sayaç artar.
+       Sayaç atomiktir; sınır doluysa işlem reddedilir (429).
+     - **Atla:** kayıt atlanır.
+     - **Ret istedi:** ret akışı çalışır (`ileti_izni = ret`, engel listesi, `lead_events`).
+  3. Ardından sıradaki kayıt gösterilir. Her yeni sohbet ayrı bir kullanıcı tıklamasıyla açılır.
+- **Sayaç:** Kullanıcı başına ve İstanbul gününe göredir; gece yarısı (İstanbul) sıfırlanır.
+- **Kayıt detayı:** Tek kayıt için aynı "WhatsApp'ta aç" ve "Gönderdim" butonları vardır.
+  - Ret, engel listesi, izinsiz bireysel, günlük sınır dolu ya da şablon yoksa butonlar pasiftir ve nedeni yazılır.
+  - "Gönderdim" aynı günlük sayaca işlenir.
+
+**Numara çözümleme — yalnızca "WhatsApp'ta aç" anında.** Liste ekranını açmak ya da yenilemek **Places çağrısı yapmaz
+ve kota birimi düşmez** (`tests/whatsapp.test.ts` bunu sınar).
+
+- Ekranda numara yalnızca kayıtta `ek_telefon` varsa (kullanıcının kendi verisi) gösterilir.
+- "WhatsApp'ta aç" bir sunucu rotasına gider:
+  - liste için `GET /api/whatsapp/ac/[listeKaydiId]`
+  - detay paneli için `GET /api/whatsapp/ac-kayit/[leadId]`
+- Rota şunları yapar:
+  1. Oturumu, kiracıyı ve kullanıcı sahipliğini, şablonu, günlük sınırı ve alıcı kurallarını kontrol eder.
+  2. Numarayı `ek_telefon`'dan, yoksa Places'tan canlı alır (yalnızca telefon + ad maskesi, Place Details
+     Enterprise, **4 birim**). Numara hiçbir yere yazılmaz. Liste öğesine yalnızca anahtarlı özeti yazılır; bu özet
+     "Ret istedi"de numarayı engel listesine eklemek için kullanılır.
+  3. Cep numarasıysa `https://wa.me/90XXXXXXXXXX?text=<encodeURIComponent(mesaj)>` adresine **302** ile yönlendirir.
+  4. Cep değilse ya da numara yoksa öğe `otomatik_atlandi` olur ve kullanıcı nedeni gösteren bir mesajla listeye
+     (`/iletisim?wa=atlandi&neden=cep_degil#whatsapp`) ya da kayda geri yönlendirilir. Kota doluysa öğe atlanmaz,
+     sırada bekler.
+- `ek_telefon` cep değilse (ya da kayıt artık kurallara uymuyorsa) bu, Places'a gitmeden liste ekranında
+  anlaşılır ve öğe otomatik atlanır.
+
+**Yönlendirme rotalarında Origin kontrolü yok.** Bu rotalar kullanıcının tıkladığı bir bağlantıyla (üst düzey GET
+gezinmesi) açılır ve tarayıcı bu isteklerde Origin başlığı göndermez. Diğer API'lerdeki Origin kontrolü burada
+uygulanamaz. Koruma şunlara dayanır:
+
+- oturum çerezi (`SameSite=Lax`, `httpOnly`, `Secure`),
+- tahmin edilemez liste öğesi kimliği,
+- kiracı + kullanıcı sahipliği,
+- tarayıcı `Sec-Fetch-Site: cross-site` gönderiyorsa isteğin işlem yapılmadan reddedilmesi. Böylece başka bir siteden
+  verilen bağlantı Places kotası harcatamaz ya da öğeyi atlatamaz.
+
+Rotalar yalnızca okuma ve yönlendirme yapar. Durum değiştiren "Gönderdim", "Atla" ve "Ret istedi" POST'tur ve Origin
+kontrollüdür.
+
 ## Proje yapısı
 
 ```
@@ -543,7 +605,8 @@ src/app/abonelik/[belirtec]/     herkese açık abonelikten çıkma sayfası
 src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim (+kampanya/[id]), ayarlar
 src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar,
                                  ayarlar/ileti, ayarlar/saglayicilar/[kanal] (+test), kampanyalar (+ozet, [id]),
-                                 abonelik/[belirtec], webhook/sms/[anahtar]
+                                 abonelik/[belirtec], webhook/sms/[anahtar], whatsapp/liste (+[id]),
+                                 whatsapp/ac/[id], whatsapp/ac-kayit/[leadId], kayitlar/[id]/whatsapp
 src/instrumentation.ts           başlangıçta yarıda kalan taramaları kapatır
 src/components/                  menü, harita, Google atfı
 src/lib/                         sabitler, mesajlaşma sabitleri, şablon, İstanbul saati, Places birimleri
@@ -577,6 +640,8 @@ tests/                           Vitest
 - **En fazla bir kez gönderim:** gönderim ortasında çöken işçinin mesajı "belirsiz" kapanır, yeniden denenmez.
 - **SMTP güvenliği:** port 25/465/587/2525; her bağlantıdan önce DNS çözümü ve iç ağ reddi; bağlantı doğrulanan IP'ye.
 - **Test gönderimi** yalnızca kayıtlı gönderen adresine, kiracı başına saatte 5.
+- **WhatsApp:** yarı otomatik; numara yalnızca "WhatsApp'ta aç" sunucu yönlendirmesinde çözülür (ekran ve yenileme
+  Places çağrısı yapmaz); yönlendirme rotaları Origin yerine oturum + SameSite + Sec-Fetch-Site'a dayanır.
 - **SMS sağlayıcısı Netgsm** (resmî SDK ile doğrulanan REST v2 alanları); ret yolu "RET yazıp <ret numarası>" metni +
   kiracıya özgü gizli webhook. Places'tan alınan telefon saklanmaz; gönderim anında 4 birim.
 
@@ -605,3 +670,7 @@ tests/                           Vitest
     SMS teslim raporları (`/sms/rest/v2/report`) da çekilmiyor; "gönderildi" Netgsm'in kabulü demektir.
 11. **Sandbox mesaj metni** (`message_queue.sandbox_icerik`) kampanya silinene kadar tutulur; kampanya silme /
     saklama süresi yok.
+12. **WhatsApp ve İYS:** WhatsApp mesajları da ticari elektronik ileti sayılabilir; kullanıcı kendi hesabından
+    gönderse de İYS / 6563 yükümlülükleri çalışma alanındadır. WhatsApp Business kullanım şartları (toplu ve
+    istenmeyen mesaj yasağı) için günlük sınır düşük tutulmuştur. Hukuki gözden geçirme önerilir.
+13. **"Gönderdim" beyana dayanır:** uygulama mesajın gerçekten gönderildiğini doğrulayamaz.

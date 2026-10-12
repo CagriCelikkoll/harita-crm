@@ -4,7 +4,7 @@ export const ROLLER = ["yonetici", "uye"] as const;
 export const TARAMA_DURUMLARI = ["kuyrukta", "calisiyor", "tamamlandi", "hata"] as const;
 export const KAYIT_DURUMLARI = ["yeni", "iletisimde", "gorusme", "kazanildi", "ilgilenmiyor"] as const;
 export const ILETI_IZINLERI = ["bekliyor", "onayli", "ret"] as const;
-export const OLAY_TURLERI = ["eklendi", "durum", "arama", "eposta", "sms", "not", "ret"] as const;
+export const OLAY_TURLERI = ["eklendi", "durum", "arama", "eposta", "sms", "whatsapp", "not", "ret"] as const;
 export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
 
 export type Rol = (typeof ROLLER)[number];
@@ -43,6 +43,7 @@ export const OLAY_TURU_ADLARI: Record<OlayTuru, string> = {
   arama: "Arama",
   eposta: "E-posta",
   sms: "SMS",
+  whatsapp: "WhatsApp",
   not: "Not",
   ret: "İleti reddi",
 };

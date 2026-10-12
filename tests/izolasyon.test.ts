@@ -19,6 +19,7 @@ import * as iletiAyarlari from "@/server/repo/ileti-ayarlari";
 import * as kampanyalar from "@/server/repo/kampanyalar";
 import * as kuyruk from "@/server/repo/kuyruk";
 import * as saglayicilar from "@/server/repo/saglayicilar";
+import * as whatsapp from "@/server/repo/whatsapp-listesi";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -37,6 +38,8 @@ let bOlay: olaylar.KayitOlayi;
 let bDavetId: string;
 let bKampanya: kampanyalar.Kampanya;
 let bMesajId: string;
+let bOgeId: string;
+const WA_GUN = "2026-10-12";
 const B_ENGEL = { tur: "eposta" as const, ozet: "" };
 const B_PLACE = "places-b-1";
 
@@ -69,6 +72,8 @@ beforeAll(() => {
     [{ leadId: bKayit.id }],
   );
   bMesajId = kampanyalar.kampanyaMesajlari(B, bKampanya.id).mesajlar[0].id;
+  whatsapp.listeyeEkle(B, WA_GUN, [bKayit.id]);
+  bOgeId = whatsapp.gunlukListe(B, WA_GUN)[0].id;
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -82,6 +87,7 @@ function bMesajlasmaDegismedi() {
   expect(gonderimSayaci.sayacDegeri(B, "eposta", "2026-10-12")).toBe(1);
   expect(kampanyalar.kampanyaGetir(B, bKampanya.id)).toMatchObject({ durum: "calisiyor", sayilar: { gonderiliyor: 1 } });
   expect(kuyruk.mesajGetir(B, bMesajId)).toMatchObject({ durum: "gonderiliyor" });
+  expect(whatsapp.ogeGetir(B, bOgeId)).toMatchObject({ durum: "bekliyor", adresOzeti: null, leadId: bKayit.id });
 }
 
 /** B'nin verisinin hiç değişmediğini doğrular. */
@@ -395,6 +401,33 @@ const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
   },
 };
 
+const whatsappTestleri: Record<keyof typeof whatsapp, () => void> = {
+  gunlukListe: () => {
+    expect(whatsapp.gunlukListe(A, WA_GUN)).toEqual([]);
+  },
+  gunlukListedekiKayitlar: () => {
+    expect(whatsapp.gunlukListedekiKayitlar(A, WA_GUN).size).toBe(0);
+    expect(whatsapp.gunlukListedekiKayitlar(B, WA_GUN).has(bKayit.id)).toBe(true);
+  },
+  listeyeEkle: () => {
+    // B'nin kaydı A'nın listesine giremez.
+    expect(whatsapp.listeyeEkle(A, WA_GUN, [bKayit.id])).toBe(0);
+    expect(whatsapp.gunlukListe(A, WA_GUN)).toEqual([]);
+  },
+  ogeGetir: () => {
+    expect(whatsapp.ogeGetir(A, bOgeId)).toBeNull();
+  },
+  ogeSonuclandir: () => {
+    expect(whatsapp.ogeSonuclandir(A, bOgeId, "atlandi")).toBe(false);
+  },
+  ogeAdresOzetiYaz: () => {
+    expect(whatsapp.ogeAdresOzetiYaz(A, bOgeId, "ozet")).toBe(false);
+  },
+  whatsappGonderimiKaydet: () => {
+    expect(whatsapp.whatsappGonderimiKaydet(A, bKayit.id, WA_GUN)).toBe(false);
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -408,6 +441,7 @@ const MODULLER = {
   "gonderim-sayaci": [gonderimSayaci, sayacTestleri],
   kampanyalar: [kampanyalar, kampanyaTestleri],
   kuyruk: [kuyruk, kuyrukTestleri],
+  "whatsapp-listesi": [whatsapp, whatsappTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

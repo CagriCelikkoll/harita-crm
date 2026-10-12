@@ -1,6 +1,7 @@
 // Ticari ileti bilgileri ve gönderim saatleri. Okuma: tüm üyeler. Değiştirme: yalnızca yönetici.
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { WHATSAPP_AZAMI_GUNLUK } from "@/lib/mesajlasma";
 import { ayniKaynakMi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { YetkiHatasi } from "@/server/repo/baglam";
@@ -39,6 +40,13 @@ const Degisiklik = z
       (s) => s === null || /^905\d{9}$/.test(telefonNormallestir(s) ?? ""),
       "Yetkili telefonu bir cep telefonu olmalı (5XX XXX XX XX).",
     ),
+    whatsappSablonu: metin(1000, "WhatsApp şablonu"),
+    whatsappGunlukSinir: z
+      .number("Günlük sınır bir sayı olmalı.")
+      .int()
+      .min(1, "Günlük sınır en az 1 olmalı.")
+      .max(WHATSAPP_AZAMI_GUNLUK, `Günlük sınır kullanıcı başına en fazla ${WHATSAPP_AZAMI_GUNLUK} olabilir.`)
+      .nullable(),
     sorumlulukOnayi: z.boolean(),
     gonderimBaslangicDk: dakika,
     gonderimBitisDk: dakika,

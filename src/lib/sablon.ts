@@ -34,5 +34,11 @@ export function smsAltbilgisi(a: { gonderenUnvani: string | null; iysNo: string 
   return `${unvan}${iys}. ${smsRetYolu(a.smsRetNumarasi)}`;
 }
 
+/** WhatsApp mesajının sonuna eklenen gönderen ve ret notu (yanıt "RET" ise kullanıcı "Ret istedi"yi seçer). */
+export function whatsappAltbilgisi(gonderenUnvani: string | null) {
+  const unvan = gonderenUnvani?.trim();
+  return `${unvan ? `${unvan}. ` : ""}Bu mesajları almak istemiyorsanız RET yazmanız yeterli.`;
+}
+
 export const smsRetYolu = (numara: string | null) =>
   `Ret için RET yazıp ${numara?.trim() || "(ret numarası tanımlı değil)"} numarasına gönderin.`;

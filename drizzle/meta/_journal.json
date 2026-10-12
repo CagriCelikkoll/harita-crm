@@ -43,6 +43,13 @@
       "when": 1791758858579,
       "tag": "0005_sms",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791786572166,
+      "tag": "0006_whatsapp",
+      "breakpoints": true
     }
   ]
 }

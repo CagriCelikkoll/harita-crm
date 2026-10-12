@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { whatsappDonusMetni } from "@/lib/mesajlasma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { KotaCubugu } from "@/components/kota-cubugu";
@@ -33,6 +34,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     arama: tek(p.q) || undefined,
   };
   const seciliId = tek(p.secili);
+  const waDonus = whatsappDonusMetni(tek(p.wa), tek(p.neden));
 
   const liste = kayitlariListele(ctx, filtre);
   // Paylaşılan ?secili= bağlantısı: başka kiracının veya silinmiş kayıt → 404. (Detayın kendisi
@@ -92,6 +94,12 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         <section className={`kart mb-4 ${kota.doldu || kotaEtkiledi ? "border-tehlike/40 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
           <KotaCubugu durum={kota} aciklama={false} />
         </section>
+      )}
+
+      {waDonus && (
+        <p role="alert" className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          WhatsApp: {waDonus}
+        </p>
       )}
 
       <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto]">

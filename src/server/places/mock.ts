@@ -85,7 +85,7 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
       const temel = mockTemelBilgi(placeId, c);
       // Gerçek API gibi: liste maskesi yalnızca ad ve adres döndürür.
       if (kapsam === "liste") return { id: placeId, ad: temel.ad, adres: temel.adres };
-      if (kapsam === "telefon") return { id: placeId, ad: "", telefon: temel.telefon, telefonUluslararasi: temel.telefonUluslararasi };
+      if (kapsam === "telefon") return { id: placeId, ad: temel.ad, telefon: temel.telefon, telefonUluslararasi: temel.telefonUluslararasi };
       return temel;
     },
 

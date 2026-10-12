@@ -35,7 +35,8 @@ export const ALAN_MASKELERI = {
     "googleMapsUri,rating,userRatingCount,location,businessStatus",
   adres: "places.location,places.formattedAddress",
   // SMS / WhatsApp gönderimi anında, kayıtta telefon yoksa. Sonuç SAKLANMAZ (yalnızca o gönderimde kullanılır).
-  telefon: "id,nationalPhoneNumber,internationalPhoneNumber",
+  // displayName (Pro) da istenir: WhatsApp listesinde gösterilir; SKU yine Enterprise (en yüksek katman).
+  telefon: "id,displayName,nationalPhoneNumber,internationalPhoneNumber",
 } as const;
 
 /** Her çağrının faturalandığı SKU; kota birimi buradan (src/lib/places-birimleri.ts) okunur. */
