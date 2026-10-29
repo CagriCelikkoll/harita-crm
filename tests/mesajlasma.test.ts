@@ -91,6 +91,43 @@ describe("alıcı kuralları (tek fonksiyon)", () => {
       neden: "iletisim_yok",
     });
   });
+  describe("whatsapp_api kanalı", () => {
+    const SIMDI = new Date("2026-10-29T10:00:00Z");
+    const izinli = (w: Partial<NonNullable<AliciKaydi["whatsapp"]>> = {}): AliciKaydi => ({
+      ...temel,
+      whatsapp: { izin: "var", iysBeyanTarihi: null, whatsappYokTarihi: null, bsuid: null, ...w },
+    });
+    const d = (k: AliciKaydi, engel: Parameters<typeof aliciDegerlendir>[2] = engelYok) =>
+      aliciDegerlendir(k, "whatsapp_api", engel, { simdi: SIMDI });
+
+    it("izin 'var' değilse ya da kayıt yoksa hariç; genel ya da WhatsApp reti hariç", () => {
+      expect(d(temel)).toEqual({ uygun: false, neden: "whatsapp_izni_yok" });
+      expect(d(izinli({ izin: "yok" }))).toEqual({ uygun: false, neden: "whatsapp_izni_yok" });
+      expect(d(izinli({ izin: "ret" }))).toEqual({ uygun: false, neden: "ret" });
+      expect(d({ ...izinli(), iletiIzni: "ret" })).toEqual({ uygun: false, neden: "ret" });
+      expect(d(izinli())).toEqual({ uygun: true, adres: "905321112233", kaynak: "kayit" });
+    });
+    it("bireysel kişide İYS beyanı gerekir; genel ileti izni (onayli) aranmaz", () => {
+      expect(d({ ...izinli(), aliciTuru: "bireysel" })).toEqual({ uygun: false, neden: "iys_beyani_yok" });
+      expect(d({ ...izinli({ iysBeyanTarihi: SIMDI }), aliciTuru: "bireysel" })).toMatchObject({ uygun: true });
+    });
+    it("son 90 günde 'WhatsApp yok' bildirilmişse hariç", () => {
+      const gun = (n: number) => new Date(SIMDI.getTime() - n * 86_400_000);
+      expect(d(izinli({ whatsappYokTarihi: gun(10) }))).toEqual({ uygun: false, neden: "whatsapp_yok" });
+      expect(d(izinli({ whatsappYokTarihi: gun(91) }))).toMatchObject({ uygun: true });
+    });
+    it("cep değilse, engelliyse hariç; Places'a hiç gidilmez; telefon yoksa BSUID", () => {
+      expect(d({ ...izinli(), ekTelefon: "0216 555 44 33" })).toEqual({ uygun: false, neden: "cep_degil" });
+      expect(d(izinli(), (tur) => tur === "telefon")).toEqual({ uygun: false, neden: "engel" });
+      expect(d({ ...izinli({ bsuid: "TR.1" }), ekTelefon: "0532 111 22 33" }, (tur) => tur === "wa_kimlik")).toEqual({
+        uygun: false,
+        neden: "engel",
+      });
+      // Google kaydı ama telefonu yok: whatsapp_api Places'a gitmez.
+      expect(d({ ...izinli(), ekTelefon: null })).toEqual({ uygun: false, neden: "iletisim_yok" });
+      expect(d({ ...izinli({ bsuid: "TR.1" }), ekTelefon: null })).toEqual({ uygun: true, adres: "TR.1", kaynak: "bsuid" });
+    });
+  });
   it("Google dışı kayıtta (place_id yok) telefon yalnızca kayıttan; Places'a gidilmez", () => {
     const kisi = { ...temel, placeId: null, ekTelefon: null };
     expect(aliciDegerlendir(kisi, "sms", engelYok)).toEqual({ uygun: false, neden: "iletisim_yok" });

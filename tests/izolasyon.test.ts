@@ -21,6 +21,7 @@ import * as kuyruk from "@/server/repo/kuyruk";
 import * as saglayicilar from "@/server/repo/saglayicilar";
 import * as whatsapp from "@/server/repo/whatsapp-listesi";
 import * as whatsappKisileri from "@/server/repo/whatsapp-kisileri";
+import * as iceAktarmalar from "@/server/repo/ice-aktarmalar";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -42,6 +43,7 @@ let bMesajId: string;
 let bOgeId: string;
 let bKisi: kayitlar.Kayit;
 let bWaKisi: whatsappKisileri.WhatsappKisisi;
+let bIceAktarma: iceAktarmalar.IceAktarma;
 const B_BSUID = "TR.1000000000000000001";
 const WA_GUN = "2026-10-12";
 const B_ENGEL = { tur: "eposta" as const, ozet: "" };
@@ -84,6 +86,7 @@ beforeAll(() => {
   db.$client.prepare("update whatsapp_kisileri set bsuid = ? where lead_id = ?").run(B_BSUID, bKisi.id);
   bKisi = kayitlar.kayitGetir(B, bKisi.id)!;
   bWaKisi = whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)!;
+  bIceAktarma = iceAktarmalar.iceAktarmaOlustur(B, { dosyaAdi: "b.csv", satirlar: [["Telefon"], ["0533 111 11 11"]] });
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -108,6 +111,7 @@ function bDegismedi() {
   expect(kayitlar.kayitlariListele(B).toplam).toBe(3);
   expect(kayitlar.kayitGetir(B, bKisi.id)).toEqual(bKisi);
   expect(whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)).toEqual(bWaKisi);
+  expect(iceAktarmalar.iceAktarmaGetir(B, bIceAktarma.id)).toEqual(bIceAktarma);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -467,6 +471,34 @@ const whatsappKisiTestleri: Record<keyof typeof whatsappKisileri, () => void> = 
   },
 };
 
+const iceAktarmaTestleri: Record<keyof typeof iceAktarmalar, () => void> = {
+  iceAktarmaOlustur: () => {
+    const o = iceAktarmalar.iceAktarmaOlustur(A, { dosyaAdi: "a.csv", satirlar: [["x"], ["y"]] });
+    expect(o.tenantId).toBe(A.tenantId);
+    expect(iceAktarmalar.iceAktarmaGetir(B, o.id)).toBeNull();
+    iceAktarmalar.iceAktarmaIptal(A, o.id);
+  },
+  iceAktarmaGetir: () => {
+    expect(iceAktarmalar.iceAktarmaGetir(A, bIceAktarma.id)).toBeNull();
+  },
+  iceAktarmaIptal: () => {
+    expect(iceAktarmalar.iceAktarmaIptal(A, bIceAktarma.id)).toBe(false);
+  },
+  iceAktarmaUygula: () => {
+    const plan = {
+      eslem: { telefon: 0 },
+      yeniler: [{ kisi: { kaynak: "ice_aktarma" as const, ekTelefon: "0533 111 11 11" }, izin: null }],
+      doldurmalar: [{ leadId: bKisi.id, alanlar: { yetkiliAdi: "ele geçirildi" }, izin: null }],
+      sayilar: { hatali: 0, cakisan: 0, engelli: 0 },
+      beyanOnaylandi: false,
+    };
+    expect(iceAktarmalar.iceAktarmaUygula(A, bIceAktarma.id, plan)).toBeNull();
+    // A kendi oturumuyla bile B'nin kaydını dolduramaz.
+    const o = iceAktarmalar.iceAktarmaOlustur(A, { dosyaAdi: "a.csv", satirlar: [["x"], ["y"]] });
+    expect(iceAktarmalar.iceAktarmaUygula(A, o.id, { ...plan, yeniler: [] })).toEqual({ eklenen: [], guncellenen: [] });
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -482,6 +514,7 @@ const MODULLER = {
   kuyruk: [kuyruk, kuyrukTestleri],
   "whatsapp-listesi": [whatsapp, whatsappTestleri],
   "whatsapp-kisileri": [whatsappKisileri, whatsappKisiTestleri],
+  "ice-aktarmalar": [iceAktarmalar, iceAktarmaTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

@@ -7,7 +7,17 @@ export const KANALLAR = ["eposta", "sms"] as const;
 export const KAMPANYA_DURUMLARI = ["zamanlandi", "calisiyor", "tamamlandi", "iptal"] as const;
 export const MESAJ_DURUMLARI = ["kuyrukta", "gonderiliyor", "gonderildi", "basarisiz", "haric", "iptal"] as const;
 /** Alıcı kurallarının hariç tutma nedenleri (aliciDegerlendir). */
-export const HARIC_NEDENLERI = ["ret", "engel", "iletisim_yok", "bireysel_izinsiz", "cep_degil"] as const;
+export const HARIC_NEDENLERI = [
+  "ret",
+  "engel",
+  "iletisim_yok",
+  "bireysel_izinsiz",
+  "cep_degil",
+  // WhatsApp (Cloud API)
+  "whatsapp_izni_yok",
+  "iys_beyani_yok",
+  "whatsapp_yok",
+] as const;
 /** wa_kimlik: WhatsApp işletmeye özel kullanıcı kimliği (BSUID); telefonu bilinmeyen WhatsApp kişisi için. */
 export const ENGEL_TURLERI = ["eposta", "telefon", "wa_kimlik"] as const;
 export const ENGEL_KAYNAKLARI = ["abonelik", "kayit_ret", "sms_ret", "iys_ret", "whatsapp_ret"] as const;
@@ -65,6 +75,9 @@ export const HARIC_NEDEN_ADLARI: Record<HaricNedeni, string> = {
   iletisim_yok: "İletişim bilgisi yok",
   bireysel_izinsiz: "Bireysel ve onay yok",
   cep_degil: "Cep telefonu değil",
+  whatsapp_izni_yok: "WhatsApp izni yok",
+  iys_beyani_yok: "Bireysel; İYS beyanı yok",
+  whatsapp_yok: "Numarada WhatsApp yok",
 };
 
 /** Kuyrukta bekleyen mesajın bekleme nedeni (hariç değil; koşul sağlanınca gönderilir). */

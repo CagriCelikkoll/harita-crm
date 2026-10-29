@@ -9,7 +9,10 @@ import {
   ILETI_IZNI_ADLARI,
   KAYIT_DURUM_ADLARI,
   KAYIT_DURUMLARI,
+  KAYIT_KAYNAK_ADLARI,
+  KAYIT_KAYNAKLARI,
   type IletiIzni,
+  type KayitKaynagi,
   type KayitDurumu,
 } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
@@ -31,6 +34,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     durum: KAYIT_DURUMLARI.find((d) => d === tek(p.durum)) as KayitDurumu | undefined,
     iletiIzni: ILETI_IZINLERI.find((d) => d === tek(p.izin)) as IletiIzni | undefined,
     etiket: tek(p.etiket) || undefined,
+    kaynak: KAYIT_KAYNAKLARI.find((d) => d === tek(p.kaynak)) as KayitKaynagi | undefined,
     arama: tek(p.q) || undefined,
   };
   const seciliId = tek(p.secili);
@@ -76,7 +80,13 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
 
   const etiketler = etiketleriListele(ctx);
   const sorgu = new URLSearchParams();
-  for (const [k, v] of Object.entries({ durum: filtre.durum, izin: filtre.iletiIzni, etiket: filtre.etiket, q: filtre.arama })) {
+  for (const [k, v] of Object.entries({
+    durum: filtre.durum,
+    izin: filtre.iletiIzni,
+    etiket: filtre.etiket,
+    kaynak: filtre.kaynak,
+    q: filtre.arama,
+  })) {
     if (v) sorgu.set(k, v);
   }
   const sayfaBaglantisi = (sayfa: number) => {
@@ -88,9 +98,17 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   return (
     <>
       <SayfaBasligi baslik="Kayıtlar">
+        <div className="flex flex-wrap gap-2">
+          <Link href="/kayitlar/yeni" className="dugme">
+            Kişi ekle
+          </Link>
+          <Link href="/kayitlar/ice-aktar" className="dugme">
+            İçe aktar
+          </Link>
         <a href={`/api/kayitlar/disa-aktar${sorgu.size ? `?${sorgu}` : ""}`} className="dugme">
           CSV dışa aktar
         </a>
+        </div>
       </SayfaBasligi>
 
       {(kota.doldu || kotaEtkiledi || kota.uyari) && (
@@ -105,7 +123,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         </p>
       )}
 
-      <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto]">
+      <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto]">
         <label className="etiket">
           Ara
           <input name="q" defaultValue={filtre.arama} className="girdi" placeholder="yetkili, e-posta, ek telefon, not, etiket" />
@@ -128,6 +146,17 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
             {ILETI_IZINLERI.map((d) => (
               <option key={d} value={d}>
                 {ILETI_IZNI_ADLARI[d]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="etiket">
+          Kaynak
+          <select name="kaynak" defaultValue={filtre.kaynak ?? ""} className="girdi">
+            <option value="">Tümü</option>
+            {KAYIT_KAYNAKLARI.map((d) => (
+              <option key={d} value={d}>
+                {KAYIT_KAYNAK_ADLARI[d]}
               </option>
             ))}
           </select>

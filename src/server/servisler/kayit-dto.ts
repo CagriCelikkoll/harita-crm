@@ -1,6 +1,7 @@
 // Kayıt ve olayların istemciye giden JSON biçimi. Yalnızca kullanıcı verisi + place_id içerir.
 import type { Kayit } from "../repo/kayitlar";
 import type { olaylariListele } from "../repo/olaylar";
+import type { WhatsappKisisi } from "../repo/whatsapp-kisileri";
 
 export type KayitDto = {
   id: string;
@@ -48,4 +49,29 @@ export const kayitDto = (k: Kayit): KayitDto => ({
 export const olayDto = (o: ReturnType<typeof olaylariListele>[number]): OlayDto => ({
   ...o,
   tarih: o.tarih.toISOString(),
+});
+
+/** Kaydın WhatsApp (Cloud API) bilgisi; BSUID istemciye gönderilmez. */
+export type WhatsappKisiDto = {
+  izin: WhatsappKisisi["izin"];
+  izinTarihi: string | null;
+  izinKaynagi: WhatsappKisisi["izinKaynagi"];
+  izinNotu: string | null;
+  iysBeyani: boolean;
+  kullaniciAdi: string | null;
+  reklamBasligi: string | null;
+  pencereBitis: string | null;
+  whatsappYokTarihi: string | null;
+};
+
+export const whatsappKisiDto = (k: WhatsappKisisi | null): WhatsappKisiDto => ({
+  izin: k?.izin ?? "yok",
+  izinTarihi: k?.izinTarihi?.toISOString() ?? null,
+  izinKaynagi: k?.izinKaynagi ?? null,
+  izinNotu: k?.izinNotu ?? null,
+  iysBeyani: Boolean(k?.iysBeyanTarihi),
+  kullaniciAdi: k?.waKullaniciAdi ?? null,
+  reklamBasligi: k?.reklamBasligi ?? null,
+  pencereBitis: k?.pencereBitis?.toISOString() ?? null,
+  whatsappYokTarihi: k?.whatsappYokTarihi?.toISOString() ?? null,
 });

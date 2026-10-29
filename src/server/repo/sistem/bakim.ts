@@ -3,7 +3,8 @@
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { PLACES_KONUM_SAKLAMA_GUN, YARIM_KALDI_MESAJI } from "@/lib/sabitler";
 import { db } from "../../db";
-import { invitations, leads, placeLocations, scans, tenants } from "../../db/schema";
+import { iceAktarmalar, invitations, leads, placeLocations, scans, tenants } from "../../db/schema";
+import { ICE_AKTARMA_OTURUM_DAKIKA } from "@/lib/ice-aktarma";
 import { yarimKalanKosulu } from "./tarama-kosulu";
 
 const GUN_MS = 24 * 60 * 60 * 1000;
@@ -65,6 +66,19 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ id: invitations.id })
       .all().length;
 
-    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet };
+    // 5) Tamamlanmamış içe aktarma oturumları: dosya satırları (kişisel veri) süre dolunca silinir.
+    const kapatilanIceAktarma = tx
+      .update(iceAktarmalar)
+      .set({ durum: "iptal", satirlar: null })
+      .where(
+        and(
+          eq(iceAktarmalar.durum, "hazirlaniyor"),
+          lt(iceAktarmalar.olusturmaTarihi, new Date(simdi.getTime() - ICE_AKTARMA_OTURUM_DAKIKA * 60_000)),
+        ),
+      )
+      .returning({ id: iceAktarmalar.id })
+      .all().length;
+
+    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma };
   });
 }

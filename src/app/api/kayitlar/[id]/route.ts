@@ -9,7 +9,8 @@ import { apiBaglami } from "@/server/oturum";
 import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
 import { olaylariListele } from "@/server/repo/olaylar";
 import { canliBilgiGetir, type CanliSonuc } from "@/server/servisler/canli-bilgi";
-import { kayitDto, olayDto } from "@/server/servisler/kayit-dto";
+import { kayitDto, olayDto, whatsappKisiDto } from "@/server/servisler/kayit-dto";
+import { whatsappKisisiGetir } from "@/server/repo/whatsapp-kisileri";
 
 const BASLIK = { "Cache-Control": "no-store" };
 
@@ -28,7 +29,12 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
     canli = (await canliBilgiGetir(ctx, [kayit.placeId], "detay")).get(kayit.placeId);
   }
   return NextResponse.json(
-    { kayit: kayitDto(kayit), olaylar: olaylariListele(ctx, kayit.id).map(olayDto), canli },
+    {
+      kayit: kayitDto(kayit),
+      whatsapp: whatsappKisiDto(whatsappKisisiGetir(ctx, kayit.id)),
+      olaylar: olaylariListele(ctx, kayit.id).map(olayDto),
+      canli,
+    },
     { headers: BASLIK },
   );
 }

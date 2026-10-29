@@ -236,6 +236,10 @@ const NEDEN_METNI: Record<HaricNedeni | "sinir_doldu" | "sablon_yok", string> = 
   iletisim_yok: "Telefon numarası yok.",
   bireysel_izinsiz: "Bireysel kayıt; ileti izni onaylı değil.",
   cep_degil: "Numara cep telefonu değil.",
+  // Yalnızca WhatsApp API kanalında üretilir; yarı otomatik listede görülmez.
+  whatsapp_izni_yok: "WhatsApp izni yok.",
+  iys_beyani_yok: "Bireysel kayıt; İYS beyanı yok.",
+  whatsapp_yok: "Numarada WhatsApp yok.",
   sinir_doldu: SINIR_DOLDU,
   sablon_yok: "Ayarlar'da WhatsApp mesaj şablonu tanımlı değil.",
 };

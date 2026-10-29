@@ -1,26 +1,35 @@
 "use client";
 // Kayıt detay paneli.
-// - Açılınca İŞLETME BİLGİSİ için tek bir Place Details Enterprise çağrısı yapılır (?canli=1).
+// - Açılınca İŞLETME BİLGİSİ için tek bir Place Details Enterprise çağrısı yapılır (?canli=1); yalnızca Google
+//   kayıtlarında (içe aktarılan / elle eklenen kişide sunucu Places'a gitmez).
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
-import { ALICI_TURLERI, ALICI_TURU_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
+import {
+  ALICI_TURLERI,
+  ALICI_TURU_ADLARI,
+  WHATSAPP_IZIN_KAYNAK_ADLARI,
+  WHATSAPP_IZIN_KAYNAKLARI,
+  WHATSAPP_IZNI_ADLARI,
+  type AliciTuru,
+} from "@/lib/mesajlasma";
 import {
   ILETI_IZNI_ADLARI,
   KOTA_DOLDU_MESAJI,
   KAYIT_DURUM_ADLARI,
   KAYIT_DURUMLARI,
+  KAYIT_KAYNAK_ADLARI,
   OLAY_TURU_ADLARI,
   type KayitDurumu,
 } from "@/lib/sabitler";
 import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
-import type { KayitDto, OlayDto } from "@/server/servisler/kayit-dto";
+import type { KayitDto, OlayDto, WhatsappKisiDto } from "@/server/servisler/kayit-dto";
 import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
 
-type DetayVerisi = { kayit: KayitDto; olaylar: OlayDto[]; canli?: CanliSonuc };
+type DetayVerisi = { kayit: KayitDto; whatsapp: WhatsappKisiDto; olaylar: OlayDto[]; canli?: CanliSonuc };
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 
 export function DetayPaneli(props: {
@@ -49,7 +58,7 @@ export function DetayPaneli(props: {
           setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
           return;
         }
-        setVeri({ kayit: s.veri.kayit, olaylar: s.veri.olaylar });
+        setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar });
         setCanli(s.veri.canli ?? null);
       })
       .catch(() => {})
@@ -63,7 +72,7 @@ export function DetayPaneli(props: {
   const yenile = useCallback(async () => {
     const s = await apiIstek<DetayVerisi>(`/api/kayitlar/${id}`);
     if (s.ok) {
-      setVeri({ kayit: s.veri.kayit, olaylar: s.veri.olaylar });
+      setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar });
       onKayitDegisti(s.veri.kayit);
     } else if (s.durum === 404) {
       setBulunamadi(true);
@@ -119,6 +128,7 @@ export function DetayPaneli(props: {
   }
 
   const { kayit, olaylar } = veri;
+  const google = kayit.placeId !== null;
   const yer = canli?.durum === "tamam" ? canli.yer : null;
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
   const surum = `${kayit.id}-${kayit.guncellemeTarihi}`; // formlar kayıt değişince yeniden oluşsun
@@ -127,7 +137,12 @@ export function DetayPaneli(props: {
     <aside className="kart flex flex-col gap-4 xl:sticky xl:top-5" aria-label="Kayıt detayı" id="kayit-detayi">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">{yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı"}</h2>
+          <h2 className="text-lg font-semibold">
+            {google
+              ? (yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı")
+              : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)")}
+          </h2>
+          {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[kayit.kaynak]}</span>}
           {yer?.adres && <p className="text-sm text-soluk">{yer.adres}</p>}
         </div>
         <button type="button" className="dugme shrink-0" onClick={props.onKapat}>
@@ -135,7 +150,24 @@ export function DetayPaneli(props: {
         </button>
       </div>
 
-      {yer ? (
+      {!google ? (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-soluk">Telefon</dt>
+          <dd>{kayit.ekTelefon ?? "—"}</dd>
+          {veri.whatsapp.kullaniciAdi && (
+            <>
+              <dt className="text-soluk">WhatsApp</dt>
+              <dd>@{veri.whatsapp.kullaniciAdi}</dd>
+            </>
+          )}
+          {veri.whatsapp.reklamBasligi && (
+            <>
+              <dt className="text-soluk">Reklam</dt>
+              <dd>{veri.whatsapp.reklamBasligi}</dd>
+            </>
+          )}
+        </dl>
+      ) : yer ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt className="text-soluk">Telefon</dt>
           <dd>{yer.telefon ?? "—"}</dd>
@@ -231,7 +263,14 @@ export function DetayPaneli(props: {
       )}
       <WhatsappButonu key={`wa-${kayit.iletiIzni}-${kayit.aliciTuru}-${kayit.ekTelefon ?? ""}`} id={kayit.id} onGonderildi={yenile} />
       <MesajGoster mesaj={mesaj} alan="iletisim" />
-      <GoogleAtfi />
+      {google && <GoogleAtfi />}
+      <WhatsappIzinBolumu
+        key={`wa-izin-${surum}-${veri.whatsapp.izin}`}
+        id={kayit.id}
+        whatsapp={veri.whatsapp}
+        bireysel={kayit.aliciTuru === "bireysel"}
+        onDegisti={yenile}
+      />
 
       <section className="flex flex-col gap-2 border-t border-kenar pt-4">
         <form
@@ -560,5 +599,137 @@ function WhatsappButonu({ id, onGonderildi }: { id: string; onGonderildi: () => 
         </p>
       )}
     </div>
+  );
+}
+
+/** WhatsApp (Cloud API) izni ve kanıtı. 'ret' geri alınamaz. */
+function WhatsappIzinBolumu(props: {
+  id: string;
+  whatsapp: WhatsappKisiDto;
+  bireysel: boolean;
+  onDegisti: () => Promise<void>;
+}) {
+  const w = props.whatsapp;
+  const [duzenle, setDuzenle] = useState(false);
+  const [izin, setIzin] = useState<"var" | "yok">(w.izin === "var" ? "var" : "yok");
+  const [hata, setHata] = useState<string | null>(null);
+  const [mesgul, setMesgul] = useState(false);
+
+  async function kaydet(govde: object) {
+    setHata(null);
+    setMesgul(true);
+    const s = await apiIstek(`/api/kayitlar/${props.id}/whatsapp-izni`, { method: "PUT", govde });
+    setMesgul(false);
+    if (!s.ok) return setHata(s.hata);
+    setDuzenle(false);
+    await props.onDegisti();
+  }
+
+  return (
+    <section className="flex flex-col gap-2 border-t border-kenar pt-4 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-medium">WhatsApp izni (kampanyalar)</h3>
+        {w.izin !== "ret" && !duzenle && (
+          <button type="button" className="dugme" onClick={() => setDuzenle(true)}>
+            Düzenle
+          </button>
+        )}
+      </div>
+      <p>
+        <span className={w.izin === "var" ? "text-ana" : w.izin === "ret" ? "text-tehlike" : "text-soluk"}>
+          {WHATSAPP_IZNI_ADLARI[w.izin]}
+        </span>
+        {w.izinKaynagi && ` · ${WHATSAPP_IZIN_KAYNAK_ADLARI[w.izinKaynagi]}`}
+        {w.izinTarihi && ` · ${tarihYaz(w.izinTarihi)}`}
+        {w.izin === "var" && props.bireysel && (w.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok (kampanyaya girmez)")}
+      </p>
+      {w.izinNotu && <p className="text-soluk">{w.izinNotu}</p>}
+      {w.whatsappYokTarihi && <p className="text-tehlike">Meta bu numarada WhatsApp olmadığını bildirdi.</p>}
+      {w.izin === "ret" && <p className="text-xs text-soluk">Ret verilmiş bir kişinin izni değiştirilemez.</p>}
+
+      {duzenle && (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const d = (a: string) => String(f.get(a) ?? "");
+            void kaydet(
+              izin === "var"
+                ? { izin, kaynak: d("kaynak"), tarih: d("tarih") || null, not: d("not") || null, iysBeyani: f.get("iys") === "on" }
+                : { izin, not: d("not") || null },
+            );
+          }}
+        >
+          <label className="etiket">
+            İzin
+            <select className="girdi" value={izin} onChange={(e) => setIzin(e.target.value as "var" | "yok")}>
+              <option value="var">İzin var</option>
+              <option value="yok">İzin yok</option>
+            </select>
+          </label>
+          {izin === "var" && (
+            <>
+              <label className="etiket">
+                İzin kaynağı
+                <select name="kaynak" required className="girdi" defaultValue={w.izinKaynagi ?? ""}>
+                  <option value="" disabled>
+                    Seçin
+                  </option>
+                  {WHATSAPP_IZIN_KAYNAKLARI.map((k) => (
+                    <option key={k} value={k}>
+                      {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="etiket">
+                İzin tarihi
+                <input name="tarih" type="date" className="girdi" defaultValue={w.izinTarihi?.slice(0, 10) ?? ""} />
+              </label>
+              {props.bireysel && (
+                <label className="flex items-start gap-2">
+                  <input name="iys" type="checkbox" className="mt-1" defaultChecked={w.iysBeyani} />
+                  Bu izin İYS&apos;ye kaydedildi.
+                </label>
+              )}
+            </>
+          )}
+          <label className="etiket">
+            Kanıt notu (isteğe bağlı)
+            <input name="not" maxLength={1000} className="girdi" defaultValue={w.izinNotu ?? ""} />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className="dugme-ana" disabled={mesgul}>
+              Kaydet
+            </button>
+            <button type="button" className="dugme" onClick={() => setDuzenle(false)}>
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              className="dugme-tehlike"
+              disabled={mesgul}
+              onClick={() => {
+                if (
+                  confirm(
+                    "Kişi WhatsApp mesajı almak istemiyor olarak işaretlenecek. Bu geri alınamaz ve tüm kanallarda ret sayılır.",
+                  )
+                ) {
+                  void kaydet({ izin: "ret" });
+                }
+              }}
+            >
+              Ret istedi
+            </button>
+          </div>
+        </form>
+      )}
+      {hata && (
+        <p role="alert" className="text-tehlike">
+          {hata}
+        </p>
+      )}
+    </section>
   );
 }
