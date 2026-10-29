@@ -15,6 +15,7 @@
     "cleanup": "tsx scripts/cleanup.ts",
     "kota": "tsx scripts/kota.ts",
     "sinir": "tsx scripts/sinir.ts",
+    "osm:deneme": "tsx scripts/osm-deneme.ts",
     "worker": "node --conditions=react-server --import tsx scripts/worker.ts"
   },
   "dependencies": {
