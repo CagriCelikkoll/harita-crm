@@ -1,7 +1,7 @@
 // Kuyruk satırının sonuçlandırılması (işçi, satırı repo/sistem/isci.ts → mesajlariAl ile atomik olarak
 // "gonderiliyor" durumuna aldıktan sonra). Her güncelleme yalnızca "gonderiliyor" durumundaki satıra yapılır:
 // aynı mesaj iki kez sonuçlandırılamaz.
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, gte, ne, or, sql } from "drizzle-orm";
 import { KAYIT_DURUM_ADLARI } from "@/lib/sabitler";
 import type { MesajDurumu } from "@/lib/mesajlasma";
 import { db } from "../db";
@@ -57,7 +57,7 @@ export function mesajGonderildi(
       .returning({ leadId: messageQueue.leadId, kanal: messageQueue.kanal })
       .get();
     if (!m) return false;
-    const olay = (tur: "eposta" | "sms" | "durum", aciklama: string) =>
+    const olay = (tur: "eposta" | "sms" | "whatsapp_api" | "durum", aciklama: string) =>
       tx
         .insert(leadEvents)
         .values({
@@ -127,4 +127,30 @@ export function adreseGonderilenKayitlar(ctx: TenantContext, adresOzeti: string)
     .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.adresOzeti, adresOzeti)))
     .all()
     .map((s) => s.leadId);
+}
+
+/**
+ * Kayan 24 saatte bu çalışma alanının WhatsApp (Cloud API) gönderimleri: gönderilmiş (sandbox hariç) ve şu an
+ * gönderilmekte olan (bu mesaj hariç). Meta limiti benzersiz alıcı sayar; burada ileti sayılır (aynı kişiye iki
+ * kampanya iki sayılır) — temkinli.
+ */
+export function whatsappSon24Saat(ctx: TenantContext, simdi: Date, haricMesajId: string): number {
+  const sinir = new Date(simdi.getTime() - 24 * 60 * 60 * 1000);
+  return (
+    db
+      .select({ n: count() })
+      .from(messageQueue)
+      .where(
+        and(
+          eq(messageQueue.tenantId, ctx.tenantId),
+          eq(messageQueue.kanal, "whatsapp_api"),
+          ne(messageQueue.id, haricMesajId),
+          or(
+            and(eq(messageQueue.durum, "gonderildi"), gte(messageQueue.gonderimTarihi, sinir), sql`${messageQueue.sandboxIcerik} is null`),
+            eq(messageQueue.durum, "gonderiliyor"),
+          ),
+        ),
+      )
+      .get()?.n ?? 0
+  );
 }

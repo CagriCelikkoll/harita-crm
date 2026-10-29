@@ -1,17 +1,17 @@
 // Kampanyalar ve kuyruğa ekleme. Alıcı kuralları çağıran serviste (servisler/kampanya.ts) uygulanır;
 // burada yalnızca bu kiracının kayıtları kuyruğa yazılır.
-import { and, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { KAMPANYA_AZAMI_ALICI, type HaricNedeni, type MesajDurumu } from "@/lib/mesajlasma";
 import { SAYFA_BOYUTU } from "@/lib/sabitler";
 import { db } from "../db";
 import { kampanyalar, leads, messageQueue, type Kampanya, type KampanyaFiltresi, type Kayit } from "../db/schema";
-import type { TenantContext } from "./baglam";
+import { yoneticiOlmali, type TenantContext } from "./baglam";
 
 export type { Kampanya, KampanyaFiltresi };
 
 export type KampanyaAdayi = Pick<
   Kayit,
-  "id" | "placeId" | "durum" | "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "isletmeAdi"
+  "id" | "placeId" | "durum" | "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "isletmeAdi" | "yetkiliAdi" | "telefonE164"
 >;
 
 function adayKosulu(ctx: TenantContext, f: KampanyaFiltresi): SQL {
@@ -36,6 +36,8 @@ export function kampanyaAdaylari(ctx: TenantContext, f: KampanyaFiltresi): Kampa
       eposta: leads.eposta,
       ekTelefon: leads.ekTelefon,
       isletmeAdi: leads.isletmeAdi,
+      yetkiliAdi: leads.yetkiliAdi,
+      telefonE164: leads.telefonE164,
     })
     .from(leads)
     .where(adayKosulu(ctx, f))
@@ -46,6 +48,9 @@ export function kampanyaAdaylari(ctx: TenantContext, f: KampanyaFiltresi): Kampa
 
 export type YeniKampanya = Pick<Kampanya, "kanal" | "ad" | "konu" | "sablon" | "bosIsimHitabi" | "filtre" | "sandbox"> & {
   planlananTarih: Date | null;
+  /** Yalnızca WhatsApp (Cloud API). */
+  sablonId?: string | null;
+  degiskenEslem?: Kampanya["degiskenEslem"];
 };
 export type KuyrukGirdisi = { leadId: string; haric?: HaricNedeni };
 
@@ -138,7 +143,26 @@ export function kampanyaGetir(ctx: TenantContext, id: string) {
     .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.kampanyaId, id)))
     .groupBy(messageQueue.durum, messageQueue.neden)
     .all();
-  return { ...kampanya, sayilar: sayilariGetir(ctx, [id]).get(id) ?? bosSayilar(), nedenler };
+  // WhatsApp: Meta teslim bildirimleri (webhook) ve ücretlendirilen iletiler (kategori bazında).
+  const teslim =
+    kampanya.kanal === "whatsapp_api"
+      ? db
+          .select({ durum: messageQueue.teslimDurumu, kod: messageQueue.teslimHataKodu, n: count() })
+          .from(messageQueue)
+          .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.kampanyaId, id), isNotNull(messageQueue.teslimDurumu)))
+          .groupBy(messageQueue.teslimDurumu, messageQueue.teslimHataKodu)
+          .all()
+      : [];
+  const ucretli =
+    kampanya.kanal === "whatsapp_api"
+      ? db
+          .select({ kategori: messageQueue.ucretKategorisi, n: count() })
+          .from(messageQueue)
+          .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.kampanyaId, id), eq(messageQueue.ucretli, true)))
+          .groupBy(messageQueue.ucretKategorisi)
+          .all()
+      : [];
+  return { ...kampanya, sayilar: sayilariGetir(ctx, [id]).get(id) ?? bosSayilar(), nedenler, teslim, ucretli };
 }
 
 /** Kampanyanın alıcı bazında durumu (sayfalı). Alıcı adresi gösterilmez; kaydın kullanıcı verisi gösterilir. */
@@ -183,7 +207,7 @@ export function kampanyaIptal(ctx: TenantContext, id: string): boolean {
         and(
           eq(kampanyalar.id, id),
           eq(kampanyalar.tenantId, ctx.tenantId),
-          inArray(kampanyalar.durum, ["zamanlandi", "calisiyor"]),
+          inArray(kampanyalar.durum, ["zamanlandi", "calisiyor", "duraklatildi"]),
         ),
       )
       .returning({ id: kampanyalar.id })
@@ -195,4 +219,37 @@ export function kampanyaIptal(ctx: TenantContext, id: string): boolean {
       .run();
     return true;
   });
+}
+
+/**
+ * Sistem duraklatması (WhatsApp): çalışan WhatsApp kampanyalarını durdurur — kampanyaId verilirse yalnızca onu,
+ * verilmezse çalışma alanının tümünü (ör. numaranın kalitesi düştü). Bekleyen mesajlar kuyrukta kalır.
+ */
+export function whatsappKampanyalariniDuraklat(ctx: TenantContext, neden: string, kampanyaId?: string): number {
+  return db
+    .update(kampanyalar)
+    .set({ durum: "duraklatildi", duraklatmaNedeni: neden })
+    .where(
+      and(
+        eq(kampanyalar.tenantId, ctx.tenantId),
+        eq(kampanyalar.kanal, "whatsapp_api"),
+        eq(kampanyalar.durum, "calisiyor"),
+        kampanyaId ? eq(kampanyalar.id, kampanyaId) : undefined,
+      ),
+    )
+    .returning({ id: kampanyalar.id })
+    .all().length;
+}
+
+/** Duraklatılmış kampanyayı devam ettirir (yalnızca yönetici). Koşulları (kalite vb.) çağıran servis denetler. */
+export function kampanyaDevamEttir(ctx: TenantContext, id: string): boolean {
+  yoneticiOlmali(ctx);
+  return Boolean(
+    db
+      .update(kampanyalar)
+      .set({ durum: "calisiyor", duraklatmaNedeni: null })
+      .where(and(eq(kampanyalar.id, id), eq(kampanyalar.tenantId, ctx.tenantId), eq(kampanyalar.durum, "duraklatildi")))
+      .returning({ id: kampanyalar.id })
+      .get(),
+  );
 }

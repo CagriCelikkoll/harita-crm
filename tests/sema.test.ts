@@ -40,6 +40,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "tenant_id", "gonderen_unvani", "iletisim_bilgisi", "iys_no", "sorumluluk_onay_tarihi", "sorumluluk_onaylayan",
     "gonderim_baslangic_dk", "gonderim_bitis_dk", "gunluk_eposta_siniri", "gunluk_sms_siniri", "guncelleme_tarihi",
     "sms_ret_numarasi", "yetkili_telefonu", // çalışma alanının kendi numaraları
+    "gunluk_whatsapp_api_siniri",
     "whatsapp_sablonu", "whatsapp_gunluk_sinir",
   ],
   saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "webhook_ozeti", "guncelleyen", "guncelleme_tarihi"],
@@ -47,11 +48,14 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   kampanyalar: [
     "id", "tenant_id", "olusturan", "kanal", "ad", "konu", "sablon", "bos_isim_hitabi", "filtre", "sandbox", "durum",
     "planlanan_tarih", "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
+    "sablon_id", "degisken_eslem", "duraklatma_nedeni", // WhatsApp (Cloud API)
   ],
   message_queue: [
     "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",
     "kilit_zamani", "sayac_gunu", "saglayici_kimligi", "sandbox_icerik", "gonderim_tarihi", "olusturma_tarihi",
     "adres_ozeti", // gönderilen adresin özeti; adresin kendisi (Places telefonu dahil) saklanmaz
+    // WhatsApp teslim bildirimi (webhook): durum, hata kodu, ücret kategorisi — ileti içeriği yok.
+    "teslim_durumu", "teslim_hata_kodu", "teslim_guncelleme", "ucret_kategorisi", "ucretli",
   ],
   // Telefon numarası yok; yalnızca "WhatsApp'ta aç"ta çözülen numaranın özeti.
   whatsapp_listesi: ["id", "tenant_id", "kullanici_id", "gun", "lead_id", "sira", "durum", "neden", "adres_ozeti", "guncelleme_tarihi"],

@@ -27,7 +27,19 @@ export type MetaSablon = {
   quality_score?: { score?: string };
 };
 
+/** POST /{phone-number-id}/messages, type "template". Telefon varsa "to", yoksa BSUID ile "recipient". */
+export type SablonGonderimi = {
+  alici: { tur: "telefon" | "bsuid"; deger: string };
+  sablonAdi: string;
+  dil: string;
+  bilesenler: { type: "header" | "body"; parameters: { type: "text"; text: string; parameter_name?: string }[] }[];
+};
+
+/** messages[0].id (wamid) ve message_status (accepted | held_for_quality_assessment | paused). */
+export type GonderimYaniti = { wamid: string; durum: string | null };
+
 export interface WhatsappApiIstemcisi {
+  mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
   numaraBilgisi(): Promise<NumaraBilgisi>;
   /** Tüm sayfalar. */
   sablonlar(): Promise<MetaSablon[]>;

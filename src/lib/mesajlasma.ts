@@ -2,9 +2,12 @@
 
 /** 'tacir_esnaf': işletme (Places'tan gelen kayıtların varsayılanı). 'bireysel': yalnızca açık onayla. */
 export const ALICI_TURLERI = ["tacir_esnaf", "bireysel"] as const;
-/** Kuyruktan gönderilen kanallar (WhatsApp kullanıcı tarafından elle gönderilir, kuyruğa girmez). */
+/** Sağlayıcı (MessageProvider) kanalları: e-posta ve SMS. Yarı otomatik WhatsApp listesi kuyruğa girmez. */
 export const KANALLAR = ["eposta", "sms"] as const;
-export const KAMPANYA_DURUMLARI = ["zamanlandi", "calisiyor", "tamamlandi", "iptal"] as const;
+/** Kampanya ve kuyruk kanalları: sağlayıcı kanalları + WhatsApp Business Platform (Cloud API, onaylı şablon). */
+export const KUYRUK_KANALLARI = [...KANALLAR, "whatsapp_api"] as const;
+/** duraklatildi: sistem durdurdu (WhatsApp kalite düşük, şablon duraklatıldı, spam sınırı, yetki); yönetici devam ettirir. */
+export const KAMPANYA_DURUMLARI = ["zamanlandi", "calisiyor", "duraklatildi", "tamamlandi", "iptal"] as const;
 export const MESAJ_DURUMLARI = ["kuyrukta", "gonderiliyor", "gonderildi", "basarisiz", "haric", "iptal"] as const;
 /** Alıcı kurallarının hariç tutma nedenleri (aliciDegerlendir). */
 export const HARIC_NEDENLERI = [
@@ -17,6 +20,8 @@ export const HARIC_NEDENLERI = [
   "whatsapp_izni_yok",
   "iys_beyani_yok",
   "whatsapp_yok",
+  "test_modu",
+  "degisken_bos",
 ] as const;
 /** wa_kimlik: WhatsApp işletmeye özel kullanıcı kimliği (BSUID); telefonu bilinmeyen WhatsApp kişisi için. */
 export const ENGEL_TURLERI = ["eposta", "telefon", "wa_kimlik"] as const;
@@ -30,6 +35,7 @@ export type AliciTuru = (typeof ALICI_TURLERI)[number];
 export type WhatsappIzni = (typeof WHATSAPP_IZINLERI)[number];
 export type WhatsappIzinKaynagi = (typeof WHATSAPP_IZIN_KAYNAKLARI)[number];
 export type Kanal = (typeof KANALLAR)[number];
+export type KuyrukKanali = (typeof KUYRUK_KANALLARI)[number];
 export type KampanyaDurumu = (typeof KAMPANYA_DURUMLARI)[number];
 export type MesajDurumu = (typeof MESAJ_DURUMLARI)[number];
 export type HaricNedeni = (typeof HARIC_NEDENLERI)[number];
@@ -51,11 +57,12 @@ export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = 
   reklam: "Reklam",
 };
 
-export const KANAL_ADLARI: Record<Kanal, string> = { eposta: "E-posta", sms: "SMS" };
+export const KANAL_ADLARI: Record<KuyrukKanali, string> = { eposta: "E-posta", sms: "SMS", whatsapp_api: "WhatsApp (API)" };
 
 export const KAMPANYA_DURUM_ADLARI: Record<KampanyaDurumu, string> = {
   zamanlandi: "Zamanlandı",
   calisiyor: "Gönderiliyor",
+  duraklatildi: "Duraklatıldı",
   tamamlandi: "Tamamlandı",
   iptal: "İptal edildi",
 };
@@ -78,6 +85,8 @@ export const HARIC_NEDEN_ADLARI: Record<HaricNedeni, string> = {
   whatsapp_izni_yok: "WhatsApp izni yok",
   iys_beyani_yok: "Bireysel; İYS beyanı yok",
   whatsapp_yok: "Numarada WhatsApp yok",
+  test_modu: "Test modu: test numarası değil",
+  degisken_bos: "Şablon değişkeni boş",
 };
 
 /** Kuyrukta bekleyen mesajın bekleme nedeni (hariç değil; koşul sağlanınca gönderilir). */
@@ -86,12 +95,22 @@ export const BEKLEME_NEDEN_ADLARI: Record<string, string> = {
   gunluk_sinir: "Günlük sınır doldu, ertesi güne kaldı",
   kota: "Places kotası bekleniyor",
   gecici_hata: "Geçici hata, yeniden denenecek",
+  whatsapp_limit: "Meta mesajlaşma limiti (bu uygulamanın payı) doldu, ertesi güne kaldı",
+};
+
+/** WhatsApp kampanyasının duraklatılma nedenleri. */
+export const DURAKLATMA_NEDEN_ADLARI: Record<string, string> = {
+  kalite_dusuk: "Numaranın kalite puanı düşük (kırmızı). Kalite düzelince yönetici devam ettirebilir.",
+  sablon_kullanilamaz: "Şablon artık kullanılamıyor (duraklatıldı, devre dışı ya da silindi).",
+  spam_siniri: "Meta bu numaradan gönderimi kısıtladı (spam sınırı). Kaliteyi WhatsApp Manager'da kontrol edin.",
+  yetki: "Meta erişimi reddetti; Ayarlar'da erişim anahtarını kontrol edin.",
+  baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",
 };
 
 /** Yer tutucu: kaydın kullanıcı tarafından girilen işletme adı. Places içeriği ASLA kullanılmaz. */
 export const ISLETME_YER_TUTUCUSU = "{isletme}";
 
-export const VARSAYILAN_GUNLUK_SINIR: Record<Kanal, number> = { eposta: 300, sms: 200 };
+export const VARSAYILAN_GUNLUK_SINIR: Record<KuyrukKanali, number> = { eposta: 300, sms: 200, whatsapp_api: 1000 };
 /** Varsayılan gönderim penceresi, İstanbul saatiyle gece yarısından itibaren dakika: 09:00–20:00. */
 export const VARSAYILAN_GONDERIM_BASLANGIC_DK = 9 * 60;
 export const VARSAYILAN_GONDERIM_BITIS_DK = 20 * 60;

@@ -8,6 +8,7 @@ import { sayfaBaglami } from "@/server/oturum";
 import { kampanyalariListele } from "@/server/repo/kampanyalar";
 import { etiketleriListele } from "@/server/repo/kayitlar";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
+import { baglantiDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
 import { WhatsappListesi } from "./whatsapp-listesi";
 import { YeniKampanya } from "./yeni-kampanya";
 
@@ -25,7 +26,7 @@ export default async function IletisimSayfasi({ searchParams }: PageProps<"/ilet
     <>
       <SayfaBasligi
         baslik="İletişim"
-        aciklama="E-posta ve SMS kampanyaları, WhatsApp günlük liste. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
+        aciklama="E-posta, SMS ve WhatsApp (API) kampanyaları, WhatsApp günlük liste. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <YeniKampanya
@@ -33,6 +34,11 @@ export default async function IletisimSayfasi({ searchParams }: PageProps<"/ilet
           saglayicilar={ayarlar.saglayicilar}
           eksikAyarlar={ayarlar.eksikAyarlar}
           smsAltbilgisi={smsAltbilgisi(ayarlar)}
+          whatsapp={{
+            yonetici: ctx.rol === "yonetici",
+            bagli: baglantiDurumu(ctx).tanimli,
+            sablonlar: ctx.rol === "yonetici" ? sablonlar(ctx).filter((x) => x.kullanilabilir) : [],
+          }}
         />
 
         <section className="kart self-start" aria-labelledby="kampanyalar-baslik">

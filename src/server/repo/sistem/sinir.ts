@@ -4,18 +4,25 @@ import {
   VARSAYILAN_GUNLUK_SINIR,
   WHATSAPP_AZAMI_GUNLUK,
   WHATSAPP_VARSAYILAN_GUNLUK,
-  type Kanal,
+  type KuyrukKanali,
 } from "@/lib/mesajlasma";
 import { db } from "../../db";
 import { iletiAyarlari, tenants } from "../../db/schema";
 
-export type SinirKanali = Kanal | "whatsapp";
+/** whatsapp: yarı otomatik liste (kullanıcı başına); whatsapp_api: Cloud API kampanyaları (çalışma alanı başına). */
+export type SinirKanali = KuyrukKanali | "whatsapp";
 const ORTAM: Record<SinirKanali, string> = {
   eposta: "GUNLUK_EPOSTA_SINIRI",
   sms: "GUNLUK_SMS_SINIRI",
+  whatsapp_api: "GUNLUK_WHATSAPP_API_SINIRI",
   whatsapp: "WHATSAPP_GUNLUK_VARSAYILAN",
 };
-const SUTUN = { eposta: "gunlukEpostaSiniri", sms: "gunlukSmsSiniri", whatsapp: "whatsappGunlukSinir" } as const;
+const SUTUN = {
+  eposta: "gunlukEpostaSiniri",
+  sms: "gunlukSmsSiniri",
+  whatsapp_api: "gunlukWhatsappApiSiniri",
+  whatsapp: "whatsappGunlukSinir",
+} as const;
 
 /**
  * Ortam değişkeni (geçerli tam sayıysa) ya da varsayılan (e-posta 300, SMS 200, WhatsApp kullanıcı başına 30).

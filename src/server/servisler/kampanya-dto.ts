@@ -1,11 +1,11 @@
 // Kampanya ve kuyruk satırlarının istemciye giden biçimi (alıcı adresi içermez).
-import type { KampanyaDurumu, Kanal, MesajDurumu } from "@/lib/mesajlasma";
+import type { KampanyaDurumu, KuyrukKanali, MesajDurumu } from "@/lib/mesajlasma";
 import type { KampanyaFiltresi, kampanyaGetir, kampanyaMesajlari } from "../repo/kampanyalar";
 
 export type KampanyaDto = {
   id: string;
   ad: string;
-  kanal: Kanal;
+  kanal: KuyrukKanali;
   konu: string | null;
   sablon: string;
   bosIsimHitabi: string | null;
@@ -18,10 +18,18 @@ export type KampanyaDto = {
   tamamlanmaTarihi: string | null;
   sayilar: Record<MesajDurumu, number>;
   nedenler: { durum: MesajDurumu; neden: string | null; n: number }[];
+  /** WhatsApp: sistemin duraklatma nedeni (DURAKLATMA_NEDEN_ADLARI). */
+  duraklatmaNedeni: string | null;
+  /** WhatsApp: Meta teslim bildirimleri (sent / delivered / read / failed + hata kodu). */
+  teslim: { durum: string | null; kod: number | null; n: number }[];
+  /** WhatsApp: Meta’nın ücretlendirdiği iletiler (kategori bazında). */
+  ucretli: { kategori: string | null; n: number }[];
 };
 
-type KampanyaSatiri = Omit<NonNullable<ReturnType<typeof kampanyaGetir>>, "nedenler"> & {
+type KampanyaSatiri = Omit<NonNullable<ReturnType<typeof kampanyaGetir>>, "nedenler" | "teslim" | "ucretli"> & {
   nedenler?: KampanyaDto["nedenler"];
+  teslim?: KampanyaDto["teslim"];
+  ucretli?: KampanyaDto["ucretli"];
 };
 
 export const kampanyaDto = (k: KampanyaSatiri): KampanyaDto => ({
@@ -40,6 +48,9 @@ export const kampanyaDto = (k: KampanyaSatiri): KampanyaDto => ({
   tamamlanmaTarihi: k.tamamlanmaTarihi?.toISOString() ?? null,
   sayilar: k.sayilar,
   nedenler: k.nedenler ?? [],
+  duraklatmaNedeni: k.duraklatmaNedeni,
+  teslim: k.teslim ?? [],
+  ucretli: k.ucretli ?? [],
 });
 
 type MesajSatiri = ReturnType<typeof kampanyaMesajlari>["mesajlar"][number];

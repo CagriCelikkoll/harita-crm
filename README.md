@@ -47,6 +47,8 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `NETGSM_API_URL` | Hayır | Netgsm API kök adresi (varsayılan `https://api.netgsm.com.tr`); testte sahte sunucu için. |
 | `META_GRAPH_SURUMU` | Hayır | WhatsApp Cloud API için Graph API sürümü (varsayılan `v26.0`). Meta sürümleri yaklaşık iki yıl destekler. |
 | `META_GRAPH_URL` | Hayır | Graph API kök adresi (varsayılan `https://graph.facebook.com`); yalnızca test için, https zorunlu. |
+| `GUNLUK_WHATSAPP_API_SINIRI` | Hayır | WhatsApp (Cloud API) kampanyalarında çalışma alanı başına günlük üst sınır (varsayılan 1000; `npm run sinir -- <slug> whatsapp_api <sayı>`). Meta limitinin payı ayrıca uygulanır. |
+| `WHATSAPP_SANIYE_BASI` | Hayır | WhatsApp gönderim hızı, saniyede en fazla ileti (varsayılan 20; Meta kapasitesinin altında). |
 | `WHATSAPP_API_MOCK` | Hayır | `1`: geliştirmede gerçek Meta yerine sahte istemci. Testler her zaman sahte istemci kullanır. |
 | `WHATSAPP_GUNLUK_VARSAYILAN` | Hayır | Kullanıcı başına günlük WhatsApp sınırı varsayılanı (30; en fazla 50). Alan bazında Ayarlar'dan ya da `npm run sinir -- <slug> whatsapp <sayı>`. |
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
@@ -596,8 +598,8 @@ kontrollüdür.
 
 ### WhatsApp Business (Cloud API) bağlantısı
 
-Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bu bölüm bağlantı ve şablonları
-kapsar; kampanya gönderimi ve webhook sonraki bölümlerde eklenir.
+Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bağlantı, şablonlar ve kampanyalar;
+webhook (teslim bildirimleri, ret, reklamdan gelenler) sonraki bölümde eklenir.
 
 - **Ayarlar → WhatsApp Business (API)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
   user token) ve App Secret.
@@ -625,6 +627,46 @@ kapsar; kampanya gönderimi ve webhook sonraki bölümlerde eklenir.
     "Durdur", "İptal" gibi kalıplarla tanınır (`src/lib/whatsapp-api.ts`).
 - Testler gerçek ağa çıkmaz (sahte Graph istemcisi, `src/server/whatsapp-api/mock.ts`). Geliştirmede
   `WHATSAPP_API_MOCK=1` ile de sahte istemci kullanılır.
+
+#### WhatsApp kampanyaları (İletişim → Yeni kampanya → WhatsApp (API))
+
+- **Yalnızca yönetici** başlatır (Meta ücreti var). Kanal yalnızca yöneticiye görünür.
+- **Şablon ve değişkenler:** yalnızca kampanyada kullanılabilir (onaylı, destekli) şablonlar listelenir. Her değişken
+  (`{{1}}`, `{{ad}}` …) kaydın işletme adı, ad soyad / yetkili adı ya da sabit metinle eşlenir; kayıtta boşsa
+  "yedek" metin kullanılır, o da yoksa alıcı **"şablon değişkeni boş"** nedeniyle hariç tutulur. Değerler Meta'nın
+  kuralı gereği tek satıra indirgenir.
+- **Özet:** gönderilecek alıcı sayısı ve hariç tutma nedenleri (izin yok, ret, engel, bireyselde İYS beyanı yok,
+  numarada WhatsApp yok, test modu, değişken boş, cep değil, iletişim yok), ilk üç alıcı için şablon metni, numara
+  kalitesi, Meta limitinin bu uygulamaya ayrılan payı ve son 24 saatteki kullanım, **tahmini Meta ücreti**
+  (uygun alıcı × kategori fiyatı; `src/lib/whatsapp-fiyatlar.ts`, Türkiye, 01.10.2026 kartı — Meta'nın kendi
+  kartından doğrulanmadı). Meta yalnızca teslim edilen iletiyi ücretlendirir ve ücreti doğrudan işletmenin WhatsApp
+  hesabından keser; Harita CRM fatura kesmez.
+- **Test modu** (bağlantı ayarı) açıkken yalnızca test numaraları; "Sandbox" seçilirse Meta'ya hiç gidilmez, şablon
+  metni kaydedilir.
+- **İşçi (her ileti için):** alıcı kuralları yeniden (kampanya sonrası gelen ret gönderimi durdurur) → şablon hâlâ
+  kullanılabilir mi → test modu → kalite (15 dakikadan eskiyse Meta'dan okunur) → gönderim saatleri → günlük sınır
+  (atomik) → Meta limitinin payı (kayan 24 saat; ileti sayılır, temkinli) → hız (`WHATSAPP_SANIYE_BASI`) → gönderim.
+  Telefon varsa `to`, yoksa BSUID ile `recipient`.
+  - Pay ya da günlük sınır dolunca kalan alıcılar **ertesi günün gönderim başlangıcına** kalır.
+  - **Kalite kırmızı** → çalışma alanının tüm WhatsApp kampanyaları **duraklar**; kalite düzelince yönetici
+    "Devam ettir" der (kalite Meta'dan yeniden okunur, hâlâ kırmızıysa reddedilir). Kırmızıyken yeni kampanya
+    başlatılamaz.
+  - Şablon Meta'da duraklatılır / devre dışı kalır / silinirse (ya da 132xxx şablon hatası) kampanya duraklar.
+- **Meta hata kodları** (https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes):
+
+  | Kod | Sonuç |
+  |---|---|
+  | 131026 (teslim edilemez) | Başarısız; kişi 90 gün "WhatsApp yok" sayılır |
+  | 131050 (kişi pazarlama iletilerini durdurdu) | Ret akışı (WhatsApp izni ret, engel listesi) |
+  | 131049 (sağlıklı ekosistem için teslim edilmedi) | Başarısız, tekrar denenmez |
+  | 131048 (spam kısıtlaması) | Kampanya duraklar |
+  | 4, 80007, 130429, 131056, HTTP 429 (hız) | Geçici; artan beklemeyle en fazla 3 deneme |
+  | 132xxx (şablon) | Kampanya duraklar |
+  | 0, 3, 10, 190, 200, 131005, HTTP 401 (yetki) | Kampanya duraklar |
+  | Ağ hatası / zaman aşımı, 5xx, 131000 | **Belirsiz**: gönderilmiş olabilir; iki kez gitmemesi için tekrar denenmez |
+
+- Kampanya detayında Meta teslim bildirimleri (gönderildi / teslim edildi / okundu / teslim edilemedi + hata kodu) ve
+  ücretlendirilen ileti sayısı gösterilir (webhook bölümüyle dolar).
 
 #### Pilot: işletme sahibinin kendi Business Manager'ında system user ve kalıcı anahtar
 

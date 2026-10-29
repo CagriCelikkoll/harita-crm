@@ -33,6 +33,7 @@ import {
   ENGEL_TURLERI,
   KAMPANYA_DURUMLARI,
   KANALLAR,
+  KUYRUK_KANALLARI,
   MESAJ_DURUMLARI,
   VARSAYILAN_GONDERIM_BASLANGIC_DK,
   VARSAYILAN_GONDERIM_BITIS_DK,
@@ -41,7 +42,7 @@ import {
   WHATSAPP_IZINLERI,
 } from "../../lib/mesajlasma";
 import { ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
-import type { MetaSablonBileseni, SablonDegiskeni } from "../../lib/whatsapp-api";
+import type { DegiskenEslemi, MetaSablonBileseni, SablonDegiskeni } from "../../lib/whatsapp-api";
 
 export * from "./auth-schema";
 
@@ -310,6 +311,7 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   // null = ortam değişkeni / varsayılan. Değiştirmek için: npm run sinir -- <slug> <kanal> <sayı>
   gunlukEpostaSiniri: integer("gunluk_eposta_siniri"),
   gunlukSmsSiniri: integer("gunluk_sms_siniri"),
+  gunlukWhatsappApiSiniri: integer("gunluk_whatsapp_api_siniri"),
   // SMS ret yolu: alıcıların "RET" yazıp gönderdiği (gelen SMS alabilen) numara. Her SMS'e eklenir.
   smsRetNumarasi: text("sms_ret_numarasi"),
   // Test SMS'leri YALNIZCA bu numaraya gider.
@@ -377,7 +379,7 @@ export const kampanyalar = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     olusturan: text("olusturan").references(() => user.id, { onDelete: "set null" }),
-    kanal: text("kanal", { enum: KANALLAR }).notNull(),
+    kanal: text("kanal", { enum: KUYRUK_KANALLARI }).notNull(),
     ad: text("ad").notNull(),
     konu: text("konu"), // yalnızca e-posta
     sablon: text("sablon").notNull(),
@@ -391,6 +393,10 @@ export const kampanyalar = sqliteTable(
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
     baslamaTarihi: zaman("baslama_tarihi"),
     tamamlanmaTarihi: zaman("tamamlanma_tarihi"),
+    // Yalnızca WhatsApp (Cloud API): onaylı şablon ve değişken eşlemesi; sistemin duraklatma nedeni.
+    sablonId: text("sablon_id"),
+    degiskenEslem: text("degisken_eslem", { mode: "json" }).$type<DegiskenEslemi>(),
+    duraklatmaNedeni: text("duraklatma_nedeni"),
   },
   (t) => [
     uniqueIndex("kampanyalar_tenant_id_uq").on(t.tenantId, t.id),
@@ -412,7 +418,7 @@ export const messageQueue = sqliteTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     kampanyaId: text("kampanya_id").notNull(),
     leadId: text("lead_id").notNull(),
-    kanal: text("kanal", { enum: KANALLAR }).notNull(),
+    kanal: text("kanal", { enum: KUYRUK_KANALLARI }).notNull(),
     durum: text("durum", { enum: MESAJ_DURUMLARI }).notNull(),
     // Hariç / başarısız / bekleme nedeni (kod) ve sağlayıcı hata metni.
     neden: text("neden"),
@@ -429,6 +435,12 @@ export const messageQueue = sqliteTable(
     sandboxIcerik: text("sandbox_icerik"),
     gonderimTarihi: zaman("gonderim_tarihi"),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    // WhatsApp (Cloud API) teslim bildirimi (webhook statuses): sent | delivered | read | failed, hata kodu, ücret.
+    teslimDurumu: text("teslim_durumu"),
+    teslimHataKodu: integer("teslim_hata_kodu"),
+    teslimGuncelleme: zaman("teslim_guncelleme"),
+    ucretKategorisi: text("ucret_kategorisi"),
+    ucretli: integer("ucretli", { mode: "boolean" }),
   },
   (t) => [
     foreignKey({ columns: [t.tenantId, t.kampanyaId], foreignColumns: [kampanyalar.tenantId, kampanyalar.id] }).onDelete(
@@ -439,6 +451,9 @@ export const messageQueue = sqliteTable(
     index("message_queue_bekleyen_idx").on(t.durum, t.sonrakiDeneme),
     index("message_queue_kampanya_idx").on(t.tenantId, t.kampanyaId, t.durum),
     index("message_queue_adres_idx").on(t.tenantId, t.adresOzeti),
+    // WhatsApp durum bildirimleri wamid ile eşleşir; kayan 24 saat sayımı.
+    index("message_queue_saglayici_idx").on(t.tenantId, t.saglayiciKimligi),
+    index("message_queue_kanal_gonderim_idx").on(t.tenantId, t.kanal, t.gonderimTarihi),
   ],
 );
 

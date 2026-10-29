@@ -26,6 +26,7 @@ import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti"
 import { iletiOlustur } from "./mesaj";
 import { saglayiciAl, type SaglayiciSecenekleri } from "./saglayici";
 import { placesTelefonuGetir } from "./telefon";
+import { whatsappMesajIsle } from "./whatsapp-gonderici";
 
 export type IsciSecenekleri = {
   simdi?: () => Date;
@@ -33,6 +34,8 @@ export type IsciSecenekleri = {
   /** Testler: sağlayıcıyı değiştirir (varsayılan: kampanya sandbox ise sandbox, değilse kiracının sağlayıcısı). */
   saglayiciSec?: (ctx: TenantContext, kanal: Kanal, sandbox: boolean) => MessageProvider;
   saglayici?: SaglayiciSecenekleri;
+  /** WhatsApp gönderimleri arası en az süre (ms); testler 0 verir. */
+  whatsappAralikMs?: number;
 };
 
 export type TurSonucu = {
@@ -88,6 +91,11 @@ async function mesajIsle(
   simdi: Date,
   s: IsciSecenekleri,
 ): Promise<Sonuc> {
+  // Duraklatılmış kampanya (WhatsApp): mesaj kuyruğa geri döner; devam ettirilince gönderilir.
+  if (kampanya?.durum === "duraklatildi") {
+    mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: `duraklatildi:${kampanya.duraklatmaNedeni ?? ""}`, denemeGeriAl: true });
+    return "bekletildi";
+  }
   if (!kampanya || kampanya.durum !== "calisiyor") {
     mesajBirak(ctx, mesaj.id, { durum: "iptal", neden: "iptal", denemeGeriAl: true });
     return "haric";
@@ -102,6 +110,14 @@ async function mesajIsle(
       denemeGeriAl: true,
     });
     return "bekletildi";
+  }
+
+  // WhatsApp (Cloud API): kendi adımları (servisler/whatsapp-gonderici.ts).
+  if (mesaj.kanal === "whatsapp_api") {
+    return whatsappMesajIsle(ctx, mesaj, kampanya, ayar, simdi, {
+      aralikMs: s.whatsappAralikMs,
+      geciciHata: (hata) => geciciHata(ctx, mesaj, hata, simdi),
+    });
   }
 
   // 2) Alıcı kuralları, gönderimden hemen önce yeniden.

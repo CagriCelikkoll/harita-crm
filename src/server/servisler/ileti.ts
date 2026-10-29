@@ -1,5 +1,5 @@
 // Ticari ileti kuralları: gönderen bilgileri, sandbox dışı gönderim ön koşulları, günlük sınır, saat penceresi.
-import type { Kanal } from "@/lib/mesajlasma";
+import type { KuyrukKanali } from "@/lib/mesajlasma";
 import type { TenantContext } from "../repo/baglam";
 import { engelliOzetler } from "../repo/engel-listesi";
 import { iletiAyarlariGetir, type IletiAyarlari } from "../repo/ileti-ayarlari";
@@ -9,7 +9,7 @@ import type { AliciKaydi, EngelSorgusu } from "../messaging/alici-kurallari";
 import { epostaNormallestir, telefonNormallestir } from "../messaging/adres";
 
 /** Sandbox dışı kampanya için eksik olanlar (boşsa hazır). SMS'te ret numarası da gerekir. */
-export function ticariIletiEksikleri(a: IletiAyarlari, kanal?: Kanal): string[] {
+export function ticariIletiEksikleri(a: IletiAyarlari, kanal?: KuyrukKanali): string[] {
   const eksik: string[] = [];
   if (!a.gonderenUnvani?.trim()) eksik.push("gönderen unvanı");
   if (!a.iletisimBilgisi?.trim()) eksik.push("iletişim bilgisi");
@@ -19,8 +19,8 @@ export function ticariIletiEksikleri(a: IletiAyarlari, kanal?: Kanal): string[] 
   return eksik;
 }
 
-export function gunlukSinir(a: IletiAyarlari, kanal: Kanal): number {
-  const ozel = kanal === "eposta" ? a.gunlukEpostaSiniri : a.gunlukSmsSiniri;
+export function gunlukSinir(a: IletiAyarlari, kanal: KuyrukKanali): number {
+  const ozel = { eposta: a.gunlukEpostaSiniri, sms: a.gunlukSmsSiniri, whatsapp_api: a.gunlukWhatsappApiSiniri }[kanal];
   return ozel ?? varsayilanGunlukSinir(kanal);
 }
 

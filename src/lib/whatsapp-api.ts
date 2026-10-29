@@ -115,3 +115,79 @@ export function sablonCozumle(s: { kategori: string; durum: string; bilesenler: 
   if (s.durum.toUpperCase() !== "APPROVED") nedenler.unshift(`Şablon onaylı değil (${s.durum})`);
   return { degiskenler, abonelikButonu, destekNedeni: nedenler.length ? [...new Set(nedenler)].join("; ") : null };
 }
+
+// --- Kampanya: şablon değişkenlerinin değerleri ---
+
+export const DEGISKEN_KAYNAKLARI = ["isletme_adi", "yetkili_adi", "sabit"] as const;
+export type DegiskenKaynagi = (typeof DEGISKEN_KAYNAKLARI)[number];
+export const DEGISKEN_KAYNAK_ADLARI: Record<DegiskenKaynagi, string> = {
+  isletme_adi: "Kaydın işletme adı",
+  yetkili_adi: "Kaydın ad soyad / yetkili adı",
+  sabit: "Sabit metin",
+};
+/** yedek: kayıtta değer boşsa kullanılır; o da yoksa alıcı "değişken boş" nedeniyle hariç tutulur. */
+export type DegiskenAyari = { kaynak: DegiskenKaynagi; deger?: string; yedek?: string };
+/** Anahtar: `${bilesen}:${ad}` (ör. "body:1", "header:ad"). */
+export type DegiskenEslemi = Record<string, DegiskenAyari>;
+
+export const degiskenAnahtari = (d: SablonDegiskeni) => `${d.bilesen}:${d.ad}`;
+
+/** Meta parametre metni: satır sonu / sekme / art arda boşluk kabul etmez; tek boşluğa indirgenir. */
+const parametreTemizle = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** Kayıt için değişken değerleri; herhangi biri boş kalırsa null (alıcı hariç: degisken_bos). */
+export function degiskenDegerleri(
+  degiskenler: SablonDegiskeni[],
+  eslem: DegiskenEslemi,
+  kayit: { isletmeAdi: string | null; yetkiliAdi: string | null },
+): Record<string, string> | null {
+  const sonuc: Record<string, string> = {};
+  for (const d of degiskenler) {
+    const ayar = eslem[degiskenAnahtari(d)];
+    if (!ayar) return null;
+    const ham =
+      ayar.kaynak === "sabit" ? ayar.deger : ayar.kaynak === "isletme_adi" ? kayit.isletmeAdi : kayit.yetkiliAdi;
+    const deger = parametreTemizle(ham ?? "") || parametreTemizle(ayar.yedek ?? "");
+    if (!deger) return null;
+    sonuc[degiskenAnahtari(d)] = deger;
+  }
+  return sonuc;
+}
+
+/** Önizleme ve sandbox kaydı için şablonun düz metni (başlık, gövde, altbilgi, butonlar). */
+export function sablonMetni(bilesenler: MetaSablonBileseni[], degerler: Record<string, string>): string {
+  const doldur = (bilesen: "header" | "body", metin: string) =>
+    metin.replace(DEGISKEN_DESENI, (_, ad: string) => degerler[`${bilesen}:${ad}`] ?? `{{${ad}}}`);
+  const parcalar: string[] = [];
+  for (const b of bilesenler) {
+    const tur = b.type.toUpperCase();
+    if (tur === "HEADER" && b.text) parcalar.push(`*${doldur("header", b.text)}*`);
+    else if (tur === "BODY" && b.text) parcalar.push(doldur("body", b.text));
+    else if (tur === "FOOTER" && b.text) parcalar.push(`_${b.text}_`);
+    else if (tur === "BUTTONS") parcalar.push((b.buttons ?? []).map((x) => `[${x.text ?? x.type}]`).join(" "));
+  }
+  return parcalar.join("\n\n");
+}
+
+/** Cloud API template.components (yalnızca metin parametreleri; konumsal ya da adlandırılmış). */
+export function sablonParametreleri(
+  degiskenler: SablonDegiskeni[],
+  degerler: Record<string, string>,
+  adlandirilmis: boolean,
+): { type: "header" | "body"; parameters: { type: "text"; text: string; parameter_name?: string }[] }[] {
+  const sonuc = [];
+  for (const bilesen of ["header", "body"] as const) {
+    const liste = degiskenler.filter((d) => d.bilesen === bilesen);
+    if (!liste.length) continue;
+    const sirali = adlandirilmis ? liste : [...liste].sort((a, b) => Number(a.ad) - Number(b.ad));
+    sonuc.push({
+      type: bilesen,
+      parameters: sirali.map((d) => ({
+        type: "text" as const,
+        text: degerler[degiskenAnahtari(d)],
+        ...(adlandirilmis ? { parameter_name: d.ad } : {}),
+      })),
+    });
+  }
+  return sonuc;
+}

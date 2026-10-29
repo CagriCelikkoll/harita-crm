@@ -7,6 +7,7 @@ import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import {
   BEKLEME_NEDEN_ADLARI,
+  DURAKLATMA_NEDEN_ADLARI,
   HARIC_NEDEN_ADLARI,
   KAMPANYA_DURUM_ADLARI,
   KANAL_ADLARI,
@@ -24,9 +25,21 @@ const DIGER_NEDENLER: Record<string, string> = {
   ayar_eksik: "Ticari ileti bilgileri eksik",
   hata: "Beklenmeyen hata",
   iptal: "Kampanya iptal edildi",
+  meta_teslim_etmedi: "Meta teslim etmedi (alıcı başına pazarlama sınırı; 24 saat sonra tekrar denenebilir)",
 };
-const nedenAdi = (n: string | null) =>
-  n ? ((HARIC_NEDEN_ADLARI as Record<string, string>)[n] ?? BEKLEME_NEDEN_ADLARI[n] ?? DIGER_NEDENLER[n] ?? n) : "";
+/** Meta teslim bildirimi (webhook statuses). */
+const TESLIM_ADLARI: Record<string, string> = {
+  sent: "Meta'ya iletildi",
+  delivered: "Teslim edildi",
+  read: "Okundu",
+  failed: "Teslim edilemedi",
+};
+const nedenAdi = (n: string | null): string =>
+  !n
+    ? ""
+    : n.startsWith("duraklatildi:")
+      ? `Kampanya duraklatıldı (${DURAKLATMA_NEDEN_ADLARI[n.slice(13)] ?? n.slice(13)})`
+      : ((HARIC_NEDEN_ADLARI as Record<string, string>)[n] ?? BEKLEME_NEDEN_ADLARI[n] ?? DIGER_NEDENLER[n] ?? n);
 
 const ROZET: Record<MesajDurumu, string> = {
   kuyrukta: "bg-zemin text-soluk",
@@ -56,6 +69,7 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
   );
 
   const suruyor = k.durum === "calisiyor" || k.durum === "zamanlandi";
+  const iptalEdilebilir = suruyor || k.durum === "duraklatildi";
   useEffect(() => {
     if (!suruyor) return;
     const z = setInterval(() => void yukle(veri.sayfa, filtre), 10_000);
@@ -81,6 +95,26 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
             <span className="rozet">{KAMPANYA_DURUM_ADLARI[k.durum]}</span>
             {k.sandbox && <span className="rozet bg-amber-100 text-amber-800">Sandbox: gerçek gönderim yok</span>}
           </div>
+          {k.durum === "duraklatildi" && (
+            <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-tehlike">
+              <p>{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Kampanya sistem tarafından duraklatıldı."}</p>
+              <button
+                type="button"
+                className="dugme mt-2"
+                disabled={mesgul}
+                onClick={async () => {
+                  setMesgul(true);
+                  setHata(null);
+                  const r = await apiIstek(`/api/kampanyalar/${k.id}?islem=devam`, { method: "POST" });
+                  setMesgul(false);
+                  if (r.ok) await yukle(1, filtre);
+                  else setHata(r.hata);
+                }}
+              >
+                Devam ettir (yönetici)
+              </button>
+            </div>
+          )}
           {k.durum === "zamanlandi" && k.planlananTarih && (
             <p className="text-sm">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</p>
           )}
@@ -120,12 +154,33 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
               </ul>
             </div>
           )}
+          {k.kanal === "whatsapp_api" && k.teslim.length > 0 && (
+            <div>
+              <h3 className="mb-1 text-sm font-semibold">Meta teslim bildirimleri</h3>
+              <ul className="text-sm">
+                {k.teslim.map((t) => (
+                  <li key={`${t.durum}-${t.kod}`} className="flex justify-between gap-3 border-b border-kenar py-1 last:border-0">
+                    <span>
+                      {TESLIM_ADLARI[t.durum ?? ""] ?? t.durum}
+                      {t.kod !== null && <span className="text-xs text-soluk"> (hata {t.kod})</span>}
+                    </span>
+                    <span className="tabular-nums">{sayiYaz(t.n)}</span>
+                  </li>
+                ))}
+              </ul>
+              {k.ucretli.length > 0 && (
+                <p className="mt-1 text-xs text-soluk">
+                  Meta&apos;nın ücretlendirdiği: {k.ucretli.map((u) => `${sayiYaz(u.n)} ${u.kategori ?? ""}`).join(", ")}
+                </p>
+              )}
+            </div>
+          )}
           <details className="text-sm">
             <summary className="cursor-pointer text-soluk">Mesaj şablonu</summary>
             {k.konu && <p className="mt-2 font-medium">Konu: {k.konu}</p>}
             <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-zemin p-2">{k.sablon}</p>
           </details>
-          {suruyor && (
+          {iptalEdilebilir && (
             <button
               type="button"
               className="dugme-tehlike self-start"

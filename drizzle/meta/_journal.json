@@ -64,6 +64,13 @@
       "when": 1793306821872,
       "tag": "0008_whatsapp_api",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793308566818,
+      "tag": "0009_whatsapp_kampanya",
+      "breakpoints": true
     }
   ]
 }

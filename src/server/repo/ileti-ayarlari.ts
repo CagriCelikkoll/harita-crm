@@ -18,6 +18,7 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   gonderimBitisDk: VARSAYILAN_GONDERIM_BITIS_DK,
   gunlukEpostaSiniri: null,
   gunlukSmsSiniri: null,
+  gunlukWhatsappApiSiniri: null,
   smsRetNumarasi: null,
   yetkiliTelefonu: null,
   whatsappSablonu: null,

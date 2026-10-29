@@ -1,6 +1,7 @@
 "use client";
 // Yeni kampanya: kanal, alıcı grubu, {isletme} yer tutuculu şablon ve canlı önizleme → özet → başlat / zamanla.
-// Alıcı kuralları sunucuda uygulanır; özet ekranı hariç tutulanları nedenleriyle gösterir.
+// WhatsApp (API): onaylı şablon + değişken eşleme; özet şablonun ilk üç alıcı için metnini, test modunu, Meta
+// limitinin payını ve tahmini Meta ücretini gösterir. Alıcı kuralları sunucuda uygulanır.
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
@@ -11,13 +12,26 @@ import {
   HARIC_NEDEN_ADLARI,
   HARIC_NEDENLERI,
   KANAL_ADLARI,
-  type Kanal,
+  type KuyrukKanali,
 } from "@/lib/mesajlasma";
+import {
+  DEGISKEN_KAYNAK_ADLARI,
+  DEGISKEN_KAYNAKLARI,
+  degiskenAnahtari,
+  KALITE_ADLARI,
+  SABLON_KATEGORI_ADLARI,
+  type DegiskenEslemi,
+  type DegiskenKaynagi,
+} from "@/lib/whatsapp-api";
 import { KAYIT_DURUM_ADLARI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sablonDoldur } from "@/lib/sablon";
 import { smsUzunlugu, type SmsKodlama } from "@/lib/sms-uzunluk";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import type { KampanyaOzeti } from "@/server/servisler/kampanya";
+import type { SablonDto } from "@/server/servisler/whatsapp-api";
+
+/** Yalnızca WhatsApp kanalında anlamlı olan hariç tutma nedenleri. */
+const WHATSAPP_NEDENLERI = new Set(["whatsapp_izni_yok", "iys_beyani_yok", "whatsapp_yok", "test_modu", "degisken_bos"]);
 
 const ORNEK_SABLON = "Merhaba {isletme},\n\n";
 
@@ -27,9 +41,13 @@ export function YeniKampanya(props: {
   eksikAyarlar: string[];
   /** Her SMS'e eklenen gönderen + ret yolu (sunucuda hesaplanır). */
   smsAltbilgisi: string;
+  /** WhatsApp (API): yalnızca yönetici başlatır; kullanılabilir (onaylı, destekli) şablonlar. */
+  whatsapp: { yonetici: boolean; bagli: boolean; sablonlar: SablonDto[] };
 }) {
   const router = useRouter();
-  const [kanal, setKanal] = useState<Kanal>("eposta");
+  const [kanal, setKanal] = useState<KuyrukKanali>("eposta");
+  const [sablonId, setSablonId] = useState("");
+  const [eslem, setEslem] = useState<DegiskenEslemi>({});
   const [ad, setAd] = useState("");
   const [konu, setKonu] = useState("");
   const [sablon, setSablon] = useState(ORNEK_SABLON);
@@ -44,7 +62,8 @@ export function YeniKampanya(props: {
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
 
-  const saglayiciTanimli = props.saglayicilar[kanal].tanimli;
+  const wa = kanal === "whatsapp_api";
+  const saglayiciTanimli = wa ? props.whatsapp.bagli : props.saglayicilar[kanal].tanimli;
   const degisti = <T,>(ayarla: (v: T) => void) => (v: T) => {
     ayarla(v);
     setOzet(null); // taslak değişince özet geçersiz
@@ -54,8 +73,9 @@ export function YeniKampanya(props: {
     kanal,
     ad,
     konu: kanal === "eposta" ? konu : undefined,
-    sablon,
-    bosIsimHitabi: bosHitap || undefined,
+    sablon: wa ? undefined : sablon,
+    bosIsimHitabi: !wa && bosHitap ? bosHitap : undefined,
+    ...(wa ? { sablonId, degiskenEslem: eslem } : {}),
     filtre: {
       ...(durum ? { durum } : {}),
       ...(etiket ? { etiket } : {}),
@@ -107,9 +127,10 @@ export function YeniKampanya(props: {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="etiket">
               Kanal
-              <select value={kanal} onChange={(e) => degisti(setKanal)(e.target.value as Kanal)} className="girdi">
+              <select value={kanal} onChange={(e) => degisti(setKanal)(e.target.value as KuyrukKanali)} className="girdi">
                 <option value="eposta">{KANAL_ADLARI.eposta}</option>
                 <option value="sms">{KANAL_ADLARI.sms}</option>
+                {props.whatsapp.yonetici && <option value="whatsapp_api">{KANAL_ADLARI.whatsapp_api}</option>}
               </select>
             </label>
             <label className="etiket">
@@ -157,12 +178,36 @@ export function YeniKampanya(props: {
             </div>
           </fieldset>
 
-          {kanal === "eposta" && (
+          {wa && (
+            <WhatsappSablonSecimi
+              sablonlar={props.whatsapp.sablonlar}
+              sablonId={sablonId}
+              eslem={eslem}
+              onSablon={(id) => {
+                setOzet(null);
+                setSablonId(id);
+                // Varsayılan: her değişken kaydın işletme adıyla dolar.
+                const yeni = props.whatsapp.sablonlar.find((x) => x.id === id);
+                setEslem(
+                  Object.fromEntries(
+                    (yeni?.degiskenler ?? []).map((dg) => [degiskenAnahtari(dg), { kaynak: "isletme_adi" as const }]),
+                  ),
+                );
+              }}
+              onEslem={(e) => {
+                setOzet(null);
+                setEslem(e);
+              }}
+            />
+          )}
+          {!wa && kanal === "eposta" && (
             <label className="etiket">
               Konu
               <input value={konu} onChange={(e) => degisti(setKonu)(e.target.value)} required maxLength={200} className="girdi" />
             </label>
           )}
+          {!wa && (
+          <>
           <label className="etiket">
             Mesaj
             <textarea
@@ -203,9 +248,16 @@ export function YeniKampanya(props: {
               <p className="whitespace-pre-wrap break-words">{ornekAdsiz || "—"}</p>
             </div>
           </div>
+          </>
+          )}
 
           <div className="flex flex-col gap-2 text-sm">
-            {saglayiciTanimli ? (
+            {wa ? (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={testModu} onChange={(e) => degisti(setTestModu)(e.target.checked)} />
+                Sandbox: Meta&apos;ya gönderme, yalnızca şablon metnini kaydet
+              </label>
+            ) : saglayiciTanimli ? (
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={testModu} onChange={(e) => degisti(setTestModu)(e.target.checked)} />
                 Test modu (sandbox): gerçek gönderim yapma, yalnızca kaydet
@@ -256,7 +308,11 @@ export function YeniKampanya(props: {
               Hariç tutulanlar ({sayiYaz(ozet.toplamAday - ozet.gonderilecek)} / {sayiYaz(ozet.toplamAday)} kayıt)
             </caption>
             <tbody>
-              {HARIC_NEDENLERI.filter((n) => ozet.kanal !== "eposta" || n !== "cep_degil").map((n) => (
+              {HARIC_NEDENLERI.filter(
+                (n) =>
+                  (ozet.kanal !== "eposta" || n !== "cep_degil") &&
+                  (ozet.kanal === "whatsapp_api" ? n !== "bireysel_izinsiz" : !WHATSAPP_NEDENLERI.has(n)),
+              ).map((n) => (
                 <tr key={n} className="border-b border-kenar last:border-0">
                   <td className="py-1">{HARIC_NEDEN_ADLARI[n]}</td>
                   <td className="py-1 text-right tabular-nums">{sayiYaz(ozet.haricler[n])}</td>
@@ -289,13 +345,14 @@ export function YeniKampanya(props: {
               )}
             </div>
           )}
-          {ozet.isletmeAdiEksik > 0 && (
+          {ozet.whatsapp && <WhatsappOzetKutusu ozet={ozet} />}
+          {ozet.isletmeAdiEksik > 0 && !ozet.whatsapp && (
             <p className="text-sm">
               İşletme adı girilmemiş: <strong className="tabular-nums">{sayiYaz(ozet.isletmeAdiEksik)}</strong> kayıt{" "}
               <span className="text-soluk">({bosHitap ? `"${bosHitap}" hitabı kullanılacak` : "{isletme} kaldırılacak"})</span>
             </p>
           )}
-          {ozet.onizleme && (
+          {ozet.onizleme && !ozet.whatsapp && (
             <div className="rounded-md bg-zemin p-3 text-sm">
               <p className="mb-1 text-xs font-medium text-soluk">İlk alıcı için mesaj</p>
               <p className="whitespace-pre-wrap break-words">{ozet.onizleme}</p>
@@ -310,13 +367,22 @@ export function YeniKampanya(props: {
               Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın: {ozet.eksikAyarlar.join(", ")}.
             </p>
           ) : (
-            <p className="text-sm text-soluk">Gerçek gönderim: çalışma alanınızın sağlayıcısı üzerinden gönderilecek.</p>
+            <p className="text-sm text-soluk">
+              {ozet.whatsapp
+                ? "Gerçek gönderim: WhatsApp Business Platform (Cloud API) üzerinden onaylı şablonla."
+                : "Gerçek gönderim: çalışma alanınızın sağlayıcısı üzerinden gönderilecek."}
+            </p>
           )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className="dugme-ana"
-              disabled={mesgul || ozet.gonderilecek === 0 || Boolean(gercekGonderim && ozet.eksikAyarlar.length)}
+              disabled={
+                mesgul ||
+                ozet.gonderilecek === 0 ||
+                Boolean(gercekGonderim && ozet.eksikAyarlar.length) ||
+                Boolean(gercekGonderim && ozet.whatsapp && (!ozet.whatsapp.baglantiVar || ozet.whatsapp.kalite === "RED"))
+              }
               onClick={() => void baslat()}
             >
               {zamanla ? "Kampanyayı zamanla" : "Kampanyayı başlat"}
@@ -350,6 +416,146 @@ function SmsSayaci({ metin, altbilgi }: { metin: string; altbilgi: string }) {
         Altbilgi dahil ({altbilgi.length} karakter), işletme adı &quot;Örnek İşletme&quot; varsayılarak. Tahminidir;
         faturalamada sağlayıcının hesabı esastır.
       </p>
+    </div>
+  );
+}
+
+function WhatsappSablonSecimi(props: {
+  sablonlar: SablonDto[];
+  sablonId: string;
+  eslem: DegiskenEslemi;
+  onSablon: (id: string) => void;
+  onEslem: (e: DegiskenEslemi) => void;
+}) {
+  const sablon = props.sablonlar.find((x) => x.id === props.sablonId) ?? null;
+  const ayar = (anahtar: string, degisiklik: Partial<DegiskenEslemi[string]>) =>
+    props.onEslem({
+      ...props.eslem,
+      [anahtar]: { ...(props.eslem[anahtar] ?? { kaynak: "isletme_adi" }), ...degisiklik },
+    });
+  return (
+    <fieldset className="flex flex-col gap-3 rounded-md border border-kenar p-3">
+      <legend className="px-1 text-sm font-medium">WhatsApp şablonu</legend>
+      {props.sablonlar.length === 0 ? (
+        <p className="text-sm text-soluk">
+          Kullanılabilir onaylı şablon yok. Şablonlar Meta WhatsApp Manager&apos;da oluşturulur; Ayarlar → WhatsApp Business
+          (API) bölümünden senkronize edin.
+        </p>
+      ) : (
+        <label className="etiket">
+          Şablon
+          <select value={props.sablonId} onChange={(e) => props.onSablon(e.target.value)} required className="girdi">
+            <option value="">Seçin</option>
+            {props.sablonlar.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.ad} ({x.dil}, {SABLON_KATEGORI_ADLARI[x.kategori] ?? x.kategori})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {sablon?.degiskenler.map((dg) => {
+        const anahtar = degiskenAnahtari(dg);
+        const a = props.eslem[anahtar] ?? { kaynak: "isletme_adi" as DegiskenKaynagi };
+        return (
+          <div key={anahtar} className="grid gap-2 sm:grid-cols-3">
+            <label className="etiket">
+              {dg.bilesen === "header" ? "Başlık" : "Gövde"} {"{{"}
+              {dg.ad}
+              {"}}"}
+              <select
+                value={a.kaynak}
+                onChange={(e) => ayar(anahtar, { kaynak: e.target.value as DegiskenKaynagi })}
+                className="girdi"
+              >
+                {DEGISKEN_KAYNAKLARI.map((k) => (
+                  <option key={k} value={k}>
+                    {DEGISKEN_KAYNAK_ADLARI[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {a.kaynak === "sabit" ? (
+              <label className="etiket sm:col-span-2">
+                Metin
+                <input
+                  value={a.deger ?? ""}
+                  onChange={(e) => ayar(anahtar, { deger: e.target.value })}
+                  maxLength={500}
+                  required
+                  className="girdi"
+                />
+              </label>
+            ) : (
+              <label className="etiket sm:col-span-2">
+                Kayıtta boşsa <span className="text-xs font-normal text-soluk">(boş bırakılırsa alıcı hariç tutulur)</span>
+                <input
+                  value={a.yedek ?? ""}
+                  onChange={(e) => ayar(anahtar, { yedek: e.target.value })}
+                  maxLength={500}
+                  className="girdi"
+                />
+              </label>
+            )}
+          </div>
+        );
+      })}
+      {sablon && (
+        <p className="text-xs text-soluk">
+          Metin Meta&apos;da onaylı şablondan gelir; burada yalnızca değişkenlerin değerleri seçilir. Değerler satır sonu ve
+          art arda boşluk içermeyecek şekilde tek satıra indirgenir.
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+function WhatsappOzetKutusu({ ozet }: { ozet: KampanyaOzeti }) {
+  const w = ozet.whatsapp!;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-kenar p-3 text-sm">
+      <p>
+        Şablon: <strong>{w.sablonAdi}</strong> ({w.dil}, {SABLON_KATEGORI_ADLARI[w.kategori] ?? w.kategori})
+      </p>
+      {!ozet.sandbox && !w.baglantiVar && (
+        <p role="alert" className="text-tehlike">
+          WhatsApp Business bağlantısı tanımlı değil; Ayarlar → WhatsApp Business (API).
+        </p>
+      )}
+      {!ozet.sandbox && w.testModu && (
+        <p className="rounded-md bg-amber-50 p-2 text-amber-800">
+          Test modu açık: kampanya yalnızca Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
+          nedeniyle hariç tutuldu.
+        </p>
+      )}
+      {!ozet.sandbox && w.kalite && (
+        <p className={w.kalite === "RED" ? "text-tehlike" : ""}>
+          Numara kalitesi: {KALITE_ADLARI[w.kalite]}
+          {w.kalite === "RED" && " — kalite düzelene kadar kampanya başlatılamaz."}
+        </p>
+      )}
+      {!ozet.sandbox && w.limitPayi !== null && (
+        <p className="text-soluk">
+          Meta mesajlaşma limitinin bu uygulamaya ayrılan payı: {sayiYaz(w.limitPayi)} ileti / 24 saat (son 24 saatte{" "}
+          {sayiYaz(w.son24Saat)}). Pay dolunca kalan alıcılar ertesi güne kalır.
+        </p>
+      )}
+      {w.tahminiUcretUsd !== null && (
+        <p>
+          Tahmini Meta ücreti: <strong>${w.tahminiUcretUsd.toFixed(2)}</strong>{" "}
+          <span className="text-xs text-soluk">
+            ({sayiYaz(ozet.gonderilecek)} × ${w.birimFiyatUsd?.toFixed(4)}, Türkiye, {w.fiyatTarihi} fiyatı
+            {w.fiyatDogrulandi ? "" : "; fiyat Meta'nın kartından doğrulanmadı"}). Yalnızca teslim edilen ileti ücretlenir;
+            Meta ücreti doğrudan WhatsApp hesabınızdan keser, Harita CRM fatura kesmez.
+          </span>
+        </p>
+      )}
+      {w.onizlemeler.map((m, i) => (
+        <div key={i} className="rounded-md bg-zemin p-3">
+          <p className="mb-1 text-xs font-medium text-soluk">{i + 1}. alıcı için mesaj</p>
+          <p className="whitespace-pre-wrap break-words">{m}</p>
+        </div>
+      ))}
     </div>
   );
 }

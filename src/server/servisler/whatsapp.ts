@@ -240,6 +240,8 @@ const NEDEN_METNI: Record<HaricNedeni | "sinir_doldu" | "sablon_yok", string> = 
   whatsapp_izni_yok: "WhatsApp izni yok.",
   iys_beyani_yok: "Bireysel kayıt; İYS beyanı yok.",
   whatsapp_yok: "Numarada WhatsApp yok.",
+  test_modu: "Test modu: test numarası değil.",
+  degisken_bos: "Şablon değişkeni boş.",
   sinir_doldu: SINIR_DOLDU,
   sablon_yok: "Ayarlar'da WhatsApp mesaj şablonu tanımlı değil.",
 };

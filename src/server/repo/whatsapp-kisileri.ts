@@ -111,3 +111,21 @@ export function whatsappIzniAyarla(ctx: TenantContext, leadId: string, g: Whatsa
     return { tamam: true, kisi };
   });
 }
+
+/** Meta "alıcıda WhatsApp yok / teslim edilemez" (131026) bildirdi: bir süre kampanyalara alınmaz. */
+export function whatsappYokIsaretle(ctx: TenantContext, leadId: string, simdi = new Date()): boolean {
+  const kayit = db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(and(eq(leads.id, leadId), eq(leads.tenantId, ctx.tenantId)))
+    .get();
+  if (!kayit) return false;
+  db.insert(whatsappKisileri)
+    .values({ tenantId: ctx.tenantId, leadId, whatsappYokTarihi: simdi })
+    .onConflictDoUpdate({
+      target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
+      set: { whatsappYokTarihi: simdi, guncellemeTarihi: simdi },
+    })
+    .run();
+  return true;
+}

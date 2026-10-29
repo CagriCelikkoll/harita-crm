@@ -1,11 +1,14 @@
 // Kampanya detayı: ilerleme ve alıcı bazında durum (sayfalı). Kampanya bu kiracının değilse 404.
-// İptal: POST ?islem=iptal (bekleyen mesajlar gönderilmez).
+// İptal: POST ?islem=iptal (bekleyen mesajlar gönderilmez). Devam: POST ?islem=devam (duraklatılmış WhatsApp
+// kampanyası; yalnızca yönetici, kalite kırmızı değilse).
 import { NextResponse } from "next/server";
 import { MESAJ_DURUMLARI } from "@/lib/mesajlasma";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { kampanyaGetir, kampanyaIptal, kampanyaMesajlari } from "@/server/repo/kampanyalar";
 import { kampanyaDto, mesajDto } from "@/server/servisler/kampanya-dto";
+import { YetkiHatasi } from "@/server/repo/baglam";
+import { KampanyaHatasi, kampanyayiDevamEttir } from "@/server/servisler/kampanya";
 
 export async function GET(istek: Request, { params }: RouteContext<"/api/kampanyalar/[id]">) {
   const ctx = await apiBaglami();
@@ -26,9 +29,20 @@ export async function POST(istek: Request, { params }: RouteContext<"/api/kampan
   if (!ayniKaynakMi(istek)) return yasak();
   const ctx = await apiBaglami();
   if (!ctx) return yetkisiz();
-  if (new URL(istek.url).searchParams.get("islem") !== "iptal") return gecersiz("Bilinmeyen işlem.");
+  const islem = new URL(istek.url).searchParams.get("islem");
   const { id } = await params;
   if (!kampanyaGetir(ctx, id)) return bulunamadi();
+  if (islem === "devam") {
+    try {
+      await kampanyayiDevamEttir(ctx, id);
+    } catch (hata) {
+      if (hata instanceof YetkiHatasi) return yasak(hata.message);
+      if (hata instanceof KampanyaHatasi) return gecersiz(hata.message);
+      throw hata;
+    }
+    return NextResponse.json({ tamam: true });
+  }
+  if (islem !== "iptal") return gecersiz("Bilinmeyen işlem.");
   if (!kampanyaIptal(ctx, id)) return gecersiz("Bu kampanya iptal edilemez (tamamlanmış ya da zaten iptal).");
   return NextResponse.json({ tamam: true });
 }

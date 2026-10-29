@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { ayniKaynakMi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
+import { YetkiHatasi } from "@/server/repo/baglam";
 import { KampanyaGirdisi, KampanyaHatasi, kampanyaBaslat } from "@/server/servisler/kampanya";
 
 export async function POST(istek: Request) {
@@ -16,6 +17,7 @@ export async function POST(istek: Request) {
     return NextResponse.json({ id: kampanya.id }, { status: 201 });
   } catch (hata) {
     if (hata instanceof KampanyaHatasi) return gecersiz(hata.message);
+    if (hata instanceof YetkiHatasi) return yasak("WhatsApp kampanyasını yalnızca yönetici başlatabilir (Meta ücreti).");
     throw hata;
   }
 }

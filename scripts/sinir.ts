@@ -1,12 +1,12 @@
 // Çalışma alanının günlük gönderim sınırını değiştirir (kanal bazında, İstanbul günü).
-// Kullanım: npm run sinir -- <tenant-slug> <eposta|sms|whatsapp> <sayi|varsayilan>
+// Kullanım: npm run sinir -- <tenant-slug> <eposta|sms|whatsapp_api|whatsapp> <sayi|varsayilan>
 //   ör. npm run sinir -- ege-satis eposta 500
 //       npm run sinir -- ege-satis sms varsayilan   (GUNLUK_SMS_SINIRI ya da 200)
 import "./ortam";
-import { KANALLAR } from "../src/lib/mesajlasma";
+import { KUYRUK_KANALLARI } from "../src/lib/mesajlasma";
 import { gunlukSinirAyarla, type SinirKanali } from "../src/server/repo/sistem/sinir";
 
-const KANAL_SECENEKLERI = [...KANALLAR, "whatsapp"];
+const KANAL_SECENEKLERI: string[] = [...KUYRUK_KANALLARI, "whatsapp"];
 
 const [slug, kanal, deger] = process.argv.slice(2);
 const sayi = deger === "varsayilan" ? null : Number(deger);

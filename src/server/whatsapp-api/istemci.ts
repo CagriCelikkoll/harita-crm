@@ -22,14 +22,22 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
   if (!kimlikGecerli(b.wabaId) || !kimlikGecerli(b.phoneNumberId)) throw new GraphHatasi("WABA ID ve Phone Number ID sayısal olmalı.", 400);
   const { surum, adres } = graphAyarlari();
 
-  async function istek<T>(yol: string, secenek: { method?: "GET" | "POST"; sorgu?: Record<string, string> } = {}): Promise<T> {
+  async function istek<T>(
+    yol: string,
+    secenek: { method?: "GET" | "POST"; sorgu?: Record<string, string>; govde?: unknown } = {},
+  ): Promise<T> {
     const url = new URL(`${adres}/${surum}/${yol}`);
     for (const [k, v] of Object.entries(secenek.sorgu ?? {})) url.searchParams.set(k, v);
     let yanit: Response;
     try {
       yanit = await fetch(url, {
         method: secenek.method ?? "GET",
-        headers: { Authorization: `Bearer ${b.erisimAnahtari}`, "User-Agent": "HaritaCRM/1.0" },
+        headers: {
+          Authorization: `Bearer ${b.erisimAnahtari}`,
+          "User-Agent": "HaritaCRM/1.0",
+          ...(secenek.govde !== undefined ? { "Content-Type": "application/json" } : {}),
+        },
+        body: secenek.govde !== undefined ? JSON.stringify(secenek.govde) : undefined,
         signal: AbortSignal.timeout(ZAMAN_ASIMI_MS),
         redirect: "error",
         cache: "no-store",
@@ -48,6 +56,23 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
   }
 
   return {
+    async mesajGonder(g) {
+      const v = await istek<{ messages?: { id: string; message_status?: string }[] }>(`${b.phoneNumberId}/messages`, {
+        method: "POST",
+        govde: {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          ...(g.alici.tur === "telefon" ? { to: g.alici.deger } : { recipient: g.alici.deger }),
+          type: "template",
+          template: { name: g.sablonAdi, language: { code: g.dil }, ...(g.bilesenler.length ? { components: g.bilesenler } : {}) },
+        },
+      });
+      const m = v.messages?.[0];
+      // Yanıt alındı ama ileti kimliği yok: gidip gitmediği bilinmiyor (belirsiz sayılır).
+      if (!m?.id) throw new GraphHatasi("Meta yanıtında ileti kimliği yok.", 0);
+      return { wamid: m.id, durum: m.message_status ?? null };
+    },
+
     async numaraBilgisi() {
       const v = await istek<{
         id: string;

@@ -1,6 +1,6 @@
 // Sahte WhatsApp Cloud API istemcisi: testlerde her zaman, geliştirmede WHATSAPP_API_MOCK=1 ile. Gerçek ağa çıkmaz.
 // Durum modül düzeyindedir; testler mockWhatsappSifirla() ve mockWhatsapp üzerinden senaryo kurar.
-import type { MetaSablon, NumaraBilgisi, WhatsappApiIstemcisi } from "./tipler";
+import type { MetaSablon, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
 import { GraphHatasi, type GraphBaglantisi } from "./tipler";
 
 const ornekSablonlar = (): MetaSablon[] => [
@@ -43,6 +43,12 @@ export const mockWhatsapp = {
   /** Doluysa bir sonraki çağrı bu hatayla başarısız olur (tek seferlik). */
   hata: null as GraphHatasi | null,
   abonelikSayisi: 0,
+  /** Gönderilen şablonlu iletiler (sırasıyla). */
+  gonderilenler: [] as (SablonGonderimi & { wamid: string })[],
+  /** Alıcıya (telefon ya da BSUID) özel gönderim hatası; her gönderimde yeniden uygulanır. */
+  aliciHatalari: new Map<string, GraphHatasi>(),
+  /** Gönderim yanıtındaki message_status. */
+  gonderimDurumu: "accepted" as string | null,
   /** Son çağrıda kullanılan bağlantı (erişim anahtarının doğru çözüldüğünü test etmek için). */
   sonBaglanti: null as GraphBaglantisi | null,
 };
@@ -53,6 +59,9 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.hata = null;
   mockWhatsapp.abonelikSayisi = 0;
   mockWhatsapp.sonBaglanti = null;
+  mockWhatsapp.gonderilenler = [];
+  mockWhatsapp.aliciHatalari = new Map();
+  mockWhatsapp.gonderimDurumu = "accepted";
 }
 
 export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi {
@@ -64,6 +73,14 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
     if (b.erisimAnahtari === "gecersiz") throw new GraphHatasi("Invalid OAuth access token", 401, 190);
   };
   return {
+    async mesajGonder(g) {
+      cagri();
+      const h = mockWhatsapp.aliciHatalari.get(g.alici.deger);
+      if (h) throw h;
+      const wamid = `wamid.MOCK${String(mockWhatsapp.gonderilenler.length + 1).padStart(6, "0")}`;
+      mockWhatsapp.gonderilenler.push({ ...structuredClone(g), wamid });
+      return { wamid, durum: mockWhatsapp.gonderimDurumu };
+    },
     async numaraBilgisi() {
       cagri();
       return (

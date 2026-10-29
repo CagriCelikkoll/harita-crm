@@ -431,6 +431,16 @@ const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
   kampanyaIptal: () => {
     expect(kampanyalar.kampanyaIptal(A, bKampanya.id)).toBe(false);
   },
+  whatsappKampanyalariniDuraklat: () => {
+    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk", bKampanya.id)).toBe(0);
+    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk")).toBe(0);
+  },
+  kampanyaDevamEttir: () => {
+    db.$client.prepare("update kampanyalar set durum = 'duraklatildi' where id = ?").run(bKampanya.id);
+    expect(kampanyalar.kampanyaDevamEttir(A, bKampanya.id)).toBe(false);
+    expect(kampanyalar.kampanyaGetir(B, bKampanya.id)?.durum).toBe("duraklatildi");
+    db.$client.prepare("update kampanyalar set durum = 'calisiyor' where id = ?").run(bKampanya.id);
+  },
 };
 
 const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
@@ -449,6 +459,13 @@ const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
   },
   mesajBirak: () => {
     expect(kuyruk.mesajBirak(A, bMesajId, { durum: "basarisiz", neden: "x" })).toBe(false);
+  },
+  whatsappSon24Saat: () => {
+    // B'nin gönderilmekte olan WhatsApp mesajı A'nın sayımına girmez.
+    db.$client.prepare("update message_queue set kanal = 'whatsapp_api' where id = ?").run(bMesajId);
+    expect(kuyruk.whatsappSon24Saat(A, new Date(), "")).toBe(0);
+    expect(kuyruk.whatsappSon24Saat(B, new Date(), "")).toBe(1);
+    db.$client.prepare("update message_queue set kanal = 'eposta' where id = ?").run(bMesajId);
   },
 };
 
@@ -486,6 +503,9 @@ const whatsappKisiTestleri: Record<keyof typeof whatsappKisileri, () => void> = 
   whatsappKisileriGetir: () => {
     expect(whatsappKisileri.whatsappKisileriGetir(A, [bKisi.id]).size).toBe(0);
     expect(whatsappKisileri.whatsappKisileriGetir(B, [bKisi.id]).get(bKisi.id)?.bsuid).toBe(B_BSUID);
+  },
+  whatsappYokIsaretle: () => {
+    expect(whatsappKisileri.whatsappYokIsaretle(A, bKisi.id)).toBe(false);
   },
   whatsappIzniAyarla: () => {
     const olaySayisi = olaylar.olaylariListele(B, bKisi.id).length;
