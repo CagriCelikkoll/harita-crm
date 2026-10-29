@@ -5,7 +5,8 @@
 //  1. ileti_izni = 'ret'                         → hariç ("ret")
 //  2. alici_turu = 'bireysel' ve izin 'onayli' değil → hariç ("bireysel_izinsiz")
 //  3. Adres: e-posta yalnızca kaydın eposta alanı; telefon önce ek_telefon, yoksa gönderim anında canlı
-//     Places detayı (çağıran çözer ve placesTelefonu ile tekrar sorar). Adres yoksa "iletisim_yok".
+//     Places detayı (çağıran çözer ve placesTelefonu ile tekrar sorar; yalnızca place_id olan Google kayıtları).
+//     Adres yoksa "iletisim_yok".
 //  4. SMS / WhatsApp: cep telefonu değilse "cep_degil".
 //  5. Adres engel listesindeyse "engel".
 import "server-only";
@@ -14,12 +15,12 @@ import type { Kayit } from "../repo/kayitlar";
 import { cepMi, epostaNormallestir, telefonNormallestir } from "./adres";
 
 export type AliciKanali = Kanal | "whatsapp";
-export type AliciKaydi = Pick<Kayit, "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon">;
+export type AliciKaydi = Pick<Kayit, "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "placeId">;
 
 export type AliciKarari =
   | { uygun: true; adres: string; kaynak: "kayit" | "places" }
   /** Telefon kayıtta yok; gönderim anında Places'tan alınacak (kota birimi düşer). */
-  | { uygun: true; adres: null; kaynak: "places" }
+  | { uygun: true; adres: null; kaynak: "places"; placeId: string }
   | { uygun: false; neden: HaricNedeni };
 
 /** (tür, normal adres) engel listesinde mi? Çağıran, kiracının engel özetleriyle sağlar. */
@@ -48,7 +49,9 @@ export function aliciDegerlendir(
     kaynak = "kayit";
     if (!telefon) return { uygun: false, neden: "cep_degil" }; // tanınmayan numara
   } else {
-    if (secenek.placesTelefonu === undefined) return { uygun: true, adres: null, kaynak: "places" };
+    // Google dışı kayıtta (içe aktarma, elle, reklam) Places yoktur: telefon yalnızca kayıttan.
+    if (!kayit.placeId) return { uygun: false, neden: "iletisim_yok" };
+    if (secenek.placesTelefonu === undefined) return { uygun: true, adres: null, kaynak: "places", placeId: kayit.placeId };
     if (secenek.placesTelefonu === null) return { uygun: false, neden: "iletisim_yok" };
     telefon = telefonNormallestir(secenek.placesTelefonu);
     kaynak = "places";

@@ -1,15 +1,17 @@
-import { and, count, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import {
   ILETI_IZNI_ADLARI,
   KAYIT_DURUM_ADLARI,
   SAYFA_BOYUTU,
   type IletiIzni,
+  type KayitKaynagi,
   type KayitDurumu,
   type OlayTuru,
 } from "@/lib/sabitler";
 import { db } from "../db";
-import { engelListesi, leadEvents, leads, scans, type Kayit } from "../db/schema";
-import { kayitAdresOzetleri } from "../messaging/adres";
+import { engelListesi, leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
+import { kayitAdresOzetleri, telefonNormallestir } from "../messaging/adres";
+import type { AliciTuru } from "@/lib/mesajlasma";
 import { likeKacir, type TenantContext } from "./baglam";
 
 export type { Kayit };
@@ -18,6 +20,7 @@ export type KayitFiltresi = {
   sayfa?: number;
   durum?: KayitDurumu;
   iletiIzni?: IletiIzni;
+  kaynak?: KayitKaynagi;
   etiket?: string;
   /** Yalnızca kullanıcının girdiği alanlarda arar (Places içeriği saklanmadığı için). */
   arama?: string;
@@ -27,6 +30,7 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   const kosullar: SQL[] = [eq(leads.tenantId, ctx.tenantId)];
   if (f.durum) kosullar.push(eq(leads.durum, f.durum));
   if (f.iletiIzni) kosullar.push(eq(leads.iletiIzni, f.iletiIzni));
+  if (f.kaynak) kosullar.push(eq(leads.kaynak, f.kaynak));
   if (f.etiket) {
     kosullar.push(sql`exists (select 1 from json_each(${leads.etiketler}) where json_each.value = ${f.etiket})`);
   }
@@ -136,7 +140,11 @@ export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitD
 
     const yeni = tx
       .update(leads)
-      .set({ ...degisiklik, guncellemeTarihi: new Date() })
+      .set({
+        ...degisiklik,
+        ...("ekTelefon" in degisiklik ? { telefonE164: telefonNormallestir(degisiklik.ekTelefon) } : {}),
+        guncellemeTarihi: new Date(),
+      })
       .where(kosul)
       .returning()
       .get();
@@ -177,6 +185,16 @@ export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitD
           .onConflictDoNothing({ target: [engelListesi.tenantId, engelListesi.tur, engelListesi.ozet] })
           .run();
       }
+      // Ret tüm kanallar içindir (retIsle ile aynı): WhatsApp izni de 'ret'.
+      const simdi = new Date();
+      tx.insert(whatsappKisileri)
+        .values({ tenantId: ctx.tenantId, leadId: id, izin: "ret", izinTarihi: simdi })
+        .onConflictDoUpdate({
+          target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
+          set: { izin: "ret", izinTarihi: simdi, guncellemeTarihi: simdi },
+          setWhere: sql`${whatsappKisileri.izin} <> 'ret'`,
+        })
+        .run();
     }
     if (olaylar.length) {
       tx.insert(leadEvents)
@@ -232,8 +250,8 @@ export function taramaKayitlari(ctx: TenantContext, scanId: string) {
   return db
     .select({ id: leads.id, placeId: leads.placeId, durum: leads.durum })
     .from(leads)
-    .where(and(eq(leads.tenantId, ctx.tenantId), eq(leads.scanId, scanId)))
-    .all();
+    .where(and(eq(leads.tenantId, ctx.tenantId), eq(leads.scanId, scanId), isNotNull(leads.placeId)))
+    .all() as { id: string; placeId: string; durum: Kayit["durum"] }[];
 }
 
 /** CSV için: yalnızca kullanıcının kendi verisi (Places içeriği yok). */
@@ -258,4 +276,80 @@ export function ekTelefonluKayitlar(ctx: TenantContext): { id: string; ekTelefon
     .from(leads)
     .where(and(eq(leads.tenantId, ctx.tenantId), sql`${leads.ekTelefon} is not null`))
     .all() as { id: string; ekTelefon: string }[];
+}
+
+/** Google dışı kişi kaydı (içe aktarma, elle, Meta reklamı). Ad ve telefon kullanıcının verisidir. */
+export type YeniKisi = {
+  kaynak: Exclude<KayitKaynagi, "google">;
+  isletmeAdi?: string | null;
+  yetkiliAdi?: string | null;
+  eposta?: string | null;
+  ekTelefon?: string | null;
+  notlar?: string | null;
+  etiketler?: string[];
+  aliciTuru?: AliciTuru;
+};
+
+/** Kişileri ekler; her biri için "eklendi" olayı yazılır. Çağıran aynı transaction'da ek işler yapabilir (tx). */
+export function kisileriEkle(
+  ctx: TenantContext,
+  kisiler: YeniKisi[],
+  aciklama: string,
+  tx: Pick<typeof db, "insert"> = db,
+): Kayit[] {
+  const eklenen: Kayit[] = [];
+  for (let i = 0; i < kisiler.length; i += 200) {
+    const parca = kisiler.slice(i, i + 200);
+    const satirlar = tx
+      .insert(leads)
+      .values(
+        parca.map((k) => ({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          kaynak: k.kaynak,
+          placeId: null,
+          isletmeAdi: k.isletmeAdi ?? null,
+          yetkiliAdi: k.yetkiliAdi ?? null,
+          eposta: k.eposta ?? null,
+          ekTelefon: k.ekTelefon ?? null,
+          telefonE164: telefonNormallestir(k.ekTelefon),
+          notlar: k.notlar ?? null,
+          etiketler: k.etiketler ?? [],
+          ...(k.aliciTuru ? { aliciTuru: k.aliciTuru } : {}),
+        })),
+      )
+      .returning()
+      .all();
+    tx.insert(leadEvents)
+      .values(
+        satirlar.map((k) => ({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          leadId: k.id,
+          tur: "eklendi" as const,
+          aciklama,
+          kullaniciId: ctx.userId || null,
+          sistem: true,
+        })),
+      )
+      .run();
+    eklenen.push(...satirlar);
+  }
+  return eklenen;
+}
+
+/** Normalize telefonu (905XXXXXXXXX) verilen numaralardan biri olan kayıtlar: içe aktarma çakışması, WhatsApp eşleştirmesi. */
+export function telefonlaKayitlar(ctx: TenantContext, telefonlar: string[]): { id: string; telefonE164: string }[] {
+  const benzersiz = [...new Set(telefonlar)];
+  const sonuc: { id: string; telefonE164: string }[] = [];
+  for (let i = 0; i < benzersiz.length; i += 500) {
+    sonuc.push(
+      ...(db
+        .select({ id: leads.id, telefonE164: leads.telefonE164 })
+        .from(leads)
+        .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.telefonE164, benzersiz.slice(i, i + 500))))
+        .all() as { id: string; telefonE164: string }[]),
+    );
+  }
+  return sonuc;
 }

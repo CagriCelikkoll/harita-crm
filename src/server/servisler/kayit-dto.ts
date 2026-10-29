@@ -4,7 +4,9 @@ import type { olaylariListele } from "../repo/olaylar";
 
 export type KayitDto = {
   id: string;
-  placeId: string;
+  kaynak: Kayit["kaynak"];
+  /** Yalnızca 'google' kayıtlarında. */
+  placeId: string | null;
   durum: Kayit["durum"];
   iletiIzni: Kayit["iletiIzni"];
   isletmeAdi: string | null;
@@ -29,6 +31,7 @@ export type OlayDto = {
 
 export const kayitDto = (k: Kayit): KayitDto => ({
   id: k.id,
+  kaynak: k.kaynak,
   placeId: k.placeId,
   durum: k.durum,
   iletiIzni: k.iletiIzni,

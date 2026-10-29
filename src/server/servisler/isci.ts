@@ -140,9 +140,9 @@ async function mesajIsle(
 
   // 5) Telefon kayıtta yoksa (SMS): gönderim anında Places'tan canlı; numara saklanmaz, kota birimi düşer.
   //    Günlük sınırdan SONRA: sınıra takılacak mesaj için Places kotası harcanmaz.
-  let adres = karar.adres;
-  if (adres === null) {
-    const tel = await placesTelefonuGetir(ctx, kayit.placeId);
+  let adres: string;
+  if (karar.adres === null) {
+    const tel = await placesTelefonuGetir(ctx, karar.placeId);
     if (tel.durum === "kota") {
       iade();
       mesajBirak(ctx, mesaj.id, {
@@ -166,6 +166,8 @@ async function mesajIsle(
       return "haric";
     }
     adres = ikinci.adres;
+  } else {
+    adres = karar.adres;
   }
   const engelTuru = mesaj.kanal === "eposta" ? "eposta" : "telefon";
 

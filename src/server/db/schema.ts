@@ -5,11 +5,22 @@
 // Places'tan gelen enlem/boylam yalnızca place_locations tablosunda en fazla 30 gün tutulur
 // (npm run cleanup siler). tests/sema.test.ts bu kuralı denetler.
 import { sql } from "drizzle-orm";
-import { foreignKey, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { user } from "./auth-schema";
 import {
   ILETI_IZINLERI,
   KAYIT_DURUMLARI,
+  KAYIT_KAYNAKLARI,
   MERKEZ_KAYNAKLARI,
   OLAY_TURLERI,
   ROLLER,
@@ -26,7 +37,10 @@ import {
   VARSAYILAN_GONDERIM_BASLANGIC_DK,
   VARSAYILAN_GONDERIM_BITIS_DK,
   WHATSAPP_DURUMLARI,
+  WHATSAPP_IZIN_KAYNAKLARI,
+  WHATSAPP_IZINLERI,
 } from "../../lib/mesajlasma";
+import { ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
 
 export * from "./auth-schema";
 
@@ -122,13 +136,17 @@ export const leads = sqliteTable(
     tenantId: text("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    placeId: text("place_id").notNull(),
+    // 'google' dışındaki kaynaklarda place_id yoktur (leads_kaynak_place_ck).
+    kaynak: text("kaynak", { enum: KAYIT_KAYNAKLARI }).notNull().default("google"),
+    placeId: text("place_id"),
     scanId: text("scan_id").references(() => scans.id, { onDelete: "set null" }),
     durum: text("durum", { enum: KAYIT_DURUMLARI }).notNull().default("yeni"),
     // Aşağıdakiler kullanıcının kendi girdiği verilerdir.
     yetkiliAdi: text("yetkili_adi"),
     eposta: text("eposta"),
     ekTelefon: text("ek_telefon"),
+    // ek_telefon'un normalize hali (905XXXXXXXXX); yalnızca repo yazar. Çakışma kontrolü ve WhatsApp eşleştirmesi için.
+    telefonE164: text("telefon_e164"),
     notlar: text("notlar"),
     etiketler: text("etiketler", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     iletiIzni: text("ileti_izni", { enum: ILETI_IZINLERI }).notNull().default("bekliyor"),
@@ -139,10 +157,85 @@ export const leads = sqliteTable(
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
   },
   (t) => [
+    // NULL place_id'ler (Google dışı kayıtlar) birbiriyle çakışmaz.
     uniqueIndex("leads_tenant_place_uq").on(t.tenantId, t.placeId),
     // lead_events'teki bileşik yabancı anahtar için.
     uniqueIndex("leads_tenant_id_uq").on(t.tenantId, t.id),
     index("leads_tenant_guncelleme_idx").on(t.tenantId, t.guncellemeTarihi),
+    index("leads_tenant_telefon_idx").on(t.tenantId, t.telefonE164),
+    check("leads_kaynak_place_ck", sql`(${t.kaynak} = 'google') = (${t.placeId} is not null)`),
+  ],
+);
+
+/**
+ * Kaydın WhatsApp (Cloud API) bilgileri, leads ile 1:1. İzin kanıtı (tarih, kaynak, not, içe aktarma) burada tutulur.
+ * bsuid: Meta'nın işletmeye özel kullanıcı kimliği; kişi eşleştirmesi önce bununla, yoksa telefon_e164 ile yapılır.
+ * Gelen mesajların METNİ hiçbir yerde saklanmaz.
+ */
+export const whatsappKisileri = sqliteTable(
+  "whatsapp_kisileri",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    leadId: text("lead_id").notNull(),
+    bsuid: text("bsuid"),
+    // Yalnızca gösterim için (kullanıcı WhatsApp kullanıcı adı açmışsa).
+    waKullaniciAdi: text("wa_kullanici_adi"),
+    izin: text("izin", { enum: WHATSAPP_IZINLERI }).notNull().default("yok"),
+    izinTarihi: zaman("izin_tarihi"),
+    izinKaynagi: text("izin_kaynagi", { enum: WHATSAPP_IZIN_KAYNAKLARI }),
+    izinNotu: text("izin_notu"),
+    izinIceAktarmaId: text("izin_ice_aktarma_id"),
+    // Bireysel alıcı: izinin İYS'ye kaydedildiğine dair çalışma alanının beyanı (tarih).
+    iysBeyanTarihi: zaman("iys_beyan_tarihi"),
+    // Meta "alıcıda WhatsApp yok / teslim edilemez" bildirdiğinde.
+    whatsappYokTarihi: zaman("whatsapp_yok_tarihi"),
+    // Click-to-WhatsApp reklamından gelen kişi.
+    reklamKimligi: text("reklam_kimligi"),
+    reklamBasligi: text("reklam_basligi"),
+    ctwaClid: text("ctwa_clid"),
+    pencereBitis: zaman("pencere_bitis"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.leadId] }),
+    foreignKey({ columns: [t.tenantId, t.leadId], foreignColumns: [leads.tenantId, leads.id] }).onDelete("cascade"),
+    uniqueIndex("whatsapp_kisileri_bsuid_uq").on(t.tenantId, t.bsuid).where(sql`${t.bsuid} is not null`),
+  ],
+);
+
+/**
+ * İçe aktarma oturumu ve izi. satirlar: ayrıştırılmış dosya satırları, GEÇİCİ (tamamlanınca ya da süresi dolunca
+ * silinir). Beyan onayı (izinli içe aktarma) kanıt olarak kalıcı tutulur.
+ */
+export const iceAktarmalar = sqliteTable(
+  "ice_aktarmalar",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kullaniciId: text("kullanici_id").references(() => user.id, { onDelete: "set null" }),
+    dosyaAdi: text("dosya_adi").notNull(),
+    durum: text("durum", { enum: ICE_AKTARMA_DURUMLARI }).notNull().default("hazirlaniyor"),
+    satirlar: text("satirlar", { mode: "json" }).$type<string[][]>(),
+    eslem: text("eslem", { mode: "json" }).$type<Record<string, number>>(),
+    toplam: integer("toplam").notNull().default(0),
+    eklenen: integer("eklenen").notNull().default(0),
+    guncellenen: integer("guncellenen").notNull().default(0),
+    hatali: integer("hatali").notNull().default(0),
+    cakisan: integer("cakisan").notNull().default(0),
+    engelli: integer("engelli").notNull().default(0),
+    beyanOnayTarihi: zaman("beyan_onay_tarihi"),
+    beyanSurumu: text("beyan_surumu"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    tamamlanmaTarihi: zaman("tamamlanma_tarihi"),
+  },
+  (t) => [
+    uniqueIndex("ice_aktarmalar_tenant_id_uq").on(t.tenantId, t.id),
+    index("ice_aktarmalar_tenant_idx").on(t.tenantId, t.olusturmaTarihi),
   ],
 );
 
@@ -403,3 +496,5 @@ export type KayitOlayi = typeof leadEvents.$inferSelect;
 export type IletiAyarlari = typeof iletiAyarlari.$inferSelect;
 export type Kampanya = typeof kampanyalar.$inferSelect;
 export type KuyrukMesaji = typeof messageQueue.$inferSelect;
+export type WhatsappKisisi = typeof whatsappKisileri.$inferSelect;
+export type IceAktarma = typeof iceAktarmalar.$inferSelect;

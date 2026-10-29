@@ -23,7 +23,8 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
   const kayit = kayitGetir(ctx, (await params).id);
   if (!kayit) return bulunamadi();
   let canli: CanliSonuc | undefined;
-  if (new URL(istek.url).searchParams.get("canli") === "1") {
+  // Google dışı kayıtta (place_id yok) Places çağrısı yapılmaz.
+  if (kayit.placeId && new URL(istek.url).searchParams.get("canli") === "1") {
     canli = (await canliBilgiGetir(ctx, [kayit.placeId], "detay")).get(kayit.placeId);
   }
   return NextResponse.json(

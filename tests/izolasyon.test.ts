@@ -20,6 +20,7 @@ import * as kampanyalar from "@/server/repo/kampanyalar";
 import * as kuyruk from "@/server/repo/kuyruk";
 import * as saglayicilar from "@/server/repo/saglayicilar";
 import * as whatsapp from "@/server/repo/whatsapp-listesi";
+import * as whatsappKisileri from "@/server/repo/whatsapp-kisileri";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -39,6 +40,9 @@ let bDavetId: string;
 let bKampanya: kampanyalar.Kampanya;
 let bMesajId: string;
 let bOgeId: string;
+let bKisi: kayitlar.Kayit;
+let bWaKisi: whatsappKisileri.WhatsappKisisi;
+const B_BSUID = "TR.1000000000000000001";
 const WA_GUN = "2026-10-12";
 const B_ENGEL = { tur: "eposta" as const, ozet: "" };
 const B_PLACE = "places-b-1";
@@ -74,6 +78,12 @@ beforeAll(() => {
   bMesajId = kampanyalar.kampanyaMesajlari(B, bKampanya.id).mesajlar[0].id;
   whatsapp.listeyeEkle(B, WA_GUN, [bKayit.id]);
   bOgeId = whatsapp.gunlukListe(B, WA_GUN)[0].id;
+  // Google dışı kişi (içe aktarma) + WhatsApp izni ve BSUID
+  bKisi = kayitlar.kisileriEkle(B, [{ kaynak: "ice_aktarma", isletmeAdi: "B Kişisi", ekTelefon: "0533 444 55 66" }], "test")[0];
+  whatsappKisileri.whatsappIzniAyarla(B, bKisi.id, { izin: "var", kaynak: "form" });
+  db.$client.prepare("update whatsapp_kisileri set bsuid = ? where lead_id = ?").run(B_BSUID, bKisi.id);
+  bKisi = kayitlar.kayitGetir(B, bKisi.id)!;
+  bWaKisi = whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)!;
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -95,7 +105,9 @@ function bDegismedi() {
   expect(taramalar.taramaGetir(B, bTarama.id)).toEqual(bTarama);
   expect(kayitlar.kayitGetir(B, bKayit.id)).toEqual(bKayit);
   expect(olaylar.olayGetir(B, bOlay.id)).toEqual(bOlay);
-  expect(kayitlar.kayitlariListele(B).toplam).toBe(2);
+  expect(kayitlar.kayitlariListele(B).toplam).toBe(3);
+  expect(kayitlar.kayitGetir(B, bKisi.id)).toEqual(bKisi);
+  expect(whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)).toEqual(bWaKisi);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -148,7 +160,7 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
   kayitlariEkle: () => {
     // A, B'nin taramasına kayıt ekleyemez.
     expect(kayitlar.kayitlariEkle(A, bTarama.id, ["places-a-saldiri"])).toBeNull();
-    expect(kayitlar.kayitlariListele(B).toplam).toBe(2);
+    expect(kayitlar.kayitlariListele(B).toplam).toBe(3);
     // Aynı place_id iki kiracıda ayrı ayrı bulunabilir; A'nın eklemesi B'ye dokunmaz.
     const aTarama = taramalar.taramaOlustur(A, { merkezLat: 1, merkezLng: 1, yaricapM: 1000, kategori: "kafe" });
     expect(kayitlar.kayitlariEkle(A, aTarama.id, [B_PLACE])).toEqual({ yeni: 1, toplam: 1 });
@@ -168,7 +180,7 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
   durumSayilari: () => {
     const toplam = Object.values(kayitlar.durumSayilari(A)).reduce((a, b) => a + b, 0);
     expect(toplam).toBe(kayitlar.kayitlariListele(A).toplam);
-    expect(kayitlar.durumSayilari(B).yeni).toBe(2);
+    expect(kayitlar.durumSayilari(B).yeni).toBe(3);
   },
   etiketleriListele: () => {
     expect(kayitlar.etiketleriListele(A)).not.toContain("gizli-b");
@@ -189,8 +201,20 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
       .prepare("update leads set ek_telefon = '0532 999 88 77' where tenant_id = ? and place_id = 'places-b-2'")
       .run(B.tenantId);
     expect(kayitlar.ekTelefonluKayitlar(A)).toEqual([]);
-    expect(kayitlar.ekTelefonluKayitlar(B)).toHaveLength(1);
+    expect(kayitlar.ekTelefonluKayitlar(B)).toHaveLength(2); // + Google dışı kişi
     db.$client.prepare("update leads set ek_telefon = null where tenant_id = ? and place_id = 'places-b-2'").run(B.tenantId);
+  },
+  kisileriEkle: () => {
+    // Kişi her zaman çağıranın kiracısına eklenir; B'nin numarasıyla aynı numara A'da ayrı kayıttır.
+    const [k] = kayitlar.kisileriEkle(A, [{ kaynak: "elle", yetkiliAdi: "A kişisi", ekTelefon: "0533 444 55 66" }], "test");
+    expect(k.tenantId).toBe(A.tenantId);
+    expect(k.telefonE164).toBe("905334445566");
+    expect(kayitlar.kayitGetir(B, k.id)).toBeNull();
+    kayitlar.kayitSil(A, k.id);
+  },
+  telefonlaKayitlar: () => {
+    expect(kayitlar.telefonlaKayitlar(A, ["905334445566"])).toEqual([]);
+    expect(kayitlar.telefonlaKayitlar(B, ["905334445566"]).map((k) => k.id)).toEqual([bKisi.id]);
   },
 };
 
@@ -428,6 +452,21 @@ const whatsappTestleri: Record<keyof typeof whatsapp, () => void> = {
   },
 };
 
+const whatsappKisiTestleri: Record<keyof typeof whatsappKisileri, () => void> = {
+  whatsappKisisiGetir: () => {
+    expect(whatsappKisileri.whatsappKisisiGetir(A, bKisi.id)).toBeNull();
+  },
+  whatsappKisileriGetir: () => {
+    expect(whatsappKisileri.whatsappKisileriGetir(A, [bKisi.id]).size).toBe(0);
+    expect(whatsappKisileri.whatsappKisileriGetir(B, [bKisi.id]).get(bKisi.id)?.bsuid).toBe(B_BSUID);
+  },
+  whatsappIzniAyarla: () => {
+    const olaySayisi = olaylar.olaylariListele(B, bKisi.id).length;
+    expect(whatsappKisileri.whatsappIzniAyarla(A, bKisi.id, { izin: "yok" })).toEqual({ tamam: false, neden: "bulunamadi" });
+    expect(olaylar.olaylariListele(B, bKisi.id)).toHaveLength(olaySayisi);
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -442,6 +481,7 @@ const MODULLER = {
   kampanyalar: [kampanyalar, kampanyaTestleri],
   kuyruk: [kuyruk, kuyrukTestleri],
   "whatsapp-listesi": [whatsapp, whatsappTestleri],
+  "whatsapp-kisileri": [whatsappKisileri, whatsappKisiTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

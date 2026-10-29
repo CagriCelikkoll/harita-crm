@@ -4,7 +4,24 @@ export const ROLLER = ["yonetici", "uye"] as const;
 export const TARAMA_DURUMLARI = ["kuyrukta", "calisiyor", "tamamlandi", "hata"] as const;
 export const KAYIT_DURUMLARI = ["yeni", "iletisimde", "gorusme", "kazanildi", "ilgilenmiyor"] as const;
 export const ILETI_IZINLERI = ["bekliyor", "onayli", "ret"] as const;
-export const OLAY_TURLERI = ["eklendi", "durum", "arama", "eposta", "sms", "whatsapp", "not", "ret"] as const;
+export const OLAY_TURLERI = [
+  "eklendi",
+  "durum",
+  "arama",
+  "eposta",
+  "sms",
+  "whatsapp",
+  "not",
+  "ret",
+  "izin",
+  "whatsapp_api",
+  "whatsapp_gelen",
+] as const;
+/**
+ * Kaydın nereden geldiği. Yalnızca 'google' kayıtlarında place_id vardır ve Places saklama kuralı geçerlidir;
+ * diğerlerinde ad ve telefon kullanıcının (çalışma alanının) kendi verisidir.
+ */
+export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam"] as const;
 export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
 
 export type Rol = (typeof ROLLER)[number];
@@ -13,6 +30,7 @@ export type KayitDurumu = (typeof KAYIT_DURUMLARI)[number];
 export type IletiIzni = (typeof ILETI_IZINLERI)[number];
 export type OlayTuru = (typeof OLAY_TURLERI)[number];
 export type MerkezKaynagi = (typeof MERKEZ_KAYNAKLARI)[number];
+export type KayitKaynagi = (typeof KAYIT_KAYNAKLARI)[number];
 
 export const ROL_ADLARI: Record<Rol, string> = { yonetici: "Yönetici", uye: "Üye" };
 
@@ -46,6 +64,16 @@ export const OLAY_TURU_ADLARI: Record<OlayTuru, string> = {
   whatsapp: "WhatsApp",
   not: "Not",
   ret: "İleti reddi",
+  izin: "İzin değişti",
+  whatsapp_api: "WhatsApp kampanyası",
+  whatsapp_gelen: "Gelen WhatsApp mesajı",
+};
+
+export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
+  google: "Google tarama",
+  ice_aktarma: "İçe aktarma",
+  elle: "Elle eklendi",
+  meta_reklam: "Meta reklamı",
 };
 
 export const SAYFA_BOYUTU = 20;

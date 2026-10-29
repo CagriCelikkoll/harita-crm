@@ -43,7 +43,13 @@ describe("adres normalleştirme", () => {
 });
 
 describe("alıcı kuralları (tek fonksiyon)", () => {
-  const temel: AliciKaydi = { iletiIzni: "bekliyor", aliciTuru: "tacir_esnaf", eposta: "a@ornek.test", ekTelefon: "0532 111 22 33" };
+  const temel: AliciKaydi = {
+    iletiIzni: "bekliyor",
+    aliciTuru: "tacir_esnaf",
+    eposta: "a@ornek.test",
+    ekTelefon: "0532 111 22 33",
+    placeId: "p1",
+  };
   const engelYok = () => false;
 
   it("ret her zaman hariç", () => {
@@ -69,7 +75,12 @@ describe("alıcı kuralları (tek fonksiyon)", () => {
   it("SMS: ek_telefon cep değilse hariç; ek_telefon yoksa Places'tan alınacak", () => {
     expect(aliciDegerlendir(temel, "sms", engelYok)).toEqual({ uygun: true, adres: "905321112233", kaynak: "kayit" });
     expect(aliciDegerlendir({ ...temel, ekTelefon: "0216 555 44 33" }, "sms", engelYok)).toEqual({ uygun: false, neden: "cep_degil" });
-    expect(aliciDegerlendir({ ...temel, ekTelefon: null }, "sms", engelYok)).toEqual({ uygun: true, adres: null, kaynak: "places" });
+    expect(aliciDegerlendir({ ...temel, ekTelefon: null }, "sms", engelYok)).toEqual({
+      uygun: true,
+      adres: null,
+      kaynak: "places",
+      placeId: "p1",
+    });
     expect(aliciDegerlendir({ ...temel, ekTelefon: null }, "sms", engelYok, { placesTelefonu: "+90 533 444 55 66" })).toEqual({
       uygun: true,
       adres: "905334445566",
@@ -78,6 +89,15 @@ describe("alıcı kuralları (tek fonksiyon)", () => {
     expect(aliciDegerlendir({ ...temel, ekTelefon: null }, "sms", engelYok, { placesTelefonu: null })).toEqual({
       uygun: false,
       neden: "iletisim_yok",
+    });
+  });
+  it("Google dışı kayıtta (place_id yok) telefon yalnızca kayıttan; Places'a gidilmez", () => {
+    const kisi = { ...temel, placeId: null, ekTelefon: null };
+    expect(aliciDegerlendir(kisi, "sms", engelYok)).toEqual({ uygun: false, neden: "iletisim_yok" });
+    expect(aliciDegerlendir(kisi, "whatsapp", engelYok)).toEqual({ uygun: false, neden: "iletisim_yok" });
+    expect(aliciDegerlendir({ ...kisi, ekTelefon: "0532 111 22 33" }, "sms", engelYok)).toMatchObject({
+      uygun: true,
+      kaynak: "kayit",
     });
   });
 });

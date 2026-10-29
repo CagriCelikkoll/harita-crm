@@ -23,10 +23,13 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ],
   leads: [
     "id", "tenant_id", "place_id", "scan_id", "durum",
+    // kaynak: google (yalnızca place_id) | ice_aktarma | elle | meta_reklam (ad ve telefon kullanıcının verisi)
+    "kaynak",
     // kullanıcının girdiği veriler:
     "yetkili_adi", "eposta", "ek_telefon", "notlar", "etiketler", "ileti_izni",
     // isletme_adi: kullanıcının elle girdiği ad (kampanyalardaki {isletme}); Places'tan gelen ad YAZILMAZ.
     "isletme_adi", "alici_turu",
+    "telefon_e164", // ek_telefon'un normalize hali (kullanıcı verisi); Places telefonu YAZILMAZ
     "olusturma_tarihi", "guncelleme_tarihi",
   ],
   lead_events: ["id", "tenant_id", "lead_id", "tur", "aciklama", "kullanici_id", "sistem", "tarih"],
@@ -53,6 +56,17 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   // Telefon numarası yok; yalnızca "WhatsApp'ta aç"ta çözülen numaranın özeti.
   whatsapp_listesi: ["id", "tenant_id", "kullanici_id", "gun", "lead_id", "sira", "durum", "neden", "adres_ozeti", "guncelleme_tarihi"],
   gonderim_sayaclari: ["tenant_id", "kanal", "kullanici_id", "donem", "adet"],
+  // Kaydın WhatsApp izni ve kanıtı, BSUID, reklam kaynağı. Gelen mesaj METNİ yok.
+  whatsapp_kisileri: [
+    "tenant_id", "lead_id", "bsuid", "wa_kullanici_adi", "izin", "izin_tarihi", "izin_kaynagi", "izin_notu",
+    "izin_ice_aktarma_id", "iys_beyan_tarihi", "whatsapp_yok_tarihi", "reklam_kimligi", "reklam_basligi", "ctwa_clid",
+    "pencere_bitis", "olusturma_tarihi", "guncelleme_tarihi",
+  ],
+  // satirlar: içe aktarılan dosyanın satırları (kullanıcı verisi), geçici; tamamlanınca/süresi dolunca silinir.
+  ice_aktarmalar: [
+    "id", "tenant_id", "kullanici_id", "dosya_adi", "durum", "satirlar", "eslem", "toplam", "eklenen", "guncellenen",
+    "hatali", "cakisan", "engelli", "beyan_onay_tarihi", "beyan_surumu", "olusturma_tarihi", "tamamlanma_tarihi",
+  ],
 };
 
 // Places'tan gelebilecek içeriği çağrıştıran sütun adları.
@@ -64,7 +78,9 @@ describe("şema: Places saklama kuralı", () => {
     const leads = sutunlar("leads");
     expect(leads).toEqual(BEYAZ_LISTE.leads.slice().sort());
     // Kullanıcının kendi girdiği ek_telefon ve isletme_adi dışında hiçbir sütun Places içeriği desenine uymamalı.
-    const supheli = leads.filter((s) => PLACES_ICERIK_DESENI.test(s) && !["ek_telefon", "isletme_adi"].includes(s));
+    const supheli = leads.filter(
+      (s) => PLACES_ICERIK_DESENI.test(s) && !["ek_telefon", "isletme_adi", "telefon_e164"].includes(s),
+    );
     expect(supheli).toEqual([]);
   });
 
@@ -86,5 +102,23 @@ describe("şema: Places saklama kuralı", () => {
     for (const tablo of uygulamaTablolari) {
       expect(sutunlar(tablo), tablo).toEqual(BEYAZ_LISTE[tablo].slice().sort());
     }
+  });
+});
+
+describe("şema: kayıt kaynağı ve place_id", () => {
+  const tenantId = () => (db.$client.prepare("select id from tenants limit 1").get() as { id: string } | undefined)?.id;
+  const ekle = (kaynak: string, placeId: string | null) =>
+    db.$client
+      .prepare("insert into leads (id, tenant_id, kaynak, place_id) values (?, ?, ?, ?)")
+      .run(crypto.randomUUID(), tenantId(), kaynak, placeId);
+
+  it("Google kaydında place_id zorunlu; Google dışı kayıtta place_id olamaz", () => {
+    db.$client
+      .prepare("insert or ignore into tenants (id, ad, slug) values ('sema-t', 'Şema', 'sema-t')")
+      .run();
+    expect(() => ekle("google", null)).toThrow(/CHECK/);
+    expect(() => ekle("ice_aktarma", "places-x")).toThrow(/CHECK/);
+    expect(() => ekle("elle", null)).not.toThrow();
+    expect(() => ekle("google", `places-${crypto.randomUUID()}`)).not.toThrow();
   });
 });

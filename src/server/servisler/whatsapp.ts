@@ -165,7 +165,7 @@ async function numaraCoz(
 ): Promise<{ tamam: true; numara: string } | { tamam: false; kod: string; neden?: HaricNedeni }> {
   let karar = kuralKontrolu(ctx, kayit);
   if (karar.uygun && karar.adres === null) {
-    const tel = await placesTelefonuGetir(ctx, kayit.placeId);
+    const tel = await placesTelefonuGetir(ctx, karar.placeId);
     if (tel.durum === "kota") return { tamam: false, kod: "kota" };
     if (tel.durum === "hata") return { tamam: false, kod: "hata" };
     karar = aliciDegerlendir(kayit, "whatsapp", engelSorgusuOlustur(ctx, [kayit]), {

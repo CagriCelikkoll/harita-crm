@@ -45,11 +45,13 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   // bir istek); yalnızca bu isteğin belleğinde yaşar. Telefon/web sitesi yalnızca detay panelinde.
   // Aylık kota doluysa Places çağrısı yapılmaz (her istekten önce de atomik olarak kontrol edilir);
   // kullanıcının kendi verisi (durum, ileti izni, etiketler, yetkili) yine gösterilir.
-  const canli = await canliBilgiGetir(ctx, liste.kayitlar.map((k) => k.placeId), "liste");
+  // Google dışı kayıtlarda (içe aktarma, elle, reklam) Places çağrısı yapılmaz; ad kullanıcının verisidir.
+  const placeIdler = liste.kayitlar.flatMap((k) => (k.placeId ? [k.placeId] : []));
+  const canli = await canliBilgiGetir(ctx, placeIdler, "liste");
   const kotaEtkiledi = [...canli.values()].some((c) => c.durum === "kota");
   const kota = kotaDurumu(ctx);
   const satirlar: TabloSatiri[] = liste.kayitlar.map((k) => {
-    const c = canli.get(k.placeId);
+    const c = k.placeId ? canli.get(k.placeId) : undefined;
     return {
       id: k.id,
       durum: k.durum,
@@ -57,8 +59,9 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
       etiketler: k.etiketler,
       yetkiliAdi: k.yetkiliAdi,
       guncellemeTarihi: k.guncellemeTarihi.toISOString(),
-      canli:
-        c?.durum === "tamam"
+      canli: !k.placeId
+        ? { ad: k.isletmeAdi ?? k.yetkiliAdi ?? "(adsız kişi)", adres: null }
+        : c?.durum === "tamam"
           ? { ad: c.yer.ad, adres: c.yer.adres ?? null }
           : {
               hata:

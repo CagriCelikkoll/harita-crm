@@ -8,10 +8,17 @@ export const KAMPANYA_DURUMLARI = ["zamanlandi", "calisiyor", "tamamlandi", "ipt
 export const MESAJ_DURUMLARI = ["kuyrukta", "gonderiliyor", "gonderildi", "basarisiz", "haric", "iptal"] as const;
 /** Alıcı kurallarının hariç tutma nedenleri (aliciDegerlendir). */
 export const HARIC_NEDENLERI = ["ret", "engel", "iletisim_yok", "bireysel_izinsiz", "cep_degil"] as const;
-export const ENGEL_TURLERI = ["eposta", "telefon"] as const;
+/** wa_kimlik: WhatsApp işletmeye özel kullanıcı kimliği (BSUID); telefonu bilinmeyen WhatsApp kişisi için. */
+export const ENGEL_TURLERI = ["eposta", "telefon", "wa_kimlik"] as const;
 export const ENGEL_KAYNAKLARI = ["abonelik", "kayit_ret", "sms_ret", "iys_ret", "whatsapp_ret"] as const;
 
+/** Kanal bazlı WhatsApp (Cloud API) izni. Genel ileti izninden (ileti_izni) ayrıdır; ikisinden biri 'ret' ise gönderilmez. */
+export const WHATSAPP_IZINLERI = ["yok", "var", "ret"] as const;
+export const WHATSAPP_IZIN_KAYNAKLARI = ["form", "sozlesme", "sozlu", "kendisi_yazdi", "reklam"] as const;
+
 export type AliciTuru = (typeof ALICI_TURLERI)[number];
+export type WhatsappIzni = (typeof WHATSAPP_IZINLERI)[number];
+export type WhatsappIzinKaynagi = (typeof WHATSAPP_IZIN_KAYNAKLARI)[number];
 export type Kanal = (typeof KANALLAR)[number];
 export type KampanyaDurumu = (typeof KAMPANYA_DURUMLARI)[number];
 export type MesajDurumu = (typeof MESAJ_DURUMLARI)[number];
@@ -22,6 +29,16 @@ export type EngelKaynagi = (typeof ENGEL_KAYNAKLARI)[number];
 export const ALICI_TURU_ADLARI: Record<AliciTuru, string> = {
   tacir_esnaf: "Tacir / esnaf",
   bireysel: "Bireysel",
+};
+
+export const WHATSAPP_IZNI_ADLARI: Record<WhatsappIzni, string> = { yok: "İzin yok", var: "İzin var", ret: "Ret" };
+
+export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = {
+  form: "Form",
+  sozlesme: "Sözleşme",
+  sozlu: "Sözlü",
+  kendisi_yazdi: "WhatsApp'tan kendisi yazdı",
+  reklam: "Reklam",
 };
 
 export const KANAL_ADLARI: Record<Kanal, string> = { eposta: "E-posta", sms: "SMS" };

@@ -1,11 +1,11 @@
 // Engel listesi ve ret akışı. Ret nereden gelirse gelsin (abonelikten çıkma, SMS RET yanıtı, İYS reddi,
-// WhatsApp "Ret istedi", kullanıcının elle işaretlemesi) aynı sonuç: kayıt ileti_izni = 'ret', adres(ler)
+// WhatsApp "Ret istedi", kullanıcının elle işaretlemesi) aynı sonuç: kayıt ileti_izni = 'ret' (WhatsApp izni de), adres(ler)
 // engel listesinde, lead_events'te 'ret' olayı. Engel listesi kullanıcı verisidir; temizlikte silinmez.
 import { and, count, eq, inArray } from "drizzle-orm";
 import type { EngelKaynagi, EngelTuru } from "@/lib/mesajlasma";
 import { db } from "../db";
-import { engelListesi, leadEvents, leads } from "../db/schema";
-import { kayitAdresOzetleri } from "../messaging/adres";
+import { engelListesi, leadEvents, leads, whatsappKisileri } from "../db/schema";
+import { adresOzeti, kayitAdresOzetleri } from "../messaging/adres";
 import type { TenantContext } from "./baglam";
 
 export type EngelAdresi = { tur: EngelTuru; ozet: string };
@@ -56,7 +56,30 @@ export function retIsle(
           .where(and(eq(leads.id, girdi.leadId), eq(leads.tenantId, ctx.tenantId)))
           .get()
       : undefined;
-    const adresler = [...girdi.adresler, ...(kayit ? kayitAdresOzetleri(ctx.tenantId, kayit) : [])];
+    const waKisi = kayit
+      ? tx
+          .select({ bsuid: whatsappKisileri.bsuid, izin: whatsappKisileri.izin })
+          .from(whatsappKisileri)
+          .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.leadId, kayit.id)))
+          .get()
+      : undefined;
+    const adresler = [
+      ...girdi.adresler,
+      ...(kayit ? kayitAdresOzetleri(ctx.tenantId, kayit) : []),
+      // Telefonu bilinmeyen (yalnızca BSUID'li) WhatsApp kişisi de engellenir.
+      ...(waKisi?.bsuid ? [{ tur: "wa_kimlik" as const, ozet: adresOzeti(ctx.tenantId, "wa_kimlik", waKisi.bsuid) }] : []),
+    ];
+    // Ret tüm kanallar içindir: kaydın WhatsApp (Cloud API) izni de 'ret' olur.
+    if (kayit && waKisi?.izin !== "ret") {
+      const simdi = new Date();
+      tx.insert(whatsappKisileri)
+        .values({ tenantId: ctx.tenantId, leadId: kayit.id, izin: "ret", izinTarihi: simdi })
+        .onConflictDoUpdate({
+          target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
+          set: { izin: "ret", izinTarihi: simdi, guncellemeTarihi: simdi },
+        })
+        .run();
+    }
     if (adresler.length) {
       tx.insert(engelListesi)
         .values(

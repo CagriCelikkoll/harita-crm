@@ -49,4 +49,38 @@ describe("migration'lar", () => {
     expect(s.pragma("foreign_key_check")).toEqual([]);
     s.close();
   });
+
+  it("0007 (leads yeniden oluşturma) bağlı olay, kuyruk ve WhatsApp listesi satırlarını korur; telefon_e164 doldurulur", () => {
+    const db = veritabaniAc(path.join(gecici, "0007.db"));
+    const s = db.$client;
+    migrasyonlariUygula(db, ilkMigrasyonlar(7)); // 0000–0006
+
+    s.prepare("insert into user (id, name, email) values ('u1', 'Test', 't@ornek.test')").run();
+    s.prepare("insert into tenants (id, ad, slug) values ('t1', 'T', 't')").run();
+    s.prepare("insert into leads (id, tenant_id, place_id, ek_telefon) values ('l1', 't1', 'p1', '0532 111 22 33')").run();
+    s.prepare("insert into leads (id, tenant_id, place_id) values ('l2', 't1', 'p2')").run();
+    s.prepare("insert into lead_events (id, tenant_id, lead_id, tur) values ('e1', 't1', 'l1', 'not')").run();
+    s.prepare(
+      "insert into kampanyalar (id, tenant_id, kanal, ad, sablon, filtre, sandbox, durum) values ('k1', 't1', 'sms', 'K', 'S', '{}', 1, 'calisiyor')",
+    ).run();
+    s.prepare(
+      "insert into message_queue (id, tenant_id, kampanya_id, lead_id, kanal, durum) values ('m1', 't1', 'k1', 'l1', 'sms', 'kuyrukta')",
+    ).run();
+    s.prepare(
+      "insert into whatsapp_listesi (id, tenant_id, kullanici_id, gun, lead_id, sira) values ('w1', 't1', 'u1', '2026-10-29', 'l2', 1)",
+    ).run();
+
+    migrasyonlariUygula(db, DRIZZLE);
+
+    expect(s.prepare("select count(*) n from lead_events").get()).toEqual({ n: 1 });
+    expect(s.prepare("select count(*) n from message_queue").get()).toEqual({ n: 1 });
+    expect(s.prepare("select count(*) n from whatsapp_listesi").get()).toEqual({ n: 1 });
+    expect(s.prepare("select id, kaynak, place_id, telefon_e164 from leads order by id").all()).toEqual([
+      { id: "l1", kaynak: "google", place_id: "p1", telefon_e164: "905321112233" },
+      { id: "l2", kaynak: "google", place_id: "p2", telefon_e164: null },
+    ]);
+    expect(s.pragma("foreign_keys", { simple: true })).toBe(1);
+    expect(s.pragma("foreign_key_check")).toEqual([]);
+    s.close();
+  });
 });
