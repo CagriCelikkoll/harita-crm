@@ -42,5 +42,29 @@ next-env.d.ts
 !.env.example
 .env.local
 
-# SQLite veritabanı (DATABASE_PATH varsayılanı ./data/app.db)
+# SQLite veritabanı (DATABASE_PATH varsayılanı ./data/app.db) ve yerel veri (OSM ham çıktıları vb.)
 /data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Claude Code
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+
+# işletim sistemi ve editör dosyaları
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+*~
+*.swp
