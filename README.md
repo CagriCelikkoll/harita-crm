@@ -45,6 +45,9 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `ILETI_IMZA_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64 (yukarıdaki komut). Abonelikten çıkma bağlantılarını imzalar ve engel listesi özetlerini üretir. **Değiştirmeyin:** eski bağlantılar geçersiz olur ve engel listesi eşleşmez. Yoksa "ret" işaretleme ve abonelikten çıkma çalışmaz; başlangıçta uyarı yazılır. |
 | `GUNLUK_EPOSTA_SINIRI`, `GUNLUK_SMS_SINIRI` | Hayır | Çalışma alanı başına günlük gönderim sınırı (varsayılan 300 / 200). Alan bazında `npm run sinir`. |
 | `NETGSM_API_URL` | Hayır | Netgsm API kök adresi (varsayılan `https://api.netgsm.com.tr`); testte sahte sunucu için. |
+| `META_GRAPH_SURUMU` | Hayır | WhatsApp Cloud API için Graph API sürümü (varsayılan `v26.0`). Meta sürümleri yaklaşık iki yıl destekler. |
+| `META_GRAPH_URL` | Hayır | Graph API kök adresi (varsayılan `https://graph.facebook.com`); yalnızca test için, https zorunlu. |
+| `WHATSAPP_API_MOCK` | Hayır | `1`: geliştirmede gerçek Meta yerine sahte istemci. Testler her zaman sahte istemci kullanır. |
 | `WHATSAPP_GUNLUK_VARSAYILAN` | Hayır | Kullanıcı başına günlük WhatsApp sınırı varsayılanı (30; en fazla 50). Alan bazında Ayarlar'dan ya da `npm run sinir -- <slug> whatsapp <sayı>`. |
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
@@ -590,6 +593,60 @@ uygulanamaz. Koruma şunlara dayanır:
 
 Rotalar yalnızca okuma ve yönlendirme yapar. Durum değiştiren "Gönderdim", "Atla" ve "Ret istedi" POST'tur ve Origin
 kontrollüdür.
+
+### WhatsApp Business (Cloud API) bağlantısı
+
+Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bu bölüm bağlantı ve şablonları
+kapsar; kampanya gönderimi ve webhook sonraki bölümlerde eklenir.
+
+- **Ayarlar → WhatsApp Business (API)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
+  user token) ve App Secret.
+  - Erişim anahtarı, App Secret, webhook verify token ve test numaraları AES-GCM ile şifreli saklanır (ek doğrulanmış
+    veri: kiracı + `whatsapp_api`); hiçbir API yanıtında dönmez, ekranda yalnızca "tanımlı / tanımlı değil".
+  - Verify token ilk kayıtta üretilir ve **yalnızca o yanıtta bir kez** gösterilir; "Verify token yenile" yenisini
+    üretir (bir kez gösterilir), webhook doğrulamasını sıfırlar ve test modunu yeniden açar.
+  - Webhook adresi çalışma alanına özeldir: `/api/whatsapp/webhook/<rastgele kimlik>`.
+  - Aynı numara iki çalışma alanına bağlanamaz.
+- **Bağlantıyı test et:** Graph API `GET /{phone-number-id}?fields=id,display_phone_number,verified_name,quality_rating,whatsapp_business_manager_messaging_limit`
+  ile numara, kalite (GREEN / YELLOW / RED / NA) ve portföy mesajlaşma limitini (`TIER_250`, `TIER_2K` …) okur.
+  Mesajlaşma limiti **işletme portföyü düzeyindedir** ve portföydeki tüm numara ve araçlarca paylaşılır; bu yüzden
+  "bu uygulamanın payı" ayarı vardır (varsayılan **%10**).
+- **Webhook aboneliğini etkinleştir:** `POST /{waba-id}/subscribed_apps` (yalnızca düğmeye basılınca).
+- **Test modu** varsayılan **açık**: kampanyalar yalnızca Ayarlar'daki test numaralarına (en fazla 5, cep) gider.
+  Test modu ancak (a) Meta webhook GET doğrulaması başarıyla yapılmış ve (b) bu bağlantı için imzası doğrulanmış en az
+  bir mesaj durumu (`statuses`) bildirimi alınmışsa kapatılabilir; aksi halde sunucu reddeder ve nedeni gösterilir.
+  Numara ya da WABA değişince doğrulama sıfırlanır ve test modu yeniden açılır.
+- **Şablonlar:** Meta WhatsApp Manager'da oluşturulur; burada `GET /{waba-id}/message_templates` ile senkronize
+  edilip listelenir (uygulamadan şablon oluşturma yok). Meta'da silinen şablon "SILINDI" olarak kalır.
+  - Kampanyada kullanılabilmesi için: `APPROVED`; yalnızca metin başlık ve gövde değişkenleri (konumsal `{{1}}` ya da
+    adlandırılmış `{{ad}}`); medya başlık, dinamik URL butonu, kopyalanabilir kod vb. bu sürümde desteklenmez.
+  - **Pazarlama şablonunda abonelikten çıkma hızlı yanıt butonu zorunludur** (kapatılamaz). Meta API'de bu buton ayrı
+    bir tür değil, metni serbest bir `QUICK_REPLY`'dır; metin "Stop promotions", "Unsubscribe", "Abonelikten çık",
+    "Durdur", "İptal" gibi kalıplarla tanınır (`src/lib/whatsapp-api.ts`).
+- Testler gerçek ağa çıkmaz (sahte Graph istemcisi, `src/server/whatsapp-api/mock.ts`). Geliştirmede
+  `WHATSAPP_API_MOCK=1` ile de sahte istemci kullanılır.
+
+#### Pilot: işletme sahibinin kendi Business Manager'ında system user ve kalıcı anahtar
+
+1. developers.facebook.com'da işletmenin Business Manager'ına bağlı **Business** türünde bir uygulama açın ve
+   WhatsApp ürününü ekleyin. App Secret: Uygulama ayarları → Temel.
+2. Business Settings → Kullanıcılar → **System users** → Ekle (**Employee** rolü yeterli; Admin gerekmez).
+3. "Varlık ata": yalnızca ilgili **WhatsApp hesabı** (tam kontrol) ve bu uygulama.
+4. "Token oluştur": uygulamayı seçin, süre **Hiçbir zaman**, izinler yalnızca `whatsapp_business_messaging` ve
+   `whatsapp_business_management`.
+5. WABA ID ve Phone Number ID: WhatsApp Manager → Telefon numaraları (ya da uygulamanın API kurulumu sayfası).
+6. Harita CRM → Ayarlar → WhatsApp Business (API): bilgileri kaydedin; gösterilen verify token'ı ve callback URL'yi
+   uygulamanın WhatsApp → Yapılandırma → Webhook alanına girin; `messages`, `message_template_status_update`,
+   `phone_number_quality_update`, `business_capability_update` ve `user_preferences` alanlarına abone olun.
+7. "Webhook aboneliğini etkinleştir" ve "Bağlantıyı test et".
+8. Test modunda kendi numaranıza bir kampanya gönderin; teslim bildirimi gelince test modu kapatılabilir.
+
+- **Numara başka bir sağlayıcıda ya da araçta kullanılıyorsa** bu bağlantı onu bozmaz: Harita CRM aynı WABA'ya **ek
+  abone** olur; mevcut aracın webhook'u ve sohbet yönetimi çalışmaya devam eder. Mesajlaşma limiti ortaktır; payı
+  buna göre ayarlayın.
+- **İlk gerçek kampanya küçük ve izinli bir listeyle** yapılmalıdır (kalite puanı ve limit buna göre şekillenir).
+- Meta geliştirici uygulamasının ücretsiz test numarasıyla deneme: uygulamanın API kurulumu sayfasındaki test numarası
+  yalnızca alıcı listesine eklenmiş (en fazla 5) numaraya gönderir; listede olmayana `131030` hatası döner.
 
 ## Proje yapısı
 

@@ -41,6 +41,7 @@ import {
   WHATSAPP_IZINLERI,
 } from "../../lib/mesajlasma";
 import { ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
+import type { MetaSablonBileseni, SablonDegiskeni } from "../../lib/whatsapp-api";
 
 export * from "./auth-schema";
 
@@ -490,6 +491,72 @@ export const whatsappListesi = sqliteTable(
   ],
 );
 
+/**
+ * WhatsApp Business Platform (Cloud API) bağlantısı, çalışma alanı başına bir. Kalıcı erişim anahtarı, App Secret,
+ * verify token ve test numaraları sifreli_veri'de (AES-GCM, kiracı|whatsapp_api); API yanıtlarında asla dönmez.
+ * webhook_kimligi: çalışma alanına özel webhook URL'sindeki rastgele kimlik. Test modu varsayılan AÇIK; ancak webhook
+ * doğrulaması yapılmış ve imzası doğrulanmış bir durum bildirimi alınmışsa kapatılabilir.
+ */
+export const whatsappBaglantilari = sqliteTable(
+  "whatsapp_baglantilari",
+  {
+    tenantId: text("tenant_id")
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    webhookKimligi: text("webhook_kimligi").notNull(),
+    wabaId: text("waba_id").notNull(),
+    phoneNumberId: text("phone_number_id").notNull(),
+    sifreliVeri: text("sifreli_veri").notNull(),
+    testModu: integer("test_modu", { mode: "boolean" }).notNull().default(true),
+    uygulamaPayi: integer("uygulama_payi").notNull().default(10),
+    webhookDogrulamaTarihi: zaman("webhook_dogrulama_tarihi"),
+    sonImzaliDurumTarihi: zaman("son_imzali_durum_tarihi"),
+    // Son bağlantı testinden (Graph API) çalışma alanının kendi numarasının bilgileri.
+    gorunenNumara: text("gorunen_numara"),
+    dogrulanmisAd: text("dogrulanmis_ad"),
+    kalite: text("kalite"),
+    limitKatmani: text("limit_katmani"),
+    sonKontrol: zaman("son_kontrol"),
+    sonHata: text("son_hata"),
+    sablonSenkronTarihi: zaman("sablon_senkron_tarihi"),
+    guncelleyen: text("guncelleyen").references(() => user.id, { onDelete: "set null" }),
+    guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    uniqueIndex("whatsapp_baglantilari_webhook_uq").on(t.webhookKimligi),
+    // Aynı numara iki çalışma alanına bağlanamaz.
+    uniqueIndex("whatsapp_baglantilari_numara_uq").on(t.phoneNumberId),
+  ],
+);
+
+/** WABA'daki şablonlar (Meta'dan senkronize; uygulamada şablon oluşturulmaz). Meta'da silinen şablon "SILINDI". */
+export const whatsappSablonlari = sqliteTable(
+  "whatsapp_sablonlari",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    metaId: text("meta_id").notNull(),
+    ad: text("ad").notNull(),
+    dil: text("dil").notNull(),
+    kategori: text("kategori").notNull(),
+    durum: text("durum").notNull(),
+    parametreBicimi: text("parametre_bicimi"),
+    bilesenler: text("bilesenler", { mode: "json" }).$type<MetaSablonBileseni[]>().notNull(),
+    degiskenler: text("degiskenler", { mode: "json" }).$type<SablonDegiskeni[]>().notNull(),
+    abonelikButonu: integer("abonelik_butonu", { mode: "boolean" }).notNull(),
+    // null: kampanyada kullanılabilir.
+    destekNedeni: text("destek_nedeni"),
+    kalite: text("kalite"),
+    senkronTarihi: zaman("senkron_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    uniqueIndex("whatsapp_sablonlari_uq").on(t.tenantId, t.ad, t.dil),
+    uniqueIndex("whatsapp_sablonlari_tenant_id_uq").on(t.tenantId, t.id),
+  ],
+);
+
 export type Tarama = typeof scans.$inferSelect;
 export type Kayit = typeof leads.$inferSelect;
 export type KayitOlayi = typeof leadEvents.$inferSelect;
@@ -498,3 +565,5 @@ export type Kampanya = typeof kampanyalar.$inferSelect;
 export type KuyrukMesaji = typeof messageQueue.$inferSelect;
 export type WhatsappKisisi = typeof whatsappKisileri.$inferSelect;
 export type IceAktarma = typeof iceAktarmalar.$inferSelect;
+export type WhatsappBaglantisi = typeof whatsappBaglantilari.$inferSelect;
+export type WhatsappSablonu = typeof whatsappSablonlari.$inferSelect;

@@ -22,6 +22,8 @@ import * as saglayicilar from "@/server/repo/saglayicilar";
 import * as whatsapp from "@/server/repo/whatsapp-listesi";
 import * as whatsappKisileri from "@/server/repo/whatsapp-kisileri";
 import * as iceAktarmalar from "@/server/repo/ice-aktarmalar";
+import * as waBaglantilari from "@/server/repo/whatsapp-baglantilari";
+import * as waSablonlari from "@/server/repo/whatsapp-sablonlari";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -44,6 +46,21 @@ let bOgeId: string;
 let bKisi: kayitlar.Kayit;
 let bWaKisi: whatsappKisileri.WhatsappKisisi;
 let bIceAktarma: iceAktarmalar.IceAktarma;
+let bWaBaglanti: waBaglantilari.WhatsappBaglantisi;
+let bWaSablon: waSablonlari.WhatsappSablonu;
+const B_SABLON: waSablonlari.SenkronSablonu = {
+  metaId: "b-1",
+  ad: "b_sablon",
+  dil: "tr",
+  kategori: "UTILITY",
+  durum: "APPROVED",
+  parametreBicimi: null,
+  bilesenler: [{ type: "BODY", text: "B" }],
+  degiskenler: [],
+  abonelikButonu: false,
+  destekNedeni: null,
+  kalite: null,
+};
 const B_BSUID = "TR.1000000000000000001";
 const WA_GUN = "2026-10-12";
 const B_ENGEL = { tur: "eposta" as const, ozet: "" };
@@ -87,6 +104,10 @@ beforeAll(() => {
   bKisi = kayitlar.kayitGetir(B, bKisi.id)!;
   bWaKisi = whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)!;
   bIceAktarma = iceAktarmalar.iceAktarmaOlustur(B, { dosyaAdi: "b.csv", satirlar: [["Telefon"], ["0533 111 11 11"]] });
+  bWaBaglanti = waBaglantilari.baglantiKaydet(B, { wabaId: "900001", phoneNumberId: "900002", sifreliVeri: "v1:B-wa" });
+  waSablonlari.sablonlariSenkronla(B, [B_SABLON]);
+  bWaBaglanti = waBaglantilari.baglantiGetir(B)!;
+  bWaSablon = waSablonlari.sablonlariListele(B)[0];
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -112,6 +133,8 @@ function bDegismedi() {
   expect(kayitlar.kayitGetir(B, bKisi.id)).toEqual(bKisi);
   expect(whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)).toEqual(bWaKisi);
   expect(iceAktarmalar.iceAktarmaGetir(B, bIceAktarma.id)).toEqual(bIceAktarma);
+  expect(waBaglantilari.baglantiGetir(B)).toEqual(bWaBaglanti);
+  expect(waSablonlari.sablonGetir(B, bWaSablon.id)).toEqual(bWaSablon);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -499,6 +522,52 @@ const iceAktarmaTestleri: Record<keyof typeof iceAktarmalar, () => void> = {
   },
 };
 
+const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
+  baglantiGetir: () => {
+    expect(waBaglantilari.baglantiGetir(A)).toBeNull();
+  },
+  baglantiKaydet: () => {
+    // A kendi bağlantısını kurar; B'ninkine dokunmaz. B'nin numarasını alamaz (tekillik).
+    const a = waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "910002", sifreliVeri: "v1:A" });
+    expect(a.tenantId).toBe(A.tenantId);
+    expect(a.webhookKimligi).not.toBe(bWaBaglanti.webhookKimligi);
+    expect(() =>
+      waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "900002", sifreliVeri: "v1:A" }),
+    ).toThrow(/UNIQUE/);
+    waBaglantilari.baglantiSil(A);
+  },
+  baglantiSifreliVeriYaz: () => {
+    expect(waBaglantilari.baglantiSifreliVeriYaz(A, "v1:saldiri", true)).toBe(false);
+  },
+  testModuAyarla: () => {
+    expect(waBaglantilari.testModuAyarla(A, false)).toEqual({ tamam: false, neden: "baglanti_yok" });
+  },
+  uygulamaPayiAyarla: () => {
+    expect(waBaglantilari.uygulamaPayiAyarla(A, 100)).toBe(false);
+  },
+  numaraBilgisiYaz: () => {
+    expect(waBaglantilari.numaraBilgisiYaz(A, { kalite: "RED", sonHata: "x" })).toBe(false);
+  },
+  baglantiSil: () => {
+    expect(waBaglantilari.baglantiSil(A)).toBe(false);
+  },
+};
+
+const waSablonTestleri: Record<keyof typeof waSablonlari, () => void> = {
+  sablonlariListele: () => {
+    expect(waSablonlari.sablonlariListele(A)).toEqual([]);
+  },
+  sablonGetir: () => {
+    expect(waSablonlari.sablonGetir(A, bWaSablon.id)).toBeNull();
+  },
+  sablonlariSenkronla: () => {
+    // A'nın boş senkronu B'nin şablonlarını "silindi" yapmaz; aynı ad A'da ayrı satırdır.
+    expect(waSablonlari.sablonlariSenkronla(A, [])).toEqual({ eklenen: 0, guncellenen: 0, silinen: 0 });
+    expect(waSablonlari.sablonlariSenkronla(A, [{ ...B_SABLON, metaId: "a-1" }])).toMatchObject({ eklenen: 1 });
+    waSablonlari.sablonlariSenkronla(A, []);
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -515,6 +584,8 @@ const MODULLER = {
   "whatsapp-listesi": [whatsapp, whatsappTestleri],
   "whatsapp-kisileri": [whatsappKisileri, whatsappKisiTestleri],
   "ice-aktarmalar": [iceAktarmalar, iceAktarmaTestleri],
+  "whatsapp-baglantilari": [waBaglantilari, waBaglantiTestleri],
+  "whatsapp-sablonlari": [waSablonlari, waSablonTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

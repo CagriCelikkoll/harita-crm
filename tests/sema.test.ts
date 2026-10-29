@@ -62,6 +62,16 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "izin_ice_aktarma_id", "iys_beyan_tarihi", "whatsapp_yok_tarihi", "reklam_kimligi", "reklam_basligi", "ctwa_clid",
     "pencere_bitis", "olusturma_tarihi", "guncelleme_tarihi",
   ],
+  // Çalışma alanının kendi WhatsApp numarası; erişim anahtarı / App Secret / verify token / test numaraları şifreli.
+  whatsapp_baglantilari: [
+    "tenant_id", "webhook_kimligi", "waba_id", "phone_number_id", "sifreli_veri", "test_modu", "uygulama_payi",
+    "webhook_dogrulama_tarihi", "son_imzali_durum_tarihi", "gorunen_numara", "dogrulanmis_ad", "kalite",
+    "limit_katmani", "son_kontrol", "son_hata", "sablon_senkron_tarihi", "guncelleyen", "guncelleme_tarihi",
+  ],
+  whatsapp_sablonlari: [
+    "id", "tenant_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
+    "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi",
+  ],
   // satirlar: içe aktarılan dosyanın satırları (kullanıcı verisi), geçici; tamamlanınca/süresi dolunca silinir.
   ice_aktarmalar: [
     "id", "tenant_id", "kullanici_id", "dosya_adi", "durum", "satirlar", "eslem", "toplam", "eklenen", "guncellenen",

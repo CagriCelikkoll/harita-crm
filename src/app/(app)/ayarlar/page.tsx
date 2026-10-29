@@ -10,6 +10,8 @@ import { kotaDurumu } from "@/server/repo/kullanim";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import { davetiIptalEt } from "./eylemler";
 import { MesajlasmaAyarlari } from "./mesajlasma-ayarlari";
+import { WhatsappApiAyarlari } from "./whatsapp-api-ayarlari";
+import { baglantiDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
 import { AlanFormu, DavetFormu, UyeCikarFormu } from "./formlar";
 
 export const metadata: Metadata = { title: "Ayarlar" };
@@ -78,6 +80,8 @@ export default async function AyarlarSayfasi() {
         </section>
 
         <MesajlasmaAyarlari ilk={mesajlasmaAyarlariDto(ctx)} yonetici={yonetici} slug={alan.slug} />
+
+        {yonetici && <WhatsappApiAyarlari ilk={baglantiDurumu(ctx)} ilkSablonlar={sablonlar(ctx)} />}
 
         <section className="kart">
           <h2 className="mb-3 font-semibold">Üyeler</h2>
