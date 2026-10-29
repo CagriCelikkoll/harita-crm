@@ -13,7 +13,15 @@ export function telefonNormallestir(metin: string | null | undefined): string | 
 /** Türkiye cep telefonu (90 5XX …). */
 export const cepMi = (normal: string | null): normal is string => normal !== null && /^905\d{9}$/.test(normal);
 
+/**
+ * Yerel kısım yalnızca RFC 5322 "atext" karakterleri (tırnak, yorum parantezi, <>, ;, ,, :, \ yok); alan adı ASCII
+ * etiketler (IDN için xn--). Tırnaklı/yorumlu adresler reddedilir: nodemailer'ın addressparser'ındaki bu tür
+ * adreslerle ilgili açıklar (GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h) tetiklenemez.
+ */
+const EPOSTA_DESENI =
+  /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
 export function epostaNormallestir(metin: string | null | undefined): string | null {
   const e = metin?.trim().toLowerCase();
-  return e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
+  return e && e.length <= 254 && EPOSTA_DESENI.test(e) ? e : null;
 }

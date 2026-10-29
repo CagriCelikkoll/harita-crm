@@ -39,6 +39,25 @@ describe("adres normalleştirme", () => {
   it("e-posta küçük harfe çevrilir; geçersiz olan null", () => {
     expect(epostaNormallestir("  Bilgi@Ornek.COM ")).toBe("bilgi@ornek.com");
     expect(epostaNormallestir("gecersiz")).toBeNull();
+    expect(epostaNormallestir("ad.soyad+etiket@alt.ornek.com.tr")).toBe("ad.soyad+etiket@alt.ornek.com.tr");
+    expect(epostaNormallestir("bilgi@xn--rnek-0ra.com")).toBe("bilgi@xn--rnek-0ra.com");
+  });
+  it("e-posta: tırnak, yorum, ; > , gibi addressparser'ı yanıltabilecek adresler reddedilir", () => {
+    for (const kotu of [
+      '"a>b"@ornek.com',
+      "a>b@ornek.com",
+      "a;kurban@ornek.com",
+      "a(yorum)@ornek.com",
+      "a@ornek.com(yorum)",
+      "a,b@ornek.com",
+      "a@ornek",
+      ".a@ornek.com",
+      "a..b@ornek.com",
+      "a@-ornek.com",
+      `${"a".repeat(250)}@ornek.com`,
+    ]) {
+      expect(epostaNormallestir(kotu), kotu).toBeNull();
+    }
   });
 });
 

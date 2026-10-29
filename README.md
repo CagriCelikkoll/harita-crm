@@ -731,3 +731,9 @@ tests/                           Vitest
     gönderse de İYS / 6563 yükümlülükleri çalışma alanındadır. WhatsApp Business kullanım şartları (toplu ve
     istenmeyen mesaj yasağı) için günlük sınır düşük tutulmuştur. Hukuki gözden geçirme önerilir.
 13. **"Gönderdim" beyana dayanır:** uygulama mesajın gerçekten gönderildiğini doğrulayamaz.
+14. **Açık bağımlılık uyarısı — nodemailer (orta):** `addressparser`'daki üç açık (GHSA-8c8m-p3m8-cjg8,
+    GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h) 10.1.4'te düzeltildi; o sürüm 18.10.2026'da yayınlandığı için
+    "en az iki haftalık sürüm" kuralına göre henüz kullanılmıyor (şu an 10.1.1). Etkisi önlendi: alıcı adresleri
+    `epostaNormallestir` ile yalnızca tırnaksız, yorumsuz, `;`/`>`/`,` içermeyen adreslere sınırlanıyor; gönderen adresi
+    Zod e-posta doğrulamasından geçiyor. **1.11.2026'dan sonra 10.1.4 veya üstüne yükseltilmeli.**
+    `drizzle-kit` üzerinden gelen `esbuild` uyarısı yalnızca geliştirme aracını etkiler (çalışma zamanında yok).
