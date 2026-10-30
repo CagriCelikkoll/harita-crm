@@ -7,6 +7,7 @@ import type { AliciTuru } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { leadEvents, leads, whatsappKisileri, type WhatsappKisisi } from "../db/schema";
 import type { TenantContext } from "./baglam";
+import { retliKayitAdresleriniEngelle } from "./engel-listesi";
 import { kisileriEkle } from "./kayitlar";
 
 export type { WhatsappKisisi };
@@ -166,19 +167,24 @@ export function bsuidAta(ctx: TenantContext, leadId: string, bsuid: string | nul
       .values({ tenantId: ctx.tenantId, leadId, ...bsuidYaz, ...adYaz })
       .onConflictDoUpdate({ target: [whatsappKisileri.tenantId, whatsappKisileri.leadId], set: { ...bsuidYaz, ...adYaz, guncellemeTarihi: simdi } })
       .run();
+    // Ret verilmiş kayda sonradan bağlanan BSUID de engellenir.
+    if (bsuidYaz.bsuid) retliKayitAdresleriniEngelle(tx, ctx, leadId, "whatsapp_ret");
     return Boolean(Object.keys(bsuidYaz).length);
   });
 }
 
 /** Kullanıcının BSUID'i değişti (user_changed_user_id / user_changed_number): eski kimlik yenisiyle değiştirilir. */
 export function bsuidDegistir(ctx: TenantContext, eski: string, yeni: string): string | null {
-  const g = db
-    .update(whatsappKisileri)
-    .set({ bsuid: yeni, guncellemeTarihi: new Date() })
-    .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, eski)))
-    .returning({ leadId: whatsappKisileri.leadId })
-    .get();
-  return g?.leadId ?? null;
+  return db.transaction((tx) => {
+    const g = tx
+      .update(whatsappKisileri)
+      .set({ bsuid: yeni, guncellemeTarihi: new Date() })
+      .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, eski)))
+      .returning({ leadId: whatsappKisileri.leadId })
+      .get();
+    if (g) retliKayitAdresleriniEngelle(tx, ctx, g.leadId, "whatsapp_ret");
+    return g?.leadId ?? null;
+  });
 }
 
 export type ReklamBilgisi = { reklamKimligi: string | null; reklamBasligi: string | null; ctwaClid: string | null; pencereBitis: Date };

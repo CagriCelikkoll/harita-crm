@@ -25,7 +25,14 @@ export async function POST(istek: Request, { params }: RouteContext<"/api/whatsa
   }
   const govde = new Uint8Array(await istek.arrayBuffer());
   if (govde.byteLength > WEBHOOK_AZAMI_BAYT) return NextResponse.json({ hata: "Gövde çok büyük." }, { status: 413, headers: BASLIK });
-  const sonuc = webhookIsle(kimlik, govde, istek.headers.get("x-hub-signature-256"));
+  let sonuc;
+  try {
+    sonuc = webhookIsle(kimlik, govde, istek.headers.get("x-hub-signature-256"));
+  } catch (h) {
+    // Transaction geri alındı (hiçbir şey kalıcı değil); 500 ile Meta bildirimi tekrar gönderir. Gövde loglanmaz.
+    console.error("WhatsApp webhook işlenemedi:", h instanceof Error ? h.name : "bilinmeyen hata");
+    return NextResponse.json({ hata: "İşlenemedi." }, { status: 500, headers: BASLIK });
+  }
   if (sonuc.durum === 404) return NextResponse.json({ hata: "Bulunamadı." }, { status: 404, headers: BASLIK });
   if (sonuc.durum === 401) return NextResponse.json({ hata: "İmza geçersiz." }, { status: 401, headers: BASLIK });
   return NextResponse.json({ tamam: true }, { headers: BASLIK });

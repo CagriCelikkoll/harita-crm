@@ -20,3 +20,12 @@ export function webhookDogrulandiIsaretle(tenantId: string, simdi = new Date()) 
 export function imzaliDurumAlindiIsaretle(tenantId: string, simdi = new Date()) {
   db.update(whatsappBaglantilari).set({ sonImzaliDurumTarihi: simdi }).where(eq(whatsappBaglantilari.tenantId, tenantId)).run();
 }
+
+/**
+ * Bir webhook bildiriminin tüm işlenmesi tek transaction'da: bir değişiklik hata verirse hiçbir şey (gelen ileti
+ * kimliği dahil) kalıcı olmaz, Meta'nın tekrar denemesi bildirimi baştan işler. İç fonksiyonların kendi
+ * transaction'ları savepoint olur (better-sqlite3).
+ */
+export function webhookIslemi<T>(fn: () => T): T {
+  return db.transaction(() => fn());
+}

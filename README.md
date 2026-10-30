@@ -354,6 +354,18 @@ silinmez.
 
 **Ret akışı** (`retIsle`, tek yer): kayıt `ileti_izni = 'ret'`, adres(ler) engel listesine, `lead_events`'e `ret`.
 
+- **Ret geri alınamaz:** ret verilmiş kaydın ileti izni hiçbir yoldan (PATCH `/api/kayitlar/[id]` dahil, yönetici
+  de) başka değere geçmez; depo katmanı reddeder, rota 400 ve nedeni döner.
+- **Kaydın bilinen tüm adresleri engellenir** (`kayitTumAdresOzetleri`): kendi e-postası ve ek telefonu, WhatsApp
+  BSUID'i, kuyrukta **gönderildiği adresler** (gönderim anında Places'tan alınan telefon dahil; `message_queue`
+  yalnızca özetini tutar) ve WhatsApp günlük listesinde açılan numara. Ret verilmiş kayda sonradan eklenen adres
+  (kayıt güncelleme, içe aktarmada boş alan doldurma, BSUID bağlama / değişimi) aynı transaction'da engellenir.
+  Böylece aynı numara ya da e-posta başka bir kayıtta (ör. içe aktarma) bulunsa da SMS, e-posta, WhatsApp günlük
+  liste ve WhatsApp API ile gönderilmez; gönderim anında Places'tan alınan telefon da engel listesine karşı denetlenir.
+- **Alıcı türü:** WhatsApp izni `var` olan ya da Meta reklamından gelen bireysel kişiyi tacir/esnaf yapmak İYS beyanı
+  kuralını kaldırdığı için yalnızca yöneticiye açıktır (üyeye 403); reklam kaynaklı kişide yönetici açıklama da
+  yazmalıdır (400). Değişiklik açıklamasıyla `izin` olayı olarak loglanır.
+
 **Ticari ileti** (Ayarlar): gönderen unvanı, iletişim bilgisi, İYS kayıt numarası ve *"Ticari elektronik ileti
 gönderimlerinde İYS kaydı ve 6563 sayılı Kanun kapsamındaki yükümlülüklerin sorumluluğu çalışma alanımıza aittir."*
 onayı (kim / ne zaman kaydedilir). Bunlar olmadan sandbox dışı kampanya başlatılamaz; işçi de gönderimden önce
@@ -675,14 +687,25 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 - **POST:** `X-Hub-Signature-256` (App Secret ile ham gövdenin HMAC-SHA256'sı) doğrulanmadan gövde ayrıştırılmaz ve
   hiçbir şey yazılmaz (401). Gövde en fazla 1 MB. Sonra her değişiklikte numara (`metadata.phone_number_id`) ya da
   WABA (`entry.id`) bu bağlantınınkiyle eşleşmeli; eşleşmeyen (başka çalışma alanının numarası) atlanır.
-  Geçerli istek her zaman 200 döner (Meta tekrar denemesin).
+  Bir bildirimin tamamı **tek transaction**'da işlenir: herhangi bir değişiklik hata verirse gelen ileti kimlikleri
+  dahil hiçbir şey kalıcı olmaz ve 500 döner; Meta'nın tekrar denemesi bildirimi baştan işler (aynı bildirimdeki bir
+  RET kaybolmaz). Başarıyla işlenen istek 200 döner.
 - **Teslim durumları** (`statuses`): wamid ile kuyruk satırı bulunur; durum yalnızca ileri gider
   (sent → delivered → read; failed teslim edilmiş iletinin üzerine yazılmaz); hata kodu ve `pricing`
   (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı. İmzalı bir durum
   bildirimi test modu kilidinin 2. koşuludur. `recipient_user_id` (BSUID) kayda öğrenilir.
-- **Kişi eşleştirme:** önce BSUID (`user_id` / `from_user_id`), yoksa telefon (`wa_id` → `leads.telefon_e164`).
+- **Kişi eşleştirme:** önce BSUID'in bağlı olduğu kayıt (`user_id` / `from_user_id`), yoksa telefon (`wa_id` →
+  `leads.telefon_e164`), yoksa **bu BSUID'e gönderim yapılmış kuyruk satırının kaydı** (`message_queue.adres_ozeti`).
   Kullanıcı adını açmış kişide telefon gelmeyebilir; kayıt yalnızca BSUID ile tutulur. BSUID değişimi
-  (`system.type` `user_changed_user_id` / `user_changed_number`, `previous_user_id`) kayda işlenir.
+  (`system.type` `user_changed_user_id` / `user_changed_number`, `previous_user_id`) kayda işlenir. Yalnızca BSUID'le
+  gelen ret, bulunan kayda uygulanır; kaydın telefonu dahil tüm adresleri engellenir ve BSUID kayda bağlanır.
+- **Meta yük alanları** (resmî belgeyle 30.10.2026'da karşılaştırıldı: *Business-scoped user IDs* ve
+  *user_preferences webhook reference*): `contacts[].user_id`, `messages[].from_user_id` (telefon gizliyse `from` /
+  `wa_id` yok), `statuses[].recipient_user_id` (sent / delivered / read / failed), `user_preferences[].user_id` ve
+  `value` (`stop` / `resume`), `system.user_id` / `previous_user_id` / `type` doğrulandı. **Doğrulanamayan:** telefona
+  gönderilmiş bir iletinin hiçbir durum bildirimi gelmeden (BSUID kayda bağlanmadan) kişinin yalnızca BSUID'le ret
+  yazması durumunda kayda bağlanacak bir veri yoktur; bu ret yalnızca BSUID'i engeller (bilinen sınır). Belgeye göre
+  durum bildirimleri BSUID'i her zaman taşıdığından pratikte ilk durum bildirimiyle bağ kurulur.
 - **Ret:** metin **tam olarak** `RET`, `DUR`, `İPTAL`, `STOP`, `ABONELİKTEN ÇIK`, `ÇIK` (Türkçe büyük/küçük harf,
   boşluk ve sondaki noktalama yok sayılır; "iptal etmek istemiyorum" ret değildir) ya da şablondaki abonelikten çıkma
   butonu (`type: button`) → ret akışı (genel izin + WhatsApp izni ret, telefon ve BSUID engel listesine).
@@ -798,9 +821,9 @@ tests/                           Vitest
    kurallarını (logo kullanımı, üçüncü taraf atıfları) hukuki açıdan gözden geçirin.
 8. **Kampanya yetkisi:** Kampanyayı her üye başlatabilir (sağlayıcı ve ticari ileti ayarları yalnızca yönetici).
    Gerçek gönderimi yöneticiye sınırlamak isterseniz `kampanyaBaslat` içinde `yoneticiOlmali` eklenebilir.
-9. **Engel listesinden çıkarma:** Arayüz yok; ret veren adres kalıcı olarak engellidir. Yanlışlıkla "ret" işaretlenen
-   bir kaydın adresi de engellenir (kayıt izni geri alınsa bile). Gerekirse yönetici için denetim kayıtlı bir
-   "engeli kaldır" işlemi eklenebilir.
+9. **Engel listesinden çıkarma ve ret'in geri alınması:** Arayüz yok; ret kalıcıdır (kaydın izni geri alınamaz,
+   adresleri engelli kalır). Yanlışlıkla "ret" işaretlenen kayıt için yönetici, denetim kayıtlı bir "ret'i ve engeli
+   kaldır" işlemi isterse ürün kararı gerekir (ör. kişinin yeni, belgeli onayı).
 10. **Geri dönen e-postalar (bounce) ve şikâyetler** işlenmiyor; SMTP sağlayıcısının panelinden izlenmeli.
     SMS teslim raporları (`/sms/rest/v2/report`) da çekilmiyor; "gönderildi" Netgsm'in kabulü demektir.
 11. **Sandbox mesaj metni** (`message_queue.sandbox_icerik`) kampanya silinene kadar tutulur; kampanya silme /

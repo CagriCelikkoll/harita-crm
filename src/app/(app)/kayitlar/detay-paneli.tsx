@@ -93,7 +93,7 @@ export function DetayPaneli(props: {
     return true;
   }
 
-  const guncelle = (alan: string, degisiklik: Partial<KayitDto>, tamamMetni?: string) =>
+  const guncelle = (alan: string, degisiklik: Partial<KayitDto> & { aliciTuruAciklamasi?: string }, tamamMetni?: string) =>
     islem(
       alan,
       async () => {
@@ -331,6 +331,7 @@ export function DetayPaneli(props: {
               {
                 isletmeAdi: al("isletmeAdi"),
                 aliciTuru: al("aliciTuru") as AliciTuru,
+                ...(f.has("aliciTuruAciklamasi") ? { aliciTuruAciklamasi: al("aliciTuruAciklamasi") } : {}),
                 yetkiliAdi: al("yetkiliAdi"),
                 eposta: al("eposta"),
                 ekTelefon: al("ekTelefon"),
@@ -368,6 +369,16 @@ export function DetayPaneli(props: {
               </select>
             </label>
           </div>
+          {kayit.aliciTuru === "bireysel" && kayit.kaynak === "meta_reklam" && (
+            <label className="etiket">
+              Alıcı türü değişikliğinin açıklaması
+              <input name="aliciTuruAciklamasi" maxLength={500} className="girdi" />
+              <span className="text-xs font-normal text-soluk">
+                Reklamdan gelen kişiyi tacir/esnaf yapmak İYS beyanı kuralını kaldırır: yalnızca yönetici, açıklamayla
+                yapabilir.
+              </span>
+            </label>
+          )}
           {kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli" && (
             <p className="text-xs text-soluk">Bireysel kayıtlara yalnızca ileti izni &quot;Onaylı&quot; ise gönderim yapılır.</p>
           )}

@@ -2,6 +2,7 @@
 //
 // GET: Meta'nın abonelik doğrulaması — hub.verify_token, çalışma alanının (şifreli) verify token'ıyla sabit zamanlı
 //      karşılaştırılır; eşleşirse hub.challenge döner ve "webhook doğrulandı" işaretlenir.
+// Bir bildirimin tüm işlenmesi tek transaction'dır (hata → hiçbir şey kalıcı olmaz, Meta tekrar dener).
 // POST: X-Hub-Signature-256 (HMAC-SHA256, App Secret, HAM gövde) doğrulanmadan gövde AYRIŞTIRILMAZ ve hiçbir işlem
 //      yapılmaz. Sonra her değişiklikte numara (metadata.phone_number_id) ya da WABA (entry.id) bu bağlantınınkiyle
 //      eşleşmeli; eşleşmeyen (başka çalışma alanının numarası) atlanır.
@@ -9,9 +10,10 @@
 // İşlenenler (gelen ileti METNİ hiçbir yerde saklanmaz):
 //  - statuses: kuyruk satırının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
 //    131050 → ret. İmzalı bir durum bildirimi test modu kilidinin ikinci koşulunu sağlar.
-//  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id); ret kelimesi / abonelikten çıkma
-//    butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı (izin "kendisi
-//    yazdı"), varsa reklam bilgisi; diğer iletiler yalnızca "gelen WhatsApp mesajı" olayı; BSUID değişimi.
+//  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
+//    kuyruk satırı; ret kelimesi / abonelikten çıkma butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi
+//    yoksa 'meta_reklam' kaydı (izin "kendisi yazdı"), varsa reklam bilgisi; diğer iletiler yalnızca "gelen WhatsApp
+//    mesajı" olayı; BSUID değişimi.
 //  - user_preferences: "stop" → ret (K5); "resume" yalnızca olay (ret geri alınmaz).
 //  - message_template_status_update: şablon durumu ve kullanılabilirliği.
 //  - phone_number_quality_update / business_capability_update: portföy mesajlaşma limiti.
@@ -23,9 +25,9 @@ import { adresOzeti } from "../messaging/adres";
 import type { TenantContext } from "../repo/baglam";
 import { retIsle } from "../repo/engel-listesi";
 import { telefonlaKayitlar } from "../repo/kayitlar";
-import { teslimDurumuIsle } from "../repo/kuyruk";
+import { adreseGonderilenKayitlar, teslimDurumuIsle } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
-import { imzaliDurumAlindiIsaretle, webhookBaglantisi, webhookDogrulandiIsaretle } from "../repo/sistem/whatsapp-webhook";
+import { imzaliDurumAlindiIsaretle, webhookBaglantisi, webhookDogrulandiIsaretle, webhookIslemi } from "../repo/sistem/whatsapp-webhook";
 import { limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
 import { gelenIletiKaydet } from "../repo/whatsapp-gelen";
 import { bsuidAta, bsuidDegistir, bsuidIleBul, reklamBilgisiYaz, reklamKisisiOlustur, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
@@ -125,22 +127,25 @@ export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | nu
   } catch {
     return { durum: 200, islenen: 0, atlanan: 1 };
   }
-  const s = new Isleyici(w.ctx, w.baglanti, simdi);
-  for (const entry of yuk.entry ?? []) {
-    for (const c of entry.changes ?? []) {
-      const v = c.value ?? {};
-      // Numara alanı olan değişiklikte numara, olmayanda (şablon, limit) WABA eşleşmeli.
-      const numara = v.metadata?.phone_number_id;
-      const bizim = numara ? numara === w.baglanti.phoneNumberId : entry.id === w.baglanti.wabaId;
-      if (!bizim) {
-        s.atlanan++;
-        continue;
+  // Tamamı tek transaction: hata olursa gelen ileti kimlikleri de yazılmamış olur, tekrar deneme RET'i kaybetmez.
+  return webhookIslemi(() => {
+    const s = new Isleyici(w.ctx, w.baglanti, simdi);
+    for (const entry of yuk.entry ?? []) {
+      for (const c of entry.changes ?? []) {
+        const v = c.value ?? {};
+        // Numara alanı olan değişiklikte numara, olmayanda (şablon, limit) WABA eşleşmeli.
+        const numara = v.metadata?.phone_number_id;
+        const bizim = numara ? numara === w.baglanti.phoneNumberId : entry.id === w.baglanti.wabaId;
+        if (!bizim) {
+          s.atlanan++;
+          continue;
+        }
+        s.degisiklik(c.field ?? "", v);
       }
-      s.degisiklik(c.field ?? "", v);
     }
-  }
-  if (s.durumAlindi) imzaliDurumAlindiIsaretle(w.baglanti.tenantId, simdi);
-  return { durum: 200, islenen: s.islenen, atlanan: s.atlanan };
+    if (s.durumAlindi) imzaliDurumAlindiIsaretle(w.baglanti.tenantId, simdi);
+    return { durum: 200 as const, islenen: s.islenen, atlanan: s.atlanan };
+  });
 }
 
 class Isleyici {
@@ -173,14 +178,19 @@ class Isleyici {
     }
   }
 
-  /** Kişi: önce BSUID, yoksa telefon. */
+  /** Kişi: önce BSUID'in bağlı olduğu kayıt, sonra telefon, sonra bu BSUID'e gönderim yapılmış kuyruk satırının kaydı. */
   private kisiBul(bsuid?: string, waId?: string): string | null {
     if (bsuid) {
       const id = bsuidIleBul(this.ctx, bsuid);
       if (id) return id;
     }
     const tel = telefonNormallestir(waId);
-    return tel ? (telefonlaKayitlar(this.ctx, [tel])[0]?.id ?? null) : null;
+    const telefonla = tel ? (telefonlaKayitlar(this.ctx, [tel])[0]?.id ?? null) : null;
+    return telefonla ?? (bsuid ? (this.bsuidKuyrukKayitlari(bsuid)[0] ?? null) : null);
+  }
+
+  private bsuidKuyrukKayitlari(bsuid: string): string[] {
+    return adreseGonderilenKayitlar(this.ctx, adresOzeti(this.ctx.tenantId, "wa_kimlik", bsuid));
   }
 
   private adresler(bsuid?: string, waId?: string) {
@@ -191,8 +201,18 @@ class Isleyici {
     ];
   }
 
+  /**
+   * Ret akışı. Kayıt bulunamadıysa (yalnızca BSUID geldi, BSUID henüz kayda bağlı değil) bu BSUID'e gönderim yapılmış
+   * kuyruk satırlarının kayıtlarına uygulanır; retIsle kaydın telefonu dahil tüm adreslerini engeller.
+   */
   private ret(leadId: string | null, bsuid: string | undefined, waId: string | undefined, aciklama: string) {
-    retIsle(this.ctx, { leadId, adresler: this.adresler(bsuid, waId), kaynak: "whatsapp_ret", aciklama });
+    const kayitlar = leadId ? [leadId] : bsuid ? this.bsuidKuyrukKayitlari(bsuid) : [];
+    const girdi = { adresler: this.adresler(bsuid, waId), kaynak: "whatsapp_ret" as const, aciklama };
+    if (!kayitlar.length) retIsle(this.ctx, { ...girdi, leadId: null });
+    for (const id of kayitlar) {
+      if (bsuid) bsuidAta(this.ctx, id, bsuid);
+      retIsle(this.ctx, { ...girdi, leadId: id });
+    }
   }
 
   private durum(d: Durum) {

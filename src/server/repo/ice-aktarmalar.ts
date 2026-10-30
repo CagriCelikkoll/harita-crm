@@ -7,6 +7,7 @@ import type { WhatsappIzinKaynagi } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { iceAktarmalar, leadEvents, leads, whatsappKisileri, type IceAktarma } from "../db/schema";
 import type { TenantContext } from "./baglam";
+import { retliKayitAdresleriniEngelle } from "./engel-listesi";
 import { kisileriEkle, type YeniKisi } from "./kayitlar";
 
 export type { IceAktarma };
@@ -136,7 +137,11 @@ export function iceAktarmaUygula(ctx: TenantContext, id: string, plan: IceAktarm
       }
       const alanSayisi = Object.keys(set).length;
       if (!alanSayisi && !izinVerildi) continue;
-      if (alanSayisi) tx.update(leads).set({ ...set, guncellemeTarihi: simdi }).where(kosul).run();
+      if (alanSayisi) {
+        tx.update(leads).set({ ...set, guncellemeTarihi: simdi }).where(kosul).run();
+        // Ret verilmiş kayda içe aktarmayla eklenen e-posta da engellenir.
+        if (set.eposta) retliKayitAdresleriniEngelle(tx, ctx, d.leadId);
+      }
       const ALAN_ADLARI = { isletmeAdi: "işletme adı", yetkiliAdi: "ad", eposta: "e-posta" } as const;
       const degisen = [
         ...Object.keys(set).map((a) => ALAN_ADLARI[a as keyof typeof ALAN_ADLARI]),

@@ -395,6 +395,16 @@ const engelTestleri: Record<keyof typeof engelListesi, () => void> = {
     expect(engelListesi.retIsle(A, { leadId: bKayit.id, adresler: [], kaynak: "abonelik", aciklama: "x" })).toBe(false);
     expect(kayitlar.kayitGetir(B, bKayit.id)?.iletiIzni).toBe("bekliyor");
   },
+  kayitTumAdresOzetleri: () => {
+    // A, B'nin kaydının adres özetlerini okuyamaz.
+    expect(engelListesi.kayitTumAdresOzetleri(db, A, bKayit.id)).toEqual([]);
+  },
+  retliKayitAdresleriniEngelle: () => {
+    const once = engelListesi.engelSayisi(B);
+    engelListesi.retliKayitAdresleriniEngelle(db, A, bKayit.id);
+    expect(engelListesi.engelSayisi(A)).toBe(0);
+    expect(engelListesi.engelSayisi(B)).toBe(once);
+  },
 };
 
 const sayacTestleri: Record<keyof typeof gonderimSayaci, () => void> = {

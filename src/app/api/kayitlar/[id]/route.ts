@@ -6,6 +6,7 @@ import { ALICI_TURLERI } from "@/lib/mesajlasma";
 import { ILETI_IZINLERI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
+import { KayitKuraliHatasi } from "@/server/repo/baglam";
 import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
 import { olaylariListele } from "@/server/repo/olaylar";
 import { canliBilgiGetir, type CanliSonuc } from "@/server/servisler/canli-bilgi";
@@ -68,6 +69,8 @@ const Degisiklik = z
       .array(z.string().trim().toLowerCase().max(40))
       .max(20, "En fazla 20 etiket.")
       .transform((e) => [...new Set(e.filter(Boolean))]),
+    // Kayıt alanı değil: WhatsApp izinli / reklamdan gelen kişinin alıcı türü değişikliğinin gerekçesi (olaya yazılır).
+    aliciTuruAciklamasi: metin(500, "Açıklama"),
   })
   .partial()
   .strict();
@@ -78,8 +81,14 @@ export async function PATCH(istek: Request, { params }: RouteContext<"/api/kayit
   if (!ctx) return yetkisiz();
   const sonuc = Degisiklik.safeParse(await istek.json().catch(() => null));
   if (!sonuc.success) return gecersiz(sonuc.error.issues[0]?.message ?? "Geçersiz değer.");
-  const kayit = kayitGuncelle(ctx, (await params).id, sonuc.data);
-  return kayit ? NextResponse.json({ kayit: kayitDto(kayit) }, { headers: BASLIK }) : bulunamadi();
+  const { aliciTuruAciklamasi, ...degisiklik } = sonuc.data;
+  try {
+    const kayit = kayitGuncelle(ctx, (await params).id, degisiklik, { aliciTuruAciklamasi });
+    return kayit ? NextResponse.json({ kayit: kayitDto(kayit) }, { headers: BASLIK }) : bulunamadi();
+  } catch (h) {
+    if (h instanceof KayitKuraliHatasi) return NextResponse.json({ hata: h.message }, { status: h.durum, headers: BASLIK });
+    throw h;
+  }
 }
 
 export async function DELETE(istek: Request, { params }: RouteContext<"/api/kayitlar/[id]">) {

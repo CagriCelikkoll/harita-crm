@@ -26,6 +26,17 @@ export class YetkiHatasi extends Error {
   }
 }
 
+/** Kayıt güncellemesi bir kuralı çiğniyor: 400 (geçersiz) ya da 403 (yönetici gerekir); mesaj kullanıcıya gösterilir. */
+export class KayitKuraliHatasi extends Error {
+  constructor(
+    mesaj: string,
+    readonly durum: 400 | 403,
+  ) {
+    super(mesaj);
+    this.name = "KayitKuraliHatasi";
+  }
+}
+
 export function yoneticiOlmali(ctx: TenantContext) {
   if (ctx.rol !== "yonetici") throw new YetkiHatasi();
 }

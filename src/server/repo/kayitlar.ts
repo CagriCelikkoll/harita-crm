@@ -9,10 +9,11 @@ import {
   type OlayTuru,
 } from "@/lib/sabitler";
 import { db } from "../db";
-import { engelListesi, leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
-import { kayitAdresOzetleri, telefonNormallestir } from "../messaging/adres";
+import { leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
+import { telefonNormallestir } from "../messaging/adres";
 import type { AliciTuru, WhatsappIzni } from "@/lib/mesajlasma";
-import { likeKacir, type TenantContext } from "./baglam";
+import { KayitKuraliHatasi, likeKacir, type TenantContext } from "./baglam";
+import { retliKayitAdresleriniEngelle } from "./engel-listesi";
 
 export type { Kayit };
 
@@ -143,12 +144,46 @@ const BILGI_ALANLARI: Record<string, string> = {
 /**
  * Kaydı günceller ve her değişikliği lead_events'e yazar. Kayıt bu kiracıya ait değilse null.
  * İleti izni 'ret' yapılırsa kaydın adresleri engel listesine de yazılır (ret akışıyla aynı sonuç).
+ * Kurallar (KayitKuraliHatasi):
+ *  - 'ret' geri alınamaz: ret verilmiş kaydın ileti izni başka değere geçemez (400).
+ *  - WhatsApp izni 'var' olan ya da Meta reklamından gelen kişiyi bireysel → tacir/esnaf yapmak İYS beyanı kuralını
+ *    kaldırır: yalnızca yönetici (403); Meta reklamı kaynaklı kişide yönetici de açıklama yazmalı (400). Olay yazılır.
  */
-export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitDegisikligi): Kayit | null {
+export function kayitGuncelle(
+  ctx: TenantContext,
+  id: string,
+  degisiklik: KayitDegisikligi,
+  secenek: { aliciTuruAciklamasi?: string | null } = {},
+): Kayit | null {
   return db.transaction((tx) => {
     const kosul = and(eq(leads.id, id), eq(leads.tenantId, ctx.tenantId));
     const eski = tx.select().from(leads).where(kosul).get();
     if (!eski) return null;
+
+    if (eski.iletiIzni === "ret" && degisiklik.iletiIzni !== undefined && degisiklik.iletiIzni !== "ret") {
+      throw new KayitKuraliHatasi("Ret verilmiş kaydın ileti izni değiştirilemez; ret geri alınamaz.", 400);
+    }
+    let turAciklamasi: string | null = null;
+    if (eski.aliciTuru === "bireysel" && degisiklik.aliciTuru === "tacir_esnaf") {
+      const waIzni = tx
+        .select({ izin: whatsappKisileri.izin })
+        .from(whatsappKisileri)
+        .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.leadId, id)))
+        .get()?.izin;
+      const reklam = eski.kaynak === "meta_reklam";
+      if (waIzni === "var" || reklam) {
+        if (ctx.rol !== "yonetici") {
+          throw new KayitKuraliHatasi(
+            "WhatsApp izni olan bireysel kişinin alıcı türünü tacir/esnaf yapmak yalnızca yöneticiye açıktır (İYS beyanı kuralını kaldırır).",
+            403,
+          );
+        }
+        turAciklamasi = secenek.aliciTuruAciklamasi?.trim() || null;
+        if (reklam && !turAciklamasi) {
+          throw new KayitKuraliHatasi("Meta reklamından gelen kişinin alıcı türünü değiştirmek için açıklama yazın.", 400);
+        }
+      }
+    }
 
     const yeni = tx
       .update(leads)
@@ -189,14 +224,15 @@ export function kayitGuncelle(ctx: TenantContext, id: string, degisiklik: KayitD
         aciklama: `Bilgiler güncellendi: ${degisenBilgiler.map((a) => BILGI_ALANLARI[a]).join(", ")}`,
       });
     }
+    if (eski.aliciTuru === "bireysel" && yeni.aliciTuru === "tacir_esnaf" && (turAciklamasi || eski.kaynak === "meta_reklam")) {
+      olaylar.push({
+        tur: "izin",
+        aciklama: `Alıcı türü bireysel → tacir/esnaf (yönetici; İYS beyanı kuralı kalktı)${turAciklamasi ? `: ${turAciklamasi}` : ""}`,
+      });
+    }
     if (yeni.iletiIzni === "ret") {
-      const adresler = kayitAdresOzetleri(ctx.tenantId, yeni);
-      if (adresler.length) {
-        tx.insert(engelListesi)
-          .values(adresler.map((a) => ({ id: crypto.randomUUID(), tenantId: ctx.tenantId, ...a, kaynak: "kayit_ret" as const, leadId: id })))
-          .onConflictDoNothing({ target: [engelListesi.tenantId, engelListesi.tur, engelListesi.ozet] })
-          .run();
-      }
+      // Ret verilmiş kayda eklenen her adres (ve gönderildiği adresler) de engellenir.
+      retliKayitAdresleriniEngelle(tx, ctx, id);
       // Ret tüm kanallar içindir (retIsle ile aynı): WhatsApp izni de 'ret'.
       const simdi = new Date();
       tx.insert(whatsappKisileri)
