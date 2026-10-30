@@ -92,6 +92,21 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
       } satisfies NumaraBilgisi;
     },
 
+    async wabaNumaralari() {
+      const sonuc: string[] = [];
+      let after: string | undefined;
+      for (let sayfa = 0; sayfa < AZAMI_SAYFA; sayfa++) {
+        const v = await istek<{ data?: { id?: string }[]; paging?: { cursors?: { after?: string }; next?: string } }>(
+          `${b.wabaId}/phone_numbers`,
+          { sorgu: { fields: "id", limit: "100", ...(after ? { after } : {}) } },
+        );
+        for (const n of v.data ?? []) if (n.id) sonuc.push(String(n.id));
+        after = v.paging?.next ? v.paging.cursors?.after : undefined;
+        if (!after) break;
+      }
+      return sonuc;
+    },
+
     async sablonlar() {
       const sonuc: MetaSablon[] = [];
       let after: string | undefined;

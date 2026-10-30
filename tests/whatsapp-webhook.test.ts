@@ -34,7 +34,7 @@ async function kur(ad: string): Promise<Kurulum> {
   const phoneId = String(800000 + ++sayac);
   const waba = String(900000 + sayac);
   const secret = `secret-${ad}`;
-  const { verifyToken } = wa.whatsappBaglantisiKaydet(ctx, { wabaId: waba, phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
+  const { verifyToken } = await wa.whatsappBaglantisiKaydet(ctx, { wabaId: waba, phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
   await wa.sablonlariSenkronizeEt(ctx);
   return { ctx, kimlik: baglantiGetir(ctx)!.webhookKimligi, secret, phoneId, waba, verifyToken: verifyToken! };
 }
@@ -164,6 +164,37 @@ describe("teslim durumları", () => {
     await gonder(k, mesajlar(k, "messages", { statuses: [{ id: "wamid.X50", status: "failed", recipient_id: "905321110003", errors: [{ code: 131050 }] }] }));
     expect(kayitGetir(k.ctx, a.id)?.iletiIzni).toBe("ret");
     expect(whatsappKisisiGetir(k.ctx, a.id)?.izin).toBe("ret");
+  });
+
+  it("test modu kilidini yalnızca bizim gönderdiğimiz, sandbox olmayan ve mevcut numaradan giden iletinin bildirimi açar", async () => {
+    const k = await kur("KilitKaynak");
+    const [a] = kisileriEkle(k.ctx, [{ kaynak: "elle", ekTelefon: "0532 111 00 07" }], "x");
+    const sonImzali = () => baglantiGetir(k.ctx)?.sonImzaliDurumTarihi ?? null;
+    const durum = (id: string) => gonder(k, mesajlar(k, "messages", { statuses: [{ id, status: "delivered", recipient_id: "905321110007" }] }));
+    const satir = (id: string, wamid: string, ek: { sandbox?: boolean; numara?: string | null }) => {
+      db.$client
+        .prepare("insert into kampanyalar (id, tenant_id, kanal, ad, sablon, filtre, sandbox, durum) values (?, ?, 'whatsapp_api', 'K', 'S', '{}', ?, 'tamamlandi')")
+        .run(`k-${id}`, k.ctx.tenantId, ek.sandbox ? 1 : 0);
+      db.$client
+        .prepare(
+          "insert into message_queue (id, tenant_id, kampanya_id, lead_id, kanal, durum, saglayici_kimligi, sandbox_icerik, gonderen_numara) values (?, ?, ?, ?, 'whatsapp_api', 'gonderildi', ?, ?, ?)",
+        )
+        .run(id, k.ctx.tenantId, `k-${id}`, a.id, wamid, ek.sandbox ? "metin" : null, ek.numara ?? null);
+    };
+
+    // Aynı numarayı kullanan başka bir aracın (bizim kuyruğumuzda olmayan) iletisi: imzalı ama kilidi açmaz.
+    expect((await durum("wamid.BASKA_ARAC")).status).toBe(200);
+    expect(sonImzali()).toBeNull();
+    // Sandbox satırı ve eski numaradan gönderilmiş ileti de açmaz.
+    satir("m-sb", "wamid.SANDBOX", { sandbox: true, numara: k.phoneId });
+    satir("m-eski", "wamid.ESKI", { numara: "800999" });
+    await durum("wamid.SANDBOX");
+    await durum("wamid.ESKI");
+    expect(sonImzali()).toBeNull();
+    // Bizim, mevcut numaradan gönderdiğimiz ileti: açar.
+    satir("m-bizim", "wamid.BIZIM", { numara: k.phoneId });
+    await durum("wamid.BIZIM");
+    expect(sonImzali()).toBeInstanceOf(Date);
   });
 });
 

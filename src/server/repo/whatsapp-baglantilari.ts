@@ -28,11 +28,12 @@ const SIFIRLANAN = {
 
 /**
  * Bağlantıyı oluşturur ya da günceller. Numara (phone_number_id) başka bir çalışma alanına bağlıysa
- * veritabanı tekillik kuralı reddeder (çağıran yakalar).
+ * veritabanı tekillik kuralı reddeder (çağıran yakalar). numaraDogrulamaTarihi: çağıran, numaranın WABA'ya ait
+ * olduğunu kiracının kendi anahtarıyla Graph API'den doğruladıktan sonra verir.
  */
 export function baglantiKaydet(
   ctx: TenantContext,
-  g: { wabaId: string; phoneNumberId: string; sifreliVeri: string },
+  g: { wabaId: string; phoneNumberId: string; sifreliVeri: string; numaraDogrulamaTarihi: Date },
 ): WhatsappBaglantisi {
   yoneticiOlmali(ctx);
   return db.transaction((tx) => {
@@ -47,6 +48,7 @@ export function baglantiKaydet(
           wabaId: g.wabaId,
           phoneNumberId: g.phoneNumberId,
           sifreliVeri: g.sifreliVeri,
+          numaraDogrulamaTarihi: g.numaraDogrulamaTarihi,
           uygulamaPayi: VARSAYILAN_UYGULAMA_PAYI,
           guncelleyen: ctx.userId,
           guncellemeTarihi: simdi,
@@ -62,6 +64,7 @@ export function baglantiKaydet(
         phoneNumberId: g.phoneNumberId,
         sifreliVeri: g.sifreliVeri,
         ...(numaraDegisti ? SIFIRLANAN : {}),
+        numaraDogrulamaTarihi: g.numaraDogrulamaTarihi,
         guncelleyen: ctx.userId,
         guncellemeTarihi: simdi,
       })
@@ -141,6 +144,21 @@ export function numaraBilgisiYaz(
       .update(whatsappBaglantilari)
       .set({ ...b, sonKontrol: simdi })
       .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
+      .returning({ id: whatsappBaglantilari.tenantId })
+      .get(),
+  );
+}
+
+/**
+ * Bağlantı testinde numara sahipliği yeniden denetlendi: doğrulandıysa tarih, değilse null (bağlantı kullanılmaz).
+ * Koşullu: test sırasında numara değiştiyse yazılmaz.
+ */
+export function numaraDogrulamaYaz(ctx: TenantContext, phoneNumberId: string, tarih: Date | null): boolean {
+  return Boolean(
+    db
+      .update(whatsappBaglantilari)
+      .set({ numaraDogrulamaTarihi: tarih })
+      .where(and(eq(whatsappBaglantilari.tenantId, ctx.tenantId), eq(whatsappBaglantilari.phoneNumberId, phoneNumberId)))
       .returning({ id: whatsappBaglantilari.tenantId })
       .get(),
   );

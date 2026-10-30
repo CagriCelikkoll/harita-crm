@@ -4,10 +4,12 @@
 //  2. Şablon hâlâ kullanılabilir mi (değilse kampanya duraklar) ve değişken değerleri (boşsa hariç).
 //  3. Sandbox kampanyası: Meta'ya gidilmez, metin kaydedilir.
 //  4. Bağlantı; test modu açıksa yalnızca test numaraları.
-//  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir): RED → çalışma alanının tüm WhatsApp kampanyaları duraklar.
+//  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir; numara sahipliği de yeniden denetlenir, reddedilirse kampanya
+//     duraklar): RED → çalışma alanının tüm WhatsApp kampanyaları duraklar.
 //  6. Günlük sınır (atomik sayaç) ve Meta mesajlaşma limitinin bu uygulamaya ayrılan payı (kayan 24 saat);
 //     dolarsa ertesi günün gönderim başlangıcına kalır.
-//  7. Hız (WHATSAPP_SANIYE_BASI) ve gönderim; Meta hata kodlarına göre sonuç.
+//  7. Hız (WHATSAPP_SANIYE_BASI); gönderimden hemen önce satır kilidi ve kampanya durumu yeniden denetlenir;
+//     gönderim; Meta hata kodlarına göre sonuç.
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
 import { degiskenDegerleri, limitKatmaniSayisi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
 import { gunAnahtari, gunEkle, istanbulAni } from "@/lib/zaman";
@@ -26,7 +28,7 @@ import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir } from "./ileti";
 import { baglantiyiTestEt, whatsappBaglantisiCoz } from "./whatsapp-api";
 
-export type WhatsappSonucu = "gonderildi" | "bekletildi" | "haric" | "basarisiz";
+export type WhatsappSonucu = "gonderildi" | "bekletildi" | "haric" | "basarisiz" | "atlandi";
 
 /** Kalite bilgisi bundan eskiyse gönderimden önce Meta'dan yenilenir. */
 const KALITE_TAZELIK_MS = 15 * 60_000;
@@ -37,6 +39,11 @@ export type WhatsappGondericiSecenekleri = {
   /** İki gönderim arası en az süre (ms). Varsayılan 1000 / WHATSAPP_SANIYE_BASI (20 → 50 ms). */
   aralikMs?: number;
   geciciHata: (hata: string) => WhatsappSonucu;
+  /**
+   * Gönderimden (ve sandbox kaydından) HEMEN önce: satır hâlâ bu turda ve kampanya hâlâ çalışıyor mu. Değilse satırı
+   * uygun duruma bırakır, iade'yi çağırır ve sonucu döner; null: gönderilebilir.
+   */
+  gonderimOncesi: (iade: () => void) => WhatsappSonucu | null;
 };
 
 let sonGonderim = 0;
@@ -90,6 +97,8 @@ export async function whatsappMesajIsle(
 
   // 3) Sandbox: Meta'ya gidilmez.
   if (kampanya.sandbox) {
+    const durdu = s.gonderimOncesi(() => {});
+    if (durdu) return durdu;
     mesajGonderildi(
       ctx,
       mesaj.id,
@@ -114,7 +123,10 @@ export async function whatsappMesajIsle(
     } catch {
       /* Meta'ya ulaşılamadı: son bilinen kalite kullanılır */
     }
-    c = whatsappBaglantisiCoz(ctx) ?? c;
+    // Yenileme numara sahipliğini de denetler; reddedildiyse bağlantı artık kullanılmaz.
+    const yeni = whatsappBaglantisiCoz(ctx);
+    if (!yeni) return duraklat(ctx, mesaj, "baglanti_yok");
+    c = yeni;
   }
   if (c.baglanti.kalite === "RED") return duraklat(ctx, mesaj, "kalite_dusuk", true);
 
@@ -138,6 +150,8 @@ export async function whatsappMesajIsle(
 
   // 7) Gönderim.
   await hizSiniri(s.aralikMs ?? Math.ceil(1000 / Math.max(1, Number(process.env.WHATSAPP_SANIYE_BASI ?? 20))));
+  const durdu = s.gonderimOncesi(iade);
+  if (durdu) return durdu;
   const istemci = whatsappApiIstemcisi({
     wabaId: c.baglanti.wabaId,
     phoneNumberId: c.baglanti.phoneNumberId,
@@ -153,7 +167,7 @@ export async function whatsappMesajIsle(
     mesajGonderildi(
       ctx,
       mesaj.id,
-      { saglayiciKimligi: yanit.wamid, sandbox: false, sandboxIcerik: null, olayAciklamasi, adresOzeti: ozet },
+      { saglayiciKimligi: yanit.wamid, sandbox: false, sandboxIcerik: null, olayAciklamasi, adresOzeti: ozet, gonderenNumara: c.baglanti.phoneNumberId },
       simdi,
     );
     return "gonderildi";

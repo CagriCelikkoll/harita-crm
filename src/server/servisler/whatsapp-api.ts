@@ -13,12 +13,13 @@ import {
 } from "@/lib/whatsapp-api";
 import { uygulamaAdresi } from "../messaging/abonelik-belirteci";
 import { coz, sifrele } from "../messaging/sifreleme";
-import type { TenantContext } from "../repo/baglam";
+import { yoneticiOlmali, type TenantContext } from "../repo/baglam";
 import {
   baglantiGetir,
   baglantiKaydet,
   baglantiSifreliVeriYaz,
   numaraBilgisiYaz,
+  numaraDogrulamaYaz,
   testModuAyarla,
   uygulamaPayiAyarla,
   type WhatsappBaglantisi,
@@ -48,14 +49,50 @@ const yeniVerifyToken = () => randomBytes(24).toString("base64url");
 export const webhookAdresi = (b: Pick<WhatsappBaglantisi, "webhookKimligi">) =>
   `${uygulamaAdresi()}/api/whatsapp/webhook/${b.webhookKimligi}`;
 
-/** Bağlantı ve çözülmüş gizli bilgiler (kampanya işçisi ve webhook için). Bağlantı yoksa null. */
+/**
+ * Bağlantı ve çözülmüş gizli bilgiler (kampanya işçisi ve webhook için). Bağlantı yoksa ya da numara sahipliği
+ * doğrulanmamışsa null: doğrulanmamış bağlantı "bağlı" sayılmaz.
+ */
 export function whatsappBaglantisiCoz(ctx: TenantContext): { baglanti: WhatsappBaglantisi; gizli: Gizli } | null {
   const baglanti = baglantiGetir(ctx);
-  return baglanti ? { baglanti, gizli: gizliCoz(baglanti) } : null;
+  return baglanti?.numaraDogrulamaTarihi ? { baglanti, gizli: gizliCoz(baglanti) } : null;
 }
 
-function istemci(ctx: TenantContext): { baglanti: WhatsappBaglantisi; istemci: WhatsappApiIstemcisi } {
-  const c = whatsappBaglantisiCoz(ctx);
+/** Numara sahipliği doğrulanamadı. Numaranın başka bir çalışma alanına bağlı olup olmadığını AÇIĞA VURMAZ. */
+const SAHIPLIK_HATASI =
+  "Numara doğrulanamadı: Phone Number ID bu WABA'da bulunamadı, erişim anahtarının bu WABA'ya yetkisi yok ya da numara " +
+  "bu çalışma alanına bağlanamıyor. WABA ID, Phone Number ID ve anahtarın izinlerini kontrol edin.";
+
+/** Numara bu WABA'ya ait değil (ya da anahtar bu WABA'yı göremiyor): bağlantı kullanılmaz. */
+class SahiplikHatasi extends WhatsappApiHatasi {
+  constructor() {
+    super(SAHIPLIK_HATASI, 400);
+  }
+}
+
+/**
+ * phone_number_id'nin girilen WABA'ya ait olduğunu kiracının KENDİ erişim anahtarıyla Graph API'den doğrular
+ * (GET /{waba-id}/phone_numbers). Meta'ya ulaşılamazsa 502 (geçici); anahtar geçersizse Meta'nın mesajı (400; yalnızca
+ * kiracının kendi anahtarıyla ilgili); diğer her durumda tek tip SahiplikHatasi.
+ */
+async function numaraSahipligiDogrula(g: { wabaId: string; phoneNumberId: string; erisimAnahtari: string }) {
+  let numaralar: string[];
+  try {
+    numaralar = await whatsappApiIstemcisi(g).wabaNumaralari();
+  } catch (hata) {
+    if (hata instanceof GraphHatasi && (hata.http === 0 || hata.http >= 500)) {
+      throw new WhatsappApiHatasi("Meta'ya ulaşılamadı; numara doğrulanamadı. Biraz sonra tekrar deneyin.", 502);
+    }
+    if (hata instanceof GraphHatasi && hata.http === 401) throw new WhatsappApiHatasi(graphMesaji(hata), 400);
+    throw new SahiplikHatasi();
+  }
+  if (!numaralar.includes(g.phoneNumberId)) throw new SahiplikHatasi();
+}
+
+function istemci(ctx: TenantContext, dogrulanmamisOlabilir = false): { baglanti: WhatsappBaglantisi; istemci: WhatsappApiIstemcisi } {
+  const ham = baglantiGetir(ctx);
+  const c = dogrulanmamisOlabilir && ham ? { baglanti: ham, gizli: gizliCoz(ham) } : whatsappBaglantisiCoz(ctx);
+  if (!c && ham) throw new WhatsappApiHatasi("Numara sahipliği doğrulanmadı: önce \"Bağlantıyı test et\".", 409);
   if (!c) throw new WhatsappApiHatasi("WhatsApp Business bağlantısı tanımlı değil.", 404);
   return {
     baglanti: c.baglanti,
@@ -86,6 +123,8 @@ export type BaglantiDto = {
   webhookAdresi: string | null;
   webhookDogrulandi: boolean;
   imzaliDurumAlindi: boolean;
+  /** phone_number_id WABA'ya ait (Graph API); değilse bağlantı kullanılmaz. */
+  numaraDogrulandi: boolean;
   testModu: boolean;
   testModuKapatilabilir: boolean;
   testNumaralari: string[];
@@ -116,6 +155,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
       webhookAdresi: null,
       webhookDogrulandi: false,
       imzaliDurumAlindi: false,
+      numaraDogrulandi: false,
       testModu: true,
       testModuKapatilabilir: false,
       testNumaralari: [],
@@ -141,6 +181,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
     webhookAdresi: webhookAdresi(b),
     webhookDogrulandi: Boolean(b.webhookDogrulamaTarihi),
     imzaliDurumAlindi: Boolean(b.sonImzaliDurumTarihi),
+    numaraDogrulandi: Boolean(b.numaraDogrulamaTarihi),
     testModu: b.testModu,
     testModuKapatilabilir: Boolean(b.webhookDogrulamaTarihi && b.sonImzaliDurumTarihi),
     testNumaralari: gizli?.testNumaralari ?? [],
@@ -168,8 +209,12 @@ export type BaglantiGirdisi = {
   appSecret?: string | null;
 };
 
-/** Kaydeder. İlk kayıtta üretilen verify token yalnızca bu yanıtta döner. */
-export function whatsappBaglantisiKaydet(ctx: TenantContext, g: BaglantiGirdisi): { verifyToken: string | null } {
+/**
+ * Numara sahipliğini Graph API'den doğruladıktan sonra kaydeder (doğrulanamazsa hiçbir şey yazılmaz). İlk kayıtta
+ * üretilen verify token yalnızca bu yanıtta döner.
+ */
+export async function whatsappBaglantisiKaydet(ctx: TenantContext, g: BaglantiGirdisi): Promise<{ verifyToken: string | null }> {
+  yoneticiOlmali(ctx);
   const eski = baglantiGetir(ctx);
   let eskiGizli: Gizli | null = null;
   if (eski) {
@@ -182,6 +227,10 @@ export function whatsappBaglantisiKaydet(ctx: TenantContext, g: BaglantiGirdisi)
   const erisimAnahtari = g.erisimAnahtari?.trim() || eskiGizli?.erisimAnahtari;
   const appSecret = g.appSecret?.trim() || eskiGizli?.appSecret;
   if (!erisimAnahtari || !appSecret) throw new WhatsappApiHatasi("Kalıcı erişim anahtarı ve App Secret girilmeli.");
+  if (!/^\d{5,30}$/.test(g.wabaId) || !/^\d{5,30}$/.test(g.phoneNumberId)) {
+    throw new WhatsappApiHatasi("WABA ID ve Phone Number ID sayısal olmalı.");
+  }
+  await numaraSahipligiDogrula({ wabaId: g.wabaId, phoneNumberId: g.phoneNumberId, erisimAnahtari });
   const yeniToken = eskiGizli?.verifyToken ? null : yeniVerifyToken();
   const gizli: Gizli = {
     erisimAnahtari,
@@ -190,9 +239,15 @@ export function whatsappBaglantisiKaydet(ctx: TenantContext, g: BaglantiGirdisi)
     testNumaralari: eskiGizli?.testNumaralari ?? [],
   };
   try {
-    baglantiKaydet(ctx, { wabaId: g.wabaId, phoneNumberId: g.phoneNumberId, sifreliVeri: gizliSifrele(ctx.tenantId, gizli) });
+    baglantiKaydet(ctx, {
+      wabaId: g.wabaId,
+      phoneNumberId: g.phoneNumberId,
+      sifreliVeri: gizliSifrele(ctx.tenantId, gizli),
+      numaraDogrulamaTarihi: new Date(),
+    });
   } catch (hata) {
-    if (/UNIQUE/.test((hata as Error).message)) throw new WhatsappApiHatasi("Bu numara başka bir çalışma alanına bağlı.", 409);
+    // Başka çalışma alanına bağlı numara: sahiplik hatasıyla aynı mesaj ve durum (bağlı olduğu açığa çıkmaz).
+    if (/UNIQUE/.test((hata as Error).message)) throw new WhatsappApiHatasi(SAHIPLIK_HATASI, 400);
     throw hata;
   }
   return { verifyToken: yeniToken };
@@ -241,9 +296,25 @@ export function uygulamaPayiKaydet(ctx: TenantContext, yuzde: number) {
 
 // --- Graph API ---
 
-/** Numara bilgisi, kalite ve portföy limitini okur ve saklar. Hata da saklanır (ekranda gösterilir). */
+/**
+ * Numara sahipliğini yeniden doğrular (doğrulanamazsa bağlantı kullanılmaz hale gelir), sonra numara bilgisi,
+ * kalite ve portföy limitini okur ve saklar. Hata da saklanır (ekranda gösterilir). İşçi kaliteyi yenilerken de çağırır.
+ */
 export async function baglantiyiTestEt(ctx: TenantContext, simdi = new Date()) {
-  const { istemci: i } = istemci(ctx);
+  const { baglanti, istemci: i } = istemci(ctx, true);
+  const erisimAnahtari = gizliCoz(baglanti).erisimAnahtari;
+  try {
+    await numaraSahipligiDogrula({ wabaId: baglanti.wabaId, phoneNumberId: baglanti.phoneNumberId, erisimAnahtari });
+    numaraDogrulamaYaz(ctx, baglanti.phoneNumberId, baglanti.numaraDogrulamaTarihi ?? simdi);
+  } catch (hata) {
+    // Sahiplik reddedildiyse bağlantı kullanılmaz; Meta'ya ulaşılamadı ya da anahtar geçersizse son doğrulama korunur.
+    numaraBilgisiYaz(ctx, { sonHata: (hata as Error).message }, simdi);
+    if (hata instanceof SahiplikHatasi) {
+      numaraDogrulamaYaz(ctx, baglanti.phoneNumberId, null);
+      throw hata;
+    }
+    throw new WhatsappApiHatasi((hata as Error).message, 502);
+  }
   try {
     const n = await i.numaraBilgisi();
     numaraBilgisiYaz(

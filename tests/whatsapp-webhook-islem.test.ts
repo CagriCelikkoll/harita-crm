@@ -40,7 +40,7 @@ async function kur(ad: string) {
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Ltd.", iletisimBilgisi: "İzmir", iysNo: "1", sorumlulukOnayi: true });
   const phoneId = String(700000 + ++sayac);
   const secret = `secret-${ad}`;
-  wa.whatsappBaglantisiKaydet(ctx, { wabaId: String(600000 + sayac), phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
+  await wa.whatsappBaglantisiKaydet(ctx, { wabaId: String(600000 + sayac), phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
   return { ctx, kimlik: baglantiGetir(ctx)!.webhookKimligi, secret, phoneId };
 }
 type Kurulum = Awaited<ReturnType<typeof kur>>;

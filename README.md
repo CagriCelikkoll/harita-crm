@@ -52,6 +52,7 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 | `WHATSAPP_API_MOCK` | Hayır | `1`: geliştirmede gerçek Meta yerine sahte istemci. Testler her zaman sahte istemci kullanır. |
 | `WHATSAPP_GUNLUK_VARSAYILAN` | Hayır | Kullanıcı başına günlük WhatsApp sınırı varsayılanı (30; en fazla 50). Alan bazında Ayarlar'dan ya da `npm run sinir -- <slug> whatsapp <sayı>`. |
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
+| `ISCI_KILIT_SN` | Hayır | Tek işçi kilidinin süresi (varsayılan 120 sn; tur boyunca nabızla uzatılır, çöken işçinin kilidi bu süre sonunda düşer). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
 
 Komut satırı betikleri (`db:migrate`, `cleanup`, `kota`, `sinir`, `worker`) de Next.js ile aynı `.env`,
@@ -414,10 +415,18 @@ kullanılır; o da yoksa yer tutucu çevresindeki boşluk ve virgülle birlikte 
 
 İşçi, web sunucusundan **ayrı** sürekli çalışan bir süreçtir; kuyruğu küçük partiler halinde işler:
 
+0. **Tek işçi kilidi:** tur, veritabanındaki süresi dolan bir kilit (`isci_kilitleri`, `ISCI_KILIT_SN`, varsayılan
+   120 sn) altında çalışır ve kilit tur boyunca nabızla uzatılır. Kilit başka işçideyse tur hiçbir şey yapmadan biter
+   (`--bir-kez` cron çalıştırmaları üst üste binse de, birden çok `npm run worker` süreci olsa da). Çöken işçinin
+   kilidi süre dolunca başkasına geçer; tur sırasında kilit kaybedilirse denenmemiş mesajlar kuyruğa döner.
 1. Zamanı gelen kampanyaları başlatır; 10 dakikadan uzun "gönderiliyor" kalan mesajları "belirsiz" kapatır.
-2. Hazır mesajları **tek bir SQL ifadesiyle** (`UPDATE … WHERE durum='kuyrukta' … RETURNING`) alır: aynı mesajı iki
-   işçi alamaz, tekrar çalıştırmak çift gönderim yapmaz.
-3. Her mesaj için: gönderim saati → alıcı kuralları (yeniden) → ticari ileti ön koşulları → günlük sınır → gönderim.
+2. Hazır mesajları **tek bir SQL ifadesiyle** (`UPDATE … WHERE durum='kuyrukta' … RETURNING`) alır ve satıra turun
+   kimliğini (`kilit_sahibi`) yazar: aynı mesajı iki işçi alamaz, tekrar çalıştırmak çift gönderim yapmaz.
+3. Her mesaj için: kampanyanın **güncel** durumu (her mesajda veritabanından) → gönderim saati → alıcı kuralları
+   (yeniden) → ticari ileti ön koşulları → günlük sınır → **gönderimden hemen önce** satırın kilidi yenilenir, satırın
+   hâlâ bu turda (başka işçiye geçmemiş, belirsiz kapatılmamış) ve kampanyanın hâlâ çalışıyor olduğu doğrulanır; değilse
+   gönderilmez → gönderim. Tur sırasında iptal edilen kampanyanın kalan mesajları `iptal`, duraklatılanınkiler (ör.
+   Meta 131048 spam kısıtlaması) `kuyrukta` olur; ikisinde de gönderilmez.
 4. Geçici hata (iletinin gitmediği kesin: bağlantı kurulamadı, SMTP 4xx) en fazla 3 deneme (1, 5 dk arayla);
    kalıcı ya da belirsiz sonuç yeniden denenmez. Gönderilemeyen mesajın günlük sınır birimi iade edilir.
 
@@ -445,8 +454,9 @@ User=harita-crm
 WantedBy=multi-user.target
 ```
 
-`sudo systemctl enable --now harita-crm-worker`. SIGTERM'de eldeki turu bitirip çıkar. Birden fazla işçi aynı
-veritabanında güvenle çalışabilir (tek sunucu, tek SQLite dosyası).
+`sudo systemctl enable --now harita-crm-worker`. SIGTERM'de eldeki turu bitirip çıkar. Birden fazla işçi süreci aynı
+veritabanında güvenle çalışabilir (tek sunucu, tek SQLite dosyası) ama turlar sırayla yürür; hız sınırı
+(`WHATSAPP_SANIYE_BASI`) süreç içinde uygulandığı için bu, toplam hızın aşılmamasını da sağlar.
 
 ### Gerçek e-posta göndermek için çalışma alanının hazırlaması gerekenler
 
@@ -621,15 +631,30 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
     üretir (bir kez gösterilir), webhook doğrulamasını sıfırlar ve test modunu yeniden açar.
   - Webhook adresi çalışma alanına özeldir: `/api/whatsapp/webhook/<rastgele kimlik>`.
   - Aynı numara iki çalışma alanına bağlanamaz.
+  - **Numara sahipliği:** kayıt sırasında Phone Number ID'nin girilen WABA'ya ait olduğu, çalışma alanının **kendi**
+    erişim anahtarıyla `GET /{waba-id}/phone_numbers` (tüm sayfalar) ile doğrulanır. Doğrulanamazsa hiçbir şey
+    kaydedilmez. Numaranın başka bir çalışma alanına bağlı olması da aynı, tek tip "Numara doğrulanamadı…" mesajıyla
+    reddedilir (400); hangi durumun gerçekleştiği açığa çıkmaz. Meta'ya ulaşılamazsa 502 (tekrar deneyin).
+  - Sahipliği doğrulanmamış bağlantı **bağlı sayılmaz**: gönderim yapılmaz (kampanya `baglanti_yok` ile duraklar),
+    webhook'u işlenmez (404), şablon senkronu reddedilir. "Bağlantıyı test et" ve işçinin 15 dakikalık kalite yenilemesi
+    sahipliği her seferinde yeniden denetler; numara WABA'dan çıkarılmışsa bağlantı kullanılmaz hale gelir (Meta'ya
+    ulaşılamaması ya da anahtarın geçersizliği doğrulamayı kaldırmaz). **0011 migration'ından önce kurulmuş
+    bağlantılar** doğrulanmamış sayılır: yönetici bir kez "Bağlantıyı test et" demelidir.
 - **Bağlantıyı test et:** Graph API `GET /{phone-number-id}?fields=id,display_phone_number,verified_name,quality_rating,whatsapp_business_manager_messaging_limit`
   ile numara, kalite (GREEN / YELLOW / RED / NA) ve portföy mesajlaşma limitini (`TIER_250`, `TIER_2K` …) okur.
   Mesajlaşma limiti **işletme portföyü düzeyindedir** ve portföydeki tüm numara ve araçlarca paylaşılır; bu yüzden
   "bu uygulamanın payı" ayarı vardır (varsayılan **%10**).
 - **Webhook aboneliğini etkinleştir:** `POST /{waba-id}/subscribed_apps` (yalnızca düğmeye basılınca).
 - **Test modu** varsayılan **açık**: kampanyalar yalnızca Ayarlar'daki test numaralarına (en fazla 5, cep) gider.
-  Test modu ancak (a) Meta webhook GET doğrulaması başarıyla yapılmış ve (b) bu bağlantı için imzası doğrulanmış en az
-  bir mesaj durumu (`statuses`) bildirimi alınmışsa kapatılabilir; aksi halde sunucu reddeder ve nedeni gösterilir.
-  Numara ya da WABA değişince doğrulama sıfırlanır ve test modu yeniden açılır.
+  Test modu ancak (a) Meta webhook GET doğrulaması başarıyla yapılmış ve (b) **bu uygulamanın gönderdiği** (sandbox
+  olmayan, kuyrukta wamid'i bulunan ve bağlantının **mevcut** `phone_number_id`'sinden gönderilmiş) bir iletinin imzası
+  doğrulanmış durum (`statuses`) bildirimi alınmışsa kapatılabilir; aksi halde sunucu reddeder ve nedeni gösterilir.
+  Aynı numarayı kullanan başka bir aracın (BSP, WhatsApp Manager) bildirimleri imzalı olsa da kilidi açmaz. İşaretleme
+  mevcut `phone_number_id` ile koşullu `UPDATE`'tir. Numara ya da WABA değişince doğrulama sıfırlanır ve test modu
+  yeniden açılır.
+  - **Bilinen sınır:** App Secret ve verify token'ı bilen yönetici, kuyruktaki bir wamid için kendi imzaladığı sahte
+    bir durum bildirimi göndererek (b) koşulunu sağlayabilir. Kilit, yöneticinin yanlışlıkla gerçek gönderime
+    geçmesini önlemek içindir; kasıtlı atlatmaya karşı bir güvenlik sınırı değildir.
 - **Şablonlar:** Meta WhatsApp Manager'da oluşturulur; burada `GET /{waba-id}/message_templates` ile senkronize
   edilip listelenir (uygulamadan şablon oluşturma yok). Meta'da silinen şablon "SILINDI" olarak kalır.
   - Kampanyada kullanılabilmesi için: `APPROVED`; yalnızca metin başlık ve gövde değişkenleri (konumsal `{{1}}` ya da
@@ -692,8 +717,9 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   RET kaybolmaz). Başarıyla işlenen istek 200 döner.
 - **Teslim durumları** (`statuses`): wamid ile kuyruk satırı bulunur; durum yalnızca ileri gider
   (sent → delivered → read; failed teslim edilmiş iletinin üzerine yazılmaz); hata kodu ve `pricing`
-  (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı. İmzalı bir durum
-  bildirimi test modu kilidinin 2. koşuludur. `recipient_user_id` (BSUID) kayda öğrenilir.
+  (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı. Bu uygulamanın mevcut
+  numaradan gönderdiği (sandbox olmayan) bir iletinin imzalı durum bildirimi test modu kilidinin 2. koşuludur;
+  başka aracın iletilerinin bildirimleri sayılmaz. `recipient_user_id` (BSUID) kayda öğrenilir.
 - **Kişi eşleştirme:** önce BSUID'in bağlı olduğu kayıt (`user_id` / `from_user_id`), yoksa telefon (`wa_id` →
   `leads.telefon_e164`), yoksa **bu BSUID'e gönderim yapılmış kuyruk satırının kaydı** (`message_queue.adres_ozeti`).
   Kullanıcı adını açmış kişide telefon gelmeyebilir; kayıt yalnızca BSUID ile tutulur. BSUID değişimi

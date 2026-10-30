@@ -28,7 +28,7 @@ let numaraSayaci = 0;
 async function kur(ad: string) {
   const { ctx } = kiraciOlustur(ad);
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
-  wa.whatsappBaglantisiKaydet(ctx, {
+  await wa.whatsappBaglantisiKaydet(ctx, {
     wabaId: "200001",
     phoneNumberId: String(500000 + ++numaraSayaci),
     erisimAnahtari: "anahtar",

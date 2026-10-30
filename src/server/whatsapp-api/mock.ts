@@ -51,6 +51,8 @@ export const mockWhatsapp = {
   gonderimDurumu: "accepted" as string | null,
   /** Son çağrıda kullanılan bağlantı (erişim anahtarının doğru çözüldüğünü test etmek için). */
   sonBaglanti: null as GraphBaglantisi | null,
+  /** WABA'daki numaralar; null: yalnızca bağlantının kendi numarası (sahiplik doğrulanır). */
+  wabaNumaralari: null as string[] | null,
 };
 
 export function mockWhatsappSifirla() {
@@ -62,6 +64,7 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.gonderilenler = [];
   mockWhatsapp.aliciHatalari = new Map();
   mockWhatsapp.gonderimDurumu = "accepted";
+  mockWhatsapp.wabaNumaralari = null;
 }
 
 export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi {
@@ -92,6 +95,10 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
           limitKatmani: "TIER_10K",
         }
       );
+    },
+    async wabaNumaralari() {
+      cagri();
+      return [...(mockWhatsapp.wabaNumaralari ?? [b.phoneNumberId])];
     },
     async sablonlar() {
       cagri();

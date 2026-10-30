@@ -105,7 +105,7 @@ beforeAll(() => {
   bKisi = kayitlar.kayitGetir(B, bKisi.id)!;
   bWaKisi = whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)!;
   bIceAktarma = iceAktarmalar.iceAktarmaOlustur(B, { dosyaAdi: "b.csv", satirlar: [["Telefon"], ["0533 111 11 11"]] });
-  bWaBaglanti = waBaglantilari.baglantiKaydet(B, { wabaId: "900001", phoneNumberId: "900002", sifreliVeri: "v1:B-wa" });
+  bWaBaglanti = waBaglantilari.baglantiKaydet(B, { wabaId: "900001", phoneNumberId: "900002", sifreliVeri: "v1:B-wa", numaraDogrulamaTarihi: new Date() });
   waSablonlari.sablonlariSenkronla(B, [B_SABLON]);
   bWaBaglanti = waBaglantilari.baglantiGetir(B)!;
   bWaSablon = waSablonlari.sablonlariListele(B)[0];
@@ -602,11 +602,11 @@ const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
   },
   baglantiKaydet: () => {
     // A kendi bağlantısını kurar; B'ninkine dokunmaz. B'nin numarasını alamaz (tekillik).
-    const a = waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "910002", sifreliVeri: "v1:A" });
+    const a = waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "910002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() });
     expect(a.tenantId).toBe(A.tenantId);
     expect(a.webhookKimligi).not.toBe(bWaBaglanti.webhookKimligi);
     expect(() =>
-      waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "900002", sifreliVeri: "v1:A" }),
+      waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "900002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() }),
     ).toThrow(/UNIQUE/);
     waBaglantilari.baglantiSil(A);
   },
@@ -621,6 +621,11 @@ const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
   },
   numaraBilgisiYaz: () => {
     expect(waBaglantilari.numaraBilgisiYaz(A, { kalite: "RED", sonHata: "x" })).toBe(false);
+  },
+  numaraDogrulamaYaz: () => {
+    // A, B'nin numarasının doğrulamasını kaldıramaz.
+    expect(waBaglantilari.numaraDogrulamaYaz(A, "900002", null)).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B)?.numaraDogrulamaTarihi).toBeInstanceOf(Date);
   },
   baglantiSil: () => {
     expect(waBaglantilari.baglantiSil(A)).toBe(false);

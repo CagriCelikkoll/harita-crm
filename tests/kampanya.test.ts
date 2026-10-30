@@ -64,6 +64,11 @@ describe("kampanya oluşturma: alıcı kuralları", () => {
     kayitOlustur(ctx, {}); // e-posta yok
     kayitOlustur(ctx, { eposta: "Engelli@Ornek.test" });
     engelEkle(ctx, [{ tur: "eposta", ozet: adresOzeti(ctx.tenantId, "eposta", "engelli@ornek.test") }], "abonelik");
+    // Adaylar oluşturma zamanına göre sıralanır; aynı milisaniyede oluşan kayıtlarda sıra rastgele id'ye kalır.
+    // Önizleme ilk uygun kayıttan geldiği için "Bir" açıkça en önce oluşturulmuş sayılır.
+    db.$client
+      .prepare("update leads set olusturma_tarihi = olusturma_tarihi - 60000 where tenant_id = ? and eposta = 'uygun1@ornek.test'")
+      .run(ctx.tenantId);
 
     const ozet = kampanyaOzeti(ctx, girdi(), OGLE);
     expect(ozet).toMatchObject({
@@ -246,7 +251,7 @@ describe("işçi: idempotans ve hatalar", () => {
     expect(new Set(adresler).size).toBe(12);
   });
 
-  it("ayrı süreçlerde çalışan işçiler aynı mesajı iki kez göndermez", async () => {
+  it("ayrı süreçlerde çalışan işçiler tek işçi kilidiyle sırayla çalışır, aynı mesajı iki kez göndermez", async () => {
     const { ctx } = yeniKiraci();
     for (let i = 0; i < 40; i++) kayitOlustur(ctx, { eposta: `sr${i}@ornek.test` });
     kampanyaBaslat(ctx, girdi(), OGLE);

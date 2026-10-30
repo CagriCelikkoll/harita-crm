@@ -52,6 +52,12 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-soluk">Numara</dt>
           <dd>{n.gorunenNumara ? `${n.gorunenNumara} — ${n.dogrulanmisAd ?? ""}` : "Bağlantıyı test edin"}</dd>
+          <dt className="text-soluk">Numara sahipliği</dt>
+          <dd className={b.numaraDogrulandi ? "" : "text-tehlike"}>
+            {b.numaraDogrulandi
+              ? "Doğrulandı (numara bu WABA'da)"
+              : "Doğrulanmadı — bağlantı kullanılmıyor; \"Bağlantıyı test et\" ile yeniden doğrulayın"}
+          </dd>
           <dt className="text-soluk">Kalite</dt>
           <dd className={n.kalite === "RED" ? "text-tehlike" : n.kalite === "YELLOW" ? "text-amber-700" : ""}>
             {n.kalite ? KALITE_ADLARI[n.kalite] : "—"}
@@ -174,7 +180,9 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
           </p>
           <ul className="space-y-0.5">
             <li>{b.webhookDogrulandi ? "✓" : "✗"} Meta webhook doğrulaması (GET)</li>
-            <li>{b.imzaliDurumAlindi ? "✓" : "✗"} İmzası doğrulanmış mesaj durumu bildirimi</li>
+            <li>
+              {b.imzaliDurumAlindi ? "✓" : "✗"} Bu uygulamanın gönderdiği bir iletinin imzası doğrulanmış durum bildirimi
+            </li>
           </ul>
           <div className="flex flex-wrap gap-2">
             <button

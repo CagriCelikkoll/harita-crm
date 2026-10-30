@@ -9,7 +9,8 @@
 //
 // İşlenenler (gelen ileti METNİ hiçbir yerde saklanmaz):
 //  - statuses: kuyruk satırının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
-//    131050 → ret. İmzalı bir durum bildirimi test modu kilidinin ikinci koşulunu sağlar.
+//    131050 → ret. Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
+//    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
 //    kuyruk satırı; ret kelimesi / abonelikten çıkma butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi
 //    yoksa 'meta_reklam' kaydı (izin "kendisi yazdı"), varsa reklam bilgisi; diğer iletiler yalnızca "gelen WhatsApp
@@ -143,7 +144,7 @@ export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | nu
         s.degisiklik(c.field ?? "", v);
       }
     }
-    if (s.durumAlindi) imzaliDurumAlindiIsaretle(w.baglanti.tenantId, simdi);
+    if (s.durumAlindi) imzaliDurumAlindiIsaretle(w.baglanti.tenantId, w.baglanti.phoneNumberId, simdi);
     return { durum: 200 as const, islenen: s.islenen, atlanan: s.atlanan };
   });
 }
@@ -216,7 +217,6 @@ class Isleyici {
   }
 
   private durum(d: Durum) {
-    this.durumAlindi = true;
     const kod = d.errors?.[0]?.code ?? null;
     const sonuc = teslimDurumuIsle(this.ctx, d.id, {
       durum: d.status,
@@ -226,10 +226,13 @@ class Isleyici {
       ucretli: d.pricing?.billable ?? null,
     });
     if (!sonuc) {
+      // Bizim göndermediğimiz ileti (aynı numarayı kullanan başka bir araç): test modu kilidini açmaz.
       this.atlanan++;
       return;
     }
     this.islenen++;
+    // Test modu kilidinin 2. koşulu: bizim gönderdiğimiz (sandbox olmayan), bağlantının MEVCUT numarasından giden ileti.
+    if (!sonuc.sandbox && sonuc.gonderenNumara === this.baglanti.phoneNumberId) this.durumAlindi = true;
     if (d.recipient_user_id) bsuidAta(this.ctx, sonuc.leadId, d.recipient_user_id);
     if (d.status === "failed" && kod === 131026) whatsappYokIsaretle(this.ctx, sonuc.leadId, this.simdi);
     if (d.status === "failed" && kod === 131050) {

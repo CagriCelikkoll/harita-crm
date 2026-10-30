@@ -56,6 +56,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "adres_ozeti", // gönderilen adresin özeti; adresin kendisi (Places telefonu dahil) saklanmaz
     // WhatsApp teslim bildirimi (webhook): durum, hata kodu, ücret kategorisi — ileti içeriği yok.
     "teslim_durumu", "teslim_hata_kodu", "teslim_guncelleme", "ucret_kategorisi", "ucretli",
+    "kilit_sahibi", // işçi turunun kimliği
+    "gonderen_numara", // çalışma alanının kendi WhatsApp numara kimliği (phone_number_id)
   ],
   // Telefon numarası yok; yalnızca "WhatsApp'ta aç"ta çözülen numaranın özeti.
   whatsapp_listesi: ["id", "tenant_id", "kullanici_id", "gun", "lead_id", "sira", "durum", "neden", "adres_ozeti", "guncelleme_tarihi"],
@@ -71,9 +73,12 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "tenant_id", "webhook_kimligi", "waba_id", "phone_number_id", "sifreli_veri", "test_modu", "uygulama_payi",
     "webhook_dogrulama_tarihi", "son_imzali_durum_tarihi", "gorunen_numara", "dogrulanmis_ad", "kalite",
     "limit_katmani", "son_kontrol", "son_hata", "sablon_senkron_tarihi", "guncelleyen", "guncelleme_tarihi",
+    "numara_dogrulama_tarihi",
   ],
   // Yalnızca tekrar eleme için ileti kimliği; içerik yok, 7 gün sonra silinir.
   whatsapp_gelen_kimlikleri: ["tenant_id", "wamid", "tarih"],
+  // Gönderim işçisi kilidi (kiracı verisi yok).
+  isci_kilitleri: ["ad", "sahip", "bitis"],
   whatsapp_sablonlari: [
     "id", "tenant_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
     "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi",

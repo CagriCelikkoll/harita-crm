@@ -49,7 +49,7 @@ export async function PUT(istek: Request) {
   const g = Kayit.safeParse(await istek.json().catch(() => null));
   if (!g.success) return gecersiz(g.error.issues[0]?.message ?? "Geçersiz değer.");
   try {
-    const { verifyToken } = whatsappBaglantisiKaydet(ctx, g.data);
+    const { verifyToken } = await whatsappBaglantisiKaydet(ctx, g.data);
     return NextResponse.json({ baglanti: baglantiDurumu(ctx), verifyToken }, { headers: BASLIK });
   } catch (hata) {
     return hataYaniti(hata);

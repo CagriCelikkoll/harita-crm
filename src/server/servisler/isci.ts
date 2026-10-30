@@ -1,8 +1,11 @@
 // Gönderim işçisi: kuyruğu küçük partiler halinde işler (npm run worker döngüsü bunu çağırır).
 //
-// Her mesaj için sırayla: kampanya hâlâ çalışıyor mu → gönderim saati penceresi → alıcı kuralları YENİDEN
+// Tur, tek işçi kilidi altında çalışır (alınamazsa hiçbir şey yapılmaz; kilitAlinamadi). Her mesaj için sırayla:
+// kampanyanın GÜNCEL durumu (her mesajda veritabanından) → gönderim saati penceresi → alıcı kuralları YENİDEN
 // (ret, engel listesi, bireysel + izinsiz; kampanya oluşturulduktan sonra gelen ret de yakalanır) →
-// sandbox dışıysa ticari ileti ön koşulları → günlük sınır (atomik sayaç) → gönderim → olay + durum.
+// sandbox dışıysa ticari ileti ön koşulları → günlük sınır (atomik sayaç) → gönderimden HEMEN önce satır kilidi
+// yenilenir, satırın hâlâ bu turda ve kampanyanın hâlâ çalışıyor olduğu doğrulanır → gönderim → olay + durum.
+// İptal edilen kampanyanın kalan mesajları 'iptal', duraklatılanınkiler 'kuyrukta' olur; hiçbiri gönderilmez.
 // Aynı mesaj iki kez gönderilmez: bkz. repo/sistem/isci.ts.
 import { AZAMI_DENEME, YENIDEN_DENEME_DK, type Kanal } from "@/lib/mesajlasma";
 import { ayAnahtari, gunAnahtari, gunEkle, istanbulAni, penceredeMi, sonrakiPencere } from "@/lib/zaman";
@@ -19,6 +22,10 @@ import { mesajBirak, mesajGonderildi, type KuyrukMesaji } from "../repo/kuyruk";
 import {
   belirsizMesajlariKapat,
   bitenKampanyalariKapat,
+  gonderimOncesiKontrol,
+  isciKilidiAl,
+  isciKilidiBirak,
+  isciKilidiYenile,
   mesajlariAl,
   zamaniGelenKampanyalariBaslat,
 } from "../repo/sistem/isci";
@@ -36,9 +43,15 @@ export type IsciSecenekleri = {
   saglayici?: SaglayiciSecenekleri;
   /** WhatsApp gönderimleri arası en az süre (ms); testler 0 verir. */
   whatsappAralikMs?: number;
+  /** Turun kimliği (işçi kilidi ve satır kilidi sahibi); varsayılan rastgele. */
+  isciKimligi?: string;
+  /** İşçi kilidinin süresi (ms); nabız bunun dörtte birinde bir uzatır. Varsayılan ISCI_KILIT_SN (120 sn). */
+  kilitSuresiMs?: number;
 };
 
 export type TurSonucu = {
+  /** Başka bir işçi turu çalışıyordu: bu tur hiçbir şey yapmadı. */
+  kilitAlinamadi: boolean;
   baslatilanKampanya: number;
   tamamlananKampanya: number;
   belirsiz: number;
@@ -47,40 +60,95 @@ export type TurSonucu = {
   bekletilen: number;
   haric: number;
   basarisiz: number;
+  /** Gönderimden hemen önce satır bu turda değildi: gönderilmedi, satıra dokunulmadı. */
+  atlanan: number;
 };
 
-type Sonuc = "gonderildi" | "bekletildi" | "haric" | "basarisiz";
+type Sonuc = "gonderildi" | "bekletildi" | "haric" | "basarisiz" | "atlandi";
 
 export async function isciTuru(s: IsciSecenekleri = {}): Promise<TurSonucu> {
   const simdi = s.simdi ?? (() => new Date());
-  const sonuc: TurSonucu = { baslatilanKampanya: 0, tamamlananKampanya: 0, belirsiz: 0, alinan: 0, gonderilen: 0, bekletilen: 0, haric: 0, basarisiz: 0 };
+  const sonuc: TurSonucu = {
+    kilitAlinamadi: false,
+    baslatilanKampanya: 0,
+    tamamlananKampanya: 0,
+    belirsiz: 0,
+    alinan: 0,
+    gonderilen: 0,
+    bekletilen: 0,
+    haric: 0,
+    basarisiz: 0,
+    atlanan: 0,
+  };
+  const kimlik = s.isciKimligi ?? crypto.randomUUID();
+  const sure = s.kilitSuresiMs ?? Math.max(10, Number(process.env.ISCI_KILIT_SN ?? 120)) * 1000;
+  if (!isciKilidiAl(kimlik, sure)) return { ...sonuc, kilitAlinamadi: true };
+  let kilitKaybedildi = false;
+  const nabiz = setInterval(() => {
+    if (!isciKilidiYenile(kimlik, sure)) kilitKaybedildi = true;
+  }, Math.max(250, Math.floor(sure / 4)));
+  nabiz.unref?.();
 
-  sonuc.baslatilanKampanya = zamaniGelenKampanyalariBaslat(simdi());
-  sonuc.belirsiz = belirsizMesajlariKapat(simdi()).length;
+  try {
+    sonuc.baslatilanKampanya = zamaniGelenKampanyalariBaslat(simdi());
+    sonuc.belirsiz = belirsizMesajlariKapat(simdi()).length;
 
-  const alinan = mesajlariAl(simdi(), s.parti ?? Number(process.env.WORKER_PARTI ?? 20));
-  sonuc.alinan = alinan.length;
-  const kampanyaOnbellek = new Map<string, Kampanya | null>();
-  const ayarOnbellek = new Map<string, IletiAyarlari>();
+    const alinan = mesajlariAl(simdi(), s.parti ?? Number(process.env.WORKER_PARTI ?? 20), kimlik);
+    sonuc.alinan = alinan.length;
+    const ayarOnbellek = new Map<string, IletiAyarlari>();
 
-  for (const { mesaj, ctx } of alinan) {
-    if (!kampanyaOnbellek.has(mesaj.kampanyaId)) kampanyaOnbellek.set(mesaj.kampanyaId, kampanyaGetir(ctx, mesaj.kampanyaId));
-    if (!ayarOnbellek.has(ctx.tenantId)) ayarOnbellek.set(ctx.tenantId, iletiAyarlariGetir(ctx));
-    let s_: Sonuc;
-    try {
-      s_ = await mesajIsle(ctx, mesaj, kampanyaOnbellek.get(mesaj.kampanyaId) ?? null, ayarOnbellek.get(ctx.tenantId)!, simdi(), s);
-    } catch (hata) {
-      // Beklenmeyen hata: gönderim çağrısından ÖNCE oluşur (adaptörler hata fırlatmaz), yeniden denenmez.
-      mesajBirak(ctx, mesaj.id, { durum: "basarisiz", neden: "hata", hata: (hata as Error).message.slice(0, 300) });
-      s_ = "basarisiz";
+    for (const [i, { mesaj, ctx }] of alinan.entries()) {
+      if (kilitKaybedildi || !isciKilidiYenile(kimlik, sure)) {
+        // Kilit süresi doldu ve başka bir işçi aldı: kalan (denenmemiş) satırlar kuyruğa döner.
+        kilitKaybedildi = true;
+        for (const r of alinan.slice(i)) mesajBirak(r.ctx, r.mesaj.id, { durum: "kuyrukta", neden: null, denemeGeriAl: true });
+        sonuc.bekletilen += alinan.length - i;
+        break;
+      }
+      if (!ayarOnbellek.has(ctx.tenantId)) ayarOnbellek.set(ctx.tenantId, iletiAyarlariGetir(ctx));
+      let s_: Sonuc;
+      try {
+        // Kampanya her mesajda yeniden okunur: tur sırasında iptal / duraklatma hemen uygulanır.
+        s_ = await mesajIsle(ctx, mesaj, kampanyaGetir(ctx, mesaj.kampanyaId), ayarOnbellek.get(ctx.tenantId)!, simdi(), s, kimlik);
+      } catch (hata) {
+        // Beklenmeyen hata: gönderim çağrısından ÖNCE oluşur (adaptörler hata fırlatmaz), yeniden denenmez.
+        mesajBirak(ctx, mesaj.id, { durum: "basarisiz", neden: "hata", hata: (hata as Error).message.slice(0, 300) });
+        s_ = "basarisiz";
+      }
+      if (s_ === "gonderildi") sonuc.gonderilen++;
+      else if (s_ === "bekletildi") sonuc.bekletilen++;
+      else if (s_ === "haric") sonuc.haric++;
+      else if (s_ === "atlandi") sonuc.atlanan++;
+      else sonuc.basarisiz++;
     }
-    if (s_ === "gonderildi") sonuc.gonderilen++;
-    else if (s_ === "bekletildi") sonuc.bekletilen++;
-    else if (s_ === "haric") sonuc.haric++;
-    else sonuc.basarisiz++;
+    sonuc.tamamlananKampanya = bitenKampanyalariKapat(simdi());
+    return sonuc;
+  } finally {
+    clearInterval(nabiz);
+    isciKilidiBirak(kimlik);
   }
-  sonuc.tamamlananKampanya = bitenKampanyalariKapat(simdi());
-  return sonuc;
+}
+
+/** Kampanya artık çalışmıyor: duraklatıldıysa mesaj kuyruğa döner (devam edince gönderilir), değilse iptal. */
+function kampanyaDurduBirak(ctx: TenantContext, mesaj: KuyrukMesaji, durum: string | null, neden: string | null): Sonuc {
+  if (durum === "duraklatildi") {
+    mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: `duraklatildi:${neden ?? ""}`, denemeGeriAl: true });
+    return "bekletildi";
+  }
+  mesajBirak(ctx, mesaj.id, { durum: "iptal", neden: "iptal", denemeGeriAl: true });
+  return "haric";
+}
+
+/**
+ * Gönderim çağrısından HEMEN önce: satır hâlâ bu turda mı, kampanya hâlâ çalışıyor mu (veritabanından). Değilse
+ * günlük sınır iade edilir ve gönderilmez. null: gönderilebilir.
+ */
+function gonderimOncesi(ctx: TenantContext, mesaj: KuyrukMesaji, kimlik: string, simdi: Date, iade: () => void): Sonuc | null {
+  const k = gonderimOncesiKontrol(ctx, mesaj.id, kimlik, simdi);
+  if (k.durum === "tamam") return null;
+  iade();
+  if (k.durum === "satir_yok") return "atlandi";
+  return kampanyaDurduBirak(ctx, mesaj, k.kampanyaDurumu, k.duraklatmaNedeni);
 }
 
 async function mesajIsle(
@@ -90,15 +158,11 @@ async function mesajIsle(
   ayar: IletiAyarlari,
   simdi: Date,
   s: IsciSecenekleri,
+  kimlik: string,
 ): Promise<Sonuc> {
-  // Duraklatılmış kampanya (WhatsApp): mesaj kuyruğa geri döner; devam ettirilince gönderilir.
-  if (kampanya?.durum === "duraklatildi") {
-    mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: `duraklatildi:${kampanya.duraklatmaNedeni ?? ""}`, denemeGeriAl: true });
-    return "bekletildi";
-  }
+  // Duraklatılmış kampanya (WhatsApp): mesaj kuyruğa geri döner; devam ettirilince gönderilir. İptal: gönderilmez.
   if (!kampanya || kampanya.durum !== "calisiyor") {
-    mesajBirak(ctx, mesaj.id, { durum: "iptal", neden: "iptal", denemeGeriAl: true });
-    return "haric";
+    return kampanyaDurduBirak(ctx, mesaj, kampanya?.durum ?? null, kampanya?.duraklatmaNedeni ?? null);
   }
 
   // 1) Gönderim saati (İstanbul).
@@ -117,6 +181,7 @@ async function mesajIsle(
     return whatsappMesajIsle(ctx, mesaj, kampanya, ayar, simdi, {
       aralikMs: s.whatsappAralikMs,
       geciciHata: (hata) => geciciHata(ctx, mesaj, hata, simdi),
+      gonderimOncesi: (iade) => gonderimOncesi(ctx, mesaj, kimlik, simdi, iade),
     });
   }
 
@@ -197,6 +262,8 @@ async function mesajIsle(
     return "basarisiz";
   }
   const ileti = iletiOlustur({ ctx, kanal: mesaj.kanal, kampanya, kayit, adres, ayar });
+  const durdu = gonderimOncesi(ctx, mesaj, kimlik, simdi, iade);
+  if (durdu) return durdu;
   const sonuc: GonderimSonucu = await saglayici.gonder(ileti);
 
   if (sonuc.durum === "gonderildi") {

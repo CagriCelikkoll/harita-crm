@@ -41,6 +41,8 @@ export type GonderimYaniti = { wamid: string; durum: string | null };
 export interface WhatsappApiIstemcisi {
   mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
   numaraBilgisi(): Promise<NumaraBilgisi>;
+  /** GET /{waba-id}/phone_numbers (tüm sayfalar): WABA'daki numaraların kimlikleri (sahiplik doğrulaması). */
+  wabaNumaralari(): Promise<string[]>;
   /** Tüm sayfalar. */
   sablonlar(): Promise<MetaSablon[]>;
   /** POST /{waba-id}/subscribed_apps — erişim anahtarının uygulamasını WABA webhook'larına abone eder. */

@@ -5,7 +5,9 @@
 //   npm run worker              sürekli (WORKER_ARALIK_SN saniyede bir; dolu parti varsa beklemeden devam)
 //   npm run worker -- --bir-kez tek tur çalışır ve çıkar (cron ile de kullanılabilir)
 //
-// Aynı anda birden fazla işçi çalışsa da bir mesaj iki kez gönderilmez (satırlar atomik olarak alınır).
+// Aynı anda yalnızca bir işçi turu çalışır (veritabanındaki süresi dolan işçi kilidi, ISCI_KILIT_SN, varsayılan 120 sn;
+// tur boyunca nabızla uzatılır). Kilit başka işçideyse tur bir şey yapmadan biter; cron ile üst üste binen
+// `--bir-kez` çalıştırmaları güvenlidir. Bir mesaj iki kez gönderilmez (satırlar atomik olarak alınır).
 // SIGINT/SIGTERM: eldeki tur bitirilir, sonra çıkılır.
 import "./ortam";
 import { isciTuru } from "../src/server/servisler/isci";
@@ -46,11 +48,16 @@ async function calistir() {
       await bekle(aralikMs);
       continue;
     }
-    const { alinan, gonderilen, bekletilen, haric, basarisiz, belirsiz, baslatilanKampanya, tamamlananKampanya } = sonuc;
+    if (sonuc.kilitAlinamadi) {
+      console.log(`[${new Date().toISOString()}] başka bir işçi turu çalışıyor; bu tur atlandı.`);
+      if (!birKez) await bekle(aralikMs);
+      continue;
+    }
+    const { alinan, gonderilen, bekletilen, haric, basarisiz, belirsiz, atlanan, baslatilanKampanya, tamamlananKampanya } = sonuc;
     if (alinan || belirsiz || baslatilanKampanya || tamamlananKampanya) {
       console.log(
         `[${new Date().toISOString()}] alınan ${alinan}, gönderilen ${gonderilen}, bekletilen ${bekletilen}, ` +
-          `hariç ${haric}, başarısız ${basarisiz}, belirsiz ${belirsiz}, başlayan kampanya ${baslatilanKampanya}, ` +
+          `hariç ${haric}, başarısız ${basarisiz}, belirsiz ${belirsiz}, atlanan ${atlanan}, başlayan kampanya ${baslatilanKampanya}, ` +
           `biten kampanya ${tamamlananKampanya}`,
       );
     }

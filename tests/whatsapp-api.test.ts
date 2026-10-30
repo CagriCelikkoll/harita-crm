@@ -31,9 +31,9 @@ const istek = (yol: string, method: string, govde?: unknown) =>
     body: govde === undefined ? undefined : JSON.stringify(govde),
   });
 
-function kur(ad: string, phoneNumberId = String(100000 + Math.floor(Math.random() * 899999))) {
+async function kur(ad: string, phoneNumberId = String(100000 + Math.floor(Math.random() * 899999))) {
   const { ctx } = kiraciOlustur(ad);
-  const { verifyToken } = svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId, erisimAnahtari: ANAHTAR, appSecret: SECRET });
+  const { verifyToken } = await svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId, erisimAnahtari: ANAHTAR, appSecret: SECRET });
   return { ctx, verifyToken: verifyToken!, phoneNumberId };
 }
 
@@ -124,28 +124,70 @@ describe("bağlantı ve gizli bilgiler", () => {
     expect(mockWhatsapp.sonBaglanti).toEqual({ wabaId: "200001", phoneNumberId: "300001", erisimAnahtari: ANAHTAR });
   });
 
-  it("şifreli değer başka kiracının satırına kopyalanırsa çözülemez", () => {
-    const a = kur("KopyaA");
-    const b = kur("KopyaB");
+  it("şifreli değer başka kiracının satırına kopyalanırsa çözülemez", async () => {
+    const a = await kur("KopyaA");
+    const b = await kur("KopyaB");
     const aSifreli = baglantiGetir(a.ctx)!.sifreliVeri;
     db.$client.prepare("update whatsapp_baglantilari set sifreli_veri = ? where tenant_id = ?").run(aSifreli, b.ctx.tenantId);
     expect(() => svc.whatsappBaglantisiCoz(b.ctx)).toThrow(/çözülemedi/);
     expect(svc.baglantiDurumu(b.ctx).erisimAnahtariTanimli).toBe(false);
   });
 
-  it("ilk kayıtta erişim anahtarı ve App Secret zorunlu; aynı numara iki çalışma alanına bağlanamaz", () => {
+  it("ilk kayıtta erişim anahtarı ve App Secret zorunlu; aynı numara iki çalışma alanına bağlanamaz", async () => {
     const { ctx } = kiraciOlustur("Zorunlu");
-    expect(() => svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "300009" })).toThrow(/erişim anahtarı/);
-    const a = kur("NumaraA", "300010");
+    await expect(svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "300009" })).rejects.toThrow(/erişim anahtarı/);
+    const a = await kur("NumaraA", "300010");
     expect(a.verifyToken).toBeTruthy();
     const { ctx: b } = kiraciOlustur("NumaraB");
-    expect(() =>
-      svc.whatsappBaglantisiKaydet(b, { wabaId: "200002", phoneNumberId: "300010", erisimAnahtari: "x", appSecret: "y" }),
-    ).toThrow(/başka bir çalışma alanına/);
+    const hata = await svc
+      .whatsappBaglantisiKaydet(b, { wabaId: "200002", phoneNumberId: "300010", erisimAnahtari: "x", appSecret: "y" })
+      .catch((h: unknown) => h);
+    // Numaranın başka bir çalışma alanına bağlı olduğu açığa çıkmaz: sahiplik hatasıyla aynı mesaj ve durum.
+    expect(hata).toMatchObject({ durum: 400, message: expect.stringMatching(/^Numara doğrulanamadı/) });
+    expect((hata as Error).message).not.toMatch(/başka bir çalışma alanı/);
+    expect(baglantiGetir(b)).toBeNull();
+  });
+
+  it("numara sahipliği kiracının kendi anahtarıyla Graph API'den doğrulanır; doğrulanmayan bağlantı kaydedilmez ve kullanılmaz", async () => {
+    const { ctx } = kiraciOlustur("Sahiplik");
+    // WABA'da bu numara yok (başkasının numara kimliği girildi).
+    mockWhatsapp.wabaNumaralari = ["700001"];
+    const ret = await svc
+      .whatsappBaglantisiKaydet(ctx, { wabaId: "200009", phoneNumberId: "700099", erisimAnahtari: ANAHTAR, appSecret: SECRET })
+      .catch((h: unknown) => h);
+    expect(ret).toMatchObject({ durum: 400, message: expect.stringMatching(/^Numara doğrulanamadı/) });
+    expect(mockWhatsapp.sonBaglanti).toMatchObject({ wabaId: "200009", erisimAnahtari: ANAHTAR });
+    expect(baglantiGetir(ctx)).toBeNull();
+
+    // Anahtarın WABA'ya yetkisi yok → aynı mesaj; Meta'ya ulaşılamıyor → 502, kayıt yok.
+    mockWhatsapp.wabaNumaralari = null;
+    mockWhatsapp.hata = new GraphHatasi("Unsupported get request", 400, 100);
+    await expect(svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200009", phoneNumberId: "700099", erisimAnahtari: ANAHTAR, appSecret: SECRET })).rejects.toThrow(
+      /^Numara doğrulanamadı/,
+    );
+    mockWhatsapp.hata = new GraphHatasi("Meta'ya ulaşılamadı", 0);
+    await expect(svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200009", phoneNumberId: "700099", erisimAnahtari: ANAHTAR, appSecret: SECRET })).rejects.toMatchObject({
+      durum: 502,
+    });
+    expect(baglantiGetir(ctx)).toBeNull();
+
+    // Doğrulanınca bağlı; bağlantı testinde sahiplik reddedilirse bağlantı kullanılmaz (gönderim, webhook, senkron).
+    await svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200009", phoneNumberId: "700099", erisimAnahtari: ANAHTAR, appSecret: SECRET });
+    expect(svc.baglantiDurumu(ctx).numaraDogrulandi).toBe(true);
+    expect(svc.whatsappBaglantisiCoz(ctx)).not.toBeNull();
+    mockWhatsapp.wabaNumaralari = ["700001"];
+    await expect(svc.baglantiyiTestEt(ctx)).rejects.toThrow(/^Numara doğrulanamadı/);
+    expect(svc.baglantiDurumu(ctx).numaraDogrulandi).toBe(false);
+    expect(svc.whatsappBaglantisiCoz(ctx)).toBeNull();
+    await expect(svc.sablonlariSenkronizeEt(ctx)).rejects.toThrow(/sahipliği doğrulanmadı/);
+    // Sahiplik yeniden doğrulanınca bağlantı tekrar kullanılır.
+    mockWhatsapp.wabaNumaralari = null;
+    await svc.baglantiyiTestEt(ctx);
+    expect(svc.whatsappBaglantisiCoz(ctx)).not.toBeNull();
   });
 
   it("yalnızca yönetici: üye bağlantıyı göremez, değiştiremez, şablon senkronlayamaz; şablon listesini görebilir", async () => {
-    const { ctx } = kur("Yetki");
+    const { ctx } = await kur("Yetki");
     const uye = kullaniciOlustur("YetkiUye");
     db.$client.prepare("insert into memberships (user_id, tenant_id, rol) values (?, ?, 'uye')").run(uye.id, ctx.tenantId);
     oturum.ctx = baglamUret(uye.id, ctx.tenantId)!;
@@ -164,7 +206,7 @@ describe("test modu kilidi", () => {
     db.$client.prepare(`update whatsapp_baglantilari set ${alan} = ? where tenant_id = ?`).run(Date.now(), tenantId);
 
   it("varsayılan açık; webhook doğrulaması ve imzalı durum bildirimi olmadan kapatılamaz (sunucu + neden)", async () => {
-    const { ctx } = kur("Kilit");
+    const { ctx } = await kur("Kilit");
     oturum.ctx = ctx;
     const kapat = () => baglantiRotasi.PATCH(istek("/api/ayarlar/whatsapp-api", "PATCH", { testModu: false }));
     expect(svc.baglantiDurumu(ctx)).toMatchObject({ testModu: true, testModuKapatilabilir: false });
@@ -186,7 +228,7 @@ describe("test modu kilidi", () => {
   });
 
   it("verify token yenilenince ya da numara değişince doğrulama sıfırlanır ve test modu yeniden açılır", async () => {
-    const { ctx, verifyToken } = kur("Sifirla");
+    const { ctx, verifyToken } = await kur("Sifirla");
     oturum.ctx = ctx;
     isaretle(ctx.tenantId, "webhook_dogrulama_tarihi");
     isaretle(ctx.tenantId, "son_imzali_durum_tarihi");
@@ -202,14 +244,14 @@ describe("test modu kilidi", () => {
     isaretle(ctx.tenantId, "webhook_dogrulama_tarihi");
     isaretle(ctx.tenantId, "son_imzali_durum_tarihi");
     svc.testModuDegistir(ctx, false);
-    svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "399999" });
+    await svc.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "399999" });
     expect(svc.baglantiDurumu(ctx)).toMatchObject({ testModu: true, webhookDogrulandi: false, phoneNumberId: "399999" });
     // Gizli bilgiler korunur.
     expect(svc.whatsappBaglantisiCoz(ctx)?.gizli).toMatchObject({ erisimAnahtari: ANAHTAR, appSecret: SECRET });
   });
 
-  it("test numaraları: cep, normalize, en fazla 5; pay 1–100", () => {
-    const { ctx } = kur("Numaralar");
+  it("test numaraları: cep, normalize, en fazla 5; pay 1–100", async () => {
+    const { ctx } = await kur("Numaralar");
     expect(svc.testNumaralariKaydet(ctx, ["0532 111 22 33", "+90 533 444 55 66", "0532 111 22 33", ""])).toEqual([
       "905321112233",
       "905334445566",
@@ -225,7 +267,7 @@ describe("test modu kilidi", () => {
 
 describe("Graph API (sahte istemci)", () => {
   it("bağlantı testi numara, kalite ve limiti saklar; hata saklanır ve 502 döner", async () => {
-    const { ctx } = kur("Test");
+    const { ctx } = await kur("Test");
     mockWhatsapp.numara = { id: "1", gorunenNumara: "+90 850 111 11 11", dogrulanmisAd: "Ege Emlak", kalite: "YELLOW", limitKatmani: "TIER_10K" };
     const d = await svc.baglantiyiTestEt(ctx);
     expect(d.numara).toMatchObject({ gorunenNumara: "+90 850 111 11 11", kalite: "YELLOW", limit: 10_000, sonHata: null });
@@ -237,14 +279,14 @@ describe("Graph API (sahte istemci)", () => {
   });
 
   it("webhook aboneliği yalnızca istenince", async () => {
-    const { ctx } = kur("Abone");
+    const { ctx } = await kur("Abone");
     expect(mockWhatsapp.abonelikSayisi).toBe(0);
     await svc.webhookAboneligiEtkinlestir(ctx);
     expect(mockWhatsapp.abonelikSayisi).toBe(1);
   });
 
   it("şablon senkronu: kullanılabilirlik, güncelleme ve Meta'da silinen şablon", async () => {
-    const { ctx } = kur("Sablon");
+    const { ctx } = await kur("Sablon");
     expect(await svc.sablonlariSenkronizeEt(ctx)).toEqual({ eklenen: 3, guncellenen: 0, silinen: 0 });
     const liste = Object.fromEntries(svc.sablonlar(ctx).map((s) => [s.ad, s]));
     expect(liste.kampanya_tanitim).toMatchObject({

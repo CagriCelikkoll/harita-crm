@@ -38,6 +38,8 @@ export function mesajGonderildi(
     olayAciklamasi: string;
     /** Gönderilen adresin engel listesi özeti (adresin kendisi saklanmaz). */
     adresOzeti?: string | null;
+    /** Yalnızca WhatsApp: gönderen numara (phone_number_id). */
+    gonderenNumara?: string | null;
   },
   simdi = new Date(),
 ): boolean {
@@ -50,6 +52,7 @@ export function mesajGonderildi(
         hata: null,
         saglayiciKimligi: g.saglayiciKimligi,
         adresOzeti: g.adresOzeti ?? null,
+        gonderenNumara: g.gonderenNumara ?? null,
         sandboxIcerik: g.sandbox ? g.sandboxIcerik : null,
         gonderimTarihi: simdi,
         kilitZamani: null,
@@ -165,10 +168,17 @@ export function teslimDurumuIsle(
   ctx: TenantContext,
   wamid: string,
   g: { durum: string; hataKodu: number | null; zaman: Date; ucretKategorisi?: string | null; ucretli?: boolean | null },
-): { leadId: string; kampanyaId: string; ilerledi: boolean } | null {
+): { leadId: string; kampanyaId: string; ilerledi: boolean; sandbox: boolean; gonderenNumara: string | null } | null {
   return db.transaction((tx) => {
     const m = tx
-      .select({ id: messageQueue.id, leadId: messageQueue.leadId, kampanyaId: messageQueue.kampanyaId, teslim: messageQueue.teslimDurumu })
+      .select({
+        id: messageQueue.id,
+        leadId: messageQueue.leadId,
+        kampanyaId: messageQueue.kampanyaId,
+        teslim: messageQueue.teslimDurumu,
+        sandboxIcerik: messageQueue.sandboxIcerik,
+        gonderenNumara: messageQueue.gonderenNumara,
+      })
       .from(messageQueue)
       .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.saglayiciKimligi, wamid), eq(messageQueue.kanal, "whatsapp_api")))
       .get();
@@ -183,6 +193,6 @@ export function teslimDurumuIsle(
     };
     // Geç gelen (geri giden) ve ücretsiz bildirimde yazılacak bir şey yoktur.
     if (Object.keys(alanlar).length) tx.update(messageQueue).set(alanlar).where(eq(messageQueue.id, m.id)).run();
-    return { leadId: m.leadId, kampanyaId: m.kampanyaId, ilerledi };
+    return { leadId: m.leadId, kampanyaId: m.kampanyaId, ilerledi, sandbox: m.sandboxIcerik !== null, gonderenNumara: m.gonderenNumara };
   });
 }

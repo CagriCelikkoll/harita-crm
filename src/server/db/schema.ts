@@ -426,6 +426,11 @@ export const messageQueue = sqliteTable(
     denemeSayisi: integer("deneme_sayisi").notNull().default(0),
     sonrakiDeneme: zaman("sonraki_deneme"),
     kilitZamani: zaman("kilit_zamani"),
+    // Satırı "gonderiliyor"a alan işçi turunun kimliği: gönderimden hemen önce satırın hâlâ bu işçide olduğu doğrulanır.
+    kilitSahibi: text("kilit_sahibi"),
+    // Yalnızca WhatsApp: iletinin gönderildiği numara (phone_number_id). Durum bildirimi test modu kilidini yalnızca
+    // bağlantının mevcut numarasından gönderilmiş iletide açar.
+    gonderenNumara: text("gonderen_numara"),
     // Günlük sınır sayacından ayrılan gün (iade için).
     sayacGunu: text("sayac_gunu"),
     saglayiciKimligi: text("saglayici_kimligi"),
@@ -510,7 +515,9 @@ export const whatsappListesi = sqliteTable(
  * WhatsApp Business Platform (Cloud API) bağlantısı, çalışma alanı başına bir. Kalıcı erişim anahtarı, App Secret,
  * verify token ve test numaraları sifreli_veri'de (AES-GCM, kiracı|whatsapp_api); API yanıtlarında asla dönmez.
  * webhook_kimligi: çalışma alanına özel webhook URL'sindeki rastgele kimlik. Test modu varsayılan AÇIK; ancak webhook
- * doğrulaması yapılmış ve imzası doğrulanmış bir durum bildirimi alınmışsa kapatılabilir.
+ * doğrulaması yapılmış ve imzası doğrulanmış bir durum bildirimi alınmışsa kapatılabilir. numara_dogrulama_tarihi:
+ * phone_number_id'nin WABA'ya ait olduğu kiracının kendi anahtarıyla Graph API'den doğrulandı; boşsa bağlantı
+ * kullanılmaz (gönderim, webhook, şablon senkronu).
  */
 export const whatsappBaglantilari = sqliteTable(
   "whatsapp_baglantilari",
@@ -526,6 +533,7 @@ export const whatsappBaglantilari = sqliteTable(
     uygulamaPayi: integer("uygulama_payi").notNull().default(10),
     webhookDogrulamaTarihi: zaman("webhook_dogrulama_tarihi"),
     sonImzaliDurumTarihi: zaman("son_imzali_durum_tarihi"),
+    numaraDogrulamaTarihi: zaman("numara_dogrulama_tarihi"),
     // Son bağlantı testinden (Graph API) çalışma alanının kendi numarasının bilgileri.
     gorunenNumara: text("gorunen_numara"),
     dogrulanmisAd: text("dogrulanmis_ad"),
@@ -598,3 +606,14 @@ export type WhatsappKisisi = typeof whatsappKisileri.$inferSelect;
 export type IceAktarma = typeof iceAktarmalar.$inferSelect;
 export type WhatsappBaglantisi = typeof whatsappBaglantilari.$inferSelect;
 export type WhatsappSablonu = typeof whatsappSablonlari.$inferSelect;
+
+/**
+ * Gönderim işçisi kilidi: aynı anda yalnızca bir işçi turu çalışır (cron ile üst üste binen `--bir-kez` turları ya
+ * da birden çok `npm run worker` süreci). Süresi dolan kiralama (bitis); tur boyunca nabızla uzatılır, çöken işçinin
+ * kilidi süre dolunca başkasına geçer. Gerçek saat kullanılır (turun "simdi" değeri değil).
+ */
+export const isciKilitleri = sqliteTable("isci_kilitleri", {
+  ad: text("ad").primaryKey(),
+  sahip: text("sahip").notNull(),
+  bitis: zaman("bitis").notNull(),
+});
