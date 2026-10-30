@@ -2,6 +2,7 @@
 // "gonderiliyor" durumuna aldıktan sonra). Her güncelleme yalnızca "gonderiliyor" durumundaki satıra yapılır:
 // aynı mesaj iki kez sonuçlandırılamaz.
 import { and, count, eq, gte, ne, or, sql } from "drizzle-orm";
+import { WHATSAPP_TESLIM_SIRASI } from "@/lib/whatsapp-api";
 import { KAYIT_DURUM_ADLARI } from "@/lib/sabitler";
 import type { MesajDurumu } from "@/lib/mesajlasma";
 import { db } from "../db";
@@ -153,4 +154,35 @@ export function whatsappSon24Saat(ctx: TenantContext, simdi: Date, haricMesajId:
       )
       .get()?.n ?? 0
   );
+}
+
+/**
+ * WhatsApp teslim bildirimi (webhook statuses): wamid ile bu kiracının kuyruk satırını bulur. Durum yalnızca ileri
+ * gider (sent → delivered → read; failed yalnızca teslim edilmemişse). Ücret bilgisi geldiyse yazılır.
+ * Satır yoksa null; varsa kayıt ve önceki/yeni durum.
+ */
+export function teslimDurumuIsle(
+  ctx: TenantContext,
+  wamid: string,
+  g: { durum: string; hataKodu: number | null; zaman: Date; ucretKategorisi?: string | null; ucretli?: boolean | null },
+): { leadId: string; kampanyaId: string; ilerledi: boolean } | null {
+  return db.transaction((tx) => {
+    const m = tx
+      .select({ id: messageQueue.id, leadId: messageQueue.leadId, kampanyaId: messageQueue.kampanyaId, teslim: messageQueue.teslimDurumu })
+      .from(messageQueue)
+      .where(and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.saglayiciKimligi, wamid), eq(messageQueue.kanal, "whatsapp_api")))
+      .get();
+    if (!m) return null;
+    const sira = (d: string | null) => (d ? (WHATSAPP_TESLIM_SIRASI[d] ?? 0) : 0);
+    const ilerledi = sira(g.durum) > sira(m.teslim);
+    const alanlar = {
+      ...(ilerledi
+        ? { teslimDurumu: g.durum, teslimHataKodu: g.durum === "failed" ? g.hataKodu : null, teslimGuncelleme: g.zaman }
+        : {}),
+      ...(g.ucretli != null ? { ucretli: g.ucretli, ucretKategorisi: g.ucretKategorisi ?? null } : {}),
+    };
+    // Geç gelen (geri giden) ve ücretsiz bildirimde yazılacak bir şey yoktur.
+    if (Object.keys(alanlar).length) tx.update(messageQueue).set(alanlar).where(eq(messageQueue.id, m.id)).run();
+    return { leadId: m.leadId, kampanyaId: m.kampanyaId, ilerledi };
+  });
 }

@@ -572,6 +572,22 @@ export const whatsappSablonlari = sqliteTable(
   ],
 );
 
+/**
+ * İşlenmiş gelen WhatsApp iletilerinin kimlikleri (wamid): Meta aynı webhook'u yeniden gönderebilir, ikinci kez
+ * olay üretilmesin diye. İleti İÇERİĞİ yoktur; 7 gün sonra temizlikte silinir.
+ */
+export const whatsappGelenKimlikleri = sqliteTable(
+  "whatsapp_gelen_kimlikleri",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    wamid: text("wamid").notNull(),
+    tarih: zaman("tarih").notNull().default(simdi),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.wamid] }), index("whatsapp_gelen_tarih_idx").on(t.tarih)],
+);
+
 export type Tarama = typeof scans.$inferSelect;
 export type Kayit = typeof leads.$inferSelect;
 export type KayitOlayi = typeof leadEvents.$inferSelect;

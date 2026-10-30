@@ -11,7 +11,7 @@ import {
 import { db } from "../db";
 import { engelListesi, leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
 import { kayitAdresOzetleri, telefonNormallestir } from "../messaging/adres";
-import type { AliciTuru } from "@/lib/mesajlasma";
+import type { AliciTuru, WhatsappIzni } from "@/lib/mesajlasma";
 import { likeKacir, type TenantContext } from "./baglam";
 
 export type { Kayit };
@@ -21,6 +21,8 @@ export type KayitFiltresi = {
   durum?: KayitDurumu;
   iletiIzni?: IletiIzni;
   kaynak?: KayitKaynagi;
+  /** WhatsApp (Cloud API) izni; 'yok' satırı olmayan kayıtları da kapsar. */
+  whatsappIzni?: WhatsappIzni;
   etiket?: string;
   /** Yalnızca kullanıcının girdiği alanlarda arar (Places içeriği saklanmadığı için). */
   arama?: string;
@@ -31,6 +33,16 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   if (f.durum) kosullar.push(eq(leads.durum, f.durum));
   if (f.iletiIzni) kosullar.push(eq(leads.iletiIzni, f.iletiIzni));
   if (f.kaynak) kosullar.push(eq(leads.kaynak, f.kaynak));
+  if (f.whatsappIzni) {
+    const var_ = sql`exists (select 1 from ${whatsappKisileri} w where w.tenant_id = ${leads.tenantId}
+      and w.lead_id = ${leads.id} and w.izin = ${f.whatsappIzni})`;
+    kosullar.push(
+      f.whatsappIzni === "yok"
+        ? sql`(${var_} or not exists (select 1 from ${whatsappKisileri} w where w.tenant_id = ${leads.tenantId}
+            and w.lead_id = ${leads.id}))`
+        : var_,
+    );
+  }
   if (f.etiket) {
     kosullar.push(sql`exists (select 1 from json_each(${leads.etiketler}) where json_each.value = ${f.etiket})`);
   }

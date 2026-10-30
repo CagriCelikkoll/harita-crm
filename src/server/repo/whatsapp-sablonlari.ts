@@ -1,5 +1,6 @@
 // WABA şablonları: Meta'dan senkronize edilen kopya. Uygulamada şablon oluşturulmaz.
 import { and, asc, eq, ne, notInArray } from "drizzle-orm";
+import { sablonCozumle } from "@/lib/whatsapp-api";
 import { db } from "../db";
 import { whatsappBaglantilari, whatsappSablonlari, type WhatsappSablonu } from "../db/schema";
 import { yoneticiOlmali, type TenantContext } from "./baglam";
@@ -69,4 +70,19 @@ export function sablonlariSenkronla(ctx: TenantContext, sablonlar: SenkronSablon
       .run();
     return { eklenen, guncellenen, silinen };
   });
+}
+
+/** Şablon durum bildirimi (webhook): durum değişir, kampanyada kullanılabilirlik yeniden hesaplanır. */
+export function sablonDurumuYaz(ctx: TenantContext, s: { metaId: string | null; ad: string; dil: string; durum: string }): boolean {
+  const kosul = s.metaId
+    ? and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.metaId, s.metaId))
+    : and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.ad, s.ad), eq(whatsappSablonlari.dil, s.dil));
+  const eski = db.select().from(whatsappSablonlari).where(kosul).get();
+  if (!eski) return false;
+  const c = sablonCozumle({ kategori: eski.kategori, durum: s.durum, bilesenler: eski.bilesenler });
+  db.update(whatsappSablonlari)
+    .set({ durum: s.durum, destekNedeni: c.destekNedeni, senkronTarihi: new Date() })
+    .where(eq(whatsappSablonlari.id, eski.id))
+    .run();
+  return true;
 }

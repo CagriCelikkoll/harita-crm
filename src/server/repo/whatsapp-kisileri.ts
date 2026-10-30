@@ -3,9 +3,11 @@
 // buradan geri alınamaz.
 import { and, eq, inArray } from "drizzle-orm";
 import { WHATSAPP_IZIN_KAYNAK_ADLARI, WHATSAPP_IZNI_ADLARI, type WhatsappIzinKaynagi } from "@/lib/mesajlasma";
+import type { AliciTuru } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { leadEvents, leads, whatsappKisileri, type WhatsappKisisi } from "../db/schema";
 import type { TenantContext } from "./baglam";
+import { kisileriEkle } from "./kayitlar";
 
 export type { WhatsappKisisi };
 
@@ -128,4 +130,107 @@ export function whatsappYokIsaretle(ctx: TenantContext, leadId: string, simdi = 
     })
     .run();
   return true;
+}
+
+/** BSUID'i bu kiracıdaki kayda bağlı kişi (yoksa null). */
+export function bsuidIleBul(ctx: TenantContext, bsuid: string): string | null {
+  return (
+    db
+      .select({ leadId: whatsappKisileri.leadId })
+      .from(whatsappKisileri)
+      .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, bsuid)))
+      .get()?.leadId ?? null
+  );
+}
+
+/**
+ * Kayda BSUID (ve görünen kullanıcı adı) yazar. BSUID başka bir kayıtta zaten varsa dokunmaz (false); kullanıcı adı
+ * verilmişse güncellenir.
+ */
+export function bsuidAta(ctx: TenantContext, leadId: string, bsuid: string | null, kullaniciAdi?: string | null): boolean {
+  return db.transaction((tx) => {
+    const kayit = tx.select({ id: leads.id }).from(leads).where(and(eq(leads.id, leadId), eq(leads.tenantId, ctx.tenantId))).get();
+    if (!kayit) return false;
+    const baska = bsuid
+      ? tx
+          .select({ leadId: whatsappKisileri.leadId })
+          .from(whatsappKisileri)
+          .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, bsuid)))
+          .get()
+      : undefined;
+    const bsuidYaz = bsuid && (!baska || baska.leadId === leadId) ? { bsuid } : {};
+    const adYaz = kullaniciAdi !== undefined ? { waKullaniciAdi: kullaniciAdi } : {};
+    if (!Object.keys(bsuidYaz).length && !Object.keys(adYaz).length) return false;
+    const simdi = new Date();
+    tx.insert(whatsappKisileri)
+      .values({ tenantId: ctx.tenantId, leadId, ...bsuidYaz, ...adYaz })
+      .onConflictDoUpdate({ target: [whatsappKisileri.tenantId, whatsappKisileri.leadId], set: { ...bsuidYaz, ...adYaz, guncellemeTarihi: simdi } })
+      .run();
+    return Boolean(Object.keys(bsuidYaz).length);
+  });
+}
+
+/** Kullanıcının BSUID'i değişti (user_changed_user_id / user_changed_number): eski kimlik yenisiyle değiştirilir. */
+export function bsuidDegistir(ctx: TenantContext, eski: string, yeni: string): string | null {
+  const g = db
+    .update(whatsappKisileri)
+    .set({ bsuid: yeni, guncellemeTarihi: new Date() })
+    .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, eski)))
+    .returning({ leadId: whatsappKisileri.leadId })
+    .get();
+  return g?.leadId ?? null;
+}
+
+export type ReklamBilgisi = { reklamKimligi: string | null; reklamBasligi: string | null; ctwaClid: string | null; pencereBitis: Date };
+
+/** Mevcut kişinin son reklam bilgisi ve ücretsiz pencere bitişi (izni değiştirmez). */
+export function reklamBilgisiYaz(ctx: TenantContext, leadId: string, r: ReklamBilgisi): boolean {
+  const kayit = db.select({ id: leads.id }).from(leads).where(and(eq(leads.id, leadId), eq(leads.tenantId, ctx.tenantId))).get();
+  if (!kayit) return false;
+  db.insert(whatsappKisileri)
+    .values({ tenantId: ctx.tenantId, leadId, ...r })
+    .onConflictDoUpdate({ target: [whatsappKisileri.tenantId, whatsappKisileri.leadId], set: { ...r, guncellemeTarihi: new Date() } })
+    .run();
+  return true;
+}
+
+/**
+ * Click-to-WhatsApp reklamından ilk kez yazan kişi: kaynak 'meta_reklam' kayıt + WhatsApp izni 'var'
+ * ("WhatsApp'tan kendisi yazdı"), BSUID, reklam bilgisi — tek transaction. BSUID başka kayıttaysa null.
+ */
+export function reklamKisisiOlustur(
+  ctx: TenantContext,
+  g: { ad: string | null; telefon: string | null; bsuid: string | null; kullaniciAdi: string | null; aliciTuru: AliciTuru; reklam: ReklamBilgisi },
+  simdi = new Date(),
+): string | null {
+  return db.transaction((tx) => {
+    if (g.bsuid) {
+      const var_ = tx
+        .select({ leadId: whatsappKisileri.leadId })
+        .from(whatsappKisileri)
+        .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, g.bsuid)))
+        .get();
+      if (var_) return null;
+    }
+    const aciklama = `Meta reklamından WhatsApp ile yazdı${g.reklam.reklamBasligi ? `: ${g.reklam.reklamBasligi}` : ""}`;
+    const [kayit] = kisileriEkle(
+      ctx,
+      [{ kaynak: "meta_reklam", yetkiliAdi: g.ad, ekTelefon: g.telefon, aliciTuru: g.aliciTuru }],
+      aciklama,
+      tx,
+    );
+    tx.insert(whatsappKisileri)
+      .values({
+        tenantId: ctx.tenantId,
+        leadId: kayit.id,
+        bsuid: g.bsuid,
+        waKullaniciAdi: g.kullaniciAdi,
+        izin: "var",
+        izinTarihi: simdi,
+        izinKaynagi: "kendisi_yazdi",
+        ...g.reklam,
+      })
+      .run();
+    return kayit.id;
+  });
 }

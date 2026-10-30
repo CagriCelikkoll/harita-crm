@@ -598,8 +598,8 @@ kontrollüdür.
 
 ### WhatsApp Business (Cloud API) bağlantısı
 
-Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bağlantı, şablonlar ve kampanyalar;
-webhook (teslim bildirimleri, ret, reklamdan gelenler) sonraki bölümde eklenir.
+Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bağlantı, şablonlar, kampanyalar ve
+webhook (teslim bildirimleri, ret, reklamdan gelenler).
 
 - **Ayarlar → WhatsApp Business (API)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
   user token) ve App Secret.
@@ -666,7 +666,43 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler) sonraki bölümde eklenir
   | Ağ hatası / zaman aşımı, 5xx, 131000 | **Belirsiz**: gönderilmiş olabilir; iki kez gitmemesi için tekrar denenmez |
 
 - Kampanya detayında Meta teslim bildirimleri (gönderildi / teslim edildi / okundu / teslim edilemedi + hata kodu) ve
-  ücretlendirilen ileti sayısı gösterilir (webhook bölümüyle dolar).
+  ücretlendirilen ileti sayısı gösterilir.
+
+#### WhatsApp webhook'u (`/api/whatsapp/webhook/<çalışma alanına özel kimlik>`)
+
+- **GET (abonelik doğrulaması):** `hub.verify_token` çalışma alanının şifreli verify token'ıyla sabit zamanlı
+  karşılaştırılır; eşleşirse `hub.challenge` döner ve "webhook doğrulandı" işaretlenir (test modu kilidinin 1. koşulu).
+- **POST:** `X-Hub-Signature-256` (App Secret ile ham gövdenin HMAC-SHA256'sı) doğrulanmadan gövde ayrıştırılmaz ve
+  hiçbir şey yazılmaz (401). Gövde en fazla 1 MB. Sonra her değişiklikte numara (`metadata.phone_number_id`) ya da
+  WABA (`entry.id`) bu bağlantınınkiyle eşleşmeli; eşleşmeyen (başka çalışma alanının numarası) atlanır.
+  Geçerli istek her zaman 200 döner (Meta tekrar denemesin).
+- **Teslim durumları** (`statuses`): wamid ile kuyruk satırı bulunur; durum yalnızca ileri gider
+  (sent → delivered → read; failed teslim edilmiş iletinin üzerine yazılmaz); hata kodu ve `pricing`
+  (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı. İmzalı bir durum
+  bildirimi test modu kilidinin 2. koşuludur. `recipient_user_id` (BSUID) kayda öğrenilir.
+- **Kişi eşleştirme:** önce BSUID (`user_id` / `from_user_id`), yoksa telefon (`wa_id` → `leads.telefon_e164`).
+  Kullanıcı adını açmış kişide telefon gelmeyebilir; kayıt yalnızca BSUID ile tutulur. BSUID değişimi
+  (`system.type` `user_changed_user_id` / `user_changed_number`, `previous_user_id`) kayda işlenir.
+- **Ret:** metin **tam olarak** `RET`, `DUR`, `İPTAL`, `STOP`, `ABONELİKTEN ÇIK`, `ÇIK` (Türkçe büyük/küçük harf,
+  boşluk ve sondaki noktalama yok sayılır; "iptal etmek istemiyorum" ret değildir) ya da şablondaki abonelikten çıkma
+  butonu (`type: button`) → ret akışı (genel izin + WhatsApp izni ret, telefon ve BSUID engel listesine).
+  `user_preferences` "stop" da ret sayılır; "resume" yalnızca olaydır (ret geri alınmaz).
+- **Reklamdan gelen** (`referral.source_type = ad`): kişi yoksa `kaynak = meta_reklam` kayıt (ad: WhatsApp profil
+  adı, alıcı türü bireysel), WhatsApp izni `var` ("WhatsApp'tan kendisi yazdı"), reklam kimliği ve başlığı,
+  `ctwa_clid`, ücretsiz pencere bitişi (+72 saat). Aynı kişi tekrar yazarsa yeni kayıt açılmaz; reklam bilgisi ve
+  pencere güncellenir. Kayıtlar listesinde "WhatsApp penceresi açık" rozeti.
+- **Diğer gelen iletiler** yalnızca `lead_events`'e "Gelen WhatsApp mesajı (tür)" olayı olarak yazılır; **ileti
+  metni hiçbir tabloda saklanmaz**. Meta'nın tekrar gönderdiği webhook ikinci olay üretmez (ileti kimliği 7 gün
+  tutulur, `npm run cleanup` siler). Bilinen bir kişiye bağlanamayan ve reklamdan gelmeyen ileti için kayıt açılmaz.
+- **Şablon durumu** (`message_template_status_update`): APPROVED / REJECTED / PAUSED / DISABLED / ARCHIVED / DELETED /
+  PENDING_DELETION / LOCKED işlenir, kampanyada kullanılabilirlik yeniden hesaplanır (kullanılamazsa çalışan kampanya
+  duraklar). Diğer olaylar (FLAGGED, IN_APPEAL …) bir sonraki senkronu bekler.
+- **Limit** (`phone_number_quality_update`, `business_capability_update`): `max_daily_conversations_per_business`
+  (yoksa `current_limit`) katmanı yazılır ve kalite bir sonraki gönderimden önce Meta'dan yeniden okunur. Not: güncel
+  Meta belgesine göre `phone_number_quality_update` kalite puanını değil **limit / hız** değişikliğini bildirir;
+  kalite puanı işçi tarafından 15 dakikada bir `GET /{phone-number-id}` ile okunur.
+- Meta App Dashboard → WhatsApp → Yapılandırma → Webhook'taki **Test** bağlantısı, kullanıcı adı / BSUID senaryolu
+  örnek yükleri bu uca gönderebilir (imza da Meta tarafından atılır).
 
 #### Pilot: işletme sahibinin kendi Business Manager'ında system user ve kalıcı anahtar
 
@@ -779,3 +815,12 @@ tests/                           Vitest
     `epostaNormallestir` ile yalnızca tırnaksız, yorumsuz, `;`/`>`/`,` içermeyen adreslere sınırlanıyor; gönderen adresi
     Zod e-posta doğrulamasından geçiyor. **1.11.2026'dan sonra 10.1.4 veya üstüne yükseltilmeli.**
     `drizzle-kit` üzerinden gelen `esbuild` uyarısı yalnızca geliştirme aracını etkiler (çalışma zamanında yok).
+15. **WhatsApp "kendisi yazdı" izni ve İYS:** Reklamdan yazan kişi WhatsApp izni "var" (kaynak: kendisi yazdı) ile
+    kaydedilir; ancak varsayılan alıcı türü bireysel olduğundan İYS beyanı olmadan kampanyaya girmez. Kişinin işletmeye
+    yazmasının ticari ileti onayı sayılıp sayılmayacağı hukuken değerlendirilmeli.
+16. **WhatsApp ücretsiz pencere süresi:** Meta'nın fiyat sayfası 72 saat, geliştirici changelog'u (28.09.2026) koşullu
+    olarak 7 güne kadar der; rozet en az süreyi (72 saat) gösterir.
+17. **WhatsApp fiyatları** (`src/lib/whatsapp-fiyatlar.ts`) Meta'nın kendi kartından doğrulanmadı; pilot öncesi
+    kontrol edilmeli. Tahmin yalnızca bilgidir.
+18. **WhatsApp limit payı** benzersiz alıcı yerine ileti sayar (aynı kişiye iki kampanya iki sayılır); Meta'nın
+    sayımından temkinlidir.

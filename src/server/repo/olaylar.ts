@@ -90,3 +90,21 @@ export function notOlayiGuncelle(ctx: TenantContext, id: string, aciklama: strin
 export function notOlayiSil(ctx: TenantContext, id: string): boolean {
   return Boolean(db.delete(leadEvents).where(kendiNotum(ctx, id)).returning({ id: leadEvents.id }).get());
 }
+
+/** Sistem olayı (kullanıcısız; ör. WhatsApp webhook'u). Kayıt bu kiracının değilse null. */
+export function sistemOlayiEkle(ctx: TenantContext, leadId: string, tur: OlayTuru, aciklama: string): KayitOlayi | null {
+  return db.transaction((tx) => {
+    const kayit = tx
+      .update(leads)
+      .set({ guncellemeTarihi: new Date() })
+      .where(and(eq(leads.id, leadId), eq(leads.tenantId, ctx.tenantId)))
+      .returning({ id: leads.id })
+      .get();
+    if (!kayit) return null;
+    return tx
+      .insert(leadEvents)
+      .values({ id: crypto.randomUUID(), tenantId: ctx.tenantId, leadId: kayit.id, tur, aciklama, kullaniciId: null, sistem: true })
+      .returning()
+      .get();
+  });
+}

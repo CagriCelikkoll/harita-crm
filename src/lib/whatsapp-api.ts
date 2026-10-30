@@ -191,3 +191,32 @@ export function sablonParametreleri(
   }
   return sonuc;
 }
+
+// --- Webhook: ret kelimeleri ve reklam penceresi ---
+
+/**
+ * Gelen metin bunlardan biriyle TAM eşleşirse ret (K4): Türkçe büyük/küçük harf, baştaki/sondaki boşluk, art arda
+ * boşluk ve sondaki noktalama yok sayılır. "iptal etmek istemiyorum" ret DEĞİLDİR.
+ */
+export const RET_KELIMELERI = ["RET", "DUR", "İPTAL", "STOP", "ABONELİKTEN ÇIK", "ÇIK"] as const;
+const RET_SADE = new Set(RET_KELIMELERI.map((k) => sade(k)));
+
+export function retMetniMi(metin: string | null | undefined): boolean {
+  if (!metin) return false;
+  const s = sade(metin.normalize("NFC")).replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "").trim();
+  return RET_SADE.has(s);
+}
+
+/**
+ * Reklamdan (Click-to-WhatsApp) gelen kişinin ücretsiz giriş penceresi (FEP), saat. Meta'nın fiyat sayfası
+ * "3 gün (72 saat)" der; geliştirici changelog'u (28.09.2026) koşullu olarak 7 güne kadar uzayabileceğini belirtir.
+ * Rozet en az süreyi gösterir (K6).
+ */
+export const UCRETSIZ_PENCERE_SAAT = 72;
+
+/** Teslim bildirimi sırası: durum yalnızca ileri gider. failed, teslim edilmiş/okunmuş iletinin üzerine yazılmaz. */
+export const WHATSAPP_TESLIM_SIRASI: Record<string, number> = { sent: 1, failed: 2, delivered: 3, read: 4 };
+
+/** Reklamdan gelen kişinin ücretsiz penceresi şu an açık mı. */
+export const pencereAcikMi = (bitis: Date | null | undefined, simdi = new Date()) =>
+  Boolean(bitis && bitis.getTime() > simdi.getTime());

@@ -18,6 +18,9 @@ import {
 import { sayfaBaglami } from "@/server/oturum";
 import { etiketleriListele, kayitGetir, kayitlariListele, type KayitFiltresi } from "@/server/repo/kayitlar";
 import { kotaDurumu } from "@/server/repo/kullanim";
+import { whatsappKisileriGetir } from "@/server/repo/whatsapp-kisileri";
+import { WHATSAPP_IZINLERI, WHATSAPP_IZNI_ADLARI, type WhatsappIzni } from "@/lib/mesajlasma";
+import { pencereAcikMi } from "@/lib/whatsapp-api";
 import { canliBilgiGetir } from "@/server/servisler/canli-bilgi";
 import type { TabloSatiri } from "./kayit-tablosu";
 import { KayitlarEkrani } from "./kayitlar-ekrani";
@@ -35,6 +38,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     iletiIzni: ILETI_IZINLERI.find((d) => d === tek(p.izin)) as IletiIzni | undefined,
     etiket: tek(p.etiket) || undefined,
     kaynak: KAYIT_KAYNAKLARI.find((d) => d === tek(p.kaynak)) as KayitKaynagi | undefined,
+    whatsappIzni: WHATSAPP_IZINLERI.find((d) => d === tek(p.wa_izin)) as WhatsappIzni | undefined,
     arama: tek(p.q) || undefined,
   };
   const seciliId = tek(p.secili);
@@ -54,6 +58,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   const canli = await canliBilgiGetir(ctx, placeIdler, "liste");
   const kotaEtkiledi = [...canli.values()].some((c) => c.durum === "kota");
   const kota = kotaDurumu(ctx);
+  const wa = whatsappKisileriGetir(ctx, liste.kayitlar.map((k) => k.id));
   const satirlar: TabloSatiri[] = liste.kayitlar.map((k) => {
     const c = k.placeId ? canli.get(k.placeId) : undefined;
     return {
@@ -63,6 +68,9 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
       etiketler: k.etiketler,
       yetkiliAdi: k.yetkiliAdi,
       guncellemeTarihi: k.guncellemeTarihi.toISOString(),
+      kaynak: k.kaynak,
+      whatsappIzni: wa.get(k.id)?.izin ?? "yok",
+      waPencereAcik: pencereAcikMi(wa.get(k.id)?.pencereBitis),
       canli: !k.placeId
         ? { ad: k.isletmeAdi ?? k.yetkiliAdi ?? "(adsız kişi)", adres: null }
         : c?.durum === "tamam"
@@ -85,6 +93,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     izin: filtre.iletiIzni,
     etiket: filtre.etiket,
     kaynak: filtre.kaynak,
+    wa_izin: filtre.whatsappIzni,
     q: filtre.arama,
   })) {
     if (v) sorgu.set(k, v);
@@ -123,7 +132,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         </p>
       )}
 
-      <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto]">
+      <form key={sorgu.toString()} method="get" className="kart mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto_auto]">
         <label className="etiket">
           Ara
           <input name="q" defaultValue={filtre.arama} className="girdi" placeholder="yetkili, e-posta, ek telefon, not, etiket" />
@@ -157,6 +166,17 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
             {KAYIT_KAYNAKLARI.map((d) => (
               <option key={d} value={d}>
                 {KAYIT_KAYNAK_ADLARI[d]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="etiket">
+          WhatsApp izni
+          <select name="wa_izin" defaultValue={filtre.whatsappIzni ?? ""} className="girdi">
+            <option value="">Tümü</option>
+            {WHATSAPP_IZINLERI.map((d) => (
+              <option key={d} value={d}>
+                {WHATSAPP_IZNI_ADLARI[d]}
               </option>
             ))}
           </select>

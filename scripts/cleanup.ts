@@ -8,5 +8,6 @@ console.log(
   `[${new Date().toISOString()}] Temizlik: ${sonuc.silinenKonum} Places konumu (30+ gün), ` +
     `${sonuc.temizlenenMerkez} tarama merkezi (30+ gün), ` +
     `${sonuc.silinenKayit} kayıt (saklama süresi), ${sonuc.silinenDavet} süresi dolmuş davet, ` +
-    `${sonuc.kapatilanIceAktarma} süresi dolmuş içe aktarma oturumu, ${yarim} yarıda kalmış tarama.`,
+    `${sonuc.kapatilanIceAktarma} süresi dolmuş içe aktarma oturumu, ${sonuc.silinenGelenKimlik} eski WhatsApp ileti kimliği, ` +
+    `${yarim} yarıda kalmış tarama.`,
 );

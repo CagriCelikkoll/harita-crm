@@ -1,0 +1,32 @@
+// WhatsApp Cloud API webhook'u (oturumsuz; Meta çağırır). Adres çalışma alanına özel rastgele kimlik içerir.
+// GET: abonelik doğrulaması (verify token). POST: X-Hub-Signature-256 doğrulanmadan gövde işlenmez (401).
+// Meta tekrar denemesin diye işlenen her geçerli istek 200 döner; ayrıntı: servisler/whatsapp-webhook.ts.
+import { NextResponse } from "next/server";
+import { WEBHOOK_AZAMI_BAYT, webhookDogrula, webhookIsle } from "@/server/servisler/whatsapp-webhook";
+
+const BASLIK = { "Cache-Control": "no-store" };
+
+export async function GET(istek: Request, { params }: RouteContext<"/api/whatsapp/webhook/[kimlik]">) {
+  const { kimlik } = await params;
+  const p = new URL(istek.url).searchParams;
+  const challenge = webhookDogrula(kimlik, {
+    mode: p.get("hub.mode"),
+    token: p.get("hub.verify_token"),
+    challenge: p.get("hub.challenge"),
+  });
+  if (challenge === null) return new Response("Doğrulama başarısız.", { status: 403, headers: BASLIK });
+  return new Response(challenge, { status: 200, headers: { ...BASLIK, "Content-Type": "text/plain; charset=utf-8" } });
+}
+
+export async function POST(istek: Request, { params }: RouteContext<"/api/whatsapp/webhook/[kimlik]">) {
+  const { kimlik } = await params;
+  if (Number(istek.headers.get("content-length") ?? 0) > WEBHOOK_AZAMI_BAYT) {
+    return NextResponse.json({ hata: "Gövde çok büyük." }, { status: 413, headers: BASLIK });
+  }
+  const govde = new Uint8Array(await istek.arrayBuffer());
+  if (govde.byteLength > WEBHOOK_AZAMI_BAYT) return NextResponse.json({ hata: "Gövde çok büyük." }, { status: 413, headers: BASLIK });
+  const sonuc = webhookIsle(kimlik, govde, istek.headers.get("x-hub-signature-256"));
+  if (sonuc.durum === 404) return NextResponse.json({ hata: "Bulunamadı." }, { status: 404, headers: BASLIK });
+  if (sonuc.durum === 401) return NextResponse.json({ hata: "İmza geçersiz." }, { status: 401, headers: BASLIK });
+  return NextResponse.json({ tamam: true }, { headers: BASLIK });
+}

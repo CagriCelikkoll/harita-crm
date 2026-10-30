@@ -156,3 +156,15 @@ export function baglantiSil(ctx: TenantContext): boolean {
       .get(),
   );
 }
+
+/** Limit değişikliği bildirimi (webhook): katman yazılır, kalite bir sonraki gönderimden önce Meta'dan yeniden okunur. */
+export function limitKatmaniYaz(ctx: TenantContext, katman: string): boolean {
+  return Boolean(
+    db
+      .update(whatsappBaglantilari)
+      .set({ limitKatmani: katman, sonKontrol: null })
+      .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
+      .returning({ id: whatsappBaglantilari.tenantId })
+      .get(),
+  );
+}

@@ -3,7 +3,7 @@
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { PLACES_KONUM_SAKLAMA_GUN, YARIM_KALDI_MESAJI } from "@/lib/sabitler";
 import { db } from "../../db";
-import { iceAktarmalar, invitations, leads, placeLocations, scans, tenants } from "../../db/schema";
+import { iceAktarmalar, invitations, leads, placeLocations, scans, tenants, whatsappGelenKimlikleri } from "../../db/schema";
 import { ICE_AKTARMA_OTURUM_DAKIKA } from "@/lib/ice-aktarma";
 import { yarimKalanKosulu } from "./tarama-kosulu";
 
@@ -79,6 +79,13 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ id: iceAktarmalar.id })
       .all().length;
 
-    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma };
+    // 6) Gelen WhatsApp ileti kimlikleri (yalnızca tekrar eleme için) 7 gün sonra.
+    const silinenGelenKimlik = tx
+      .delete(whatsappGelenKimlikleri)
+      .where(lt(whatsappGelenKimlikleri.tarih, new Date(simdi.getTime() - 7 * GUN_MS)))
+      .returning({ wamid: whatsappGelenKimlikleri.wamid })
+      .all().length;
+
+    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma, silinenGelenKimlik };
   });
 }

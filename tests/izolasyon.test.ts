@@ -24,6 +24,7 @@ import * as whatsappKisileri from "@/server/repo/whatsapp-kisileri";
 import * as iceAktarmalar from "@/server/repo/ice-aktarmalar";
 import * as waBaglantilari from "@/server/repo/whatsapp-baglantilari";
 import * as waSablonlari from "@/server/repo/whatsapp-sablonlari";
+import * as waGelen from "@/server/repo/whatsapp-gelen";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -108,6 +109,7 @@ beforeAll(() => {
   waSablonlari.sablonlariSenkronla(B, [B_SABLON]);
   bWaBaglanti = waBaglantilari.baglantiGetir(B)!;
   bWaSablon = waSablonlari.sablonlariListele(B)[0];
+  waGelen.gelenIletiKaydet(B, "wamid.B-gelen");
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -263,6 +265,11 @@ const olayTestleri: Record<keyof typeof olaylar, () => void> = {
   notOlayiSil: () => {
     expect(olaylar.notOlayiSil(A, bOlay.id)).toBe(false);
     expect(olaylar.olayGetir(B, bOlay.id)).not.toBeNull();
+  },
+  sistemOlayiEkle: () => {
+    const sayi = olaylar.olaylariListele(B, bKayit.id).length;
+    expect(olaylar.sistemOlayiEkle(A, bKayit.id, "whatsapp_gelen", "sızma")).toBeNull();
+    expect(olaylar.olaylariListele(B, bKayit.id)).toHaveLength(sayi);
   },
 };
 
@@ -460,6 +467,13 @@ const kuyrukTestleri: Record<keyof typeof kuyruk, () => void> = {
   mesajBirak: () => {
     expect(kuyruk.mesajBirak(A, bMesajId, { durum: "basarisiz", neden: "x" })).toBe(false);
   },
+  teslimDurumuIsle: () => {
+    // B'nin WhatsApp mesajının wamid'i A'nın bildirimiyle değişmez.
+    db.$client.prepare("update message_queue set kanal = 'whatsapp_api', saglayici_kimligi = 'wamid.B1' where id = ?").run(bMesajId);
+    expect(kuyruk.teslimDurumuIsle(A, "wamid.B1", { durum: "read", hataKodu: null, zaman: new Date() })).toBeNull();
+    expect(db.$client.prepare("select teslim_durumu t from message_queue where id = ?").get(bMesajId)).toEqual({ t: null });
+    db.$client.prepare("update message_queue set kanal = 'eposta', saglayici_kimligi = null where id = ?").run(bMesajId);
+  },
   whatsappSon24Saat: () => {
     // B'nin gönderilmekte olan WhatsApp mesajı A'nın sayımına girmez.
     db.$client.prepare("update message_queue set kanal = 'whatsapp_api' where id = ?").run(bMesajId);
@@ -503,6 +517,36 @@ const whatsappKisiTestleri: Record<keyof typeof whatsappKisileri, () => void> = 
   whatsappKisileriGetir: () => {
     expect(whatsappKisileri.whatsappKisileriGetir(A, [bKisi.id]).size).toBe(0);
     expect(whatsappKisileri.whatsappKisileriGetir(B, [bKisi.id]).get(bKisi.id)?.bsuid).toBe(B_BSUID);
+  },
+  bsuidIleBul: () => {
+    expect(whatsappKisileri.bsuidIleBul(A, B_BSUID)).toBeNull();
+    expect(whatsappKisileri.bsuidIleBul(B, B_BSUID)).toBe(bKisi.id);
+  },
+  bsuidAta: () => {
+    expect(whatsappKisileri.bsuidAta(A, bKisi.id, "TR.saldiri", "saldirgan")).toBe(false);
+  },
+  bsuidDegistir: () => {
+    expect(whatsappKisileri.bsuidDegistir(A, B_BSUID, "TR.yeni")).toBeNull();
+  },
+  reklamBilgisiYaz: () => {
+    expect(
+      whatsappKisileri.reklamBilgisiYaz(A, bKisi.id, { reklamKimligi: "x", reklamBasligi: "x", ctwaClid: null, pencereBitis: new Date() }),
+    ).toBe(false);
+  },
+  reklamKisisiOlustur: () => {
+    // Kişi her zaman çağıranın kiracısında; B'nin BSUID'i A'da ayrı kişi olabilir (BSUID işletmeye özel).
+    const id = whatsappKisileri.reklamKisisiOlustur(A, {
+      ad: "Reklam",
+      telefon: null,
+      bsuid: B_BSUID,
+      kullaniciAdi: null,
+      aliciTuru: "bireysel",
+      reklam: { reklamKimligi: "ad1", reklamBasligi: "R", ctwaClid: null, pencereBitis: new Date() },
+    })!;
+    expect(kayitlar.kayitGetir(A, id)?.tenantId).toBe(A.tenantId);
+    expect(kayitlar.kayitGetir(B, id)).toBeNull();
+    expect(whatsappKisileri.bsuidIleBul(B, B_BSUID)).toBe(bKisi.id);
+    kayitlar.kayitSil(A, id);
   },
   whatsappYokIsaretle: () => {
     expect(whatsappKisileri.whatsappYokIsaretle(A, bKisi.id)).toBe(false);
@@ -571,6 +615,9 @@ const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
   baglantiSil: () => {
     expect(waBaglantilari.baglantiSil(A)).toBe(false);
   },
+  limitKatmaniYaz: () => {
+    expect(waBaglantilari.limitKatmaniYaz(A, "TIER_UNLIMITED")).toBe(false);
+  },
 };
 
 const waSablonTestleri: Record<keyof typeof waSablonlari, () => void> = {
@@ -580,11 +627,22 @@ const waSablonTestleri: Record<keyof typeof waSablonlari, () => void> = {
   sablonGetir: () => {
     expect(waSablonlari.sablonGetir(A, bWaSablon.id)).toBeNull();
   },
+  sablonDurumuYaz: () => {
+    expect(waSablonlari.sablonDurumuYaz(A, { metaId: "b-1", ad: "b_sablon", dil: "tr", durum: "DISABLED" })).toBe(false);
+  },
   sablonlariSenkronla: () => {
     // A'nın boş senkronu B'nin şablonlarını "silindi" yapmaz; aynı ad A'da ayrı satırdır.
     expect(waSablonlari.sablonlariSenkronla(A, [])).toEqual({ eklenen: 0, guncellenen: 0, silinen: 0 });
     expect(waSablonlari.sablonlariSenkronla(A, [{ ...B_SABLON, metaId: "a-1" }])).toMatchObject({ eklenen: 1 });
     waSablonlari.sablonlariSenkronla(A, []);
+  },
+};
+
+const waGelenTestleri: Record<keyof typeof waGelen, () => void> = {
+  gelenIletiKaydet: () => {
+    // Aynı wamid iki kiracıda bağımsızdır: A'nın kaydı B'ninkini etkilemez, B'de zaten var.
+    expect(waGelen.gelenIletiKaydet(A, "wamid.B-gelen")).toBe(true);
+    expect(waGelen.gelenIletiKaydet(B, "wamid.B-gelen")).toBe(false);
   },
 };
 
@@ -606,6 +664,7 @@ const MODULLER = {
   "ice-aktarmalar": [iceAktarmalar, iceAktarmaTestleri],
   "whatsapp-baglantilari": [waBaglantilari, waBaglantiTestleri],
   "whatsapp-sablonlari": [waSablonlari, waSablonTestleri],
+  "whatsapp-gelen": [waGelen, waGelenTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {
