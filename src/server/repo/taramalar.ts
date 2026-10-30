@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, min, sql } from "drizzle-orm";
 import { YARIM_KALDI_MESAJI, type MerkezKaynagi } from "@/lib/sabitler";
 import { db } from "../db";
 import { scans, type Tarama } from "../db/schema";
@@ -19,6 +19,14 @@ export function taramaOlustur(
   },
 ): Tarama {
   const kaynak = girdi.merkezKaynagi ?? "harita";
+  const simdi = new Date();
+  // "Tekrar kullan" (ya da son taramanın merkeziyle yeni tarama): aynı merkez bu kiracının eski bir taramasında hâlâ
+  // duruyorsa 30 günlük süre en eskisinden devralınır; kopyalamak süreyi sıfırlamaz.
+  const eski = db
+    .select({ t: min(sql<number>`coalesce(${scans.merkezTarihi}, ${scans.olusturmaTarihi})`) })
+    .from(scans)
+    .where(and(eq(scans.tenantId, ctx.tenantId), eq(scans.merkezLat, girdi.merkezLat), eq(scans.merkezLng, girdi.merkezLng)))
+    .get()?.t;
   return db
     .insert(scans)
     .values({
@@ -28,6 +36,7 @@ export function taramaOlustur(
       merkezKaynagi: kaynak,
       merkezLat: girdi.merkezLat,
       merkezLng: girdi.merkezLng,
+      merkezTarihi: eski != null && Number(eski) < simdi.getTime() ? new Date(Number(eski)) : simdi,
       adresMetni: kaynak === "adres" ? (girdi.adresMetni?.trim() || null) : null,
       yaricapM: girdi.yaricapM,
       kategori: girdi.kategori,

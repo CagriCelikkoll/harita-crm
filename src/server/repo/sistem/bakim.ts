@@ -22,6 +22,24 @@ export function tumYarimKalanTaramalariKapat(simdi = new Date()): number {
     .all().length;
 }
 
+/**
+ * Süresi dolmuş (ICE_AKTARMA_OTURUM_DAKIKA) tamamlanmamış içe aktarma oturumları: dosya satırları (kişisel veri)
+ * silinir, oturum 'iptal' olur. Gönderim işçisi saatte bir, günlük temizlik de çalıştırır.
+ */
+export function suresiDolanIceAktarmalariKapat(simdi = new Date(), tx: Pick<typeof db, "update"> = db): number {
+  return tx
+    .update(iceAktarmalar)
+    .set({ durum: "iptal", satirlar: null })
+    .where(
+      and(
+        eq(iceAktarmalar.durum, "hazirlaniyor"),
+        lt(iceAktarmalar.olusturmaTarihi, new Date(simdi.getTime() - ICE_AKTARMA_OTURUM_DAKIKA * 60_000)),
+      ),
+    )
+    .returning({ id: iceAktarmalar.id })
+    .all().length;
+}
+
 export function temizlikYap(simdi = new Date()) {
   return db.transaction((tx) => {
     const konumSiniri = new Date(simdi.getTime() - PLACES_KONUM_SAKLAMA_GUN * GUN_MS);
@@ -35,11 +53,12 @@ export function temizlikYap(simdi = new Date()) {
 
     // 2) Tarama merkezlerinin koordinatları, kaynağı ne olursa olsun ('harita' veya 'adres') 30 gün sonra
     //    silinir. Kullanıcının yazdığı adres metni ve yarıçap kalır (tarama "Tekrar kullan" ile yeniden
-    //    çalıştırılabilir: adres varsa yeniden aranır, yoksa haritada yeni nokta seçilir).
+    //    çalıştırılabilir: adres varsa yeniden aranır, yoksa haritada yeni nokta seçilir). Süre merkezin ilk
+    //    alındığı andan (merkez_tarihi; "Tekrar kullan" kopyası en eskisini devralır) sayılır.
     const temizlenenMerkez = tx
       .update(scans)
       .set({ merkezLat: null, merkezLng: null })
-      .where(and(lt(scans.olusturmaTarihi, konumSiniri), isNotNull(scans.merkezLat)))
+      .where(and(lt(sql`coalesce(${scans.merkezTarihi}, ${scans.olusturmaTarihi})`, konumSiniri.getTime()), isNotNull(scans.merkezLat)))
       .returning({ id: scans.id })
       .all().length;
 
@@ -66,18 +85,8 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ id: invitations.id })
       .all().length;
 
-    // 5) Tamamlanmamış içe aktarma oturumları: dosya satırları (kişisel veri) süre dolunca silinir.
-    const kapatilanIceAktarma = tx
-      .update(iceAktarmalar)
-      .set({ durum: "iptal", satirlar: null })
-      .where(
-        and(
-          eq(iceAktarmalar.durum, "hazirlaniyor"),
-          lt(iceAktarmalar.olusturmaTarihi, new Date(simdi.getTime() - ICE_AKTARMA_OTURUM_DAKIKA * 60_000)),
-        ),
-      )
-      .returning({ id: iceAktarmalar.id })
-      .all().length;
+    // 5) Tamamlanmamış içe aktarma oturumları (işçi bunu saatte bir de çalıştırır).
+    const kapatilanIceAktarma = suresiDolanIceAktarmalariKapat(simdi, tx);
 
     // 6) Gelen WhatsApp ileti kimlikleri (yalnızca tekrar eleme için) 7 gün sonra.
     const silinenGelenKimlik = tx

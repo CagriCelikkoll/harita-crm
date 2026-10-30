@@ -17,7 +17,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   scans: [
     "id", "tenant_id", "olusturan",
     // merkez: 'harita' = kullanıcının seçtiği nokta (saklanır); 'adres' = Places sonucu (30 gün sonra null)
-    "merkez_kaynagi", "merkez_lat", "merkez_lng", "adres_metni",
+    "merkez_kaynagi", "merkez_lat", "merkez_lng", "merkez_tarihi", "adres_metni",
     "yaricap_m", "kategori", "durum", "bulunan_sayisi", "istek_sayisi", "kapsam_tamam", "hata_mesaji",
     "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
   ],

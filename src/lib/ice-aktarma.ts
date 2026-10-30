@@ -5,6 +5,10 @@ export type IceAktarmaDurumu = (typeof ICE_AKTARMA_DURUMLARI)[number];
 
 export const ICE_AKTARMA_AZAMI_SATIR = 5000;
 export const ICE_AKTARMA_AZAMI_BAYT = 5 * 1024 * 1024;
+/** XLSX (ZIP) açıldığında toplam en fazla bu kadar olabilir (sıkıştırma bombasına karşı). */
+export const XLSX_AZAMI_ACIK_BAYT = 50 * 1024 * 1024;
+/** XLSX içindeki en fazla dosya sayısı. */
+export const XLSX_AZAMI_DOSYA = 1000;
 /** Tamamlanmamış oturumun ayrıştırılmış satırları bu süreden sonra silinir. */
 export const ICE_AKTARMA_OTURUM_DAKIKA = 60;
 

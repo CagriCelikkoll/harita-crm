@@ -12,6 +12,8 @@ import {
   ICE_AKTARMA_AZAMI_BAYT,
   ICE_AKTARMA_AZAMI_SATIR,
   ICE_AKTARMA_OTURUM_DAKIKA,
+  XLSX_AZAMI_ACIK_BAYT,
+  XLSX_AZAMI_DOSYA,
   type CakismaPolitikasi,
   type IceAktarmaAlani,
   type SatirSorunu,
@@ -29,6 +31,7 @@ import {
   type IzinBilgisi,
 } from "../repo/ice-aktarmalar";
 import { telefonlaKayitlar, type YeniKisi } from "../repo/kayitlar";
+import { zipDenetle } from "../zip-denetimi";
 
 const AZAMI_SUTUN = 50;
 const ORNEK_SATIR = 20;
@@ -77,6 +80,17 @@ export async function dosyaAyristir(dosyaAdi: string, bayt: Uint8Array): Promise
     const sonuc = Papa.parse<string[]>(metinCoz(bayt), { skipEmptyLines: "greedy" });
     satirlar = sonuc.data.map((s) => s.map((h) => String(h ?? "")));
   } else if (uzanti === "xlsx") {
+    // Sıkıştırma bombası: ayrıştırmadan ÖNCE açılmış boyut ve dosya sayısı denetlenir.
+    const zip = zipDenetle(bayt, { azamiAcikBayt: XLSX_AZAMI_ACIK_BAYT, azamiDosya: XLSX_AZAMI_DOSYA });
+    if (!zip.tamam) {
+      throw new IceAktarmaHatasi(
+        zip.neden === "boyut"
+          ? `XLSX dosyası açıldığında ${XLSX_AZAMI_ACIK_BAYT / 1024 / 1024} MB'ı aşıyor; dosyayı küçültün ya da CSV olarak kaydedin.`
+          : zip.neden === "dosya_sayisi"
+            ? `XLSX dosyasında çok fazla iç dosya var (en fazla ${XLSX_AZAMI_DOSYA}).`
+            : "XLSX dosyası okunamadı.",
+      );
+    }
     const kitap = new ExcelJS.Workbook();
     try {
       await kitap.xlsx.load(bayt.buffer.slice(bayt.byteOffset, bayt.byteOffset + bayt.byteLength) as ArrayBuffer);
@@ -389,6 +403,8 @@ export function sorunluSatirlarCsv(ctx: TenantContext, id: string, eslem: SutunE
   const satirlar = oturum.satirlar!;
   return Papa.unparse(
     [["Satır", "Sorun", ...satirlar[0]], ...sorunlar.map((x) => [String(x.satir), x.neden, ...satirlar[x.satir - 1]])],
-    { newline: "\r\n" },
+    // Hücreler kullanıcının dosyasından gelir: =, +, -, @, sekme ya da CR ile başlayanlar Excel'de formül olarak
+    // çalışmasın diye başına ' eklenir.
+    { newline: "\r\n", escapeFormulae: true },
   );
 }

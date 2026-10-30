@@ -6,7 +6,11 @@
 // no / gsmno / telefon / phone / msisdn / numara / from, mesaj için msg / mesaj / message / text alanlarını
 // okur. Canlıya almadan önce Netgsm panelindeki gelen SMS yönlendirme biçimiyle karşılaştırın (README).
 import { NextResponse } from "next/server";
+import { cokBuyuk, govdeOku } from "@/server/api-yardimci";
 import { smsRetIsle, webhookBaglami } from "@/server/servisler/sms-ret";
+
+/** Gövde akış halinde en fazla bu kadar okunur (anahtar doğrulandıktan sonra); aşılırsa 413. */
+const AZAMI_BAYT = 1024 * 1024;
 
 const TELEFON = ["no", "gsmno", "gsm", "telefon", "phone", "msisdn", "numara", "from", "sender"];
 const MESAJ = ["msg", "mesaj", "message", "text", "icerik"];
@@ -20,10 +24,13 @@ function ilk(alanlar: Record<string, unknown>, adlar: string[]): string | null {
   return null;
 }
 
-async function alanlariOku(istek: Request): Promise<Record<string, unknown>> {
+/** null: gövde AZAMI_BAYT'ı aşıyor. */
+async function alanlariOku(istek: Request): Promise<Record<string, unknown> | null> {
   const alanlar: Record<string, unknown> = Object.fromEntries(new URL(istek.url).searchParams);
   if (istek.method !== "POST") return alanlar;
-  const metin = (await istek.text()).slice(0, 10_000);
+  const govde = await govdeOku(istek, AZAMI_BAYT);
+  if (!govde) return null;
+  const metin = new TextDecoder().decode(govde).slice(0, 10_000);
   if (!metin) return alanlar;
   try {
     const json = JSON.parse(metin);
@@ -36,8 +43,10 @@ async function alanlariOku(istek: Request): Promise<Record<string, unknown>> {
 
 async function isle(istek: Request, { params }: RouteContext<"/api/webhook/sms/[anahtar]">) {
   const { anahtar } = await params;
+  // Önce anahtar: bilinmeyen adrese gelen gövde hiç okunmaz.
   if (!webhookBaglami(anahtar)) return NextResponse.json({ hata: "Bulunamadı." }, { status: 404 });
   const alanlar = await alanlariOku(istek);
+  if (!alanlar) return cokBuyuk();
   const sonuc = smsRetIsle(anahtar, { telefon: ilk(alanlar, TELEFON), mesaj: ilk(alanlar, MESAJ) });
   return NextResponse.json({ tamam: true, ret: sonuc === "ret" }, { headers: { "Cache-Control": "no-store" } });
 }

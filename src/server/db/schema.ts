@@ -111,6 +111,9 @@ export const scans = sqliteTable(
     merkezKaynagi: text("merkez_kaynagi", { enum: MERKEZ_KAYNAKLARI }).notNull().default("harita"),
     merkezLat: real("merkez_lat"),
     merkezLng: real("merkez_lng"),
+    // Merkez koordinatının İLK alındığı an: 30 gün bu andan sayılır. "Tekrar kullan" ile aynı merkez kopyalanınca
+    // en eski taramanınki devralınır (süre sıfırlanmaz). Boşsa olusturma_tarihi.
+    merkezTarihi: zaman("merkez_tarihi"),
     adresMetni: text("adres_metni"), // kullanıcının yazdığı adres (kullanıcı verisi)
     yaricapM: integer("yaricap_m").notNull(),
     kategori: text("kategori").notNull(),

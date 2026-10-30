@@ -70,14 +70,23 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 - Better Auth şeması (`src/server/db/auth-schema.ts`) `npx auth@latest generate` ile üretildi. Better Auth
   yükseltmesinden sonra aynı komutla yenileyip `npm run db:generate` çalıştırın.
 - Bağlantı WAL modunda, `foreign_keys = ON` ve `busy_timeout = 5000` ile açılır.
-- **Migration'ları her zaman `npm run db:migrate` ile uygulayın** (`drizzle-kit migrate` ile değil).
-  SQLite'ta sütun kısıtını değiştirmek tabloyu yeniden oluşturmayı gerektirir; yabancı anahtarlar açıkken
+- **Migration'ları her zaman `npm run db:migrate` ile uygulayın. Düz `drizzle-kit migrate` VERİ SİLER**
+  (bağlı satırlar: ör. 0007'de `lead_events`, `message_queue`, `whatsapp_listesi`; geliştirme veritabanının
+  kopyasında denendi). Bu yüzden `drizzle.config.ts` `drizzle-kit migrate` komutunu reddeder (`generate` çalışır).
+  Neden: SQLite'ta sütun kısıtını değiştirmek tabloyu yeniden oluşturmayı gerektirir; yabancı anahtarlar açıkken
   `DROP TABLE` bağlı tablolardaki `ON DELETE SET NULL/CASCADE` kurallarını tetikler. drizzle-kit'in migration
   içine yazdığı `PRAGMA foreign_keys=OFF` transaction içinde etkisizdir. `src/server/db/migrasyon.ts` denetimi
-  transaction dışında kapatır, migration sonrası `PRAGMA foreign_key_check` ile doğrular ve yeniden açar.
-  (`0001` için drizzle-kit'in ürettiği `INSERT … SELECT` de eski tabloda olmayan sütunları okuduğu için elle
-  düzeltildi; yeni migration'ları gözden geçirin.)
-- Canlı veritabanında migration öncesi yedek alın (Litestream bölümüne bakın).
+  transaction dışında kapatır, bekleyen migration'ları **tek transaction'da** uygular ve `PRAGMA foreign_key_check`'i
+  **COMMIT'ten önce** çalıştırır: ihlal varsa her şey geri alınır, veritabanı migration öncesindeki haliyle kalır.
+  (drizzle-orm'un dosya okuyucusu ve `__drizzle_migrations` tablosu aynen kullanılır.) (`0001` için drizzle-kit'in
+  ürettiği `INSERT … SELECT` de eski tabloda olmayan sütunları okuduğu için elle düzeltildi; yeni migration'ları
+  gözden geçirin.)
+- **Otomatik yedek:** `npm run db:migrate` her çalıştırmada önce veritabanının zaman damgalı yedeğini alır:
+  veritabanı dosyasının klasöründe `yedek/` (varsayılan `data/yedek/app-YYYYMMDD-HHMMSSmmm.db`, UTC). SQLite
+  çevrimiçi yedekleme API'si kullanılır: WAL dosyasında olup ana dosyaya henüz yazılmamış işlemler de yedeğe girer ve
+  yedek tek, tutarlı bir dosyadır. Yedek alınamazsa migration uygulanmaz. Eski yedekleri silmek size kalır (otomatik
+  silinmez). Geri dönmek için: uygulamayı ve işçiyi durdurun, yedeği `app.db` olarak kopyalayın, `app.db-wal` ve
+  `app.db-shm` dosyalarını silin. Canlıda Litestream de önerilir (aşağıda).
 
 ## Çalıştırma ve test
 
@@ -262,6 +271,11 @@ eder; varsayılan 6.000 birim bunun yaklaşık onda biridir (≈ 100 liste sayfa
 
 - 30 günden eski Places konumlarını (`place_locations`) siler (Google kuralı).
 - 30 günden eski **tüm** taramaların merkez koordinatlarını (`merkez_lat/lng`) siler; adres metni ve yarıçap kalır.
+  Süre merkezin ilk alındığı andan (`merkez_tarihi`) sayılır: "Tekrar kullan" ile (ya da son taramanın merkeziyle)
+  aynı koordinatla açılan yeni tarama, bu koordinatı taşıyan en eski taramanın süresini devralır; kopyalamak 30 günü
+  sıfırlamaz.
+- Süresi dolmuş (60 dk) tamamlanmamış içe aktarma oturumlarının dosya satırlarını siler. Gönderim işçisi bunu ayrıca
+  **saatte bir** (ve her `--bir-kez` çalıştırmasında) yapar; kişisel veri en fazla yaklaşık 2 saat kalır.
 - Çalışma alanında "veri saklama süresi" ayarlıysa o süredir güncellenmeyen kayıtları ve olaylarını siler.
 - Süresi dolmuş, kabul edilmemiş davetleri siler.
 - Yarıda kalmış taramaları "hata" yapar (aşağıya bakın).
@@ -292,6 +306,18 @@ Kontrol şu anlarda yapılır:
 - `npm run cleanup` sırasında.
 
 Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarları forma alır.
+
+## Kişi içe aktarma: girdi sınırları
+
+- Dosya en fazla 5 MB, 5.000 satır, 50 sütun; yalnızca `.csv` ve `.xlsx`. Yükleme gövdesi akış halinde sayaçla okunur
+  (Content-Length'e güvenilmez); sınır aşılınca okuma kesilir (413).
+- **XLSX sıkıştırma bombası:** ayrıştırmadan (exceljs) önce ZIP merkez dizinindeki iç dosya sayısı (en fazla 1.000)
+  ve açılmış boyut toplamı (en fazla 50 MB) denetlenir; merkez dizin yalan söyleyebileceği için her iç dosya ayrıca
+  kalan bütçeyle sınırlı açılır (`src/server/zip-denetimi.ts`). Aşan dosya reddedilir.
+- **Sorunlu satırlar CSV'si** ve kayıtların dışa aktarımı formül enjeksiyonuna karşı kaçırılır (`=`, `+`, `-`, `@`,
+  sekme, CR ile başlayan hücreye `'` eklenir).
+- Tamamlanmamış oturumun satırları (kişisel veri) 60 dakika sonra kullanılamaz; işçi saatte bir, günlük temizlik de
+  ayrıca siler.
 
 ## Barındırma
 
@@ -528,7 +554,8 @@ Hata sınıflaması: 80, 85, 100, 101 ve bağlantının hiç kurulamaması **ge�
 - Her SMS'in sonuna `<gönderen unvanı> İYS No:<no>. Ret için RET yazıp <ret numarası> numarasına gönderin.` eklenir.
 - Ret numarası, çalışma alanının gelen SMS alabilen numarasıdır (Ayarlar → SMS). Sandbox dışı SMS kampanyası
   bunsuz başlatılamaz.
-- Gelen "RET" yanıtı kiracıya özgü webhook adresine düşer: `https://<alan>/api/webhook/sms/<anahtar>`.
+- Gelen "RET" yanıtı kiracıya özgü webhook adresine düşer: `https://<alan>/api/webhook/sms/<anahtar>`. Anahtar
+  gövde okunmadan önce doğrulanır (bilinmeyen anahtar 404); gövde akış halinde en fazla 1 MB okunur (aşarsa 413).
   - Anahtar Netgsm ilk kaydedildiğinde üretilir ve **yalnızca bir kez** gösterilir; veritabanında HMAC özeti
     tutulur. "Webhook adresini de yenile" ile değiştirilebilir.
   - Ret yanıtı e-postadaki abonelikten çıkmayla aynı sonucu doğurur: kayıt `ret`, numara engel listesine,
@@ -710,7 +737,9 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 - **GET (abonelik doğrulaması):** `hub.verify_token` çalışma alanının şifreli verify token'ıyla sabit zamanlı
   karşılaştırılır; eşleşirse `hub.challenge` döner ve "webhook doğrulandı" işaretlenir (test modu kilidinin 1. koşulu).
 - **POST:** `X-Hub-Signature-256` (App Secret ile ham gövdenin HMAC-SHA256'sı) doğrulanmadan gövde ayrıştırılmaz ve
-  hiçbir şey yazılmaz (401). Gövde en fazla 1 MB. Sonra her değişiklikte numara (`metadata.phone_number_id`) ya da
+  hiçbir şey yazılmaz (401). Önce adres (kimlik) doğrulanır: bilinmeyen ya da numarası doğrulanmamış adrese gelen
+  gövde hiç okunmaz (404). Gövde akış halinde bayt sayacıyla okunur (Content-Length'e güvenilmez, chunked istek
+  dahil); 1 MB aşılınca okuma kesilir (413). Sonra her değişiklikte numara (`metadata.phone_number_id`) ya da
   WABA (`entry.id`) bu bağlantınınkiyle eşleşmeli; eşleşmeyen (başka çalışma alanının numarası) atlanır.
   Bir bildirimin tamamı **tek transaction**'da işlenir: herhangi bir değişiklik hata verirse gelen ileti kimlikleri
   dahil hiçbir şey kalıcı olmaz ve 500 döner; Meta'nın tekrar denemesi bildirimi baştan işler (aynı bildirimdeki bir
@@ -809,7 +838,13 @@ tests/                           Vitest
 - **Liste maliyeti:** Telefon ve web sitesi listeden kaldırıldı; liste yalnızca ad + adres (Place Details Pro),
   detay paneli Enterprise alanlarını ayrı çağrıyla çeker. Ayrıntı ve maliyet yukarıda.
 - **Tarama merkezi:** İmzalı belirteç yerine, kaynağı ne olursa olsun tüm merkez koordinatları 30 gün sonra
-  silinir; `merkez_kaynagi` bilgi amaçlı kalır.
+  silinir; `merkez_kaynagi` bilgi amaçlı kalır. Süre `merkez_tarihi`'nden sayılır; aynı koordinatla açılan yeni
+  tarama en eski taramanın süresini devralır.
+- **Ret kalıcıdır:** ileti izni ret'ten başka değere geçemez; kaydın bilinen tüm adresleri (gönderim anında
+  Places'tan alınan telefon dahil, yalnızca özet) engellenir.
+- **Tek işçi:** gönderim turları veritabanı kilidiyle sırayla çalışır; gönderimden hemen önce satır ve kampanya
+  yeniden denetlenir.
+- **Migration:** yalnızca `npm run db:migrate` (önce yedek; tek transaction; yabancı anahtar denetimi COMMIT'ten önce).
 - **Yarıda kalan taramalar:** 10 dakika kuralı hem "calisiyor" hem "kuyrukta" için (yukarıda).
 - **Aylık Places kotası:** kiracı başına, atomik; yönetici arayüzü yok, `npm run kota` (yukarıda).
 - **Kota birimi:** maliyet ağırlıklı (Essentials tabanı), varsayılan 6.000 birim; kota ayı İstanbul saatine göre.
@@ -865,7 +900,8 @@ tests/                           Vitest
     Zod e-posta doğrulamasından geçiyor. **1.11.2026'dan sonra 10.1.4 veya üstüne yükseltilmeli.**
     `drizzle-kit` üzerinden gelen `esbuild` uyarısı yalnızca geliştirme aracını etkiler (çalışma zamanında yok).
 15. **WhatsApp "kendisi yazdı" izni ve İYS:** Reklamdan yazan kişi WhatsApp izni "var" (kaynak: kendisi yazdı) ile
-    kaydedilir; ancak varsayılan alıcı türü bireysel olduğundan İYS beyanı olmadan kampanyaya girmez. Kişinin işletmeye
+    kaydedilir; ancak varsayılan alıcı türü bireysel olduğundan İYS beyanı olmadan kampanyaya girmez. Alıcı türünü
+    tacir/esnaf yapmak yalnızca yöneticiye ve açıklamayla açıktır (olay olarak loglanır). Kişinin işletmeye
     yazmasının ticari ileti onayı sayılıp sayılmayacağı hukuken değerlendirilmeli.
 16. **WhatsApp ücretsiz pencere süresi:** Meta'nın fiyat sayfası 72 saat, geliştirici changelog'u (28.09.2026) koşullu
     olarak 7 güne kadar der; rozet en az süreyi (72 saat) gösterir.
@@ -873,3 +909,27 @@ tests/                           Vitest
     kontrol edilmeli. Tahmin yalnızca bilgidir.
 18. **WhatsApp limit payı** benzersiz alıcı yerine ileti sayar (aynı kişiye iki kampanya iki sayılır); Meta'nın
     sayımından temkinlidir.
+19. **Migration yedeklerinin saklanması:** `data/yedek/` altındaki yedekler kişisel veri içerir ve otomatik silinmez.
+    Saklama süresi (ör. son 5 yedek ya da 30 gün) ve şifreli/harici saklama ürün ve operasyon kararıdır.
+20. **Pilot öncesi WhatsApp bağlantıları:** 0011 migration'ından önce kurulmuş bağlantılar numara sahipliği
+    doğrulanmadığı için kullanılmaz; yöneticinin bir kez "Bağlantıyı test et" demesi gerekir.
+21. **İçe aktarma satırlarının ömrü:** tamamlanmamış oturumun satırları 60 dakikadan sonra kullanılamaz, işçi saatte
+    bir siler (en fazla ~2 saat). Daha kısa süre isteniyorsa işçinin bakım aralığı (`SAATLIK_BAKIM_MS`) düşürülebilir.
+
+## Bilinen sınırlar
+
+1. **Test modu kilidi kasıtlı atlatmaya karşı değildir:** App Secret ve verify token'ı bilen yönetici kuyruktaki bir
+   wamid için kendi imzaladığı sahte durum bildirimiyle 2. koşulu sağlayabilir. Kilit, yanlışlıkla gerçek gönderime
+   geçmeyi önler.
+2. **Yalnızca BSUID'le gelen ret:** telefona gönderilmiş iletinin hiçbir durum bildirimi gelmeden (BSUID kayda
+   bağlanmadan) kişi yalnızca BSUID'le ret yazarsa kayda bağlanacak veri yoktur; ret yalnızca BSUID'i engeller.
+3. **"Tekrar kullan" süre devri koordinat eşitliğine dayanır:** kullanıcı merkezi haritada kaydırırsa yeni bir merkez
+   (yeni 30 gün) sayılır.
+4. **XLSX denetimi:** ZIP64 ve deflate dışı sıkıştırma reddedilir; açılmış içerik toplamı 50 MB ve iç dosya sayısı
+   1.000 ile sınırlı. Doğrulama sırasında dosya bir kez fazladan açılır (en fazla 50 MB bellek).
+5. **Gövde sınırları uygulama içindedir:** webhook (1 MB) ve içe aktarma (5 MB) gövdeleri akışta kesilir; yine de önde
+   çalışan ters vekilde (nginx `client_max_body_size`, Caddy `request_body max_size`) aynı sınırları koymanız önerilir.
+6. **Origin denetimi:** değişiklik yapan API'ler `Origin` başlığı OLMAYAN isteklere (tarayıcı dışı istemciler) izin
+   verir; oturum çerezi SameSite=Lax olduğu için tarayıcıdan CSRF'e karşı ikinci katman yine de vardır.
+7. **`WHATSAPP_API_MOCK=1` canlıda açılmamalı:** açıksa gönderimler sahte istemciye gider ve "gönderildi" görünür.
+8. **SMS gelen webhook biçimi** Netgsm belgesiyle doğrulanmadı (yukarıda, SMS bölümü).

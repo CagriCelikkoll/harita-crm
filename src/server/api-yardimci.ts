@@ -31,3 +31,35 @@ export function ayniKaynakMi(istek: Request): boolean {
   }
   return izinli.has(kaynak);
 }
+
+export const cokBuyuk = (hata = "Gövde çok büyük.") =>
+  NextResponse.json({ hata }, { status: 413, headers: { "Cache-Control": "no-store" } });
+
+/**
+ * İstek gövdesini akış halinde, bayt sayacıyla okur; `azami` aşılınca okumayı keser ve null döner (413 için).
+ * Content-Length'e güvenilmez (chunked istekte yoktur): bellekte hiçbir zaman azami + bir parçadan fazlası tutulmaz.
+ */
+export async function govdeOku(istek: Request, azami: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (Number(istek.headers.get("content-length") ?? 0) > azami) return null;
+  if (!istek.body) return new Uint8Array(0);
+  const okuyucu = istek.body.getReader();
+  const parcalar: Uint8Array[] = [];
+  let toplam = 0;
+  for (;;) {
+    const { done, value } = await okuyucu.read();
+    if (done) break;
+    toplam += value.byteLength;
+    if (toplam > azami) {
+      await okuyucu.cancel().catch(() => {});
+      return null;
+    }
+    parcalar.push(value);
+  }
+  const govde = new Uint8Array(toplam);
+  let konum = 0;
+  for (const p of parcalar) {
+    govde.set(p, konum);
+    konum += p.byteLength;
+  }
+  return govde;
+}

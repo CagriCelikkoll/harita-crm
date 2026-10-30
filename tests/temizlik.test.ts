@@ -18,8 +18,11 @@ describe("temizlik", () => {
     const eskiHarita = taramaOlustur(ctx, { ...girdi, yaricapM: 1500, merkezKaynagi: "harita" });
     const yeniAdres = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "adres", adresMetni: "Moda" });
     const yeniHarita = taramaOlustur(ctx, { ...girdi, merkezKaynagi: "harita" });
-    yaslandir("scans", "olusturma_tarihi", 31, "id in (?, ?)", eskiAdres.id, eskiHarita.id);
-    yaslandir("scans", "olusturma_tarihi", 10, "id in (?, ?)", yeniAdres.id, yeniHarita.id);
+    // Süre merkezin alındığı andan (merkez_tarihi) sayılır; oluşturma tarihiyle birlikte yaşlandırılır.
+    for (const sutun of ["olusturma_tarihi", "merkez_tarihi"]) {
+      yaslandir("scans", sutun, 31, "id in (?, ?)", eskiAdres.id, eskiHarita.id);
+      yaslandir("scans", sutun, 10, "id in (?, ?)", yeniAdres.id, yeniHarita.id);
+    }
 
     expect(temizlikYap().temizlenenMerkez).toBe(2);
 

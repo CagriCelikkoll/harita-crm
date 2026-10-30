@@ -32,6 +32,7 @@ import {
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
 import { iletiOlustur } from "./mesaj";
 import { saglayiciAl, type SaglayiciSecenekleri } from "./saglayici";
+import { suresiDolanIceAktarmalariKapat } from "../repo/sistem/bakim";
 import { placesTelefonuGetir } from "./telefon";
 import { whatsappMesajIsle } from "./whatsapp-gonderici";
 
@@ -322,4 +323,17 @@ function geciciHata(ctx: TenantContext, mesaj: KuyrukMesaji, hata: string, simdi
 function sonrakiAy(ay: string): string {
   const [y, m] = ay.split("-").map(Number);
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+/** İşçi döngüsünün saatlik bakımının aralığı. */
+export const SAATLIK_BAKIM_MS = 60 * 60_000;
+
+/**
+ * İşçi döngüsünün saatlik bakımı: süresi dolan içe aktarma oturumlarının dosya satırlarını (kişisel veri) siler;
+ * günlük `npm run cleanup`'ı beklemez. Son çalışmadan bu yana bir saat geçmediyse bir şey yapmaz.
+ * Dönüş: yeni "son çalışma" anı (ms) ve kapatılan oturum sayısı.
+ */
+export function saatlikBakim(sonCalismaMs: number | null, simdi = new Date()): { sonCalismaMs: number | null; kapatilanIceAktarma: number } {
+  if (sonCalismaMs !== null && simdi.getTime() - sonCalismaMs < SAATLIK_BAKIM_MS) return { sonCalismaMs, kapatilanIceAktarma: 0 };
+  return { sonCalismaMs: simdi.getTime(), kapatilanIceAktarma: suresiDolanIceAktarmalariKapat(simdi) };
 }

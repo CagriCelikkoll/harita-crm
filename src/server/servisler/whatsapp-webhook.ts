@@ -43,6 +43,11 @@ const esit = (a: string, b: string) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
+/** Bu adres (kimlik) bir çalışma alanının doğrulanmış bağlantısına ait mi? Rota gövdeyi okumadan önce sorar. */
+export function webhookTanimliMi(kimlik: string): boolean {
+  return webhookBaglantisi(kimlik) !== null;
+}
+
 /** GET doğrulaması: eşleşirse challenge, değilse null. */
 export function webhookDogrula(kimlik: string, p: { mode: string | null; token: string | null; challenge: string | null }, simdi = new Date()) {
   const w = webhookBaglantisi(kimlik);

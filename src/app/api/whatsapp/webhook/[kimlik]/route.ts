@@ -2,7 +2,8 @@
 // GET: abonelik doğrulaması (verify token). POST: X-Hub-Signature-256 doğrulanmadan gövde işlenmez (401).
 // Meta tekrar denemesin diye işlenen her geçerli istek 200 döner; ayrıntı: servisler/whatsapp-webhook.ts.
 import { NextResponse } from "next/server";
-import { WEBHOOK_AZAMI_BAYT, webhookDogrula, webhookIsle } from "@/server/servisler/whatsapp-webhook";
+import { cokBuyuk, govdeOku } from "@/server/api-yardimci";
+import { WEBHOOK_AZAMI_BAYT, webhookDogrula, webhookIsle, webhookTanimliMi } from "@/server/servisler/whatsapp-webhook";
 
 const BASLIK = { "Cache-Control": "no-store" };
 
@@ -20,11 +21,11 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/whatsap
 
 export async function POST(istek: Request, { params }: RouteContext<"/api/whatsapp/webhook/[kimlik]">) {
   const { kimlik } = await params;
-  if (Number(istek.headers.get("content-length") ?? 0) > WEBHOOK_AZAMI_BAYT) {
-    return NextResponse.json({ hata: "Gövde çok büyük." }, { status: 413, headers: BASLIK });
-  }
-  const govde = new Uint8Array(await istek.arrayBuffer());
-  if (govde.byteLength > WEBHOOK_AZAMI_BAYT) return NextResponse.json({ hata: "Gövde çok büyük." }, { status: 413, headers: BASLIK });
+  // Önce adres: bilinmeyen (ya da numarası doğrulanmamış) kimliğe gelen gövde hiç okunmaz.
+  if (!webhookTanimliMi(kimlik)) return NextResponse.json({ hata: "Bulunamadı." }, { status: 404, headers: BASLIK });
+  // Gövde akış halinde, sayaçla okunur (Content-Length'e güvenilmez); 1 MB aşılınca okuma kesilir.
+  const govde = await govdeOku(istek, WEBHOOK_AZAMI_BAYT);
+  if (!govde) return cokBuyuk();
   let sonuc;
   try {
     sonuc = webhookIsle(kimlik, govde, istek.headers.get("x-hub-signature-256"));

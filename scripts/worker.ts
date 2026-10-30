@@ -8,14 +8,16 @@
 // Aynı anda yalnızca bir işçi turu çalışır (veritabanındaki süresi dolan işçi kilidi, ISCI_KILIT_SN, varsayılan 120 sn;
 // tur boyunca nabızla uzatılır). Kilit başka işçideyse tur bir şey yapmadan biter; cron ile üst üste binen
 // `--bir-kez` çalıştırmaları güvenlidir. Bir mesaj iki kez gönderilmez (satırlar atomik olarak alınır).
+// Saatte bir (ve her `--bir-kez` çalıştırmasında) süresi dolan içe aktarma oturumlarının dosya satırları silinir.
 // SIGINT/SIGTERM: eldeki tur bitirilir, sonra çıkılır.
 import "./ortam";
-import { isciTuru } from "../src/server/servisler/isci";
+import { isciTuru, saatlikBakim } from "../src/server/servisler/isci";
 
 const birKez = process.argv.includes("--bir-kez");
 const aralikMs = Math.max(5, Number(process.env.WORKER_ARALIK_SN ?? 30)) * 1000;
 const parti = Math.max(1, Number(process.env.WORKER_PARTI ?? 20));
 let durdur = false;
+let sonBakim: number | null = null;
 
 for (const sinyal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinyal, () => {
@@ -39,6 +41,14 @@ const bekle = (ms: number) =>
 async function calistir() {
   console.log(`[işçi] başladı (parti ${parti}, aralık ${aralikMs / 1000} sn${birKez ? ", tek tur" : ""}).`);
   do {
+    // Saatte bir: süresi dolan içe aktarma oturumlarının dosya satırları silinir (günlük cleanup beklenmez).
+    try {
+      const b = saatlikBakim(sonBakim);
+      sonBakim = b.sonCalismaMs;
+      if (b.kapatilanIceAktarma) console.log(`[işçi] süresi dolan ${b.kapatilanIceAktarma} içe aktarma oturumunun satırları silindi.`);
+    } catch (hata) {
+      console.error("[işçi] saatlik bakım hatası:", hata);
+    }
     let sonuc;
     try {
       sonuc = await isciTuru({ parti });
