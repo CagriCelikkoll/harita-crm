@@ -9,6 +9,13 @@ import { useEffect, useRef, useState } from "react";
 const OLAY = "harita-bildirim";
 type Bildirim = { id: number; metin: string; tur: "tamam" | "hata" };
 
+/** Aynı bildirim bu süre içinde yeniden gelirse gösterilmez (ör. geliştirmede efektlerin iki kez çalışması). */
+export const TEKRAR_SURESI_MS = 1000;
+
+export function tekrarMi(son: { metin: string; zaman: number } | null, metin: string, zaman: number): boolean {
+  return son !== null && son.metin === metin && zaman - son.zaman < TEKRAR_SURESI_MS;
+}
+
 export function bildir(metin: string, tur: Bildirim["tur"] = "tamam") {
   window.dispatchEvent(new CustomEvent<Omit<Bildirim, "id">>(OLAY, { detail: { metin, tur } }));
 }
@@ -17,8 +24,13 @@ export function BildirimAlani() {
   const [liste, setListe] = useState<Bildirim[]>([]);
   useEffect(() => {
     let sayac = 0;
+    let son: { metin: string; zaman: number } | null = null;
     const dinle = (e: Event) => {
-      const b = { ...(e as CustomEvent<Omit<Bildirim, "id">>).detail, id: ++sayac };
+      const detay = (e as CustomEvent<Omit<Bildirim, "id">>).detail;
+      const simdi = Date.now();
+      if (tekrarMi(son, detay.metin, simdi)) return;
+      son = { metin: detay.metin, zaman: simdi };
+      const b = { ...detay, id: ++sayac };
       setListe((l) => [...l.slice(-2), b]);
       setTimeout(() => setListe((l) => l.filter((x) => x.id !== b.id)), 4000);
     };
@@ -42,13 +54,18 @@ export function BildirimAlani() {
   );
 }
 
-/** Formun yanındaki sonuç metni: görünür alana kaydırılır; başarılıysa bildirim olarak da gösterilir. */
+/** Formun yanındaki sonuç metni: görünür alana kaydırılır; başarılıysa bildirim olarak da (bir kez) gösterilir. */
 export function SonucMesaji(props: { tur: "tamam" | "hata"; metin: string; className?: string }) {
   const ref = useRef<HTMLParagraphElement>(null);
+  // Geliştirmede (StrictMode) efektler iki kez çalışır; bildirim her mesaj için yalnızca bir kez gönderilir.
+  const bildirildi = useRef(false);
   const { tur, metin } = props;
   useEffect(() => {
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    if (tur === "tamam") bildir(metin);
+    if (tur === "tamam" && !bildirildi.current) {
+      bildirildi.current = true;
+      bildir(metin);
+    }
   }, [tur, metin]);
   return (
     <p ref={ref} role={tur === "hata" ? "alert" : "status"} className={`text-sm ${tur === "hata" ? "text-tehlike" : "text-ana"} ${props.className ?? ""}`}>

@@ -1015,3 +1015,8 @@ tests/                           Vitest
    verir; oturum çerezi SameSite=Lax olduğu için tarayıcıdan CSRF'e karşı ikinci katman yine de vardır.
 7. **`WHATSAPP_API_MOCK=1` canlıda açılmamalı:** açıksa gönderimler sahte istemciye gider ve "gönderildi" görünür.
 8. **SMS gelen webhook biçimi** Netgsm belgesiyle doğrulanmadı (yukarıda, SMS bölümü).
+9. **Bilinen sınır (yalnızca geliştirme):** `npm run dev` / `npm run demo` ile, özellikle `.next/dev` önbelleği eski
+   bir sürümden kaldıysa, girişten sonraki ilk sayfada sağ üstteki onay bildirimleri görünmeyebilir; bir sayfa
+   yenilemesinden (ya da Fast Refresh'ten) sonra görünür. Üretim derlemesinde (`npm run build` + `next start`, demo
+   ortamıyla denendi) girişten hemen sonra da görünür. Geliştirmede sürerse sunucuyu kapatıp `.next/dev` klasörünü
+   silin.

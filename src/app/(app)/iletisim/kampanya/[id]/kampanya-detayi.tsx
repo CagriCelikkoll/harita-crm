@@ -12,7 +12,6 @@ import {
   HARIC_NEDEN_ADLARI,
   KAMPANYA_DURUM_ADLARI,
   isciDurumu,
-  ISCI_UYARI_DAKIKA,
   KANAL_ADLARI,
   MESAJ_DURUM_ADLARI,
   MESAJ_DURUMLARI,
@@ -337,10 +336,7 @@ function IsciDurumu(props: { sonNabiz: string | null; simdi: string; yonetici: b
       <p>{d.metin}</p>
       {d.uyari &&
         (props.yonetici ? (
-          <p className="mt-1">
-            Gönderim servisi {ISCI_UYARI_DAKIKA} dakikadan uzun süredir çalışmıyor; mesajlar gönderilmeyecek. Sunucuda
-            gönderim servisinin (işçi) çalıştığından emin olun ya da destekle iletişime geçin.
-          </p>
+          <p className="mt-1">{d.yoneticiUyarisi}</p>
         ) : (
           <p className="mt-1 text-soluk">Mesajlar gönderim servisi çalıştığında gönderilir.</p>
         ))}

@@ -61,13 +61,28 @@ export const ISCI_UYARI_DAKIKA = 5;
 
 /**
  * Kampanya detayında gönderim servisinin durumu. sonNabiz: işçinin en son çalıştığı an (isci_kilitleri.son_nabiz).
- * Dönüş: gösterilecek metin ve uyarı gerekip gerekmediği (5 dakikadan uzun süredir çalışmıyor ya da hiç çalışmadı).
+ * Dönüş: gösterilecek metin, uyarı gerekip gerekmediği (5 dakikadan uzun süredir çalışmıyor ya da hiç çalışmadı) ve
+ * uyarı varsa yöneticiye gösterilecek açıklama.
  */
-export function isciDurumu(sonNabiz: Date | null, simdi: Date): { metin: string; uyari: boolean } {
-  if (!sonNabiz) return { metin: "Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı.", uyari: true };
+export function isciDurumu(sonNabiz: Date | null, simdi: Date): { metin: string; uyari: boolean; yoneticiUyarisi: string | null } {
+  const neYapmali = "Sunucuda gönderim servisinin (işçi) çalıştığından emin olun ya da destekle iletişime geçin.";
+  if (!sonNabiz) {
+    return {
+      metin: "Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı.",
+      uyari: true,
+      yoneticiUyarisi: `Gönderim servisi çalışmıyor; mesajlar gönderilmeyecek. ${neYapmali}`,
+    };
+  }
   const dakika = Math.max(0, Math.floor((simdi.getTime() - sonNabiz.getTime()) / 60_000));
   const ne = dakika < 1 ? "az önce" : `en son ${dakika} dakika önce`;
-  return { metin: `Gönderim kuyrukta — gönderim servisi ${ne} çalıştı.`, uyari: dakika >= ISCI_UYARI_DAKIKA };
+  const uyari = dakika >= ISCI_UYARI_DAKIKA;
+  return {
+    metin: `Gönderim kuyrukta — gönderim servisi ${ne} çalıştı.`,
+    uyari,
+    yoneticiUyarisi: uyari
+      ? `Gönderim servisi ${ISCI_UYARI_DAKIKA} dakikadan uzun süredir çalışmıyor; mesajlar gönderilmeyecek. ${neYapmali}`
+      : null,
+  };
 }
 
 /** Ret onay penceresinin metni; ret isteği onaysız gönderilemez (API'ler retOnayi: true ister). */
@@ -158,6 +173,20 @@ export const ZORUNLU_ONAY_METNI =
 
 export const dakikadanSaate = (dk: number) =>
   `${String(Math.floor(dk / 60)).padStart(2, "0")}:${String(dk % 60).padStart(2, "0")}`;
+
+/**
+ * Gönderim penceresinin saat girdileri. Saat girdisi "24:00"ü gösteremez; bitişteki gün sonu (24 × 60 dakika)
+ * girdide "00:00" olarak görünür ve bitişte girilen "00:00" gün sonu sayılır (başlangıçta 00:00 gece yarısıdır).
+ */
+export function pencereSaati(dk: number, alan: "baslangic" | "bitis"): string {
+  return alan === "bitis" && dk === 24 * 60 ? "00:00" : dakikadanSaate(dk);
+}
+
+export function pencereDakikasi(saat: string, alan: "baslangic" | "bitis"): number {
+  const [h, m] = saat.split(":").map(Number);
+  const dk = h * 60 + m;
+  return alan === "bitis" && dk === 0 ? 24 * 60 : dk;
+}
 
 // --- WhatsApp günlük liste (yarı otomatik: hazırlık uygulamada, gönderim kullanıcıda) ---
 export const WHATSAPP_DURUMLARI = ["bekliyor", "gonderildi", "atlandi", "ret", "otomatik_atlandi"] as const;

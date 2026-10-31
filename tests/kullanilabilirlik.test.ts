@@ -71,8 +71,12 @@ describe("gönderim servisinin durumu", () => {
 
   it("metin ve uyarı: hiç çalışmadıysa ve 5 dakikadan uzunsa uyarı", () => {
     const simdi = new Date("2026-10-12T09:10:00Z");
-    expect(isciDurumu(null, simdi)).toEqual({ metin: "Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı.", uyari: true });
-    expect(isciDurumu(new Date("2026-10-12T09:09:40Z"), simdi)).toEqual({ metin: "Gönderim kuyrukta — gönderim servisi az önce çalıştı.", uyari: false });
+    expect(isciDurumu(null, simdi)).toMatchObject({ metin: "Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı.", uyari: true });
+    expect(isciDurumu(new Date("2026-10-12T09:09:40Z"), simdi)).toEqual({
+      metin: "Gönderim kuyrukta — gönderim servisi az önce çalıştı.",
+      uyari: false,
+      yoneticiUyarisi: null,
+    });
     expect(isciDurumu(new Date("2026-10-12T09:07:00Z"), simdi)).toMatchObject({ metin: expect.stringContaining("en son 3 dakika önce"), uyari: false });
     expect(isciDurumu(new Date("2026-10-12T09:04:00Z"), simdi)).toMatchObject({ uyari: true });
     const ekran = oku("src/app/(app)/iletisim/kampanya/[id]/kampanya-detayi.tsx");
@@ -201,5 +205,72 @@ describe("giriş formu ve geliştirme simgesi", () => {
     expect(oku("next.config.ts")).toMatch(/devIndicators: \{ position: "bottom-right" \}/);
     expect(oku("src/app/(app)/tarama/tarama-paneli.tsx")).toContain("veri.toplam && haritaAnahtariVar");
     expect(oku("src/app/(app)/layout.tsx")).toContain("<BildirimAlani />");
+  });
+});
+
+describe("tarayıcı turu düzeltmeleri (Grup D)", () => {
+  it("aynı bildirim 1 saniye içinde tekrar gösterilmez; farklı metin ya da süre sonrası gösterilir", async () => {
+    const { tekrarMi, TEKRAR_SURESI_MS } = await import("@/components/bildirim");
+    expect(tekrarMi(null, "Kaydedildi.", 1000)).toBe(false);
+    expect(tekrarMi({ metin: "Kaydedildi.", zaman: 1000 }, "Kaydedildi.", 1001)).toBe(true); // StrictMode çift efekt
+    expect(tekrarMi({ metin: "Kaydedildi.", zaman: 1000 }, "Not eklendi.", 1001)).toBe(false);
+    expect(tekrarMi({ metin: "Kaydedildi.", zaman: 1000 }, "Kaydedildi.", 1000 + TEKRAR_SURESI_MS)).toBe(false);
+    // Sonuç mesajı bildirimi bileşen başına bir kez gönderir (geliştirmede efekt iki kez çalışsa da).
+    expect(oku("src/components/bildirim.tsx")).toMatch(/if \(tur === "tamam" && !bildirildi\.current\) \{\s*bildirildi\.current = true;/);
+  });
+
+  it("inceleme ekranında 'İlgilenilmiyor' etiketi 'İlgilenilen'den ayırt edilir (gri, üstü çizili)", () => {
+    expect(oku("src/app/(app)/tarama/inceleme/inceleme-ekrani.tsx")).toContain(
+      'karar === "ilgilenmiyor" ? "bg-zemin text-soluk line-through" : "bg-ana-acik"',
+    );
+  });
+
+  it("içe aktarma önizlemesi açılınca görünür alana kaydırılır", () => {
+    const sihirbaz = oku("src/app/(app)/kayitlar/ice-aktar/sihirbaz.tsx");
+    expect(sihirbaz).toMatch(/if \(rapor\) onizlemeRef\.current\?\.scrollIntoView/);
+    expect(sihirbaz).toContain("<section ref={onizlemeRef}");
+  });
+
+  it("ret onay penceresi portalda, kendi formu yok; düğmeler dıştaki formu göndermez", () => {
+    const ret = oku("src/components/ret-onayi.tsx");
+    expect(ret).toContain("createPortal(");
+    expect(ret).toContain("document.body");
+    expect(ret).not.toMatch(/<form/);
+    // Her düğme type="button": WhatsApp izni formunun içinde "Ret ver" dıştaki formu göndermemeli.
+    const dugmeler = ret.match(/<button\b[^>]*>/g) ?? [];
+    expect(dugmeler).toHaveLength(3);
+    for (const d of dugmeler) expect(d).toContain('type="button"');
+  });
+
+  it("WhatsApp izni kaydedilince bildirim gösterilir (ret için ayrı metin)", () => {
+    const panel = oku("src/app/(app)/kayitlar/detay-paneli.tsx");
+    expect(panel).toContain('bildir(govde.izin === "ret" ? "İleti reddi kaydedildi." : "WhatsApp izni kaydedildi.")');
+  });
+
+  it("gönderim servisi hiç çalışmadıysa yönetici uyarısı '5 dakikadan uzun süredir' demez", () => {
+    const simdi = new Date("2026-10-12T09:10:00Z");
+    const hic = isciDurumu(null, simdi);
+    expect(hic.yoneticiUyarisi).toMatch(/^Gönderim servisi çalışmıyor; mesajlar gönderilmeyecek\./);
+    expect(hic.yoneticiUyarisi).not.toContain("dakika");
+    expect(isciDurumu(new Date("2026-10-12T09:04:00Z"), simdi).yoneticiUyarisi).toMatch(/^Gönderim servisi 5 dakikadan uzun süredir çalışmıyor/);
+    expect(isciDurumu(new Date("2026-10-12T09:09:00Z"), simdi).yoneticiUyarisi).toBeNull();
+    expect(oku("src/app/(app)/iletisim/kampanya/[id]/kampanya-detayi.tsx")).toContain("{d.yoneticiUyarisi}");
+  });
+
+  it("gönderim penceresi gün sonuna (24:00) kadarsa bitiş girdisi boş kalmaz ve form kaydedilebilir", async () => {
+    const { pencereSaati, pencereDakikasi } = (await import("@/lib/mesajlasma")) as Record<string, unknown> as {
+      pencereSaati: (dk: number, alan: "baslangic" | "bitis") => string;
+      pencereDakikasi: (s: string, alan: "baslangic" | "bitis") => number;
+    };
+    // Demo penceresi 0–1440: saat girdisi "24:00"ü kabul etmez (boş kalır, zorunlu alan formu durdurur).
+    expect(pencereSaati(24 * 60, "bitis")).toBe("00:00");
+    expect(pencereDakikasi("00:00", "bitis")).toBe(24 * 60);
+    expect(pencereSaati(0, "baslangic")).toBe("00:00");
+    expect(pencereDakikasi("00:00", "baslangic")).toBe(0);
+    expect(pencereSaati(20 * 60, "bitis")).toBe("20:00");
+    expect(pencereDakikasi("09:30", "baslangic")).toBe(570);
+    const form = oku("src/app/(app)/ayarlar/mesajlasma-ayarlari.tsx");
+    expect(form).toContain('defaultValue={pencereSaati(a.gonderimBitisDk, "bitis")}');
+    expect(form).toContain('pencereDakikasi(String(f.get("bitis")), "bitis")');
   });
 });

@@ -148,7 +148,7 @@ export function IncelemeEkrani(props: { satirlar: Satir[]; kalan: number }) {
                   </div>
                   {karar ? (
                     <span className="flex items-center gap-2">
-                      <span className={`rozet ${karar === "ilgilenmiyor" ? "" : "bg-ana-acik"}`}>
+                      <span className={`rozet ${karar === "ilgilenmiyor" ? "bg-zemin text-soluk line-through" : "bg-ana-acik"}`}>
                         {karar === "ilgilenmiyor" ? "İlgilenilmiyor" : "İlgilenilen"}
                       </span>
                       <button type="button" className="text-xs text-soluk underline" disabled={mesgul} onClick={() => void isaretle([s.id], "incelenmedi", null)}>

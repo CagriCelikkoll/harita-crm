@@ -3,7 +3,7 @@
 // Doğrulama ve sayılar sunucudan gelir; beyan onayı ve ret onayı sunucuda da zorunludur. Alıcı türünün varsayılanı
 // yoktur: sütun eşlenmemişse tüm dosya için seçilmeden önizlenemez.
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
 import {
   CAKISMA_POLITIKA_ADLARI,
@@ -59,6 +59,11 @@ export function IceAktarmaSihirbazi() {
   const [sonuc, setSonuc] = useState<Sonuc | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
+  // Önizleme sayfanın altında açılır: sonuç görünür alana kaydırılır.
+  const onizlemeRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (rapor) onizlemeRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [rapor]);
 
   async function dosyaYukle(dosya: File) {
     setHata(null);
@@ -337,7 +342,7 @@ export function IceAktarmaSihirbazi() {
       )}
 
       {rapor && (
-        <section className="kart space-y-3">
+        <section ref={onizlemeRef} className="kart scroll-mt-4 space-y-3">
           <h2 className="font-semibold">Önizleme (henüz hiçbir şey kaydedilmedi)</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
             <dt className="text-soluk">Toplam satır</dt>

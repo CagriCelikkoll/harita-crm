@@ -8,7 +8,7 @@
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
-import { SonucMesaji } from "@/components/bildirim";
+import { bildir, SonucMesaji } from "@/components/bildirim";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { apiIstek } from "@/lib/api-istemci";
@@ -750,12 +750,13 @@ function WhatsappIzinBolumu(props: {
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
 
-  async function kaydet(govde: object) {
+  async function kaydet(govde: { izin: string } & Record<string, unknown>) {
     setHata(null);
     setMesgul(true);
     const s = await apiIstek(`/api/kayitlar/${props.id}/whatsapp-izni`, { method: "PUT", govde });
     setMesgul(false);
     if (!s.ok) return setHata(s.hata);
+    bildir(govde.izin === "ret" ? "İleti reddi kaydedildi." : "WhatsApp izni kaydedildi.");
     setDuzenle(false);
     await props.onDegisti();
   }

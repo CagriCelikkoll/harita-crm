@@ -6,7 +6,8 @@ import { SonucMesaji } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
 import {
-  dakikadanSaate,
+  pencereDakikasi,
+  pencereSaati,
   SMTP_IZINLI_PORTLAR,
   TEST_GONDERIM_SAATLIK_SINIR,
   WHATSAPP_AZAMI_GUNLUK,
@@ -23,11 +24,6 @@ function MesajGoster({ mesaj, alan }: { mesaj: Mesaj; alan: string }) {
   // Görünür alana kaydırılır; başarılıysa sağ üstte bildirim olarak da gösterilir.
   return <SonucMesaji key={mesaj.metin} tur={mesaj.tur} metin={mesaj.metin} />;
 }
-
-const saattenDakikaya = (s: string) => {
-  const [h, m] = s.split(":").map(Number);
-  return h * 60 + m;
-};
 
 export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici: boolean }) {
   const [a, setA] = useState(props.ilk);
@@ -128,21 +124,22 @@ export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             void gonder("saat", "/api/ayarlar/ileti", "PUT", {
-              gonderimBaslangicDk: saattenDakikaya(String(f.get("baslangic"))),
-              gonderimBitisDk: saattenDakikaya(String(f.get("bitis"))),
+              gonderimBaslangicDk: pencereDakikasi(String(f.get("baslangic")), "baslangic"),
+              gonderimBitisDk: pencereDakikasi(String(f.get("bitis")), "bitis"),
             });
           }}
         >
           <fieldset disabled={!props.yonetici || mesgul} className="grid grid-cols-2 gap-2.5">
             <label className="etiket">
               Başlangıç
-              <input type="time" name="baslangic" required defaultValue={dakikadanSaate(a.gonderimBaslangicDk)} className="girdi" />
+              <input type="time" name="baslangic" required defaultValue={pencereSaati(a.gonderimBaslangicDk, "baslangic")} className="girdi" />
             </label>
             <label className="etiket">
               Bitiş
-              <input type="time" name="bitis" required defaultValue={dakikadanSaate(a.gonderimBitisDk)} className="girdi" />
+              <input type="time" name="bitis" required defaultValue={pencereSaati(a.gonderimBitisDk, "bitis")} className="girdi" />
             </label>
           </fieldset>
+          <p className="text-xs text-soluk">Bitişte 00:00, gün sonu (gece yarısı) demektir.</p>
           <MesajGoster mesaj={mesaj} alan="saat" />
           {props.yonetici && (
             <button type="submit" className="dugme-ana self-start" disabled={mesgul}>
