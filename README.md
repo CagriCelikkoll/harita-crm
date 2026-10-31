@@ -28,6 +28,24 @@ Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 
 İlk kez: **Kayıt ol** → **çalışma alanı oluştur** → **Bölge taraması** → **Kayıtlar**.
 
+### Elle deneme (demo) ortamı
+
+Hazır sahte verilerle tarayıcıda denemek için (adım adım Türkçe kontrol listesi: [docs/TEST-REHBERI.md](docs/TEST-REHBERI.md)):
+
+```bash
+npm run demo:hazirla   # ./data/demo.db'yi sıfırdan kurar, giriş bilgilerini yazar (her çalıştırmada sıfırlanır)
+npm run demo           # uygulamayı demo.db, PLACES_MOCK=true, WHATSAPP_API_MOCK=1 ile başlatır (http://localhost:3000)
+npm run demo:isci      # ikinci terminalde: gönderim işçisi (demo.db)
+npm run demo:kota -- 0 # demo çalışma alanının Places kotası (kota dolu durumunu denemek için; geri: -- 1000)
+```
+
+Demo betikleri (`scripts/demo-ortam.ts`) veritabanı yolunu, sahte istemcileri ve demo'ya özel sabit anahtarları
+yalnızca kendi süreçlerinde ayarlar; `.env.local` değişmez, gerçek veritabanı açılmaz. Demo verisi: yönetici ve üye
+kullanıcı, sahte Places taramasından Google kaynaklı kayıtlar (`mock_…` place_id), elle / içe aktarma / reklam
+kaynaklı kayıtlar, ret verilmiş bir kayıt, test modunda sahte WhatsApp bağlantısı ve 3 şablon. Bütün numaralar
+`0500 000 00 xx`, e-postalar `@demo.test`. Gönderim penceresi tüm gün, günlük sınır 5 e-posta / 5 SMS. İçe aktarmayı
+denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
+
 ## Ortam değişkenleri (`.env.local`)
 
 | Değişken | Zorunlu | Nereden |
@@ -84,8 +102,12 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 - **Otomatik yedek:** `npm run db:migrate` her çalıştırmada önce veritabanının zaman damgalı yedeğini alır:
   veritabanı dosyasının klasöründe `yedek/` (varsayılan `data/yedek/app-YYYYMMDD-HHMMSSmmm.db`, UTC). SQLite
   çevrimiçi yedekleme API'si kullanılır: WAL dosyasında olup ana dosyaya henüz yazılmamış işlemler de yedeğe girer ve
-  yedek tek, tutarlı bir dosyadır. Yedek alınamazsa migration uygulanmaz. Eski yedekleri silmek size kalır (otomatik
-  silinmez). Geri dönmek için: uygulamayı ve işçiyi durdurun, yedeği `app.db` olarak kopyalayın, `app.db-wal` ve
+  yedek tek, tutarlı bir dosyadır. Yedek alınamazsa migration uygulanmaz.
+- **Yedek saklama:** o veritabanına ait yedeklerden **en son 10 tanesi ve son 30 gün içinde alınanların hepsi**
+  saklanır; diğerleri `npm run db:migrate` sonunda ve gönderim işçisinin günlük bakımında otomatik silinir
+  (`src/server/yedek-saklama.ts`). Yedeğin anı dosya adındaki zaman damgasından okunur; yalnızca adı veritabanıyla
+  eşleşen yedekler silinir (`app-<damga>.db`; başka veritabanlarının yedekleri ve elle konan dosyalar kalır). Yedekler
+  kişisel veri içerir; daha uzun saklama gerekiyorsa şifreli ve harici bir yere kopyalayın. Geri dönmek için: uygulamayı ve işçiyi durdurun, yedeği `app.db` olarak kopyalayın, `app.db-wal` ve
   `app.db-shm` dosyalarını silin. Canlıda Litestream de önerilir (aşağıda).
 
 ## Çalıştırma ve test
@@ -94,7 +116,7 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
 npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
-npm test               # Vitest (15 dosya)
+npm test               # Vitest
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
 ```
@@ -117,6 +139,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
 | `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
 | `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (3 birim) kota 75 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
+| `tests/yedek-saklama.test.ts` | Yedek saklama kuralı: 30 günden eskilerden yalnızca en son 10'u kalır, son 30 gündekilerin hepsi kalır, 10 ve altında hiçbiri silinmez; başka veritabanının yedekleri ve klasördeki diğer dosyalar silinmez; işçinin günlük bakımının günde bir çalışması; `npm run db:migrate`'in yedek alıp sonunda eski yedekleri silmesi. |
+| `tests/demo-ortami.test.ts` | `npm run demo:hazirla` yalnızca `data/demo.db`'yi kurar (aynı klasördeki başka veritabanı ve testin veritabanı bayt bayt aynı kalır), her çalıştırmada sıfırdan kurar; yazdırdığı giriş bilgileri Better Auth parola özetiyle eşleşir; kaynak / durum / izin çeşitliliği, ret ve engel listesi, test modunda WhatsApp bağlantısı ve şablonlar; elle girilen bütün adreslerin sahte biçimde olması. `docs/ornek-ice-aktarma.csv`'nin rehberde yazan önizleme sonucunu vermesi. |
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
@@ -460,6 +484,9 @@ kullanılır; o da yoksa yer tutucu çevresindeki boşluk ve virgülle birlikte 
 npm run worker               # sürekli (WORKER_ARALIK_SN, varsayılan 30 sn)
 npm run worker -- --bir-kez  # tek tur (ör. cron ile dakikada bir)
 ```
+
+İşçi ayrıca saatte bir süresi dolan içe aktarma satırlarını, günde bir de saklama süresi dolan migration yedeklerini
+siler (ikisi de her `--bir-kez` çalıştırmasında).
 
 **systemd** (`/etc/systemd/system/harita-crm-worker.service`):
 
@@ -811,6 +838,8 @@ drizzle/                         migration SQL'leri (drizzle-kit)
 scripts/migrate.ts, cleanup.ts,  migration, günlük temizlik,
   kota.ts, sinir.ts, worker.ts   kota / günlük sınır değiştirme, gönderim işçisi
   ortam.ts                       betikler için .env yükleme
+  demo-*.ts                      elle deneme ortamı (demo.db, sahte istemciler; docs/TEST-REHBERI.md)
+docs/                            elle deneme rehberi, örnek içe aktarma dosyası
 src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kontrol sunucuda)
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
@@ -845,6 +874,9 @@ tests/                           Vitest
 - **Tek işçi:** gönderim turları veritabanı kilidiyle sırayla çalışır; gönderimden hemen önce satır ve kampanya
   yeniden denetlenir.
 - **Migration:** yalnızca `npm run db:migrate` (önce yedek; tek transaction; yabancı anahtar denetimi COMMIT'ten önce).
+- **Migration yedeklerinin saklanması:** en son 10 yedek ve son 30 gün içindekilerin hepsi saklanır; diğerleri
+  `db:migrate` sonunda ve işçinin günlük bakımında otomatik silinir. Şifreli / harici saklama operasyonun işidir
+  (canlıda Litestream önerilir).
 - **Yarıda kalan taramalar:** 10 dakika kuralı hem "calisiyor" hem "kuyrukta" için (yukarıda).
 - **Aylık Places kotası:** kiracı başına, atomik; yönetici arayüzü yok, `npm run kota` (yukarıda).
 - **Kota birimi:** maliyet ağırlıklı (Essentials tabanı), varsayılan 6.000 birim; kota ayı İstanbul saatine göre.
@@ -909,11 +941,9 @@ tests/                           Vitest
     kontrol edilmeli. Tahmin yalnızca bilgidir.
 18. **WhatsApp limit payı** benzersiz alıcı yerine ileti sayar (aynı kişiye iki kampanya iki sayılır); Meta'nın
     sayımından temkinlidir.
-19. **Migration yedeklerinin saklanması:** `data/yedek/` altındaki yedekler kişisel veri içerir ve otomatik silinmez.
-    Saklama süresi (ör. son 5 yedek ya da 30 gün) ve şifreli/harici saklama ürün ve operasyon kararıdır.
-20. **Pilot öncesi WhatsApp bağlantıları:** 0011 migration'ından önce kurulmuş bağlantılar numara sahipliği
+19. **Pilot öncesi WhatsApp bağlantıları:** 0011 migration'ından önce kurulmuş bağlantılar numara sahipliği
     doğrulanmadığı için kullanılmaz; yöneticinin bir kez "Bağlantıyı test et" demesi gerekir.
-21. **İçe aktarma satırlarının ömrü:** tamamlanmamış oturumun satırları 60 dakikadan sonra kullanılamaz, işçi saatte
+20. **İçe aktarma satırlarının ömrü:** tamamlanmamış oturumun satırları 60 dakikadan sonra kullanılamaz, işçi saatte
     bir siler (en fazla ~2 saat). Daha kısa süre isteniyorsa işçinin bakım aralığı (`SAATLIK_BAKIM_MS`) düşürülebilir.
 
 ## Bilinen sınırlar

@@ -8,16 +8,19 @@
 // Aynı anda yalnızca bir işçi turu çalışır (veritabanındaki süresi dolan işçi kilidi, ISCI_KILIT_SN, varsayılan 120 sn;
 // tur boyunca nabızla uzatılır). Kilit başka işçideyse tur bir şey yapmadan biter; cron ile üst üste binen
 // `--bir-kez` çalıştırmaları güvenlidir. Bir mesaj iki kez gönderilmez (satırlar atomik olarak alınır).
-// Saatte bir (ve her `--bir-kez` çalıştırmasında) süresi dolan içe aktarma oturumlarının dosya satırları silinir.
+// Saatte bir (ve her `--bir-kez` çalıştırmasında) süresi dolan içe aktarma oturumlarının dosya satırları silinir;
+// günde bir (ve her `--bir-kez` çalıştırmasında) saklama süresi dolan migration yedekleri silinir (data/yedek/).
 // SIGINT/SIGTERM: eldeki tur bitirilir, sonra çıkılır.
 import "./ortam";
-import { isciTuru, saatlikBakim } from "../src/server/servisler/isci";
+import { gunlukBakim, isciTuru, saatlikBakim } from "../src/server/servisler/isci";
 
 const birKez = process.argv.includes("--bir-kez");
 const aralikMs = Math.max(5, Number(process.env.WORKER_ARALIK_SN ?? 30)) * 1000;
 const parti = Math.max(1, Number(process.env.WORKER_PARTI ?? 20));
 let durdur = false;
 let sonBakim: number | null = null;
+let sonGunlukBakim: number | null = null;
+const veritabani = process.env.DATABASE_PATH ?? "./data/app.db";
 
 for (const sinyal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinyal, () => {
@@ -48,6 +51,14 @@ async function calistir() {
       if (b.kapatilanIceAktarma) console.log(`[işçi] süresi dolan ${b.kapatilanIceAktarma} içe aktarma oturumunun satırları silindi.`);
     } catch (hata) {
       console.error("[işçi] saatlik bakım hatası:", hata);
+    }
+    // Günde bir: saklama süresi dolan migration yedekleri (son 10 ve son 30 gündekiler kalır).
+    try {
+      const g = gunlukBakim(sonGunlukBakim, veritabani);
+      sonGunlukBakim = g.sonCalismaMs;
+      if (g.silinenYedek) console.log(`[işçi] saklama süresi dolan ${g.silinenYedek} eski yedek silindi.`);
+    } catch (hata) {
+      console.error("[işçi] günlük bakım hatası:", hata);
     }
     let sonuc;
     try {

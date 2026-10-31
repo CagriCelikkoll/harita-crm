@@ -16,7 +16,11 @@
     "kota": "tsx scripts/kota.ts",
     "sinir": "tsx scripts/sinir.ts",
     "osm:deneme": "tsx scripts/osm-deneme.ts",
-    "worker": "node --conditions=react-server --import tsx scripts/worker.ts"
+    "worker": "node --conditions=react-server --import tsx scripts/worker.ts",
+    "demo:hazirla": "node --conditions=react-server --import tsx scripts/demo-hazirla.ts",
+    "demo": "node --import tsx scripts/demo.ts",
+    "demo:isci": "node --conditions=react-server --import tsx scripts/demo-isci.ts",
+    "demo:kota": "tsx scripts/demo-kota.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",

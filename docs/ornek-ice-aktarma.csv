@@ -1,0 +1,13 @@
+İşletme adı,Ad soyad,Telefon,E-posta,Etiketler,Alıcı türü,WhatsApp izni,İzin tarihi,İzin kaynağı,Not
+Deneme Çiçekçi (Sahte),Test Selin Örnek,0500 000 00 21,selin.ornek@demo.test,"demo, ice-aktarma",kurumsal,yok,,,Demo: yeni kişi
+Kurgu Eczane (Sahte),Deneme Ali Uydurma,0500 000 00 22,,"demo, ice-aktarma",kurumsal,evet,15.09.2026,form,Demo: WhatsApp izinli kişi
+Hayali Market (Sahte),Test Fatma Deneme,,fatma.deneme@demo.test,"demo, ice-aktarma",kurumsal,,,,Demo: yalnızca e-posta
+Sahte Fırın,Test Mehmet Deneme,0500 000 00 02,firin@demo.test,"demo, ice-aktarma",kurumsal,,,,Demo: mevcut kayıtla çakışır
+Ret Örneği Yeniden (Sahte),Deneme Ret Örneği,,ret.ornek@demo.test,"demo, ice-aktarma",kurumsal,,,,Demo: engel listesindeki adres
+Örnek Bireysel Kişi (Sahte),Test Bireysel Örnek,0500 000 00 24,,"demo, ice-aktarma",bireysel,yok,,,Demo: bireysel alıcı
+Hatalı Telefon (Sahte),Test Hatalı Bir,12345,,demo,kurumsal,,,,Demo: hatalı satır
+Hatalı E-posta (Sahte),Test Hatalı İki,,deneme@,demo,kurumsal,,,,Demo: hatalı satır
+İletişimsiz Kayıt (Sahte),Test Hatalı Üç,,,demo,kurumsal,,,,Demo: hatalı satır
+Belirsiz İzin (Sahte),Test Hatalı Dört,0500 000 00 23,,demo,kurumsal,belki,,,Demo: hatalı satır
+Gelecek Tarihli İzin (Sahte),Test Hatalı Beş,0500 000 00 25,,demo,kurumsal,evet,01.01.2030,form,Demo: hatalı satır
+Deneme Çiçekçi (Sahte),Test Selin Örnek,0500 000 00 21,,demo,kurumsal,yok,,,Demo: dosyada tekrar
