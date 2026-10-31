@@ -5,7 +5,8 @@
 // Telefonlar YALNIZCA 0500 000 xx xx biçimindedir (0500 öneki hiçbir operatöre ayrılmamıştır; gerçek bir aboneye
 // denk gelemez). Elle girilen demo numaralarıyla (0500 000 00 xx) çakışmasın diye 0500 000 10 00–99 99 aralığı
 // kullanılır. Sabit hat davranışı gereken testler mockPlaces.sabitHatlar ile o yerler için "0 (212) 000 xx xx"
-// (yerel numara 0 ile başlamaz; gerçek abone olamaz) ister.
+// (yerel numara 0 ile başlamaz; gerçek abone olamaz) ister; demo ortamı aynı şeyi PLACES_MOCK_SABIT_HAT (virgülle
+// ayrılmış place_id'ler) ile ister (scripts/demo-sabitler.ts).
 import { cagriBirimi, type IstemciSecenekleri } from "./istemci";
 import { kotaKontrol, type LatLng, type MetinAramaIstegi, type PlacesIstemcisi, type YerBilgisi } from "./tipler";
 
@@ -116,7 +117,9 @@ function mockTemelBilgi(placeId: string, c: { tur: string; i: number; j: number 
   const son4 = String(1000 + Math.floor(ozet("tel", placeId) * 9000)); // 1000–9999
   const tel = `000${son4}`;
   const isim = ISIMLER[Math.floor(ozet("ad", placeId) * ISIMLER.length)];
-  const alan = mockPlaces.sabitHatlar.has(placeId) ? "212" : "500";
+  const sabitHat =
+    mockPlaces.sabitHatlar.has(placeId) || (process.env.PLACES_MOCK_SABIT_HAT ?? "").split(",").includes(placeId);
+  const alan = sabitHat ? "212" : "500";
   return {
     id: placeId,
     ad: `${isim} ${TUR_ADI[c.tur] ?? "İşletme"} ${n}`,

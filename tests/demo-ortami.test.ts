@@ -14,6 +14,8 @@ const KOK = path.resolve(__dirname, "..");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
 const { kayitGuncelle, kisileriEkle } = await import("@/server/repo/kayitlar");
 const svc = await import("@/server/servisler/ice-aktarma");
+const { mockPlacesIstemcisi } = await import("@/server/places/mock");
+const { DEMO_SABIT_HATLAR } = await import("../scripts/demo-sabitler");
 
 describe("npm run demo:hazirla", () => {
   // Betik, depodaki bir kopyayı değil gerçek betiği çalıştırır; çalışma klasörü geçici olduğundan ./data/ de geçicidir.
@@ -102,6 +104,29 @@ describe("npm run demo:hazirla", () => {
     const adresler = sorgu<{ eposta: string | null; ek_telefon: string | null }>("select eposta, ek_telefon from leads");
     expect(adresler.every((a) => a.eposta === null || a.eposta.endsWith("@demo.test"))).toBe(true);
     expect(adresler.every((a) => a.ek_telefon === null || /^0(500|212) 000 00 \d\d$/.test(a.ek_telefon))).toBe(true);
+
+    // İki Google kaydı bilerek sabit hat: "demo" etiketli, kayıtta telefonu yok (numara Places'tan gelir); sahte istemci
+    // demo ayarıyla (PLACES_MOCK_SABIT_HAT) yalnızca bunlar için 0 (212) 000 … döner, diğer Google kayıtları cep.
+    expect(cikti).toContain("Sabit hat");
+    const googleKayitlari = sorgu<{ place_id: string; ek_telefon: string | null; etiketler: string }>(
+      "select place_id, ek_telefon, etiketler from leads where kaynak = 'google'",
+    );
+    for (const p of DEMO_SABIT_HATLAR) {
+      expect(googleKayitlari.find((k) => k.place_id === p)).toMatchObject({ ek_telefon: null, etiketler: expect.stringContaining('"demo"') });
+    }
+    const onceki = process.env.PLACES_MOCK_SABIT_HAT;
+    process.env.PLACES_MOCK_SABIT_HAT = DEMO_SABIT_HATLAR.join(",");
+    try {
+      const istemci = mockPlacesIstemcisi();
+      const telefonlar = new Map<string, string>();
+      for (const k of googleKayitlari) telefonlar.set(k.place_id, (await istemci.yerDetayi(k.place_id, "telefon"))!.telefon!);
+      const sabitler = [...telefonlar].filter(([, t]) => t.startsWith("0 (212) 000 ")).map(([p]) => p);
+      expect(sabitler.sort()).toEqual([...DEMO_SABIT_HATLAR].sort());
+      expect([...telefonlar].filter(([p]) => !sabitler.includes(p)).every(([, t]) => t.startsWith("0 (500) 000 "))).toBe(true);
+    } finally {
+      if (onceki === undefined) delete process.env.PLACES_MOCK_SABIT_HAT;
+      else process.env.PLACES_MOCK_SABIT_HAT = onceki;
+    }
 
     // İkinci çalıştırma: veriler eklenmez, sıfırdan kurulur.
     const ilkKayit = kayitlar.length;

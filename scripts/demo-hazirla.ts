@@ -10,6 +10,7 @@
 // (place_id "mock_…"); bu kayıtların ekranda görünen ad/telefon/adresleri de sahte istemcinin ürettiği uydurma
 // değerlerdir.
 import { DEMO_ADRESI, DEMO_ALAN_ADI, DEMO_VERITABANI } from "./demo-ortam";
+import { DEMO_SABIT_HATLAR } from "./demo-sabitler";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -114,6 +115,9 @@ async function calistir() {
   const biten = await taramaCalistir(ctx, tarama.id);
   if (biten?.durum !== "tamamlandi") throw new Error(`Örnek tarama tamamlanamadı: ${biten?.hataMesaji ?? "bilinmeyen hata"}`);
   const google = taramaKayitlari(ctx, tarama.id);
+  // Sahte istemci bu iki kayıt için bilerek sabit hat döner (SMS'te "cep telefonu değil"); tarama değişirse uyar.
+  const eksikSabitHat = DEMO_SABIT_HATLAR.filter((p) => !google.some((k) => k.placeId === p));
+  if (eksikSabitHat.length) throw new Error(`Demo taraması beklenen kayıtları üretmedi: ${eksikSabitHat.join(", ")}`);
   const googleBilgisi: Parameters<typeof kayitGuncelle>[2][] = [
     { durum: "iletisimde", yetkiliAdi: "Deneme Can Örnekoğlu", eposta: "can.ornek@demo.test", iletiIzni: "onayli", etiketler: ["demo", "kadikoy"] },
     { durum: "gorusme", yetkiliAdi: "Test Zeynep Sahtekin", eposta: "zeynep.test@demo.test", etiketler: ["demo", "sicak"] },
@@ -228,6 +232,7 @@ Demo ortamı hazır: ${DEMO_VERITABANI}
   Çalışma alanı : ${DEMO_ALAN_ADI}
   Kayıt         : ${toplam} (${google.length} Google kaynaklı örnek taramadan, ${toplam - google.length} elle / içe aktarma / reklam)
   Ret verilmiş  : "Ret Vermiş Örnek İşletme" (0500 000 00 09, ret.ornek@demo.test engel listesinde)
+  Sabit hat     : ${DEMO_SABIT_HATLAR.length} Google kaydının telefonu 0 (212) 000 … (SMS'te "cep telefonu değil")
   WhatsApp      : sahte bağlantı (test modunda), ${sablonSayisi} şablon, test numarası ${TEST_NUMARASI}
   Sınırlar      : günde 5 e-posta, 5 SMS (demo için düşük); Places kotası 1.000 birim/ay (npm run demo:kota -- <birim>)
 

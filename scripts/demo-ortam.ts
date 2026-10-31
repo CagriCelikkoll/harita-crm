@@ -8,6 +8,7 @@
 // - Şifreleme / imza / oturum anahtarları demo için sabittir (gerçek anahtarlarla demo verisi şifrelenmez).
 //   Gizli değildir; demo.db'ye gerçek kişi verisi girmeyin.
 import path from "node:path";
+import { DEMO_SABIT_HATLAR } from "./demo-sabitler";
 
 export const DEMO_VERITABANI = path.resolve(process.cwd(), "data", "demo.db");
 export const DEMO_ADRESI = "http://localhost:3000";
@@ -18,6 +19,8 @@ const sabitAnahtar = (tohum: string) => Buffer.alloc(32, tohum).toString("base64
 Object.assign(process.env, {
   DATABASE_PATH: DEMO_VERITABANI,
   PLACES_MOCK: "true",
+  // Demo'daki iki Google kaydı bilerek sabit hat döner (SMS'te "cep telefonu değil"; demo-sabitler.ts).
+  PLACES_MOCK_SABIT_HAT: DEMO_SABIT_HATLAR.join(","),
   WHATSAPP_API_MOCK: "1",
   BETTER_AUTH_URL: DEMO_ADRESI,
   BETTER_AUTH_SECRET: sabitAnahtar("harita-crm-demo-oturum"),
