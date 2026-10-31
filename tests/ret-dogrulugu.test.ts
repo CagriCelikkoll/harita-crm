@@ -80,7 +80,7 @@ describe("ret geri alınamaz", () => {
     expect(kayitGetir(uye, k.id)?.iletiIzni).toBe("ret");
 
     // Ret'i yeniden göndermek ya da başka alanı değiştirmek serbest.
-    expect((await patch(k.id, { iletiIzni: "ret", notlar: "aradı" })).status).toBe(200);
+    expect((await patch(k.id, { iletiIzni: "ret", retOnayi: true, notlar: "aradı" })).status).toBe(200);
     expect(kayitGetir(uye, k.id)).toMatchObject({ iletiIzni: "ret", notlar: "aradı" });
   });
 });

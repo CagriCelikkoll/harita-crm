@@ -4,7 +4,8 @@
 //
 // Kullanım: npm run demo:hazirla   (sonra: npm run demo, ikinci terminalde gerekirse npm run demo:isci)
 //
-// Tüm isimler, numaralar ve adresler açıkça sahtedir: telefonlar 0500 000 00 xx, e-postalar @demo.test (".test"
+// Tüm isimler, numaralar ve adresler açıkça sahtedir: telefonlar 0500 000 xx xx (elle girilenler 0500 000 00 xx;
+// sahte Places istemcisininkiler 0500 000 10 00–99 99), e-postalar @demo.test (".test"
 // gerçek bir alan adı olamaz). Google kaynaklı kayıtlar sahte Places istemcisiyle yapılan bir taramadan gelir
 // (place_id "mock_…"); bu kayıtların ekranda görünen ad/telefon/adresleri de sahte istemcinin ürettiği uydurma
 // değerlerdir.

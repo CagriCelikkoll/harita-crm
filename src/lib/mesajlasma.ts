@@ -47,6 +47,18 @@ export const ALICI_TURU_ADLARI: Record<AliciTuru, string> = {
   bireysel: "Bireysel",
 };
 
+/** Kişi eklerken / içe aktarırken alıcı türü seçimi (varsayılan yoktur; kullanıcı seçmek zorundadır). */
+export const ALICI_TURU_SECIM_ADLARI: Record<AliciTuru, string> = {
+  tacir_esnaf: "Tacir/esnaf (işletme)",
+  bireysel: "Bireysel (kişi)",
+};
+export const ALICI_TURU_ACIKLAMASI =
+  "Bireysel kişilere ticari ileti göndermek için kişinin onayı ve bu onayın İYS'ye kayıtlı olması ayrıca gerekir.";
+
+/** Ret onay penceresinin metni; ret isteği onaysız gönderilemez (API'ler retOnayi: true ister). */
+export const RET_ONAY_METNI = "Bu kişiye hiçbir kanaldan ileti gönderilmeyecek ve bu işlem geri alınamaz.";
+export const RET_ONAYI_GEREKLI = "Ret geri alınamaz; onay penceresinde onaylanmalıdır.";
+
 export const WHATSAPP_IZNI_ADLARI: Record<WhatsappIzni, string> = { yok: "İzin yok", var: "İzin var", ret: "Ret" };
 
 export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = {

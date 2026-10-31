@@ -1,6 +1,7 @@
 "use client";
 // İçe aktarma sihirbazı: 1) dosya, 2) sütun eşleme ve seçenekler, 3) önizleme raporu, 4) onay ve sonuç.
-// Doğrulama ve sayılar sunucudan gelir; beyan onayı sunucuda da zorunludur.
+// Doğrulama ve sayılar sunucudan gelir; beyan onayı ve ret onayı sunucuda da zorunludur. Alıcı türünün varsayılanı
+// yoktur: sütun eşlenmemişse tüm dosya için seçilmeden önizlenemez.
 import Link from "next/link";
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
@@ -15,7 +16,9 @@ import {
 } from "@/lib/ice-aktarma";
 import {
   ALICI_TURLERI,
-  ALICI_TURU_ADLARI,
+  ALICI_TURU_ACIKLAMASI,
+  ALICI_TURU_SECIM_ADLARI,
+  RET_ONAY_METNI,
   WHATSAPP_IZIN_KAYNAK_ADLARI,
   WHATSAPP_IZIN_KAYNAKLARI,
   type AliciTuru,
@@ -33,7 +36,7 @@ type Oturum = {
 };
 type Secenekler = {
   cakisma: CakismaPolitikasi;
-  varsayilanAliciTuru: AliciTuru;
+  varsayilanAliciTuru: AliciTuru | null;
   varsayilanIzinKaynagi: WhatsappIzinKaynagi | null;
   iysBeyani: boolean;
 };
@@ -46,12 +49,13 @@ export function IceAktarmaSihirbazi() {
   const [eslem, setEslem] = useState<SutunEslemi>({});
   const [secenekler, setSecenekler] = useState<Secenekler>({
     cakisma: "atla",
-    varsayilanAliciTuru: "bireysel",
+    varsayilanAliciTuru: null,
     varsayilanIzinKaynagi: null,
     iysBeyani: false,
   });
   const [rapor, setRapor] = useState<IceAktarmaRaporu | null>(null);
   const [beyan, setBeyan] = useState(false);
+  const [retOnayi, setRetOnayi] = useState(false);
   const [sonuc, setSonuc] = useState<Sonuc | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
@@ -105,6 +109,7 @@ export function IceAktarmaSihirbazi() {
     if (!s.ok) return setHata(s.hata);
     setRapor(s.veri.rapor);
     setBeyan(false);
+    setRetOnayi(false);
   }
 
   async function sorunlariIndir() {
@@ -129,7 +134,7 @@ export function IceAktarmaSihirbazi() {
     setMesgul(true);
     const s = await apiIstek<{ sonuc: Sonuc }>(`/api/ice-aktarma/${oturum.id}/tamamla`, {
       method: "POST",
-      govde: { eslem, secenekler, beyanOnayi: beyan },
+      govde: { eslem, secenekler, beyanOnayi: beyan, retOnayi },
     });
     setMesgul(false);
     if (!s.ok) return setHata(s.hata);
@@ -193,6 +198,8 @@ export function IceAktarmaSihirbazi() {
   }
 
   const izinEslendi = eslem.whatsappIzni !== undefined;
+  const turEslendi = eslem.aliciTuru !== undefined;
+  const turEksik = !turEslendi && !secenekler.varsayilanAliciTuru;
   return (
     <div className="space-y-4">
       <section className="kart space-y-3">
@@ -222,18 +229,24 @@ export function IceAktarmaSihirbazi() {
 
         <div className="grid gap-3 border-t border-kenar pt-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="etiket">
-            Alıcı türü sütunu boşsa
+            {turEslendi ? "Alıcı türü hücresi boşsa" : "Alıcı türü (dosyada sütun yok; tüm kişiler için)"}
             <select
               className="girdi"
-              value={secenekler.varsayilanAliciTuru}
-              onChange={(e) => secenek("varsayilanAliciTuru", e.target.value as AliciTuru)}
+              required={!turEslendi}
+              aria-invalid={turEksik}
+              value={secenekler.varsayilanAliciTuru ?? ""}
+              onChange={(e) => secenek("varsayilanAliciTuru", (e.target.value || null) as AliciTuru | null)}
             >
+              <option value="" disabled={!turEslendi}>
+                {turEslendi ? "— boş hücre hatalı sayılır —" : "Seçin"}
+              </option>
               {ALICI_TURLERI.map((t) => (
                 <option key={t} value={t}>
-                  {ALICI_TURU_ADLARI[t]}
+                  {ALICI_TURU_SECIM_ADLARI[t]}
                 </option>
               ))}
             </select>
+            <span className="text-xs font-normal text-soluk">{ALICI_TURU_ACIKLAMASI}</span>
           </label>
           <label className="etiket">
             Telefonu mevcut bir kayıtla aynıysa
@@ -307,7 +320,12 @@ export function IceAktarmaSihirbazi() {
             </tbody>
           </table>
         </div>
-        <button type="button" className="dugme-ana" disabled={mesgul} onClick={onizle}>
+        {turEksik && (
+          <p className="text-sm text-tehlike">
+            Dosyada alıcı türü sütunu yok: önizlemeden önce tüm kişiler için alıcı türünü seçin.
+          </p>
+        )}
+        <button type="button" className="dugme-ana" disabled={mesgul || turEksik} onClick={onizle}>
           3. Önizle
         </button>
       </section>
@@ -359,10 +377,18 @@ export function IceAktarmaSihirbazi() {
               <span>{IZIN_BEYANI_METNI}</span>
             </label>
           )}
+          {rapor.retli > 0 && (
+            <label className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm">
+              <input type="checkbox" className="mt-1" checked={retOnayi} onChange={(e) => setRetOnayi(e.target.checked)} />
+              <span>
+                Dosyada ret işaretli {sayi(rapor.retli)} kişi var. {RET_ONAY_METNI}
+              </span>
+            </label>
+          )}
           <button
             type="button"
             className="dugme-ana"
-            disabled={mesgul || (rapor.beyanGerekli && !beyan) || rapor.yeni + rapor.cakisan === 0}
+            disabled={mesgul || (rapor.beyanGerekli && !beyan) || (rapor.retli > 0 && !retOnayi) || rapor.yeni + rapor.cakisan === 0}
             onClick={tamamla}
           >
             4. İçe aktar

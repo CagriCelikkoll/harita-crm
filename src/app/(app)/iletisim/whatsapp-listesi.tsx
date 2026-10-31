@@ -5,6 +5,7 @@
 // yenilemek Places çağrısı yapmaz. Numara ekranda yalnızca kayıtta ek_telefon varsa gösterilir.
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { RetDugmesi } from "@/components/ret-onayi";
 import { apiIstek } from "@/lib/api-istemci";
 import {
   ALICI_TURLERI,
@@ -190,14 +191,12 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
             <button type="button" className="dugme" disabled={mesgul} onClick={() => void istek(`/api/whatsapp/liste/${siradaki.ogeId}`, { sonuc: "atla" })}>
               Atla
             </button>
-            <button
-              type="button"
-              className="dugme-tehlike"
+            <RetDugmesi
+              ad={siradaki.isletmeAdi ?? "İşletme adı girilmemiş"}
+              etiket="Ret istedi"
               disabled={mesgul}
-              onClick={() => void istek(`/api/whatsapp/liste/${siradaki.ogeId}`, { sonuc: "ret" })}
-            >
-              Ret istedi
-            </button>
+              onOnay={() => void istek(`/api/whatsapp/liste/${siradaki.ogeId}`, { sonuc: "ret", retOnayi: true })}
+            />
             <Link href={`/kayitlar?secili=${siradaki.leadId}`} className="dugme">
               Kaydı aç
             </Link>

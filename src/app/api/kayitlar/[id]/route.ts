@@ -2,7 +2,7 @@
 // Her değişiklik depo fonksiyonu içinde lead_events'e yazılır.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ALICI_TURLERI } from "@/lib/mesajlasma";
+import { ALICI_TURLERI, RET_ONAYI_GEREKLI } from "@/lib/mesajlasma";
 import { ILETI_IZINLERI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
@@ -71,6 +71,8 @@ const Degisiklik = z
       .transform((e) => [...new Set(e.filter(Boolean))]),
     // Kayıt alanı değil: WhatsApp izinli / reklamdan gelen kişinin alıcı türü değişikliğinin gerekçesi (olaya yazılır).
     aliciTuruAciklamasi: metin(500, "Açıklama"),
+    // Kayıt alanı değil: ret geri alınamaz; arayüzdeki onay penceresinde onaylandığını gösterir (zorunlu).
+    retOnayi: z.literal(true),
   })
   .partial()
   .strict();
@@ -81,7 +83,8 @@ export async function PATCH(istek: Request, { params }: RouteContext<"/api/kayit
   if (!ctx) return yetkisiz();
   const sonuc = Degisiklik.safeParse(await istek.json().catch(() => null));
   if (!sonuc.success) return gecersiz(sonuc.error.issues[0]?.message ?? "Geçersiz değer.");
-  const { aliciTuruAciklamasi, ...degisiklik } = sonuc.data;
+  const { aliciTuruAciklamasi, retOnayi, ...degisiklik } = sonuc.data;
+  if (degisiklik.iletiIzni === "ret" && !retOnayi) return gecersiz(RET_ONAYI_GEREKLI);
   try {
     const kayit = kayitGuncelle(ctx, (await params).id, degisiklik, { aliciTuruAciklamasi });
     return kayit ? NextResponse.json({ kayit: kayitDto(kayit) }, { headers: BASLIK }) : bulunamadi();

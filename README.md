@@ -43,7 +43,7 @@ Demo betikleri (`scripts/demo-ortam.ts`) veritabanı yolunu, sahte istemcileri v
 yalnızca kendi süreçlerinde ayarlar; `.env.local` değişmez, gerçek veritabanı açılmaz. Demo verisi: yönetici ve üye
 kullanıcı, sahte Places taramasından Google kaynaklı kayıtlar (`mock_…` place_id), elle / içe aktarma / reklam
 kaynaklı kayıtlar, ret verilmiş bir kayıt, test modunda sahte WhatsApp bağlantısı ve 3 şablon. Bütün numaralar
-`0500 000 00 xx`, e-postalar `@demo.test`. Gönderim penceresi tüm gün, günlük sınır 5 e-posta / 5 SMS. İçe aktarmayı
+`0500 000 xx xx` (sahte Places istemcisi de yalnızca `0500 000 10 00`–`99 99` üretir), e-postalar `@demo.test`. Gönderim penceresi tüm gün, günlük sınır 5 e-posta / 5 SMS. İçe aktarmayı
 denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
 
 ## Ortam değişkenleri (`.env.local`)
@@ -870,7 +870,14 @@ tests/                           Vitest
   silinir; `merkez_kaynagi` bilgi amaçlı kalır. Süre `merkez_tarihi`'nden sayılır; aynı koordinatla açılan yeni
   tarama en eski taramanın süresini devralır.
 - **Ret kalıcıdır:** ileti izni ret'ten başka değere geçemez; kaydın bilinen tüm adresleri (gönderim anında
-  Places'tan alınan telefon dahil, yalnızca özet) engellenir.
+  Places'tan alınan telefon dahil, yalnızca özet) engellenir. Ret her yerde (detay paneli, WhatsApp izni, WhatsApp
+  günlük liste, içe aktarmadaki ret satırları) kaydın adını ve "geri alınamaz" uyarısını gösteren bir onaydan geçer;
+  API'ler `retOnayi: true` olmadan ret isteğini 400 ile reddeder.
+- **Alıcı türünün varsayılanı yok:** "Kişi ekle"de ve içe aktarmada kullanıcı Tacir/esnaf (işletme) ya da Bireysel
+  (kişi) seçmek zorundadır; içe aktarmada sütun eşlenmemişse tüm dosya için seçim yapılmadan önizlenemez, sütun
+  eşliyse boş hücre hatalı satırdır.
+- **Arayüzde komut yok:** kota ve günlük sınır komutları (`npm run kota`, `npm run sinir`) yalnızca bu README'de;
+  arayüz "yöneticinizle/destekle iletişime geçin" der.
 - **Tek işçi:** gönderim turları veritabanı kilidiyle sırayla çalışır; gönderimden hemen önce satır ve kampanya
   yeniden denetlenir.
 - **Migration:** yalnızca `npm run db:migrate` (önce yedek; tek transaction; yabancı anahtar denetimi COMMIT'ten önce).

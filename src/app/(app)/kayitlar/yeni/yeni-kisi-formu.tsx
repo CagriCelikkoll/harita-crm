@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
-import { ALICI_TURLERI, ALICI_TURU_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
+import { ALICI_TURLERI, ALICI_TURU_ACIKLAMASI, ALICI_TURU_SECIM_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
 import type { KayitDto } from "@/server/servisler/kayit-dto";
 
 export function YeniKisiFormu() {
@@ -51,13 +51,18 @@ export function YeniKisiFormu() {
       </label>
       <label className="etiket">
         Alıcı türü
-        <select name="aliciTuru" className="girdi" defaultValue="bireysel">
+        {/* Varsayılan yok: kampanya kuralları alıcı türüne göre değiştiği için kullanıcı bilerek seçer. */}
+        <select name="aliciTuru" className="girdi" defaultValue="" required>
+          <option value="" disabled>
+            Seçin
+          </option>
           {ALICI_TURLERI.map((t) => (
             <option key={t} value={t}>
-              {ALICI_TURU_ADLARI[t]}
+              {ALICI_TURU_SECIM_ADLARI[t]}
             </option>
           ))}
         </select>
+        <span className="text-xs font-normal text-soluk">{ALICI_TURU_ACIKLAMASI}</span>
       </label>
       <label className="etiket">
         Etiketler (virgülle)

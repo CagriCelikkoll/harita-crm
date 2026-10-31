@@ -5,7 +5,7 @@ import { smsUzunlugu } from "@/lib/sms-uzunluk";
 import { db } from "@/server/db";
 import { adresOzeti } from "@/server/messaging/adres";
 import { netgsmSaglayici } from "@/server/messaging/netgsm";
-import { mockPlacesIstemcisi } from "@/server/places/mock";
+import { mockPlaces, mockPlacesIstemcisi } from "@/server/places/mock";
 import type { TenantContext } from "@/server/repo/baglam";
 import { engelliOzetler } from "@/server/repo/engel-listesi";
 import { iletiAyarlariGuncelle } from "@/server/repo/ileti-ayarlari";
@@ -48,14 +48,15 @@ function kiraci(kota = 6000) {
 
 /** Mock Places'ta telefonu cep olan / olmayan yer kimlikleri. */
 async function mockYerler() {
+  // Sahte Places telefonları cep (0500 000 xx xx); sabit hat yalnızca mockPlaces.sabitHatlar'daki yerler için döner.
   const istemci = mockPlacesIstemcisi();
+  const sabit = ["mock_cafe_20000_100", "mock_cafe_20000_101"];
+  for (const id of sabit) mockPlaces.sabitHatlar.add(id);
   const cep: { id: string; tel: string }[] = [];
-  const sabit: string[] = [];
-  for (let i = 0; cep.length < 3 || sabit.length < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const id = `mock_cafe_20000_${i}`;
     const y = await istemci.yerDetayi(id, "telefon");
-    if (y?.telefonUluslararasi?.startsWith("+90 5")) cep.push({ id, tel: y.telefonUluslararasi });
-    else sabit.push(id);
+    cep.push({ id, tel: y!.telefonUluslararasi! });
   }
   return { cep, sabit };
 }

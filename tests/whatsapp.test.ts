@@ -10,7 +10,7 @@ vi.mock("@/server/oturum", () => ({ apiBaglami: async () => oturum.ctx }));
 
 const { db } = await import("@/server/db");
 const { adresOzeti } = await import("@/server/messaging/adres");
-const { mockPlacesIstemcisi } = await import("@/server/places/mock");
+const { mockPlaces, mockPlacesIstemcisi } = await import("@/server/places/mock");
 const { engelliOzetler } = await import("@/server/repo/engel-listesi");
 const { sayacDegeri } = await import("@/server/repo/gonderim-sayaci");
 const { iletiAyarlariGuncelle } = await import("@/server/repo/ileti-ayarlari");
@@ -36,14 +36,15 @@ function kiraci(kota = 6000, sinir: number | null = null) {
 }
 
 async function mockYerler() {
+  // Sahte Places telefonları cep (0500 000 xx xx); sabit hat yalnızca mockPlaces.sabitHatlar'daki yerler için döner.
   const istemci = mockPlacesIstemcisi();
+  const sabit = ["mock_cafe_30000_100", "mock_cafe_30000_101"];
+  for (const id of sabit) mockPlaces.sabitHatlar.add(id);
   const cep: { id: string; tel: string }[] = [];
-  const sabit: string[] = [];
-  for (let i = 0; cep.length < 3 || sabit.length < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const id = `mock_cafe_30000_${i}`;
     const y = await istemci.yerDetayi(id, "telefon");
-    if (y?.telefonUluslararasi?.startsWith("+90 5")) cep.push({ id, tel: y.telefonUluslararasi.replace(/\D/g, "") });
-    else sabit.push(id);
+    cep.push({ id, tel: y!.telefonUluslararasi!.replace(/\D/g, "") });
   }
   return { cep, sabit };
 }
@@ -230,7 +231,7 @@ describe("sonuçlar ve günlük sayaç", () => {
     const ogeler = gunlukListe(ctx, "2026-10-12");
     const ogeK = ogeler.find((o) => o.leadId === k.id)!;
     await wa.whatsappAc(ctx, ogeK.id, SIMDI);
-    wa.sonucBildir(ctx, ogeK.id, { sonuc: "ret" });
+    wa.sonucBildir(ctx, ogeK.id, { sonuc: "ret", retOnayi: true });
     expect(kayitGetir(ctx, k.id)!.iletiIzni).toBe("ret");
     expect(engelliOzetler(ctx, [adresOzeti(ctx.tenantId, "telefon", cep[1].tel)]).size).toBe(1);
     wa.sonucBildir(ctx, ogeler.find((o) => o.leadId === atlanan.id)!.id, { sonuc: "atla" });

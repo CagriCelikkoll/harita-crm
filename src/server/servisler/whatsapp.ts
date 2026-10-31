@@ -7,7 +7,7 @@
 // engel listesi özeti). Liste ekranını açmak ya da yenilemek Places çağrısı yapmaz.
 // Kullanıcı başına günlük sayaç (İstanbul günü): "Gönderdim" (liste ya da kayıt detayı) sayılır.
 import { z } from "zod";
-import { ALICI_TURLERI, WHATSAPP_AZAMI_GUNLUK, waMeBaglantisi, type HaricNedeni } from "@/lib/mesajlasma";
+import { ALICI_TURLERI, RET_ONAYI_GEREKLI, WHATSAPP_AZAMI_GUNLUK, waMeBaglantisi, type HaricNedeni } from "@/lib/mesajlasma";
 import { KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sablonDoldur, whatsappAltbilgisi } from "@/lib/sablon";
 import { gunAnahtari } from "@/lib/zaman";
@@ -198,7 +198,8 @@ export async function whatsappAc(ctx: TenantContext, ogeId: string, simdi = new 
   return { tur: "yonlendir", url: waMeBaglantisi(cozum.numara, whatsappMesaji(ayar, kayit.isletmeAdi)) };
 }
 
-export const SonucGirdisi = z.object({ sonuc: z.enum(["gonderdim", "atla", "ret"]) }).strict();
+// retOnayi: ret geri alınamaz; arayüzdeki onay penceresinde onaylandığını gösterir (ret için zorunlu).
+export const SonucGirdisi = z.object({ sonuc: z.enum(["gonderdim", "atla", "ret"]), retOnayi: z.literal(true).optional() }).strict();
 
 /** Liste öğesinin sonucu. "gonderdim" günlük sayacı atomik olarak artırır; sınır doluysa 429. */
 export function sonucBildir(ctx: TenantContext, ogeId: string, g: z.infer<typeof SonucGirdisi>) {
@@ -210,6 +211,7 @@ export function sonucBildir(ctx: TenantContext, ogeId: string, g: z.infer<typeof
     return;
   }
   if (g.sonuc === "ret") {
+    if (!g.retOnayi) throw new WhatsappHatasi(RET_ONAYI_GEREKLI, 400);
     // Kaydın kendi adresleri retIsle'de eklenir; Places'tan çözülen numara için açılışta yazılan özet kullanılır.
     const adresler: EngelAdresi[] = oge.adresOzeti ? [{ tur: "telefon", ozet: oge.adresOzeti }] : [];
     retIsle(ctx, { leadId: oge.leadId, adresler, kaynak: "whatsapp_ret", aciklama: "WhatsApp'ta ret istedi" });

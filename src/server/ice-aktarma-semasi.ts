@@ -10,7 +10,8 @@ export const EslemVeSecenekler = z
     secenekler: z
       .object({
         cakisma: z.enum(["atla", "bos_doldur"]),
-        varsayilanAliciTuru: z.enum(ALICI_TURLERI),
+        // Varsayılan yok: alıcı türü sütunu eşlenmemişse kullanıcı tüm dosya için seçer (null ise önizleme reddedilir).
+        varsayilanAliciTuru: z.enum(ALICI_TURLERI).nullable(),
         varsayilanIzinKaynagi: z.enum(WHATSAPP_IZIN_KAYNAKLARI).nullable(),
         iysBeyani: z.boolean(),
       })

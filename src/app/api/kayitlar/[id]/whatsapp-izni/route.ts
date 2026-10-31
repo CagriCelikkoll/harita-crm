@@ -1,7 +1,7 @@
 // Kaydın WhatsApp (Cloud API) izni. 'ret' ret akışından geçer (tüm kanallar, engel listesi) ve geri alınamaz.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { WHATSAPP_IZIN_KAYNAKLARI } from "@/lib/mesajlasma";
+import { RET_ONAYI_GEREKLI, WHATSAPP_IZIN_KAYNAKLARI } from "@/lib/mesajlasma";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { retIsle } from "@/server/repo/engel-listesi";
@@ -20,7 +20,8 @@ const Izin = z.discriminatedUnion("izin", [
     })
     .strict(),
   z.object({ izin: z.literal("yok"), not: z.string().trim().max(1000).nullish() }).strict(),
-  z.object({ izin: z.literal("ret") }).strict(),
+  // Ret geri alınamaz: arayüzdeki onay penceresinde onaylanmış olmalı.
+  z.object({ izin: z.literal("ret"), retOnayi: z.literal(true, RET_ONAYI_GEREKLI) }).strict(),
 ]);
 
 export async function PUT(istek: Request, { params }: RouteContext<"/api/kayitlar/[id]/whatsapp-izni">) {

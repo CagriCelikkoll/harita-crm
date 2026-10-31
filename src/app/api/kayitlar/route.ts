@@ -28,7 +28,8 @@ const YeniKisi = z
       .max(20, "En fazla 20 etiket.")
       .transform((e) => [...new Set(e.filter(Boolean))])
       .optional(),
-    aliciTuru: z.enum(ALICI_TURLERI),
+    // Varsayılan yok: kullanıcı seçmek zorunda.
+    aliciTuru: z.enum(ALICI_TURLERI, "Alıcı türünü seçin: Tacir/esnaf (işletme) ya da Bireysel (kişi)."),
   })
   .strict()
   .refine((k) => k.ekTelefon || k.eposta, "Telefon ya da e-posta girin.")

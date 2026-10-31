@@ -11,6 +11,7 @@ import {
   WHATSAPP_AZAMI_GUNLUK,
   ZORUNLU_ONAY_METNI,
 } from "@/lib/mesajlasma";
+import { SINIR_ARTIRMA_METNI } from "@/lib/sabitler";
 import { sablonDoldur, whatsappAltbilgisi } from "@/lib/sablon";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 
@@ -30,7 +31,7 @@ const saattenDakikaya = (s: string) => {
   return h * 60 + m;
 };
 
-export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici: boolean; slug: string }) {
+export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici: boolean }) {
   const [a, setA] = useState(props.ilk);
   const [mesaj, setMesaj] = useState<Mesaj>(null);
   const [mesgul, setMesgul] = useState(false);
@@ -158,8 +159,7 @@ export function MesajlasmaAyarlari(props: { ilk: MesajlasmaAyarlariDto; yonetici
           <dd className="tabular-nums">{a.gunlukSinirlar.sms}</dd>
         </dl>
         <p className="mt-2 text-xs text-soluk">
-          Sınıra takılan mesajlar ertesi güne kalır. Sınırı sunucu yöneticisi değiştirir:{" "}
-          <code className="rounded bg-zemin px-1">npm run sinir -- {props.slug} eposta &lt;sayı&gt;</code>
+          Sınıra takılan mesajlar ertesi güne kalır. {SINIR_ARTIRMA_METNI}
         </p>
       </section>
 

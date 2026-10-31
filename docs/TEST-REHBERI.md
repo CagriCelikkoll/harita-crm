@@ -72,8 +72,9 @@ yaptığınız bütün denemeler silinir. Uygulama açıkken çalıştırırsan�
 | WhatsApp | Sahte bağlantı (test modunda), 3 onaylı şablon. Test numarası: **0500 000 00 01** (Örnek Kırtasiye). |
 | Sınırlar (demo için düşük) | Günde en fazla 5 e-posta ve 5 SMS. Places kotası ayda 1.000 birim. |
 
-Bütün telefonlar `0500 000 00 xx` biçiminde, bütün e-postalar `@demo.test` uzantılıdır. Bunlar gerçek kişilere
-ait değildir.
+Bütün telefonlar `0500 000 xx xx` biçimindedir (elle girilenler `0500 000 00 xx`, Google kaynaklı sahte kayıtlarınki
+`0500 000 10 00`–`99 99`); 0500 öneki hiçbir operatöre ayrılmamıştır. Bütün e-postalar `@demo.test` uzantılıdır.
+Bunlar gerçek kişilere ait değildir.
 
 ---
 

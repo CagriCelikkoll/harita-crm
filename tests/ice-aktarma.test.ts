@@ -187,7 +187,10 @@ describe("uygulama", () => {
   it("dosyada ret işaretli kişi eklenir ve ret akışından geçer (engel listesi)", async () => {
     const { ctx } = kiraciOlustur("RetSatiri");
     const o = await baslat(ctx, `${BASLIK}\nAli;0532 111 22 33;;ret;;\n`);
-    svc.iceAktarmaTamamla(ctx, o.id, ESLEM, SECENEK, false);
+    // Ret geri alınamaz: onaysız uygulanmaz, hiçbir şey yazılmaz.
+    expect(() => svc.iceAktarmaTamamla(ctx, o.id, ESLEM, SECENEK, false)).toThrow(/geri alınamaz/);
+    expect(kayitlariListele(ctx).kayitlar).toHaveLength(0);
+    svc.iceAktarmaTamamla(ctx, o.id, ESLEM, SECENEK, false, true);
     const k = kayitlariListele(ctx).kayitlar[0];
     expect(k.iletiIzni).toBe("ret");
     expect(whatsappKisisiGetir(ctx, k.id)?.izin).toBe("ret");

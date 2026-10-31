@@ -3,7 +3,7 @@ import { KotaCubugu } from "@/components/kota-cubugu";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { tarihYaz } from "@/lib/bicim";
 import { PLACES_BIRIMLERI, PLACES_FIYAT_TARIHI, PLACES_ISLEMLERI, PLACES_SKULARI } from "@/lib/places-birimleri";
-import { PLACES_KONUM_SAKLAMA_GUN, ROL_ADLARI } from "@/lib/sabitler";
+import { PLACES_KONUM_SAKLAMA_GUN, ROL_ADLARI, SINIR_ARTIRMA_METNI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { calismaAlaniGetir, davetleriListele, uyeleriListele } from "@/server/repo/calisma-alani";
 import { kotaDurumu } from "@/server/repo/kullanim";
@@ -47,8 +47,7 @@ export default async function AyarlarSayfasi() {
             Aylık kota maliyeti sınırlar ve birim cinsindendir: her ücretli Places isteğinden önce o işlemin birimi
             ayrılır. Kota dolduğunda taramalar kısmi olarak durur, kayıt listesi ve detayda işletme bilgileri
             gösterilmez; kendi verileriniz (durum, notlar, iletişim bilgileri) görünmeye devam eder. Kota her ayın
-            1&apos;inde 00:00&apos;da (İstanbul saati) sıfırlanır. Kotayı değiştirmek için sunucu yöneticisi şu komutu
-            çalıştırır: <code className="rounded bg-zemin px-1">npm run kota -- {alan.slug} &lt;birim&gt;</code>
+            1&apos;inde 00:00&apos;da (İstanbul saati) sıfırlanır. {SINIR_ARTIRMA_METNI}
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-xs">
@@ -79,7 +78,7 @@ export default async function AyarlarSayfasi() {
           </div>
         </section>
 
-        <MesajlasmaAyarlari ilk={mesajlasmaAyarlariDto(ctx)} yonetici={yonetici} slug={alan.slug} />
+        <MesajlasmaAyarlari ilk={mesajlasmaAyarlariDto(ctx)} yonetici={yonetici} />
 
         {yonetici && <WhatsappApiAyarlari ilk={baglantiDurumu(ctx)} ilkSablonlar={sablonlar(ctx)} />}
 

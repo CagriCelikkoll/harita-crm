@@ -2,6 +2,10 @@
 // - Text Search istek başına en fazla 20, toplam en fazla 60 sonuç (3 sayfa) döndürür.
 // - Konum yalnızca istenirse döner.
 // Sahte işletmeler sabit bir enlem/boylam ızgarasına deterministik olarak yerleştirilir.
+// Telefonlar YALNIZCA 0500 000 xx xx biçimindedir (0500 öneki hiçbir operatöre ayrılmamıştır; gerçek bir aboneye
+// denk gelemez). Elle girilen demo numaralarıyla (0500 000 00 xx) çakışmasın diye 0500 000 10 00–99 99 aralığı
+// kullanılır. Sabit hat davranışı gereken testler mockPlaces.sabitHatlar ile o yerler için "0 (212) 000 xx xx"
+// (yerel numara 0 ile başlamaz; gerçek abone olamaz) ister.
 import { cagriBirimi, type IstemciSecenekleri } from "./istemci";
 import { kotaKontrol, type LatLng, type MetinAramaIstegi, type PlacesIstemcisi, type YerBilgisi } from "./tipler";
 
@@ -45,6 +49,9 @@ const TUR_ADI: Record<string, string> = {
   accounting: "Mali Müşavirlik",
   gym: "Spor Merkezi",
 };
+/** Testler: bu place_id'ler cep yerine (gerçek olamayan) sabit hat döndürür. */
+export const mockPlaces = { sabitHatlar: new Set<string>() };
+
 const ISIMLER = ["Yıldız", "Deniz", "Güneş", "Mavi", "Ege", "Anadolu", "Çınar", "Lale", "Pera", "Kordon", "Liman", "Bora"];
 
 export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = {}): PlacesIstemcisi {
@@ -106,14 +113,14 @@ export function mockPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri = 
 function mockTemelBilgi(placeId: string, c: { tur: string; i: number; j: number }): YerBilgisi {
   const konum = noktaKonumu(c.tur, c.i, c.j);
   const n = Math.floor(ozet("no", placeId) * 900) + 100;
-  const tel = String(Math.floor(ozet("tel", placeId) * 1e7)).padStart(7, "0");
+  const son4 = String(1000 + Math.floor(ozet("tel", placeId) * 9000)); // 1000–9999
+  const tel = `000${son4}`;
   const isim = ISIMLER[Math.floor(ozet("ad", placeId) * ISIMLER.length)];
-  const alan = ozet("cep", placeId) < 0.5 ? "532" : "216";
+  const alan = mockPlaces.sabitHatlar.has(placeId) ? "212" : "500";
   return {
     id: placeId,
     ad: `${isim} ${TUR_ADI[c.tur] ?? "İşletme"} ${n}`,
     adres: `Örnek Mah. ${n % 90}. Sk. No:${(n % 40) + 1}, Kadıköy/İstanbul (örnek veri)`,
-    // Yaklaşık yarısı cep telefonu (SMS/WhatsApp akışlarını denemek için).
     telefon: `0 (${alan}) ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
     telefonUluslararasi: `+90 ${alan} ${tel.slice(0, 3)} ${tel.slice(3, 5)} ${tel.slice(5)}`,
     webSitesi: ozet("web", placeId) < 0.5 ? `https://ornek-${n}.example.com` : undefined,

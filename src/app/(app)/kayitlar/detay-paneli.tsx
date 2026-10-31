@@ -6,6 +6,7 @@
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
 import { GoogleAtfi } from "@/components/google-atfi";
+import { RetDugmesi } from "@/components/ret-onayi";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
 import {
@@ -93,7 +94,11 @@ export function DetayPaneli(props: {
     return true;
   }
 
-  const guncelle = (alan: string, degisiklik: Partial<KayitDto> & { aliciTuruAciklamasi?: string }, tamamMetni?: string) =>
+  const guncelle = (
+    alan: string,
+    degisiklik: Partial<KayitDto> & { aliciTuruAciklamasi?: string; retOnayi?: true },
+    tamamMetni?: string,
+  ) =>
     islem(
       alan,
       async () => {
@@ -132,16 +137,15 @@ export function DetayPaneli(props: {
   const yer = canli?.durum === "tamam" ? canli.yer : null;
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
   const surum = `${kayit.id}-${kayit.guncellemeTarihi}`; // formlar kayıt değişince yeniden oluşsun
+  const baslik = google
+    ? (yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı")
+    : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)");
 
   return (
     <aside className="kart flex flex-col gap-4 xl:sticky xl:top-5" aria-label="Kayıt detayı" id="kayit-detayi">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">
-            {google
-              ? (yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı")
-              : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)")}
-          </h2>
+          <h2 className="text-lg font-semibold">{baslik}</h2>
           {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[kayit.kaynak]}</span>}
           {yer?.adres && <p className="text-sm text-soluk">{yer.adres}</p>}
         </div>
@@ -267,6 +271,7 @@ export function DetayPaneli(props: {
       <WhatsappIzinBolumu
         key={`wa-izin-${surum}-${veri.whatsapp.izin}`}
         id={kayit.id}
+        ad={baslik}
         whatsapp={veri.whatsapp}
         bireysel={kayit.aliciTuru === "bireysel"}
         onDegisti={yenile}
@@ -304,9 +309,12 @@ export function DetayPaneli(props: {
             <strong className={kayit.iletiIzni === "ret" ? "text-tehlike" : ""}>{ILETI_IZNI_ADLARI[kayit.iletiIzni]}</strong>
           </span>
           {kayit.iletiIzni !== "ret" && (
-            <button type="button" className="dugme-tehlike" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "ret" })}>
-              İleti reddi işaretle
-            </button>
+            <RetDugmesi
+              ad={baslik}
+              etiket="İleti reddi işaretle"
+              disabled={mesgul}
+              onOnay={() => void guncelle("izin", { iletiIzni: "ret", retOnayi: true })}
+            />
           )}
           {kayit.iletiIzni === "bekliyor" && (
             <button type="button" className="dugme" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "onayli" })}>
@@ -616,6 +624,8 @@ function WhatsappButonu({ id, onGonderildi }: { id: string; onGonderildi: () => 
 /** WhatsApp (Cloud API) izni ve kanıtı. 'ret' geri alınamaz. */
 function WhatsappIzinBolumu(props: {
   id: string;
+  /** Ret onay penceresinde gösterilen kayıt adı. */
+  ad: string;
   whatsapp: WhatsappKisiDto;
   bireysel: boolean;
   onDegisti: () => Promise<void>;
@@ -717,22 +727,7 @@ function WhatsappIzinBolumu(props: {
             <button type="button" className="dugme" onClick={() => setDuzenle(false)}>
               Vazgeç
             </button>
-            <button
-              type="button"
-              className="dugme-tehlike"
-              disabled={mesgul}
-              onClick={() => {
-                if (
-                  confirm(
-                    "Kişi WhatsApp mesajı almak istemiyor olarak işaretlenecek. Bu geri alınamaz ve tüm kanallarda ret sayılır.",
-                  )
-                ) {
-                  void kaydet({ izin: "ret" });
-                }
-              }}
-            >
-              Ret istedi
-            </button>
+            <RetDugmesi ad={props.ad} etiket="Ret istedi" disabled={mesgul} onOnay={() => void kaydet({ izin: "ret", retOnayi: true })} />
           </div>
         </form>
       )}

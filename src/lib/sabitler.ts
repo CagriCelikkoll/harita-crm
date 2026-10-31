@@ -93,3 +93,5 @@ export const VARSAYILAN_AYLIK_PLACES_KOTASI = 6000;
 /** Kullanım bu orana ulaşınca uyarı gösterilir. */
 export const KOTA_UYARI_ORANI = 0.8;
 export const KOTA_DOLDU_MESAJI = "Bu ayki veri kotanız doldu.";
+/** Kota ve günlük sınırlar arayüzden değiştirilmez; komutlar yalnızca README'de (arayüzde komut gösterilmez). */
+export const SINIR_ARTIRMA_METNI = "Kotanızı veya sınırlarınızı artırmak için yöneticinizle/destekle iletişime geçin.";

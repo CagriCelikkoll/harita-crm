@@ -19,7 +19,7 @@ import {
   type SatirSorunu,
   type SutunEslemi,
 } from "@/lib/ice-aktarma";
-import type { AliciTuru, WhatsappIzinKaynagi } from "@/lib/mesajlasma";
+import { RET_ONAYI_GEREKLI, type AliciTuru, type WhatsappIzinKaynagi } from "@/lib/mesajlasma";
 import { adresOzeti } from "../messaging/adres";
 import type { TenantContext } from "../repo/baglam";
 import { engelliOzetler, retIsle } from "../repo/engel-listesi";
@@ -40,7 +40,7 @@ const RAPOR_AZAMI_SORUN = 200;
 export class IceAktarmaHatasi extends Error {
   constructor(
     mesaj: string,
-    readonly kod: "dosya" | "bulunamadi" | "beyan" | "eslem" = "dosya",
+    readonly kod: "dosya" | "bulunamadi" | "beyan" | "ret" | "eslem" = "dosya",
   ) {
     super(mesaj);
     this.name = "IceAktarmaHatasi";
@@ -138,7 +138,11 @@ export async function iceAktarmaBaslat(ctx: TenantContext, dosyaAdi: string, bay
 
 export type IceAktarmaSecenekleri = {
   cakisma: CakismaPolitikasi;
-  varsayilanAliciTuru: AliciTuru;
+  /**
+   * Alıcı türü sütunu eşlenmemişse ya da hücre boşsa kullanılacak tür. Varsayılan yoktur: sütun eşlenmemişse
+   * kullanıcı tüm dosya için seçmek zorundadır (null ise içe aktarma reddedilir); sütun eşliyse boş hücre hatalı satırdır.
+   */
+  varsayilanAliciTuru: AliciTuru | null;
   /** İzin sütununda 'var' olup kaynak sütunu boş/eşlenmemiş satırlar için. */
   varsayilanIzinKaynagi: WhatsappIzinKaynagi | null;
   /** Bireysel kişilerin izinleri İYS'ye kaydedildi beyanı. */
@@ -169,7 +173,7 @@ const IZIN_KAYNAKLARI: Record<string, WhatsappIzinKaynagi> = {
   reklam: "reklam",
 };
 
-function aliciTuruCoz(metin: string, varsayilan: AliciTuru): AliciTuru | null {
+function aliciTuruCoz(metin: string, varsayilan: AliciTuru | null): AliciTuru | null {
   const s = basligiSadelestir(metin);
   if (!s) return varsayilan;
   if (/bireysel|sahis|kisi|birey|tuketici|musteri/.test(s)) return "bireysel";
@@ -219,7 +223,9 @@ function satirDogrula(
   if (not.length > 5000) return sorun("Not çok uzun (en fazla 5000)");
 
   const aliciTuru = aliciTuruCoz(d("aliciTuru"), s.varsayilanAliciTuru);
-  if (!aliciTuru) return sorun("Alıcı türü anlaşılamadı (bireysel / kurumsal)");
+  if (!aliciTuru) {
+    return sorun(d("aliciTuru") ? "Alıcı türü anlaşılamadı (bireysel / kurumsal)" : "Alıcı türü boş (bireysel / kurumsal)");
+  }
 
   const etiketler = [
     ...new Set(
@@ -279,7 +285,7 @@ export type IceAktarmaRaporu = {
   beyanGerekli: boolean;
 };
 
-function eslemDogrula(eslem: SutunEslemi, genislik: number) {
+function eslemDogrula(eslem: SutunEslemi, genislik: number, s: IceAktarmaSecenekleri) {
   const kullanilan = new Set<number>();
   for (const [alan, sutun] of Object.entries(eslem)) {
     if (!ICE_AKTARMA_ALANLARI.includes(alan as IceAktarmaAlani)) throw new IceAktarmaHatasi("Bilinmeyen alan.", "eslem");
@@ -289,6 +295,12 @@ function eslemDogrula(eslem: SutunEslemi, genislik: number) {
   }
   if (eslem.telefon === undefined && eslem.eposta === undefined) {
     throw new IceAktarmaHatasi("Telefon ya da e-posta sütunu eşlenmeli.", "eslem");
+  }
+  if (eslem.aliciTuru === undefined && !s.varsayilanAliciTuru) {
+    throw new IceAktarmaHatasi(
+      "Dosyada alıcı türü sütunu yok: tüm kişiler için Tacir/esnaf (işletme) ya da Bireysel (kişi) seçin.",
+      "eslem",
+    );
   }
 }
 
@@ -300,7 +312,7 @@ function planla(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarm
     throw new IceAktarmaHatasi("İçe aktarma oturumu bulunamadı ya da süresi doldu; dosyayı yeniden yükleyin.", "bulunamadi");
   }
   const [baslik, ...veri] = oturum.satirlar;
-  eslemDogrula(eslem, baslik.length);
+  eslemDogrula(eslem, baslik.length, s);
 
   const sorunlar: SatirSorunu[] = [];
   const gecerliler: GecerliSatir[] = [];
@@ -374,7 +386,8 @@ export function iceAktarmaOnizle(ctx: TenantContext, id: string, eslem: SutunEsl
 
 /**
  * Uygular. İzinli satır varsa beyan onayı zorunludur (sunucu tarafında; istemci atlayamaz).
- * Dosyada 'ret' işaretli kişiler eklenir/eşleşir ve ret akışından geçer (engel listesi, ileti izni 'ret').
+ * Dosyada 'ret' işaretli kişiler eklenir/eşleşir ve ret akışından geçer (engel listesi, ileti izni 'ret'); ret geri
+ * alınamaz, bu yüzden böyle satır varsa retOnayi zorunludur.
  */
 export function iceAktarmaTamamla(
   ctx: TenantContext,
@@ -382,11 +395,13 @@ export function iceAktarmaTamamla(
   eslem: SutunEslemi,
   s: IceAktarmaSecenekleri,
   beyanOnayi: boolean,
+  retOnayi = false,
 ) {
   const { plan, rapor, retler } = planla(ctx, id, eslem, s, new Date());
   if (rapor.beyanGerekli && !beyanOnayi) {
     throw new IceAktarmaHatasi("İzinli kişileri içe aktarmak için beyanı onaylamalısınız.", "beyan");
   }
+  if (retler.length && !retOnayi) throw new IceAktarmaHatasi(RET_ONAYI_GEREKLI, "ret");
   plan.beyanOnaylandi = rapor.beyanGerekli && beyanOnayi;
   const sonuc = iceAktarmaUygula(ctx, id, plan);
   if (!sonuc) throw new IceAktarmaHatasi("Bu içe aktarma zaten tamamlanmış ya da iptal edilmiş.", "bulunamadi");
