@@ -38,8 +38,8 @@ export function KotaCubugu({ durum, aciklama = true }: { durum: KotaDurumu; acik
       ) : (
         aciklama && (
           <p className="mt-1.5 text-xs text-soluk">
-            Tarama, kayıt listesi ve detay görüntülemeleri kota birimi kullanır. Kota her ayın başında (İstanbul saati)
-            sıfırlanır.
+            Tarama, istenince gösterilen Google bilgileri ve kayıt detayı kota birimi kullanır; kayıt listesi
+            kendiliğinden birim harcamaz. Kota her ayın başında (İstanbul saati) sıfırlanır.
           </p>
         )
       )}

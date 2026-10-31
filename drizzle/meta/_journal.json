@@ -92,6 +92,13 @@
       "when": 1793392209325,
       "tag": "0012_tarama_merkez_tarihi",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793451549954,
+      "tag": "0013_lead_inceleme",
+      "breakpoints": true
     }
   ]
 }

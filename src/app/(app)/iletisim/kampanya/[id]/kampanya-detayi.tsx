@@ -2,6 +2,7 @@
 // Kampanya detayı: ilerleme, nedenlere göre döküm, alıcı bazında durum. Kampanya sürerken 10 sn'de bir yenilenir.
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { GoogleBilgisiHucresi, useGoogleBilgisi } from "@/components/google-bilgisi";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
@@ -15,6 +16,7 @@ import {
   MESAJ_DURUMLARI,
   type MesajDurumu,
 } from "@/lib/mesajlasma";
+import { GOOGLE_ADSIZ } from "@/lib/sabitler";
 import type { KampanyaDto, MesajDto } from "@/server/servisler/kampanya-dto";
 
 type Veri = { kampanya: KampanyaDto; mesajlar: MesajDto[]; toplam: number; sayfa: number; sayfaSayisi: number };
@@ -52,6 +54,7 @@ const ROZET: Record<MesajDurumu, string> = {
 
 export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
   const [veri, setVeri] = useState(ilk);
+  const google = useGoogleBilgisi();
   const [filtre, setFiltre] = useState<MesajDurumu | "">("");
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
@@ -240,9 +243,24 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
                 {veri.mesajlar.map((m) => (
                   <tr key={m.id} className="border-b border-kenar align-top last:border-0">
                     <td className="py-2 pr-3">
-                      <Link href={`/kayitlar?secili=${m.leadId}`} className="text-ana underline">
-                        {m.isletmeAdi || "İşletme adı girilmemiş"}
+                      <Link
+                        href={`/kayitlar?secili=${m.leadId}`}
+                        className={m.isletmeAdi || m.kaynak !== "google" ? "text-ana underline" : "text-soluk italic underline"}
+                      >
+                        {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
                       </Link>
+                      {/* Google adı yalnızca istenince (3 birim) ve yalnızca bellekte; mesaja yazılmaz. */}
+                      {!m.isletmeAdi && m.kaynak === "google" && (
+                        <span className="block">
+                          <GoogleBilgisiHucresi
+                            id={m.leadId}
+                            alan="ad"
+                            bilgi={google.bilgi.get(m.leadId)}
+                            yukleniyor={google.yukleniyor.has(m.leadId)}
+                            onGoster={google.goster}
+                          />
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 pr-3">
                       <span className={`rozet ${ROZET[m.durum]}`}>{MESAJ_DURUM_ADLARI[m.durum]}</span>

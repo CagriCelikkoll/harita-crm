@@ -38,7 +38,7 @@ export const PLACES_ISLEMLERI: { islem: string; sku: PlacesSku }[] = [
   { islem: "Bölge taraması, dairenin içindeki alanlar (sayfa başına)", sku: "textSearchIdsOnly" },
   { islem: "Bölge taraması, dairenin sınırındaki alanlar (sayfa başına)", sku: "textSearchPro" },
   { islem: "Adresle merkez arama", sku: "textSearchPro" },
-  { islem: "Kayıt listesinde bir satır (ad + adres)", sku: "placeDetailsPro" },
+  { islem: "Kayıt listesinde / incelemede istenince gösterilen bir satır (ad + adres)", sku: "placeDetailsPro" },
   { islem: "Kayıt detayı (telefon, web sitesi, puan)", sku: "placeDetailsEnterprise" },
   { islem: "SMS / WhatsApp: kayıtta telefon yoksa gönderim anında telefon", sku: "placeDetailsEnterprise" },
 ];

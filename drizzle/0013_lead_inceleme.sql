@@ -1,0 +1,1 @@
+ALTER TABLE `leads` ADD `inceleme` text DEFAULT 'ilgileniyor' NOT NULL;

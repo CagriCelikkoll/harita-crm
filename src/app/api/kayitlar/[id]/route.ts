@@ -8,6 +8,7 @@ import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/ap
 import { apiBaglami } from "@/server/oturum";
 import { KayitKuraliHatasi } from "@/server/repo/baglam";
 import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
+import { kotaDurumu } from "@/server/repo/kullanim";
 import { olaylariListele } from "@/server/repo/olaylar";
 import { canliBilgiGetir, type CanliSonuc } from "@/server/servisler/canli-bilgi";
 import { kayitDto, olayDto, whatsappKisiDto } from "@/server/servisler/kayit-dto";
@@ -16,7 +17,9 @@ import { whatsappKisisiGetir } from "@/server/repo/whatsapp-kisileri";
 const BASLIK = { "Cache-Control": "no-store" };
 
 /**
- * ?canli=1 → işletme bilgisi Places'tan canlı (Place Details Enterprise, tek çağrı) çekilir.
+ * ?canli=oto → detay paneli açılışı: işletme bilgisi Places'tan canlı çekilir (Place Details Enterprise, tek çağrı);
+ *   kayıt "ilgilenmiyor" işaretliyse ya da aylık kota %80'i geçtiyse çekilmez (canliAtlandi), panel düğme gösterir.
+ * ?canli=1 → kullanıcı "Google bilgilerini göster" dedi: koşulsuz çekilir (kota kapısı yine geçerli).
  * Parametresiz → yalnızca kullanıcı verisi ve olaylar (Places çağrısı yok; işlemlerden sonra kullanılır).
  */
 export async function GET(istek: Request, { params }: RouteContext<"/api/kayitlar/[id]">) {
@@ -25,8 +28,14 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
   const kayit = kayitGetir(ctx, (await params).id);
   if (!kayit) return bulunamadi();
   let canli: CanliSonuc | undefined;
+  let canliAtlandi: "ilgilenmiyor" | "kota" | undefined;
+  const istenen = new URL(istek.url).searchParams.get("canli");
   // Google dışı kayıtta (place_id yok) Places çağrısı yapılmaz.
-  if (kayit.placeId && new URL(istek.url).searchParams.get("canli") === "1") {
+  if (kayit.placeId && istenen === "oto") {
+    const kota = kotaDurumu(ctx);
+    canliAtlandi = kayit.inceleme === "ilgilenmiyor" ? "ilgilenmiyor" : kota.uyari || kota.doldu ? "kota" : undefined;
+  }
+  if (kayit.placeId && (istenen === "1" || (istenen === "oto" && !canliAtlandi))) {
     canli = (await canliBilgiGetir(ctx, [kayit.placeId], "detay")).get(kayit.placeId);
   }
   return NextResponse.json(
@@ -35,6 +44,7 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
       whatsapp: whatsappKisiDto(whatsappKisisiGetir(ctx, kayit.id)),
       olaylar: olaylariListele(ctx, kayit.id).map(olayDto),
       canli,
+      canliAtlandi,
     },
     { headers: BASLIK },
   );

@@ -3,6 +3,7 @@
 //
 // Kurallar (sırayla):
 //  1. ileti_izni = 'ret'                         → hariç ("ret")
+//     (tüm kanallarda, ret'ten hemen sonra) inceleme = 'ilgilenmiyor' → hariç ("ilgilenmiyor")
 //  2. alici_turu = 'bireysel' ve izin 'onayli' değil → hariç ("bireysel_izinsiz")
 //  3. Adres: e-posta yalnızca kaydın eposta alanı; telefon önce ek_telefon, yoksa gönderim anında canlı
 //     Places detayı (çağıran çözer ve placesTelefonu ile tekrar sorar; yalnızca place_id olan Google kayıtları).
@@ -31,6 +32,8 @@ export type AliciWhatsappBilgisi = {
   bsuid: string | null;
 };
 export type AliciKaydi = Pick<Kayit, "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "placeId"> & {
+  /** Tarama sonucunun incelenmesi; verilmezse "ilgileniyor" sayılır. */
+  inceleme?: Kayit["inceleme"];
   /** Yalnızca "whatsapp_api" kanalında kullanılır. */
   whatsapp?: AliciWhatsappBilgisi | null;
 };
@@ -56,6 +59,7 @@ export function aliciDegerlendir(
   secenek: { placesTelefonu?: string | null; simdi?: Date } = {},
 ): AliciKarari {
   if (kayit.iletiIzni === "ret") return { uygun: false, neden: "ret" };
+  if (kayit.inceleme === "ilgilenmiyor") return { uygun: false, neden: "ilgilenmiyor" };
   if (kanal === "whatsapp_api") return whatsappApiDegerlendir(kayit, engelli, secenek.simdi ?? new Date());
   if (kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli") return { uygun: false, neden: "bireysel_izinsiz" };
 

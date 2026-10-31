@@ -12,6 +12,7 @@ export type KayitDto = {
   iletiIzni: Kayit["iletiIzni"];
   isletmeAdi: string | null;
   aliciTuru: Kayit["aliciTuru"];
+  inceleme: Kayit["inceleme"];
   yetkiliAdi: string | null;
   eposta: string | null;
   ekTelefon: string | null;
@@ -38,6 +39,7 @@ export const kayitDto = (k: Kayit): KayitDto => ({
   iletiIzni: k.iletiIzni,
   isletmeAdi: k.isletmeAdi,
   aliciTuru: k.aliciTuru,
+  inceleme: k.inceleme,
   yetkiliAdi: k.yetkiliAdi,
   eposta: k.eposta,
   ekTelefon: k.ekTelefon,

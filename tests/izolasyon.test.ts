@@ -245,6 +245,15 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
     expect(kayitlar.telefonlaKayitlar(A, ["905334445566"])).toEqual([]);
     expect(kayitlar.telefonlaKayitlar(B, ["905334445566"]).map((k) => k.id)).toEqual([bKisi.id]);
   },
+  incelemeAyarla: () => {
+    expect(kayitlar.incelemeAyarla(A, [bKayit.id, bKisi.id], "ilgilenmiyor")).toBe(0);
+    expect(kayitlar.kayitGetir(B, bKayit.id)).toEqual(bKayit);
+    expect(kayitlar.kayitGetir(B, bKisi.id)).toEqual(bKisi);
+  },
+  incelenmemisSayilari: () => {
+    expect(kayitlar.incelenmemisSayilari(A, [bTarama.id]).size).toBe(0);
+    expect(kayitlar.incelenmemisSayilari(B, [bTarama.id]).get(bTarama.id)).toBe(2);
+  },
 };
 
 const olayTestleri: Record<keyof typeof olaylar, () => void> = {

@@ -98,7 +98,7 @@ async function calistir() {
   });
 
   // Sınırlar elle denenebilsin diye düşük: günde en fazla 5 e-posta ve 5 SMS (fazlası ertesi güne kalır). Places
-  // kotası 1.000 birim (kayıt listesi ve detay da birim harcar); doldurmak için: npm run demo:kota -- 0.
+  // kotası 1.000 birim (istenince gösterilen Google bilgileri ve detay birim harcar); doldurmak için: npm run demo:kota -- 0.
   // Gerçek varsayılanlar: 6.000 birim, 300 e-posta, 200 SMS.
   db.update(tenants).set({ aylikPlacesKotasi: 1000 }).where(eq(tenants.id, ctx.tenantId)).run();
   db.update(iletiAyarlari).set({ gunlukEpostaSiniri: 5, gunlukSmsSiniri: 5 }).where(eq(iletiAyarlari.tenantId, ctx.tenantId)).run();

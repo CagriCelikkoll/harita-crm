@@ -2,6 +2,7 @@
 // Yeni kampanya: kanal, alıcı grubu, {isletme} yer tutuculu şablon ve canlı önizleme → özet → başlat / zamanla.
 // WhatsApp (API): onaylı şablon + değişken eşleme; özet şablonun ilk üç alıcı için metnini, test modunu, Meta
 // limitinin payını ve tahmini Meta ücretini gösterir. Alıcı kuralları sunucuda uygulanır.
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
@@ -348,8 +349,14 @@ export function YeniKampanya(props: {
           {ozet.whatsapp && <WhatsappOzetKutusu ozet={ozet} />}
           {ozet.isletmeAdiEksik > 0 && !ozet.whatsapp && (
             <p className="text-sm">
-              İşletme adı girilmemiş: <strong className="tabular-nums">{sayiYaz(ozet.isletmeAdiEksik)}</strong> kayıt{" "}
-              <span className="text-soluk">({bosHitap ? `"${bosHitap}" hitabı kullanılacak` : "{isletme} kaldırılacak"})</span>
+              Kendi kaydınızda işletme adı yok: <strong className="tabular-nums">{sayiYaz(ozet.isletmeAdiEksik)}</strong> kayıt{" "}
+              <span className="text-soluk">
+                (Google&apos;dan gelen ad mesajlara yazılmaz;{" "}
+                {bosHitap ? `{isletme} yerine "${bosHitap}" hitabı kullanılacak` : "{isletme} kaldırılacak"}).
+              </span>{" "}
+              <Link href="/kayitlar?ad=bos" className="text-ana underline">
+                Adı boş olan Google kayıtlarını aç
+              </Link>
             </p>
           )}
           {ozet.onizleme && !ozet.whatsapp && (

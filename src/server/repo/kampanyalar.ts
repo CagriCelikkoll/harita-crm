@@ -11,7 +11,7 @@ export type { Kampanya, KampanyaFiltresi };
 
 export type KampanyaAdayi = Pick<
   Kayit,
-  "id" | "placeId" | "durum" | "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "isletmeAdi" | "yetkiliAdi" | "telefonE164"
+  "id" | "placeId" | "durum" | "iletiIzni" | "aliciTuru" | "eposta" | "ekTelefon" | "isletmeAdi" | "yetkiliAdi" | "telefonE164" | "inceleme"
 >;
 
 function adayKosulu(ctx: TenantContext, f: KampanyaFiltresi): SQL {
@@ -38,6 +38,7 @@ export function kampanyaAdaylari(ctx: TenantContext, f: KampanyaFiltresi): Kampa
       isletmeAdi: leads.isletmeAdi,
       yetkiliAdi: leads.yetkiliAdi,
       telefonE164: leads.telefonE164,
+      inceleme: leads.inceleme,
     })
     .from(leads)
     .where(adayKosulu(ctx, f))
@@ -179,6 +180,8 @@ export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: n
       id: messageQueue.id,
       leadId: messageQueue.leadId,
       isletmeAdi: leads.isletmeAdi,
+      yetkiliAdi: leads.yetkiliAdi,
+      kaynak: leads.kaynak,
       durum: messageQueue.durum,
       neden: messageQueue.neden,
       hata: messageQueue.hata,

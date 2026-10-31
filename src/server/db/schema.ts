@@ -19,6 +19,7 @@ import {
 import { user } from "./auth-schema";
 import {
   ILETI_IZINLERI,
+  INCELEME_DURUMLARI,
   KAYIT_DURUMLARI,
   KAYIT_KAYNAKLARI,
   MERKEZ_KAYNAKLARI,
@@ -158,6 +159,9 @@ export const leads = sqliteTable(
     // Kampanya mesajlarındaki {isletme}: kullanıcının girdiği ad (Places'tan gelen ad buraya YAZILMAZ).
     isletmeAdi: text("isletme_adi"),
     aliciTuru: text("alici_turu", { enum: ALICI_TURLERI }).notNull().default("tacir_esnaf"),
+    // Tarama sonucunun incelenmesi (sabitler.ts INCELEME_DURUMLARI): tarama "incelenmedi" ekler; mevcut ve Google dışı
+    // kayıtlar "ilgileniyor". "ilgilenmiyor" kayıt silinmez, listede gizlenir ve kampanyalara girmez.
+    inceleme: text("inceleme", { enum: INCELEME_DURUMLARI }).notNull().default("ilgileniyor"),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
   },

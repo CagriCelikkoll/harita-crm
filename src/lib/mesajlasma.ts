@@ -16,6 +16,7 @@ export const HARIC_NEDENLERI = [
   "iletisim_yok",
   "bireysel_izinsiz",
   "cep_degil",
+  "ilgilenmiyor",
   // WhatsApp (Cloud API)
   "whatsapp_izni_yok",
   "iys_beyani_yok",
@@ -94,6 +95,7 @@ export const HARIC_NEDEN_ADLARI: Record<HaricNedeni, string> = {
   iletisim_yok: "İletişim bilgisi yok",
   bireysel_izinsiz: "Bireysel ve onay yok",
   cep_degil: "Cep telefonu değil",
+  ilgilenmiyor: "İlgilenilmiyor olarak işaretli",
   whatsapp_izni_yok: "WhatsApp izni yok",
   iys_beyani_yok: "Bireysel; İYS beyanı yok",
   whatsapp_yok: "Numarada WhatsApp yok",

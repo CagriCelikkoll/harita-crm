@@ -28,7 +28,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     // kullanıcının girdiği veriler:
     "yetkili_adi", "eposta", "ek_telefon", "notlar", "etiketler", "ileti_izni",
     // isletme_adi: kullanıcının elle girdiği ad (kampanyalardaki {isletme}); Places'tan gelen ad YAZILMAZ.
-    "isletme_adi", "alici_turu",
+    "isletme_adi", "alici_turu", "inceleme",
     "telefon_e164", // ek_telefon'un normalize hali (kullanıcı verisi); Places telefonu YAZILMAZ
     "olusturma_tarihi", "guncelleme_tarihi",
   ],

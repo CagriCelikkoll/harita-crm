@@ -56,3 +56,13 @@ export async function canliBilgiGetir(
 export async function adresiKonumaCevir(ctx: TenantContext, metin: string) {
   return placesIstemcisiOlustur({ kota: kotaKapisi(ctx) }).adresBul(metin);
 }
+
+/** Listede / incelemede / kampanya alıcılarında istenince gösterilen Google bilgisi (yalnızca ad ve adres). */
+export type ListeBilgisi = { ad: string; adres: string | null } | { hata: string };
+
+export function listeBilgisi(c: CanliSonuc | undefined): ListeBilgisi {
+  if (c?.durum === "tamam") return { ad: c.yer.ad, adres: c.yer.adres ?? null };
+  if (c?.durum === "kota") return { hata: "İşletme bilgisi gösterilemiyor (kota doldu)" };
+  if (c?.durum === "bulunamadi") return { hata: "Google'da artık bulunmuyor" };
+  return { hata: "Bilgi alınamadı" };
+}

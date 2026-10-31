@@ -23,6 +23,12 @@ export const OLAY_TURLERI = [
  */
 export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam"] as const;
 export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
+/**
+ * Tarama sonucunun incelenmesi: yeni Google kayıtları "incelenmedi" gelir; kullanıcı "İlgilen" / "İlgilenme" der.
+ * "ilgilenmiyor" kayıtlar silinmez (sonraki taramada geri gelmesin), listede varsayılan olarak gizlenir ve hiçbir
+ * kampanyaya / WhatsApp listesine girmez. Google dışı ve eski kayıtlar "ilgileniyor" sayılır.
+ */
+export const INCELEME_DURUMLARI = ["incelenmedi", "ilgileniyor", "ilgilenmiyor"] as const;
 
 export type Rol = (typeof ROLLER)[number];
 export type TaramaDurumu = (typeof TARAMA_DURUMLARI)[number];
@@ -31,6 +37,7 @@ export type IletiIzni = (typeof ILETI_IZINLERI)[number];
 export type OlayTuru = (typeof OLAY_TURLERI)[number];
 export type MerkezKaynagi = (typeof MERKEZ_KAYNAKLARI)[number];
 export type KayitKaynagi = (typeof KAYIT_KAYNAKLARI)[number];
+export type IncelemeDurumu = (typeof INCELEME_DURUMLARI)[number];
 
 export const ROL_ADLARI: Record<Rol, string> = { yonetici: "Yönetici", uye: "Üye" };
 
@@ -75,6 +82,17 @@ export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
   elle: "Elle eklendi",
   meta_reklam: "Meta reklamı",
 };
+
+export const INCELEME_ADLARI: Record<IncelemeDurumu, string> = {
+  incelenmedi: "İncelenmedi",
+  ilgileniyor: "İlgilenilen",
+  ilgilenmiyor: "İlgilenilmiyor",
+};
+
+/** Google kaydında kullanıcının kendi işletme adı yoksa listelerde gösterilen ad (Places adı saklanmaz). */
+export const GOOGLE_ADSIZ = "Google kaydı · ad girilmemiş";
+/** Ad girme alanının ipucu. Places içeriği kullanıcının kaydına aktarılmaz; alan hep boş gelir. */
+export const AD_GIRME_IPUCU = "İşletmeyle görüştüğünüzde adını buraya yazın";
 
 export const SAYFA_BOYUTU = 20;
 export const YARICAP_MIN_KM = 1;

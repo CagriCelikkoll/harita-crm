@@ -141,6 +141,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (3 birim) kota 75 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
 | `tests/yedek-saklama.test.ts` | Yedek saklama kuralı: 30 günden eskilerden yalnızca en son 10'u kalır, son 30 gündekilerin hepsi kalır, 10 ve altında hiçbiri silinmez; başka veritabanının yedekleri ve klasördeki diğer dosyalar silinmez; işçinin günlük bakımının günde bir çalışması; `npm run db:migrate`'in yedek alıp sonunda eski yedekleri silmesi. |
 | `tests/demo-ortami.test.ts` | `npm run demo:hazirla` yalnızca `data/demo.db`'yi kurar (aynı klasördeki başka veritabanı ve testin veritabanı bayt bayt aynı kalır), her çalıştırmada sıfırdan kurar; yazdırdığı giriş bilgileri Better Auth parola özetiyle eşleşir; kaynak / durum / izin çeşitliliği, ret ve engel listesi, test modunda WhatsApp bağlantısı ve şablonlar; elle girilen bütün adreslerin sahte biçimde olması. `docs/ornek-ice-aktarma.csv`'nin rehberde yazan önizleme sonucunu vermesi. |
+| `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 3 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
+| `tests/dogruluk-demo.test.ts` | Ret'in onaysız gönderilememesi (kayıt, WhatsApp izni, günlük liste); sahte Places'in yalnızca 0500 000 xx xx üretmesi; arayüzde npm komutu olmaması; alıcı türünün varsayılanı olmaması (Kişi ekle, içe aktarma). |
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
@@ -218,25 +220,41 @@ isteği" olarak görünür.
 **Liste ve detay neden ayrı:** Places bir isteği maskedeki en yüksek katmandan **tek** olay olarak faturalar.
 Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır Enterprise olurdu. Bu yüzden:
 
-- Liste yalnızca **ad + adres** ister. `displayName` Pro katmanında olduğundan en ucuz uygun katman **Place Details
-  Pro**'dur (yalnızca adres isteseydik Essentials olurdu, ama ad gerekli).
-- Telefon, web sitesi ve puan yalnızca **detay paneli açıldığında**, tek bir Enterprise çağrısıyla çekilir.
-- Detay paneli istemcide açılır; kayıt seçmek veya kayıt üzerinde işlem yapmak (durum, not, ret, e-posta) listeyi
-  **yeniden çekmez** ve Places'a gitmez. Liste yalnızca filtre/sayfa değiştiğinde çekilir.
-  (`tests/places-maske.test.ts` liste maskesine Enterprise alanı eklenmesini engeller.)
+- **Kayıt listesi Places'a kendiliğinden gitmez (0 birim).** Satırlarda yalnızca kullanıcının verisi görünür: kendi
+  girdiği işletme adı (yoksa "Google kaydı · ad girilmemiş"), durum, izinler, etiketler, son işlem, kaynak, inceleme.
+- Google adı ve adresi **istenince** gelir: satırda "Göster (3 birim)" ya da "Bu sayfadaki Google bilgilerini göster
+  (N × 3 = X birim)" — maliyet düğmede yazar. `POST /api/kayitlar/canli` (en fazla 20 kayıt, yalnızca kiracının
+  Google kayıtları, `no-store`). Yalnızca **ad + adres** istenir: `displayName` Pro katmanında olduğundan en ucuz
+  uygun katman **Place Details Pro**'dur. Gösterilen içerik yalnızca o sayfa görünümünün React belleğinde tutulur;
+  tarayıcı depolamasına ve sunucuya yazılmaz, sayfa/süzgeç değişince silinir (`components/google-bilgisi.tsx`).
+- Telefon, web sitesi ve puan **detay paneli açıldığında**, tek bir Enterprise çağrısıyla çekilir. İstisnalar: kayıt
+  "ilgilenmiyor" işaretliyse ya da aylık kota %80'i geçtiyse otomatik çağrı yapılmaz, panel "Google bilgilerini
+  göster (4 birim)" düğmesi gösterir; aynı sayfa görünümünde aynı kayıt yeniden açılınca bellekteki sonuç kullanılır.
+- **Tarama sonuçlarını inceleme** (`/tarama/inceleme`): taramayla gelen kayıtlar `leads.inceleme = 'incelenmedi'`
+  gelir. Kullanıcı sonuçları 20'şer görür (Google bilgisi yine "Göster" ile, maliyet önceden yazılarak) ve
+  "İlgilen" / "İlgilenme" der. "İlgilenme" kaydı silmez (sonraki taramada geri gelmesin); listede varsayılan olarak
+  gizler ve kayıt hiçbir kampanyaya / WhatsApp listesine girmez (alıcı kuralı "ilgilenmiyor").
+- Kayıt seçmek veya kayıt üzerinde işlem yapmak (durum, not, ret, e-posta) Places'a gitmez.
+  (`tests/places-maske.test.ts` liste maskesine Enterprise alanı eklenmesini engeller; `tests/liste-maliyeti.test.ts`
+  listenin Places'a gitmediğini ve istenince doğru birimin düştüğünü doğrular.)
 
-**Tahmini aylık maliyet** — varsayım: ayda **1.000 liste sayfası** + **300 detay görüntüleme** (tek çalışma alanı,
-ücretsiz kotalar Google faturalandırma hesabı başına ve SKU başına aylıktır):
+**Tahmini aylık tüketim** — varsayım: ayda **1.000 liste sayfası görüntüleme** + **300 detay açılışı** (tek çalışma
+alanı); yeni akış için ek varsayım: kullanıcı liste sayfalarının **%20**'sinde Google bilgilerini ister, ayda
+**20 tarama × 40 sonuç** incelenir.
 
-| Kalem | İstek | Ücretsiz | Ücretli | Tutar |
-| --- | --- | --- | --- | --- |
-| Liste: 1.000 sayfa × 20 satır, Place Details Pro | 20.000 | 5.000 | 15.000 × $17/1000 | **$255** |
-| Detay: 300 görüntüleme, Place Details Enterprise | 300 | 1.000 | 0 | **$0** |
-| **Toplam** | | | | **≈ $255/ay** |
+| Kalem | Önce (birim) | Sonra (birim) |
+| --- | --- | --- |
+| Liste görüntüleme | 1.000 × 20 × 3 = 60.000 | 0 |
+| İstenince gösterilen liste sayfaları | — | 200 × 20 × 3 = 12.000 |
+| Tarama sonuçlarını inceleme | — | 20 × 40 × 3 = 2.400 |
+| Detay paneli (Enterprise) | 300 × 4 = 1.200 | 1.200 |
+| **Toplam** | **61.200** | **15.600 (≈ %75 az)** |
+
+Kullanıcılar sayfaların %30'unda bilgi isterse toplam 21.600 birim olur (≈ %65 az). Dolar karşılığı: önce ≈ 20.000
+Place Details Pro isteği (5.000'i ücretsiz) ≈ **$255/ay**; sonra ≈ 5.000 Pro isteği (ücretsiz kota içinde) ≈ **$0** +
+taramalar.
 
 - Detay kotayı aşarsa (ayda 1.000'den fazla görüntüleme) her biri ~$0,02 ekler.
-- Karşılaştırma: önceki tasarım (listede telefon, Enterprise; her detay açılışında listenin yeniden çekilmesi) aynı
-  varsayımla ≈ 26.300 Enterprise isteği ≈ **$506/ay** ederdi.
 - **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
   (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
 - Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
@@ -255,12 +273,12 @@ yuvarlanır; ücretsiz SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki 
 | --- | --- | --- | --- |
 | Tarama, dairenin içi | Text Search Essentials (IDs Only) | 0 | 0 |
 | Tarama, dairenin sınırı; adres araması | Text Search Pro | 32 | 6 |
-| Kayıt listesi satırı (ad + adres) | Place Details Pro | 17 | 3 |
+| Kayıt listesinde / incelemede istenince gösterilen satır (ad + adres) | Place Details Pro | 17 | 3 |
 | Kayıt detayı (telefon, web, puan) | Place Details Enterprise | 20 | 4 |
 
 Ücretsiz istekler kotadan düşmez (kota doluyken de yapılabilir) ama `SCAN_MAX_REQUESTS` tarama sınırına sayılmaya
-devam eder. Yukarıdaki maliyet varsayımı (1.000 liste sayfası + 300 detay) ≈ 60.000 + 1.200 = **61.200 birim/ay**
-eder; varsayılan 6.000 birim bunun yaklaşık onda biridir (≈ 100 liste sayfası).
+devam eder. Yukarıdaki varsayımla tüketim ≈ **15.600 birim/ay** (önceki tasarımda 61.200); varsayılan 6.000 birim
+bunun yaklaşık %40'ıdır (≈ 100 "bu sayfanın Google bilgilerini göster" isteği).
 
 - **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **6.000 birim**) başlar.
   Birime geçiş migration'ı (`0003_places_birim_kotasi`) mevcut kotaları ve sayaçları 3 ile çarptı (liste satırı 3
@@ -864,7 +882,17 @@ tests/                           Vitest
 
 ## Alınan kararlar
 
-- **Liste maliyeti:** Telefon ve web sitesi listeden kaldırıldı; liste yalnızca ad + adres (Place Details Pro),
+- **Liste Places'a kendiliğinden gitmez:** liste yalnızca kullanıcının verisini gösterir; Google adı/adresi satır ya
+  da sayfa için, maliyeti önceden yazılarak istenince gelir ve yalnızca o sayfa görünümünün belleğinde tutulur.
+  Detay paneli açılışta Enterprise çağrısını yapar; "ilgilenmiyor" kayıtta ve kota %80+ iken yapmaz (düğme).
+- **Tarama sonuçlarının incelenmesi:** `leads.inceleme` (incelenmedi / ilgileniyor / ilgilenmiyor; migration 0013,
+  mevcut kayıtlar "ilgileniyor"). "İlgilenme" silmez; gizler ve gönderimlerden çıkarır.
+- **Google adı kullanıcının kaydına aktarılmaz:** ad girme alanı her zaman boş gelir; ipucu yalnızca "İşletmeyle
+  görüştüğünüzde adını buraya yazın". Alanın yanında Google'daki ad gösterilmez (incelemede "İlgilen" denince o
+  satırın Google bilgisi gizlenir); Places içeriğini kayda taşımayı kolaylaştıran ipucu, kopyala düğmesi, otomatik
+  doldurma ya da sürükle-bırak yoktur. Kampanya özeti ve alıcı listesi Google kayıtlarını "Google kaydı · ad
+  girilmemiş" olarak gösterir; ad istenince (3 birim) yalnızca ekranda görünür, mesaja yazılmaz.
+- **Liste maskesi:** Telefon ve web sitesi listeden kaldırıldı; listede istenen bilgi yalnızca ad + adres (Place Details Pro),
   detay paneli Enterprise alanlarını ayrı çağrıyla çeker. Ayrıntı ve maliyet yukarıda.
 - **Tarama merkezi:** İmzalı belirteç yerine, kaynağı ne olursa olsun tüm merkez koordinatları 30 gün sonra
   silinir; `merkez_kaynagi` bilgi amaçlı kalır. Süre `merkez_tarihi`'nden sayılır; aynı koordinatla açılan yeni

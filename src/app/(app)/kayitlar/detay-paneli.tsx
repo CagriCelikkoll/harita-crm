@@ -1,7 +1,10 @@
 "use client";
 // Kayıt detay paneli.
-// - Açılınca İŞLETME BİLGİSİ için tek bir Place Details Enterprise çağrısı yapılır (?canli=1); yalnızca Google
-//   kayıtlarında (içe aktarılan / elle eklenen kişide sunucu Places'a gitmez).
+// - Açılınca İŞLETME BİLGİSİ için tek bir Place Details Enterprise çağrısı yapılır (?canli=oto); yalnızca Google
+//   kayıtlarında (içe aktarılan / elle eklenen kişide sunucu Places'a gitmez). Kayıt "ilgilenmiyor" işaretliyse ya da
+//   aylık kota %80'i geçtiyse otomatik çağrı yapılmaz; "Google bilgilerini göster" düğmesi çıkar (?canli=1).
+// - Sonuç yalnızca bu sayfa görünümünün belleğinde tutulur (canliOnbellegi): aynı kayıt yeniden açılınca Places'a
+//   yeniden gidilmez; tarayıcı depolamasına yazılmaz.
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
@@ -9,6 +12,7 @@ import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
+import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
 import {
   ALICI_TURLERI,
   ALICI_TURU_ADLARI,
@@ -18,6 +22,8 @@ import {
   type AliciTuru,
 } from "@/lib/mesajlasma";
 import {
+  AD_GIRME_IPUCU,
+  GOOGLE_ADSIZ,
   ILETI_IZNI_ADLARI,
   KOTA_DOLDU_MESAJI,
   KAYIT_DURUM_ADLARI,
@@ -30,29 +36,39 @@ import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
 import type { KayitDto, OlayDto, WhatsappKisiDto } from "@/server/servisler/kayit-dto";
 import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
 
-type DetayVerisi = { kayit: KayitDto; whatsapp: WhatsappKisiDto; olaylar: OlayDto[]; canli?: CanliSonuc };
+type DetayVerisi = {
+  kayit: KayitDto;
+  whatsapp: WhatsappKisiDto;
+  olaylar: OlayDto[];
+  canli?: CanliSonuc;
+  canliAtlandi?: "ilgilenmiyor" | "kota";
+};
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 
 export function DetayPaneli(props: {
   id: string;
   kullaniciId: string;
+  /** Bu sayfa görünümünde daha önce çekilmiş Places detayları (yalnızca bellek). */
+  canliOnbellegi?: Map<string, CanliSonuc>;
   onKapat: () => void;
   onKayitDegisti: (k: KayitDto) => void;
   onSilindi: (id: string) => void;
 }) {
-  const { id, onKayitDegisti } = props;
+  const { id, onKayitDegisti, canliOnbellegi } = props;
   const [veri, setVeri] = useState<Omit<DetayVerisi, "canli"> | null>(null);
   const [canli, setCanli] = useState<CanliSonuc | null>(null);
+  const [canliAtlandi, setCanliAtlandi] = useState<DetayVerisi["canliAtlandi"]>(undefined);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [bulunamadi, setBulunamadi] = useState(false);
   const [mesaj, setMesaj] = useState<Mesaj>(null);
   const [mesgul, setMesgul] = useState(false);
 
-  // Açılış: kullanıcı verisi + canlı Places detayı (tek Enterprise çağrısı).
+  // Açılış: kullanıcı verisi + (bellekte yoksa) canlı Places detayı (tek Enterprise çağrısı, istisnalar sunucuda).
   // Panel üst bileşende key={id} ile oluşturulur; kayıt değişince durum zaten sıfırdan başlar.
   useEffect(() => {
     const iptal = new AbortController();
-    apiIstek<DetayVerisi>(`/api/kayitlar/${id}?canli=1`, { sinyal: iptal.signal })
+    const onceki = canliOnbellegi?.get(id);
+    apiIstek<DetayVerisi>(onceki ? `/api/kayitlar/${id}` : `/api/kayitlar/${id}?canli=oto`, { sinyal: iptal.signal })
       .then((s) => {
         if (!s.ok) {
           setBulunamadi(s.durum === 404);
@@ -60,14 +76,28 @@ export function DetayPaneli(props: {
           return;
         }
         setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar });
-        setCanli(s.veri.canli ?? null);
+        const c = onceki ?? s.veri.canli ?? null;
+        setCanli(c);
+        setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
+        if (c) canliOnbellegi?.set(id, c);
       })
       .catch(() => {})
       .finally(() => {
         if (!iptal.signal.aborted) setYukleniyor(false);
       });
     return () => iptal.abort();
-  }, [id]);
+  }, [id, canliOnbellegi]);
+
+  /** Kullanıcı istedi: koşulsuz canlı detay (Enterprise, 4 birim). */
+  async function googleBilgisiGetir() {
+    setMesgul(true);
+    const s = await apiIstek<DetayVerisi>(`/api/kayitlar/${id}?canli=1`);
+    setMesgul(false);
+    if (!s.ok) return setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
+    setCanli(s.veri.canli ?? null);
+    setCanliAtlandi(undefined);
+    if (s.veri.canli) canliOnbellegi?.set(id, s.veri.canli);
+  }
 
   /** İşlem sonrası: Places'a gitmeden kullanıcı verisini ve olayları yenile. */
   const yenile = useCallback(async () => {
@@ -138,7 +168,7 @@ export function DetayPaneli(props: {
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
   const surum = `${kayit.id}-${kayit.guncellemeTarihi}`; // formlar kayıt değişince yeniden oluşsun
   const baslik = google
-    ? (yer?.ad ?? kayit.isletmeAdi ?? "İşletme bilgisi alınamadı")
+    ? (kayit.isletmeAdi ?? yer?.ad ?? GOOGLE_ADSIZ)
     : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)");
 
   return (
@@ -202,6 +232,17 @@ export function DetayPaneli(props: {
             </>
           )}
         </dl>
+      ) : canliAtlandi && !canli ? (
+        <div className="flex flex-col items-start gap-2 rounded-md bg-zemin p-3 text-sm">
+          <p>
+            {canliAtlandi === "ilgilenmiyor"
+              ? "Bu kayıt ilgilenilmiyor olarak işaretli; Google bilgileri kendiliğinden çekilmedi."
+              : "Bu ayki Places kotanızın %80'i kullanıldı; Google bilgileri kendiliğinden çekilmedi."}
+          </p>
+          <button type="button" className="dugme" disabled={mesgul} onClick={() => void googleBilgisiGetir()}>
+            Google bilgilerini göster ({PLACES_BIRIMLERI.placeDetailsEnterprise} birim)
+          </button>
+        </div>
       ) : (
         <p role="alert" className="text-sm text-tehlike">
           {canli?.durum === "kota"
@@ -355,7 +396,15 @@ export function DetayPaneli(props: {
         >
           <label className="etiket">
             İşletme adı (sizin kaydınız)
-            <input name="isletmeAdi" defaultValue={kayit.isletmeAdi ?? ""} maxLength={160} className="girdi" />
+            {/* Places içeriği bu alana aktarılmaz: alan kullanıcının yazdığıyla gelir, ipucu yalnızca genel bir cümle. */}
+            <input
+              name="isletmeAdi"
+              defaultValue={kayit.isletmeAdi ?? ""}
+              maxLength={160}
+              className="girdi"
+              placeholder={AD_GIRME_IPUCU}
+              autoComplete="off"
+            />
             <span className="text-xs font-normal text-soluk">
               Kampanya mesajlarındaki {"{isletme}"} yalnızca bu alandan dolar; Google&apos;dan gelen ad mesajlara
               eklenmez.

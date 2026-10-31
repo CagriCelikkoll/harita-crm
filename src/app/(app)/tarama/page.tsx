@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayfaBaglami } from "@/server/oturum";
 import { kotaDurumu } from "@/server/repo/kullanim";
+import { incelenmemisSayilari } from "@/server/repo/kayitlar";
 import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/taramalar";
 import { taramaButcesi } from "@/server/servisler/tarama";
 import { TaramaPaneli } from "./tarama-paneli";
@@ -11,7 +12,9 @@ export const metadata: Metadata = { title: "Bölge taraması" };
 export default async function TaramaSayfasi() {
   const { ctx } = await sayfaBaglami();
   yarimKalanTaramalariKapat(ctx); // 10 dk'dan uzun "calisiyor" kalanlar → hata ("Tarama yarıda kaldı…")
-  const gecmis = taramalariListele(ctx, 30).map((t) => ({
+  const taramalar = taramalariListele(ctx, 30);
+  const incelenmemis = incelenmemisSayilari(ctx, taramalar.map((t) => t.id));
+  const gecmis = taramalar.map((t) => ({
     id: t.id,
     merkezKaynagi: t.merkezKaynagi,
     merkezLat: t.merkezLat,
@@ -25,6 +28,7 @@ export default async function TaramaSayfasi() {
     kapsamTamam: t.kapsamTamam,
     hataMesaji: t.hataMesaji,
     olusturmaTarihi: t.olusturmaTarihi.toISOString(),
+    incelenmemis: incelenmemis.get(t.id) ?? 0,
   }));
 
   return (

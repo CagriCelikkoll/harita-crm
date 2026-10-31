@@ -1,6 +1,6 @@
 // CSV dışa aktarma: YALNIZCA kullanıcının kendi verisi (place_id, durum, notlar, girdiği iletişim
 // bilgileri). Places'tan gelen ad/adres/telefon dışa aktarılmaz.
-import { ILETI_IZINLERI, KAYIT_DURUMLARI } from "@/lib/sabitler";
+import { ILETI_IZINLERI, INCELEME_DURUMLARI, KAYIT_DURUMLARI, KAYIT_KAYNAKLARI } from "@/lib/sabitler";
 import { yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { disaAktarilacakKayitlar } from "@/server/repo/kayitlar";
@@ -37,6 +37,10 @@ export async function GET(istek: Request) {
     iletiIzni,
     etiket: p.get("etiket") || undefined,
     arama: p.get("q") || undefined,
+    // Listeyle aynı: varsayılan olarak "ilgilenmiyor" işaretliler hariç.
+    inceleme: p.get("inceleme") === "hepsi" ? "hepsi" : INCELEME_DURUMLARI.find((d) => d === p.get("inceleme")),
+    adsizGoogle: p.get("ad") === "bos" || undefined,
+    kaynak: KAYIT_KAYNAKLARI.find((d) => d === p.get("kaynak")),
   });
 
   const satirlar = kayitlar.map((k) =>

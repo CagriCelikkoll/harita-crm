@@ -1,9 +1,10 @@
-import { and, count, desc, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import {
   ILETI_IZNI_ADLARI,
   KAYIT_DURUM_ADLARI,
   SAYFA_BOYUTU,
   type IletiIzni,
+  type IncelemeDurumu,
   type KayitKaynagi,
   type KayitDurumu,
   type OlayTuru,
@@ -27,6 +28,12 @@ export type KayitFiltresi = {
   etiket?: string;
   /** Yalnızca kullanıcının girdiği alanlarda arar (Places içeriği saklanmadığı için). */
   arama?: string;
+  /** Tarama sonucunun incelenmesi. Verilmezse "ilgilenmiyor" kayıtlar gizlenir; "hepsi" hiçbirini gizlemez. */
+  inceleme?: IncelemeDurumu | "hepsi";
+  /** Yalnızca kullanıcının kendi işletme adını girmediği Google kayıtları. */
+  adsizGoogle?: boolean;
+  /** Yalnızca bu taramanın kayıtları. */
+  scanId?: string;
 };
 
 function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
@@ -34,6 +41,10 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   if (f.durum) kosullar.push(eq(leads.durum, f.durum));
   if (f.iletiIzni) kosullar.push(eq(leads.iletiIzni, f.iletiIzni));
   if (f.kaynak) kosullar.push(eq(leads.kaynak, f.kaynak));
+  if (f.inceleme === undefined) kosullar.push(ne(leads.inceleme, "ilgilenmiyor"));
+  else if (f.inceleme !== "hepsi") kosullar.push(eq(leads.inceleme, f.inceleme));
+  if (f.adsizGoogle) kosullar.push(eq(leads.kaynak, "google"), isNull(leads.isletmeAdi));
+  if (f.scanId) kosullar.push(eq(leads.scanId, f.scanId));
   if (f.whatsappIzni) {
     const var_ = sql`exists (select 1 from ${whatsappKisileri} w where w.tenant_id = ${leads.tenantId}
       and w.lead_id = ${leads.id} and w.izin = ${f.whatsappIzni})`;
@@ -100,7 +111,8 @@ export function kayitlariEkle(ctx: TenantContext, scanId: string, placeIdler: st
       const parca = benzersiz.slice(i, i + 200);
       const eklenen = tx
         .insert(leads)
-        .values(parca.map((placeId) => ({ id: crypto.randomUUID(), tenantId: ctx.tenantId, placeId, scanId })))
+        // Yeni tarama sonuçları "incelenmedi" gelir (Sonuçları incele ekranı).
+        .values(parca.map((placeId) => ({ id: crypto.randomUUID(), tenantId: ctx.tenantId, placeId, scanId, inceleme: "incelenmedi" as const })))
         .onConflictDoNothing({ target: [leads.tenantId, leads.placeId] })
         .returning({ id: leads.id })
         .all();
@@ -400,4 +412,26 @@ export function telefonlaKayitlar(ctx: TenantContext, telefonlar: string[]): { i
     );
   }
   return sonuc;
+}
+
+/** Tarama sonucunun incelenmesini işaretler (İlgilen / İlgilenme). Yalnızca bu kiracının kayıtları; güncellenen sayı. */
+export function incelemeAyarla(ctx: TenantContext, idler: string[], inceleme: IncelemeDurumu): number {
+  if (!idler.length) return 0;
+  return db
+    .update(leads)
+    .set({ inceleme, guncellemeTarihi: new Date() })
+    .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, [...new Set(idler)])))
+    .run().changes;
+}
+
+/** Taramaların incelenmemiş kayıt sayıları (yalnızca bu kiracının taramaları). */
+export function incelenmemisSayilari(ctx: TenantContext, scanIdler: string[]): Map<string, number> {
+  if (!scanIdler.length) return new Map();
+  const satirlar = db
+    .select({ scanId: leads.scanId, n: count() })
+    .from(leads)
+    .where(and(eq(leads.tenantId, ctx.tenantId), eq(leads.inceleme, "incelenmedi"), inArray(leads.scanId, scanIdler)))
+    .groupBy(leads.scanId)
+    .all();
+  return new Map(satirlar.map((s) => [s.scanId!, s.n]));
 }

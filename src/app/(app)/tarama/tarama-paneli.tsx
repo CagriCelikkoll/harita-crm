@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Harita, type Isaret } from "@/components/harita";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
@@ -29,6 +30,8 @@ type TaramaOzeti = {
   kapsamTamam: boolean | null;
   hataMesaji: string | null;
   olusturmaTarihi: string;
+  /** İncelenmemiş sonuç sayısı (Sonuçları incele). */
+  incelenmemis?: number;
 };
 
 const VARSAYILAN_MERKEZ = { lat: 40.9903, lng: 29.0292 }; // Kadıköy
@@ -325,9 +328,16 @@ export function TaramaPaneli({
               {aktif.durum === "hata" && <p className="mt-2 text-xs text-tehlike">{aktif.hataMesaji}</p>}
               {isaretBilgisi && <p className="mt-2 text-xs text-soluk">{isaretBilgisi}</p>}
               {aktif.durum === "tamamlandi" && (
-                <button type="button" className="dugme mt-3 w-full" onClick={() => router.push("/kayitlar")}>
-                  Kayıtlara git
-                </button>
+                <div className="mt-3 flex flex-col gap-2">
+                  {aktif.bulunanSayisi > 0 && (
+                    <button type="button" className="dugme-ana w-full" onClick={() => router.push(`/tarama/inceleme?tarama=${aktif.id}`)}>
+                      Sonuçları incele
+                    </button>
+                  )}
+                  <button type="button" className="dugme w-full" onClick={() => router.push("/kayitlar")}>
+                    Kayıtlara git
+                  </button>
+                </div>
               )}
             </section>
           )}
@@ -375,6 +385,13 @@ export function TaramaPaneli({
                     <td className="py-2 pr-3 text-right tabular-nums">{sayiYaz(t.bulunanSayisi)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{t.istekSayisi}</td>
                     <td className="py-2 text-right whitespace-nowrap">
+                      {(t.incelenmemis ?? 0) > 0 && (
+                        <>
+                          <Link className="dugme-ana" href={`/tarama/inceleme?tarama=${t.id}`}>
+                            Sonuçları incele ({sayiYaz(t.incelenmemis ?? 0)})
+                          </Link>{" "}
+                        </>
+                      )}
                       <button type="button" className="dugme" onClick={() => gecmistenGoster(t)} disabled={calisiyor}>
                         Haritada göster
                       </button>{" "}
