@@ -187,17 +187,19 @@ describe("tarama sonuçlarının incelenmesi", () => {
 
   it("migration 0013: mevcut kayıtlar (Google dahil) 'ilgileniyor' olur", () => {
     const gecici = fs.mkdtempSync(path.join(os.tmpdir(), "harita-crm-0013-"));
+    let v: ReturnType<typeof veritabaniAc> | null = null;
     try {
       const gercek = path.join(KOK, "drizzle");
       const gunluk = JSON.parse(fs.readFileSync(path.join(gercek, "meta/_journal.json"), "utf8"));
       const once = path.join(gecici, "once");
       fs.mkdirSync(path.join(once, "meta"), { recursive: true });
-      const onceki = gunluk.entries.filter((e: { tag: string }) => !e.tag.startsWith("0013_"));
-      expect(onceki.length).toBe(gunluk.entries.length - 1);
+      // 0013'ten önceki durum (0013 ve sonrası hariç).
+      const onceki = gunluk.entries.filter((e: { tag: string }) => e.tag < "0013_");
+      expect(onceki.length).toBe(13);
       for (const e of onceki) fs.copyFileSync(path.join(gercek, `${e.tag}.sql`), path.join(once, `${e.tag}.sql`));
       fs.writeFileSync(path.join(once, "meta/_journal.json"), JSON.stringify({ ...gunluk, entries: onceki }));
 
-      const v = veritabaniAc(path.join(gecici, "v.db"));
+      v = veritabaniAc(path.join(gecici, "v.db"));
       migrasyonlariUygula(v, once);
       v.$client.prepare("insert into tenants (id, ad, slug) values ('t1', 'T', 't')").run();
       v.$client.prepare("insert into leads (id, tenant_id, kaynak, place_id) values ('l1', 't1', 'google', 'mock_x_1_1')").run();
@@ -207,8 +209,8 @@ describe("tarama sonuçlarının incelenmesi", () => {
         { id: "l1", inceleme: "ilgileniyor" },
         { id: "l2", inceleme: "ilgileniyor" },
       ]);
-      v.$client.close();
     } finally {
+      v?.$client.close();
       fs.rmSync(gecici, { recursive: true, force: true });
     }
   });

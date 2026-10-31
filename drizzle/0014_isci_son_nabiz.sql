@@ -1,0 +1,1 @@
+ALTER TABLE `isci_kilitleri` ADD `son_nabiz` integer;

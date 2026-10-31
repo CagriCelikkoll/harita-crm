@@ -94,6 +94,8 @@ export function whatsappIzniAyarla(ctx: TenantContext, leadId: string, g: Whatsa
       (eski?.izinNotu ?? null) !== kisi.izinNotu ||
       Boolean(eski?.iysBeyanTarihi) !== Boolean(kisi.iysBeyanTarihi);
     if (degisti) {
+      // Liste "Son işlem" ve sıralaması: izin değişikliği kaydın güncelleme tarihini de değiştirir.
+      tx.update(leads).set({ guncellemeTarihi: simdi }).where(and(eq(leads.id, leadId), eq(leads.tenantId, ctx.tenantId))).run();
       const ayrinti = [
         WHATSAPP_IZNI_ADLARI[kisi.izin],
         kisi.izinKaynagi ? WHATSAPP_IZIN_KAYNAK_ADLARI[kisi.izinKaynagi] : null,

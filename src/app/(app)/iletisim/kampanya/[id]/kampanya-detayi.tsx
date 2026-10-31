@@ -11,6 +11,8 @@ import {
   DURAKLATMA_NEDEN_ADLARI,
   HARIC_NEDEN_ADLARI,
   KAMPANYA_DURUM_ADLARI,
+  isciDurumu,
+  ISCI_UYARI_DAKIKA,
   KANAL_ADLARI,
   MESAJ_DURUM_ADLARI,
   MESAJ_DURUMLARI,
@@ -19,7 +21,15 @@ import {
 import { GOOGLE_ADSIZ } from "@/lib/sabitler";
 import type { KampanyaDto, MesajDto } from "@/server/servisler/kampanya-dto";
 
-type Veri = { kampanya: KampanyaDto; mesajlar: MesajDto[]; toplam: number; sayfa: number; sayfaSayisi: number };
+type Veri = {
+  kampanya: KampanyaDto;
+  mesajlar: MesajDto[];
+  toplam: number;
+  sayfa: number;
+  sayfaSayisi: number;
+  isciSonNabiz?: string | null;
+  simdi?: string;
+};
 
 const DIGER_NEDENLER: Record<string, string> = {
   belirsiz: "Sonuç belirsiz (gönderilmiş olabilir)",
@@ -52,7 +62,7 @@ const ROZET: Record<MesajDurumu, string> = {
   iptal: "bg-zemin text-soluk",
 };
 
-export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
+export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: string | null; simdi: string; yonetici: boolean } }) {
   const [veri, setVeri] = useState(ilk);
   const google = useGoogleBilgisi();
   const [filtre, setFiltre] = useState<MesajDurumu | "">("");
@@ -117,6 +127,13 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
                 Devam ettir (yönetici)
               </button>
             </div>
+          )}
+          {(k.durum === "calisiyor" || k.durum === "zamanlandi") && s.kuyrukta > 0 && (
+            <IsciDurumu
+              sonNabiz={veri.isciSonNabiz !== undefined ? veri.isciSonNabiz : isci.sonNabiz}
+              simdi={veri.simdi ?? isci.simdi}
+              yonetici={isci.yonetici}
+            />
           )}
           {k.durum === "zamanlandi" && k.planlananTarih && (
             <p className="text-sm">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</p>
@@ -309,5 +326,24 @@ export function KampanyaDetayi({ ilk }: { ilk: Veri }) {
         </section>
       </div>
     </>
+  );
+}
+
+/** Gönderim servisinin (işçi) son çalışması; 5 dakikadan uzun süredir çalışmıyorsa yöneticiye uyarı. */
+function IsciDurumu(props: { sonNabiz: string | null; simdi: string; yonetici: boolean }) {
+  const d = isciDurumu(props.sonNabiz ? new Date(props.sonNabiz) : null, new Date(props.simdi));
+  return (
+    <div className={`rounded-md p-3 text-sm ${d.uyari && props.yonetici ? "bg-red-50 text-tehlike" : "bg-zemin"}`} role={d.uyari ? "alert" : "status"}>
+      <p>{d.metin}</p>
+      {d.uyari &&
+        (props.yonetici ? (
+          <p className="mt-1">
+            Gönderim servisi {ISCI_UYARI_DAKIKA} dakikadan uzun süredir çalışmıyor; mesajlar gönderilmeyecek. Sunucuda
+            gönderim servisinin (işçi) çalıştığından emin olun ya da destekle iletişime geçin.
+          </p>
+        ) : (
+          <p className="mt-1 text-soluk">Mesajlar gönderim servisi çalıştığında gönderilir.</p>
+        ))}
+    </div>
   );
 }

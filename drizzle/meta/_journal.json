@@ -99,6 +99,13 @@
       "when": 1793451549954,
       "tag": "0013_lead_inceleme",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793452949889,
+      "tag": "0014_isci_son_nabiz",
+      "breakpoints": true
     }
   ]
 }

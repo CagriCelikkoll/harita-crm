@@ -29,6 +29,13 @@ export function limitKatmaniSayisi(katman: string | null | undefined): number | 
   return Number(m[1]) * (m[2] ? 1000 : 1);
 }
 
+/** Limit katmanının sade adı: TIER_10K → "Günde 10.000 kişi" (24 saatte farklı alıcı), TIER_UNLIMITED → "Sınırsız". */
+export function limitKatmaniAdi(katman: string | null | undefined): string {
+  const n = limitKatmaniSayisi(katman);
+  if (n === null) return katman ? "Bilinmiyor" : "—";
+  return n === Number.POSITIVE_INFINITY ? "Sınırsız" : `Günde ${n.toLocaleString("tr")} kişi`;
+}
+
 export const SABLON_KATEGORILERI = ["MARKETING", "UTILITY", "AUTHENTICATION"] as const;
 export type SablonKategorisi = (typeof SABLON_KATEGORILERI)[number];
 export const SABLON_KATEGORI_ADLARI: Record<string, string> = {
@@ -220,3 +227,32 @@ export const WHATSAPP_TESLIM_SIRASI: Record<string, number> = { sent: 1, failed:
 /** Reklamdan gelen kişinin ücretsiz penceresi şu an açık mı. */
 export const pencereAcikMi = (bitis: Date | null | undefined, simdi = new Date()) =>
   Boolean(bitis && bitis.getTime() > simdi.getTime());
+
+/** Şablon metninin parçaları (değişkenler ayrı): kampanya formunda tam metni, değişkenleri vurgulayarak göstermek için. */
+export type SablonParcasi = { metin: string } | { degisken: SablonDegiskeni };
+export type SablonBolumu = { tur: "baslik" | "govde" | "altbilgi" | "butonlar"; parcalar: SablonParcasi[] };
+
+export function sablonParcalari(bilesenler: MetaSablonBileseni[]): SablonBolumu[] {
+  const bol = (bilesen: "header" | "body", metin: string): SablonParcasi[] => {
+    const parcalar: SablonParcasi[] = [];
+    let son = 0;
+    for (const m of metin.matchAll(DEGISKEN_DESENI)) {
+      if (m.index! > son) parcalar.push({ metin: metin.slice(son, m.index) });
+      parcalar.push({ degisken: { bilesen, ad: m[1] } });
+      son = m.index! + m[0].length;
+    }
+    if (son < metin.length) parcalar.push({ metin: metin.slice(son) });
+    return parcalar;
+  };
+  const sonuc: SablonBolumu[] = [];
+  for (const b of bilesenler) {
+    const tur = b.type.toUpperCase();
+    if (tur === "HEADER" && b.text) sonuc.push({ tur: "baslik", parcalar: bol("header", b.text) });
+    else if (tur === "BODY" && b.text) sonuc.push({ tur: "govde", parcalar: bol("body", b.text) });
+    else if (tur === "FOOTER" && b.text) sonuc.push({ tur: "altbilgi", parcalar: [{ metin: b.text }] });
+    else if (tur === "BUTTONS") {
+      sonuc.push({ tur: "butonlar", parcalar: [{ metin: (b.buttons ?? []).map((x) => `[${x.text ?? x.type}]`).join(" ") }] });
+    }
+  }
+  return sonuc;
+}

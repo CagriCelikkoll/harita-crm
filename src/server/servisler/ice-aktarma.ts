@@ -416,10 +416,14 @@ export function iceAktarmaTamamla(
 export function sorunluSatirlarCsv(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarmaSecenekleri): string {
   const { sorunlar, oturum } = planla(ctx, id, eslem, s, new Date());
   const satirlar = oturum.satirlar!;
-  return Papa.unparse(
-    [["Satır", "Sorun", ...satirlar[0]], ...sorunlar.map((x) => [String(x.satir), x.neden, ...satirlar[x.satir - 1]])],
-    // Hücreler kullanıcının dosyasından gelir: =, +, -, @, sekme ya da CR ile başlayanlar Excel'de formül olarak
-    // çalışmasın diye başına ' eklenir.
-    { newline: "\r\n", escapeFormulae: true },
+  // Dışa aktarmayla aynı biçim: UTF-8 BOM + noktalı virgül (Türkçe Excel'de doğrudan sütunlara ayrılır).
+  return (
+    "\uFEFF" +
+    Papa.unparse(
+      [["Satır", "Sorun", ...satirlar[0]], ...sorunlar.map((x) => [String(x.satir), x.neden, ...satirlar[x.satir - 1]])],
+      // Hücreler kullanıcının dosyasından gelir: =, +, -, @, sekme ya da CR ile başlayanlar Excel'de formül olarak
+      // çalışmasın diye başına ' eklenir.
+      { delimiter: ";", newline: "\r\n", escapeFormulae: true },
+    )
   );
 }

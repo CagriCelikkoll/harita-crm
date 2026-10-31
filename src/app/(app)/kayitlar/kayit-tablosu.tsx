@@ -34,6 +34,8 @@ export type TabloSatiri = {
   /** WhatsApp (Cloud API) izni ve reklam kaynaklı ücretsiz pencere açık mı. */
   whatsappIzni: WhatsappIzni;
   waPencereAcik: boolean;
+  /** Kendi adreslerinden biri engel listesinde (ret vermemiş görünse de gönderilmez). */
+  engelli: boolean;
 };
 
 /** Satırda gösterilen ad: yalnızca kullanıcının verisi. */
@@ -132,6 +134,11 @@ export function KayitTablosu(props: {
                     <div className="mt-0.5 flex flex-wrap gap-1">
                       {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[s.kaynak]}</span>}
                       {s.inceleme !== "ilgileniyor" && <span className="rozet">{INCELEME_ADLARI[s.inceleme]}</span>}
+                      {s.engelli && s.iletiIzni !== "ret" && (
+                        <span className="rozet bg-red-100 text-tehlike" title="Adreslerinden biri engel listesinde; hiçbir kanaldan gönderilmez">
+                          Engelli
+                        </span>
+                      )}
                       {s.whatsappIzni === "var" && <span className="rozet">WhatsApp izni</span>}
                       {s.waPencereAcik && (
                         <span className="rozet bg-green-100 text-green-800" title="Reklamdan yazan kişi: ücretsiz giriş penceresi açık">

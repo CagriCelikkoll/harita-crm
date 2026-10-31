@@ -67,8 +67,8 @@ describe("tek işçi kilidi", () => {
     expect(durumlar(ctx, k.id)).toEqual(["kuyrukta", "kuyrukta"]);
     isciKilidiBirak("baska-isci");
     expect((await isciTuru({ simdi: () => OGLE, saglayiciSec: () => s })).gonderilen).toBe(2);
-    // Tur bitince kilit bırakılır.
-    expect(db.$client.prepare("select count(*) n from isci_kilitleri").get()).toEqual({ n: 0 });
+    // Tur bitince kilit bırakılır (satır kalır, süresi geçmişte; son nabız "servis en son ne zaman çalıştı" için).
+    expect(db.$client.prepare("select count(*) n from isci_kilitleri where bitis > ?").get(Date.now())).toEqual({ n: 0 });
   });
 
   it("tur sırasında kilit kaybedilirse kalan (denenmemiş) mesajlar gönderilmez, kuyruğa döner", async () => {

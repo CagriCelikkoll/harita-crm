@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // Places içeriği hiçbir katmanda önbelleğe alınmamalıdır.
   serverExternalPackages: ["better-sqlite3", "exceljs"],
   poweredByHeader: false,
+  // Geliştirme simgesi sol alttaki "Çıkış yap"ın üstüne biniyordu; menü solda olduğu için sağ alta alınır.
+  devIndicators: { position: "bottom-right" },
   turbopack: {
     rules: {
       "*.css": {

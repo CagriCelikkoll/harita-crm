@@ -1,23 +1,37 @@
 // CSV dışa aktarma: YALNIZCA kullanıcının kendi verisi (place_id, durum, notlar, girdiği iletişim
 // bilgileri). Places'tan gelen ad/adres/telefon dışa aktarılmaz.
-import { ILETI_IZINLERI, INCELEME_DURUMLARI, KAYIT_DURUMLARI, KAYIT_KAYNAKLARI } from "@/lib/sabitler";
+import { ALICI_TURU_ADLARI } from "@/lib/mesajlasma";
+import {
+  ILETI_IZINLERI,
+  ILETI_IZNI_ADLARI,
+  INCELEME_ADLARI,
+  INCELEME_DURUMLARI,
+  KAYIT_DURUM_ADLARI,
+  KAYIT_DURUMLARI,
+  KAYIT_KAYNAK_ADLARI,
+  KAYIT_KAYNAKLARI,
+} from "@/lib/sabitler";
 import { yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { disaAktarilacakKayitlar } from "@/server/repo/kayitlar";
 
+// Başlıklar ve kod değerleri (durum, izin, alıcı türü, kaynak, inceleme) Türkçe etiketlerle yazılır; başlıklar içe
+// aktarma sihirbazının otomatik eşlemesiyle de uyumludur (İşletme adı, Telefon, E-posta, Alıcı türü …).
 const SUTUNLAR = [
-  "place_id",
-  "durum",
-  "ileti_izni",
-  "alici_turu",
-  "isletme_adi",
-  "yetkili_adi",
-  "eposta",
-  "ek_telefon",
-  "etiketler",
-  "notlar",
-  "olusturma_tarihi",
-  "guncelleme_tarihi",
+  "Google yer kimliği (place_id)",
+  "Kaynak",
+  "Durum",
+  "İleti izni",
+  "Alıcı türü",
+  "İnceleme",
+  "İşletme adı",
+  "Yetkili adı",
+  "E-posta",
+  "Ek telefon",
+  "Etiketler",
+  "Notlar",
+  "Oluşturma tarihi",
+  "Güncelleme tarihi",
 ] as const;
 
 function hucre(deger: unknown) {
@@ -46,9 +60,11 @@ export async function GET(istek: Request) {
   const satirlar = kayitlar.map((k) =>
     [
       k.placeId,
-      k.durum,
-      k.iletiIzni,
-      k.aliciTuru,
+      KAYIT_KAYNAK_ADLARI[k.kaynak],
+      KAYIT_DURUM_ADLARI[k.durum],
+      ILETI_IZNI_ADLARI[k.iletiIzni],
+      ALICI_TURU_ADLARI[k.aliciTuru],
+      INCELEME_ADLARI[k.inceleme],
       k.isletmeAdi,
       k.yetkiliAdi,
       k.eposta,

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Harita, type Isaret } from "@/components/harita";
+import { Harita, haritaAnahtariVar, type Isaret } from "@/components/harita";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import { KATEGORILER, kategoriBul } from "@/lib/kategoriler";
@@ -82,8 +82,9 @@ export function TaramaPaneli({
     if (!yanit.ok) return;
     const veri = (await yanit.json()) as { toplam: number; isaretler: Isaret[] };
     setIsaretler(veri.isaretler);
+    // Harita yoksa (tarayıcı anahtarı tanımlı değil) işaret sayısından söz edilmez.
     setIsaretBilgisi(
-      veri.toplam
+      veri.toplam && haritaAnahtariVar
         ? `${sayiYaz(veri.toplam)} kaydın ${sayiYaz(veri.isaretler.length)} tanesi haritada (yalnızca konumu son 30 günde alınanlar).`
         : null,
     );

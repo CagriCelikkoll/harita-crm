@@ -49,7 +49,7 @@ export function KayitlarEkrani(props: {
     }
   }
 
-  const kayitDegisti = useCallback((k: KayitDto) => {
+  const kayitDegisti = useCallback((k: KayitDto, ek: { whatsappIzni: TabloSatiri["whatsappIzni"]; engelli: boolean }) => {
     setSatirlar((onceki) =>
       onceki.map((s) =>
         s.id === k.id
@@ -62,6 +62,8 @@ export function KayitlarEkrani(props: {
               yetkiliAdi: k.yetkiliAdi,
               inceleme: k.inceleme,
               guncellemeTarihi: k.guncellemeTarihi,
+              whatsappIzni: ek.whatsappIzni,
+              engelli: ek.engelli,
             }
           : s,
       ),

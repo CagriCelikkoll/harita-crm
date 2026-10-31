@@ -12,6 +12,8 @@ export const OLAY_TURLERI = [
   "sms",
   "whatsapp",
   "not",
+  // Kayıt bilgisi değişikliği (ad, e-posta, telefon, etiket, kayıt notu…). Eski kayıtlarda bu olaylar "not" + sistem.
+  "bilgi",
   "ret",
   "izin",
   "whatsapp_api",
@@ -70,6 +72,7 @@ export const OLAY_TURU_ADLARI: Record<OlayTuru, string> = {
   sms: "SMS",
   whatsapp: "WhatsApp",
   not: "Not",
+  bilgi: "Bilgi güncellendi",
   ret: "İleti reddi",
   izin: "İzin değişti",
   whatsapp_api: "WhatsApp kampanyası",

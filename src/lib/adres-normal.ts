@@ -25,3 +25,10 @@ export function epostaNormallestir(metin: string | null | undefined): string | n
   const e = metin?.trim().toLowerCase();
   return e && e.length <= 254 && EPOSTA_DESENI.test(e) ? e : null;
 }
+
+/** Normalize Türkiye numarasını (905XXXXXXXXX) okunur biçime çevirir: "+90 500 000 00 01". Başka biçimde aynen döner. */
+export function telefonBicimle(normal: string): string {
+  return /^90\d{10}$/.test(normal)
+    ? `+90 ${normal.slice(2, 5)} ${normal.slice(5, 8)} ${normal.slice(8, 10)} ${normal.slice(10)}`
+    : normal;
+}

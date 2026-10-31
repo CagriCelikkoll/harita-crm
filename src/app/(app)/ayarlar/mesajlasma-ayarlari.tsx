@@ -2,6 +2,7 @@
 // Ayarlar → mesajlaşma: ticari ileti bilgileri, gönderim saatleri ve sınırlar, e-posta (SMTP) sağlayıcısı.
 // Sağlayıcı kimlik bilgileri sunucudan hiçbir zaman geri gelmez: yalnızca "tanımlı / tanımlı değil".
 import { useState } from "react";
+import { SonucMesaji } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
 import {
@@ -19,11 +20,8 @@ type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 
 function MesajGoster({ mesaj, alan }: { mesaj: Mesaj; alan: string }) {
   if (!mesaj || mesaj.alan !== alan) return null;
-  return (
-    <p role={mesaj.tur === "hata" ? "alert" : "status"} className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>
-      {mesaj.metin}
-    </p>
-  );
+  // Görünür alana kaydırılır; başarılıysa sağ üstte bildirim olarak da gösterilir.
+  return <SonucMesaji key={mesaj.metin} tur={mesaj.tur} metin={mesaj.metin} />;
 }
 
 const saattenDakikaya = (s: string) => {

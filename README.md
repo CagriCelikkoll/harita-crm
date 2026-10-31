@@ -141,6 +141,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (3 birim) kota 75 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
 | `tests/yedek-saklama.test.ts` | Yedek saklama kuralı: 30 günden eskilerden yalnızca en son 10'u kalır, son 30 gündekilerin hepsi kalır, 10 ve altında hiçbiri silinmez; başka veritabanının yedekleri ve klasördeki diğer dosyalar silinmez; işçinin günlük bakımının günde bir çalışması; `npm run db:migrate`'in yedek alıp sonunda eski yedekleri silmesi. |
 | `tests/demo-ortami.test.ts` | `npm run demo:hazirla` yalnızca `data/demo.db`'yi kurar (aynı klasördeki başka veritabanı ve testin veritabanı bayt bayt aynı kalır), her çalıştırmada sıfırdan kurar; yazdırdığı giriş bilgileri Better Auth parola özetiyle eşleşir; kaynak / durum / izin çeşitliliği, ret ve engel listesi, test modunda WhatsApp bağlantısı ve şablonlar; elle girilen bütün adreslerin sahte biçimde olması. `docs/ornek-ice-aktarma.csv`'nin rehberde yazan önizleme sonucunu vermesi. |
+| `tests/kullanilabilirlik.test.ts` | Gönderim servisinin son nabzı (kilit alma/bırakma, işçi turu, kampanya API'si) ve 5 dakika uyarısı; engelli işareti; WhatsApp izni değişince güncelleme tarihi; "bilgi" / "izin" olay türleri; dışa aktarmada BOM, noktalı virgül ve Türkçe etiketler; şablon metni parçaları, numara biçimi, limit katmanı adı; "WhatsApp'ta aç"ın tek Enterprise çağrısıyla adı döndürmesi (ek birim yok, kaydın kendi adı varsa dönmez, hiçbir tabloya yazılmaz); giriş formunun hidrasyondan önce gönderilememesi ve geliştirme simgesinin yeri. |
 | `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 3 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
 | `tests/dogruluk-demo.test.ts` | Ret'in onaysız gönderilememesi (kayıt, WhatsApp izni, günlük liste); sahte Places'in yalnızca 0500 000 xx xx üretmesi; arayüzde npm komutu olmaması; alıcı türünün varsayılanı olmaması (Kişi ekle, içe aktarma). |
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
@@ -234,6 +235,12 @@ Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır En
   gelir. Kullanıcı sonuçları 20'şer görür (Google bilgisi yine "Göster" ile, maliyet önceden yazılarak) ve
   "İlgilen" / "İlgilenme" der. "İlgilenme" kaydı silmez (sonraki taramada geri gelmesin); listede varsayılan olarak
   gizler ve kayıt hiçbir kampanyaya / WhatsApp listesine girmez (alıcı kuralı "ilgilenmiyor").
+- **WhatsApp günlük liste:** sıradaki kayıt Google kaydıysa ve kendi adı yoksa ad "Göster (3 birim)" ile istenebilir.
+  "WhatsApp'ta aç" telefonu zaten bir Place Details Enterprise çağrısıyla çözer; aynı çağrının alan maskesinde
+  `displayName` (Pro) vardır ve istek en yüksek SKU'dan faturalandığı için ek ücret doğurmaz (Google "Usage and
+  billing": *billed at the highest SKU applicable to your request*; "Place Data Fields": displayName → Place Details
+  Pro, nationalPhoneNumber/internationalPhoneNumber → Enterprise; Ekim 2026'da doğrulandı). Liste sayfa içinden açar
+  (`POST /api/whatsapp/ac/[id]`), dönen ad yalnızca o sayfa görünümünün belleğinde gösterilir.
 - Kayıt seçmek veya kayıt üzerinde işlem yapmak (durum, not, ret, e-posta) Places'a gitmez.
   (`tests/places-maske.test.ts` liste maskesine Enterprise alanı eklenmesini engeller; `tests/liste-maliyeti.test.ts`
   listenin Places'a gitmediğini ve istenince doğru birimin düştüğünü doğrular.)
@@ -505,6 +512,11 @@ npm run worker -- --bir-kez  # tek tur (ör. cron ile dakikada bir)
 
 İşçi ayrıca saatte bir süresi dolan içe aktarma satırlarını, günde bir de saklama süresi dolan migration yedeklerini
 siler (ikisi de her `--bir-kez` çalıştırmasında).
+
+**İşçinin durumu arayüzde:** kilit satırı tur bitince silinmez; `isci_kilitleri.son_nabiz` (migration 0014) işçinin en son
+çalıştığı anı tutar (kilit alma, nabız, bırakma). Kampanya detayı, kuyrukta mesaj varken "Gönderim kuyrukta — gönderim
+servisi en son X dakika önce çalıştı" yazar; 5 dakikadan uzun süredir çalışmıyorsa (ya da hiç çalışmadıysa) yöneticiye
+uyarı gösterir.
 
 **systemd** (`/etc/systemd/system/harita-crm-worker.service`):
 
@@ -892,6 +904,11 @@ tests/                           Vitest
   satırın Google bilgisi gizlenir); Places içeriğini kayda taşımayı kolaylaştıran ipucu, kopyala düğmesi, otomatik
   doldurma ya da sürükle-bırak yoktur. Kampanya özeti ve alıcı listesi Google kayıtlarını "Google kaydı · ad
   girilmemiş" olarak gösterir; ad istenince (3 birim) yalnızca ekranda görünür, mesaja yazılmaz.
+- **CSV'ler Türkçe Excel'e göre:** dışa aktarma ve "Sorunlu satırlar" UTF-8 BOM + noktalı virgül kullanır; dışa aktarmada
+  başlıklar ve kod değerleri (durum, izinler, alıcı türü, kaynak, inceleme) Türkçe etiketlerle yazılır.
+- **Kayıt geçmişi:** bilgi değişiklikleri "Bilgi güncellendi" (`bilgi` olay türü), ileti izni değişiklikleri "İzin
+  değişti" türüyle yazılır (eski kayıtlarda "not" + sistem olarak duranlar da "Bilgi güncellendi" gösterilir). Detay
+  panelinde notlar tek bölümdedir: kişi eklenirken / içe aktarılırken girilen kalıcı "kayıt notu" ve tarihli notlar.
 - **Liste maskesi:** Telefon ve web sitesi listeden kaldırıldı; listede istenen bilgi yalnızca ad + adres (Place Details Pro),
   detay paneli Enterprise alanlarını ayrı çağrıyla çeker. Ayrıntı ve maliyet yukarıda.
 - **Tarama merkezi:** İmzalı belirteç yerine, kaynağı ne olursa olsun tüm merkez koordinatları 30 gün sonra

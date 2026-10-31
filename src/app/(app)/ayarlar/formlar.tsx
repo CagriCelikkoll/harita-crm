@@ -1,13 +1,14 @@
 "use client";
 import { useActionState } from "react";
+import { SonucMesaji } from "@/components/bildirim";
 import { ROL_ADLARI, ROLLER } from "@/lib/sabitler";
 import { alanGuncelle, davetGonder, uyeyiCikar, type FormDurumu } from "./eylemler";
 
 function Durum({ durum }: { durum: FormDurumu }) {
   return (
     <>
-      {durum.hata && <p role="alert" className="text-sm text-tehlike">{durum.hata}</p>}
-      {durum.tamam && <p role="status" className="text-sm text-ana">{durum.tamam}</p>}
+      {durum.hata && <SonucMesaji key={durum.hata} tur="hata" metin={durum.hata} />}
+      {durum.tamam && <SonucMesaji key={durum.tamam} tur="tamam" metin={durum.tamam} />}
       {durum.baglanti && <input readOnly aria-label="Davet bağlantısı" value={durum.baglanti} className="girdi text-xs" onFocus={(e) => e.currentTarget.select()} />}
     </>
   );

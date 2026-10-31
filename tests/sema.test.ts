@@ -78,7 +78,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   // Yalnızca tekrar eleme için ileti kimliği; içerik yok, 7 gün sonra silinir.
   whatsapp_gelen_kimlikleri: ["tenant_id", "wamid", "tarih"],
   // Gönderim işçisi kilidi (kiracı verisi yok).
-  isci_kilitleri: ["ad", "sahip", "bitis"],
+  isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [
     "id", "tenant_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
     "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi",

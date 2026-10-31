@@ -618,9 +618,11 @@ export type WhatsappSablonu = typeof whatsappSablonlari.$inferSelect;
  * Gönderim işçisi kilidi: aynı anda yalnızca bir işçi turu çalışır (cron ile üst üste binen `--bir-kez` turları ya
  * da birden çok `npm run worker` süreci). Süresi dolan kiralama (bitis); tur boyunca nabızla uzatılır, çöken işçinin
  * kilidi süre dolunca başkasına geçer. Gerçek saat kullanılır (turun "simdi" değeri değil).
+ * Satır tur bitince silinmez (bitis geçmişe çekilir): son_nabiz "gönderim servisi en son ne zaman çalıştı" bilgisidir.
  */
 export const isciKilitleri = sqliteTable("isci_kilitleri", {
   ad: text("ad").primaryKey(),
   sahip: text("sahip").notNull(),
   bitis: zaman("bitis").notNull(),
+  sonNabiz: zaman("son_nabiz"),
 });

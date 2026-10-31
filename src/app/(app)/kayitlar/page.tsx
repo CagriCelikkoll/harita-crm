@@ -20,6 +20,7 @@ import {
 } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { etiketleriListele, kayitGetir, kayitlariListele, type KayitFiltresi } from "@/server/repo/kayitlar";
+import { engelliKayitlar } from "@/server/repo/engel-listesi";
 import { kotaDurumu } from "@/server/repo/kullanim";
 import { whatsappKisileriGetir } from "@/server/repo/whatsapp-kisileri";
 import { WHATSAPP_IZINLERI, WHATSAPP_IZNI_ADLARI, type WhatsappIzni } from "@/lib/mesajlasma";
@@ -61,6 +62,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   // istemcide "Göster" ile, maliyet önceden yazılarak istenir (/api/kayitlar/canli) ve yalnızca bellekte tutulur.
   const kota = kotaDurumu(ctx);
   const wa = whatsappKisileriGetir(ctx, liste.kayitlar.map((k) => k.id));
+  const engelli = engelliKayitlar(ctx, liste.kayitlar);
   const satirlar: TabloSatiri[] = liste.kayitlar.map((k) => ({
     id: k.id,
     durum: k.durum,
@@ -73,6 +75,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     inceleme: k.inceleme,
     whatsappIzni: wa.get(k.id)?.izin ?? "yok",
     waPencereAcik: pencereAcikMi(wa.get(k.id)?.pencereBitis),
+    engelli: engelli.has(k.id),
   }));
 
   const etiketler = etiketleriListele(ctx);

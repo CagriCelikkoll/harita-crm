@@ -176,3 +176,13 @@ export function retIsle(
     return true;
   });
 }
+
+/**
+ * Kendi adreslerinden (e-posta, ek telefon) biri engel listesinde olan kayıtlar. Listede ve detayda "Engelli"
+ * işareti için: engelli bir adresle içe aktarılan / eklenen kişi ret vermemiş görünse de ona gönderilmez.
+ */
+export function engelliKayitlar(ctx: TenantContext, kayitlar: { id: string; eposta: string | null; ekTelefon: string | null }[]): Set<string> {
+  const ozetleri = new Map(kayitlar.map((k) => [k.id, kayitAdresOzetleri(ctx.tenantId, k).map((a) => a.ozet)]));
+  const engelli = engelliOzetler(ctx, [...ozetleri.values()].flat());
+  return new Set([...ozetleri].filter(([, o]) => o.some((x) => engelli.has(x))).map(([id]) => id));
+}

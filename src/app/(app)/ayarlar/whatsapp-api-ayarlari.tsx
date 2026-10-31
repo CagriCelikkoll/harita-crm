@@ -2,9 +2,11 @@
 // Ayarlar → WhatsApp Business (API). Yalnızca yönetici görür. Gizli bilgiler sunucudan hiç gelmez; yalnızca
 // "tanımlı / tanımlı değil". Verify token yalnızca üretildiği yanıtta bir kez gösterilir.
 import { useState } from "react";
+import { SonucMesaji } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
-import { KALITE_ADLARI, SABLON_KATEGORI_ADLARI, TEST_NUMARASI_AZAMI } from "@/lib/whatsapp-api";
+import { telefonBicimle } from "@/lib/adres-normal";
+import { KALITE_ADLARI, limitKatmaniAdi, SABLON_KATEGORI_ADLARI, TEST_NUMARASI_AZAMI } from "@/lib/whatsapp-api";
 import type { BaglantiDto, SablonDto } from "@/server/servisler/whatsapp-api";
 
 type Mesaj = { tur: "hata" | "tamam"; metin: string } | null;
@@ -55,7 +57,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
           <dt className="text-soluk">Numara sahipliği</dt>
           <dd className={b.numaraDogrulandi ? "" : "text-tehlike"}>
             {b.numaraDogrulandi
-              ? "Doğrulandı (numara bu WABA'da)"
+              ? "Doğrulandı (numara bu WhatsApp Business hesabına ait)"
               : "Doğrulanmadı — bağlantı kullanılmıyor; \"Bağlantıyı test et\" ile yeniden doğrulayın"}
           </dd>
           <dt className="text-soluk">Kalite</dt>
@@ -64,9 +66,11 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
           </dd>
           <dt className="text-soluk">Mesajlaşma limiti</dt>
           <dd>
-            {n.limitKatmani
-              ? `${n.limit !== null ? n.limit.toLocaleString("tr") : "Sınırsız"} benzersiz alıcı / 24 saat (portföy geneli; ${n.limitKatmani})`
-              : "—"}
+            {n.limitKatmani ? limitKatmaniAdi(n.limitKatmani) : "—"}
+            <span className="block text-xs text-soluk">
+              Meta&apos;nın izin verdiği, 24 saat içinde mesaj başlatılabilecek farklı kişi sayısı; işletme portföyünüzdeki tüm
+              numaralarca paylaşılır.
+            </span>
           </dd>
           <dt className="text-soluk">Bu uygulamanın payı</dt>
           <dd>
@@ -107,12 +111,14 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         }}
       >
         <label className="etiket">
-          WhatsApp Business Account (WABA) ID
+          WhatsApp Business hesap kimliği (WABA ID)
           <input name="wabaId" required inputMode="numeric" defaultValue={b.wabaId ?? ""} className="girdi" />
+          <span className="text-xs font-normal text-soluk">Meta&apos;daki WhatsApp işletme hesabınızın numarası (WhatsApp Manager → Hesap araçları).</span>
         </label>
         <label className="etiket">
-          Phone Number ID
+          Telefon numarası kimliği (Phone Number ID)
           <input name="phoneNumberId" required inputMode="numeric" defaultValue={b.phoneNumberId ?? ""} className="girdi" />
+          <span className="text-xs font-normal text-soluk">Mesajların gönderileceği numaranın Meta&apos;daki kimliği; telefon numarasının kendisi değildir.</span>
         </label>
         <label className="etiket">
           Kalıcı erişim anahtarı (system user token)
@@ -123,6 +129,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
             className="girdi"
             placeholder={b.erisimAnahtariTanimli ? "tanımlı — değiştirmek için girin" : "tanımlı değil"}
           />
+          <span className="text-xs font-normal text-soluk">Uygulamanın sizin adınıza mesaj göndermesini sağlayan, süresi dolmayan anahtar. Şifreli saklanır, bir daha gösterilmez.</span>
         </label>
         <label className="etiket">
           App Secret
@@ -133,6 +140,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
             className="girdi"
             placeholder={b.appSecretTanimli ? "tanımlı — değiştirmek için girin" : "tanımlı değil"}
           />
+          <span className="text-xs font-normal text-soluk">Meta&apos;dan gelen bildirimlerin gerçekten Meta&apos;dan geldiğini doğrulamak için kullanılır.</span>
         </label>
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <button type="submit" className="dugme-ana" disabled={mesgul}>
@@ -167,7 +175,8 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
 
       {verifyToken && (
         <div role="alert" className="rounded-md bg-amber-50 p-3 text-sm">
-          <p className="font-medium">Verify token (yalnızca şimdi gösteriliyor; kopyalayıp Meta uygulamanıza girin):</p>
+          <p className="font-medium">Doğrulama şifresi (verify token) — yalnızca şimdi gösteriliyor; kopyalayıp Meta uygulamanıza girin:</p>
+          <p className="text-xs text-soluk">Meta, bildirim adresinizi ilk kez bağlarken bu şifreyi sorar; adresin size ait olduğunu böyle anlar.</p>
           <code className="mt-1 block break-all rounded bg-white p-2">{verifyToken}</code>
         </div>
       )}
@@ -176,7 +185,10 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         <div className="space-y-2 border-t border-kenar pt-3 text-sm">
           <h3 className="font-medium">Webhook</h3>
           <p>
-            Callback URL: <code className="break-all">{b.webhookAdresi}</code>
+            Bildirim adresi (callback URL): <code className="break-all">{b.webhookAdresi}</code>
+          </p>
+          <p className="text-xs text-soluk">
+            Webhook: Meta&apos;nın teslim, okundu ve ret bilgilerini bu adrese göndermesi. Doğrulanmadan test modu kapatılamaz.
           </p>
           <ul className="space-y-0.5">
             <li>{b.webhookDogrulandi ? "✓" : "✗"} Meta webhook doğrulaması (GET)</li>
@@ -250,7 +262,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
           >
             <label className="etiket">
               Test numaraları (en fazla {TEST_NUMARASI_AZAMI}, satır başına bir)
-              <textarea name="testNumaralari" rows={3} className="girdi" defaultValue={b.testNumaralari.join("\n")} />
+              <textarea name="testNumaralari" rows={3} className="girdi" defaultValue={b.testNumaralari.map(telefonBicimle).join("\n")} />
             </label>
             <label className="etiket">
               Portföy limitinden bu uygulamanın payı (%)
@@ -268,11 +280,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         </div>
       )}
 
-      {mesaj && (
-        <p role="alert" className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>
-          {mesaj.metin}
-        </p>
-      )}
+      {mesaj && <SonucMesaji key={mesaj.metin} tur={mesaj.tur} metin={mesaj.metin} />}
 
       {b.tanimli && (
         <div className="space-y-2 border-t border-kenar pt-3 text-sm">

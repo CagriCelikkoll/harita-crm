@@ -109,10 +109,10 @@ export function isciKilidiAl(sahip: string, sureMs: number, simdiMs = Date.now()
   return Boolean(
     db
       .insert(isciKilitleri)
-      .values({ ad: KILIT_ADI, sahip, bitis })
+      .values({ ad: KILIT_ADI, sahip, bitis, sonNabiz: new Date(simdiMs) })
       .onConflictDoUpdate({
         target: isciKilitleri.ad,
-        set: { sahip, bitis },
+        set: { sahip, bitis, sonNabiz: new Date(simdiMs) },
         setWhere: sql`${isciKilitleri.bitis} < ${simdiMs} or ${isciKilitleri.sahip} = ${sahip}`,
       })
       .returning({ sahip: isciKilitleri.sahip })
@@ -125,15 +125,24 @@ export function isciKilidiYenile(sahip: string, sureMs: number, simdiMs = Date.n
   return Boolean(
     db
       .update(isciKilitleri)
-      .set({ bitis: new Date(simdiMs + sureMs) })
+      .set({ bitis: new Date(simdiMs + sureMs), sonNabiz: new Date(simdiMs) })
       .where(and(eq(isciKilitleri.ad, KILIT_ADI), eq(isciKilitleri.sahip, sahip)))
       .returning({ sahip: isciKilitleri.sahip })
       .get(),
   );
 }
 
-export function isciKilidiBirak(sahip: string) {
-  db.delete(isciKilitleri).where(and(eq(isciKilitleri.ad, KILIT_ADI), eq(isciKilitleri.sahip, sahip))).run();
+/** Kilidi bırakır: satır silinmez, süresi sıfırlanır (son nabız korunur; başka işçi hemen alabilir). */
+export function isciKilidiBirak(sahip: string, simdiMs = Date.now()) {
+  db.update(isciKilitleri)
+    .set({ bitis: new Date(0), sonNabiz: new Date(simdiMs) })
+    .where(and(eq(isciKilitleri.ad, KILIT_ADI), eq(isciKilitleri.sahip, sahip)))
+    .run();
+}
+
+/** Gönderim servisinin (işçi) en son çalıştığı an: kilit alma, nabız ya da bırakma. Hiç çalışmadıysa null. */
+export function isciSonNabiz(): Date | null {
+  return db.select({ n: isciKilitleri.sonNabiz }).from(isciKilitleri).where(eq(isciKilitleri.ad, KILIT_ADI)).get()?.n ?? null;
 }
 
 export type GonderimOncesiSonuc =

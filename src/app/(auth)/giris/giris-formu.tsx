@@ -1,10 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authIstemci } from "@/lib/auth-istemci";
 import { guvenliYol } from "@/lib/yol";
 
 type Mod = "giris" | "kayit";
+
+// Sayfa yüklenip React devreye girmeden (hidrasyon) önce form gönderilirse tarayıcı formu kendisi gönderir: alanlar
+// uyarısız boşalır ve (method verilmezse) e-posta ile şifre adres çubuğuna yazılırdı. Bu yüzden düğme hidrasyona kadar
+// pasiftir ve form method="post" taşır (şifre hiçbir koşulda URL'e düşmez).
+const bosAbone = () => () => {};
+const useHazir = () => useSyncExternalStore(bosAbone, () => true, () => false);
 
 export function GirisFormu() {
   const router = useRouter();
@@ -12,6 +18,7 @@ export function GirisFormu() {
   const [mod, setMod] = useState<Mod>("giris");
   const [hata, setHata] = useState<string | null>(null);
   const [bekliyor, setBekliyor] = useState(false);
+  const hazir = useHazir();
 
   async function gonder(olay: React.FormEvent<HTMLFormElement>) {
     olay.preventDefault();
@@ -53,7 +60,7 @@ export function GirisFormu() {
         ))}
       </div>
 
-      <form onSubmit={gonder} className="flex flex-col gap-3">
+      <form method="post" onSubmit={gonder} className="flex flex-col gap-3">
         {mod === "kayit" && (
           <label className="etiket">
             Ad soyad
@@ -81,8 +88,8 @@ export function GirisFormu() {
             {hata}
           </p>
         )}
-        <button type="submit" className="dugme-ana mt-1" disabled={bekliyor}>
-          {bekliyor ? "Lütfen bekleyin…" : mod === "giris" ? "Giriş yap" : "Hesap oluştur"}
+        <button type="submit" className="dugme-ana mt-1" disabled={bekliyor || !hazir}>
+          {!hazir ? "Yükleniyor…" : bekliyor ? "Lütfen bekleyin…" : mod === "giris" ? "Giriş yap" : "Hesap oluştur"}
         </button>
       </form>
     </div>

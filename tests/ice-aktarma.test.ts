@@ -109,7 +109,8 @@ describe("önizleme ve doğrulama", () => {
     expect(kayitGetir(ctx, mevcut.id)?.yetkiliAdi).toBeNull();
     // Sorunlu satırlar CSV'si
     const csvCikti = svc.sorunluSatirlarCsv(ctx, o.id, ESLEM, SECENEK);
-    expect(csvCikti.split("\r\n")[1]).toBe("3,Telefon numarası tanınmadı,Bora,12345,,yok,,");
+    expect(csvCikti.startsWith("\uFEFFSatır;Sorun;")).toBe(true); // UTF-8 BOM + noktalı virgül (Türkçe Excel)
+    expect(csvCikti.split("\r\n")[1]).toBe("3;Telefon numarası tanınmadı;Bora;12345;;yok;;");
   });
 
   it("eşleme: telefon ya da e-posta zorunlu; aynı sütun iki alana eşlenemez", async () => {

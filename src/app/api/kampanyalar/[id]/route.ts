@@ -6,6 +6,7 @@ import { MESAJ_DURUMLARI } from "@/lib/mesajlasma";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { kampanyaGetir, kampanyaIptal, kampanyaMesajlari } from "@/server/repo/kampanyalar";
+import { isciSonNabiz } from "@/server/repo/sistem/isci";
 import { kampanyaDto, mesajDto } from "@/server/servisler/kampanya-dto";
 import { YetkiHatasi } from "@/server/repo/baglam";
 import { KampanyaHatasi, kampanyayiDevamEttir } from "@/server/servisler/kampanya";
@@ -20,7 +21,14 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kampany
   const durum = MESAJ_DURUMLARI.find((d) => d === p.get("durum"));
   const sayfa = kampanyaMesajlari(ctx, id, { sayfa: Number(p.get("sayfa") ?? 1) || 1, durum });
   return NextResponse.json(
-    { kampanya: kampanyaDto(kampanya), ...sayfa, mesajlar: sayfa.mesajlar.map(mesajDto) },
+    {
+      kampanya: kampanyaDto(kampanya),
+      ...sayfa,
+      mesajlar: sayfa.mesajlar.map(mesajDto),
+      // Gönderim servisinin son çalışması (kampanya detayındaki durum satırı; 10 sn'de bir yenilenir).
+      isciSonNabiz: isciSonNabiz()?.toISOString() ?? null,
+      simdi: new Date().toISOString(),
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

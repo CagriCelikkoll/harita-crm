@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { bildir } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { ALICI_TURLERI, ALICI_TURU_ACIKLAMASI, ALICI_TURU_SECIM_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
 import type { KayitDto } from "@/server/servisler/kayit-dto";
@@ -28,6 +29,7 @@ export function YeniKisiFormu() {
     });
     setMesgul(false);
     if (!s.ok) return setHata(s.hata);
+    bildir("Kişi eklendi.");
     router.push(`/kayitlar?secili=${s.veri.kayit.id}`);
   }
 

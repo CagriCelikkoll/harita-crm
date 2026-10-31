@@ -56,6 +56,20 @@ export const ALICI_TURU_SECIM_ADLARI: Record<AliciTuru, string> = {
 export const ALICI_TURU_ACIKLAMASI =
   "Bireysel kişilere ticari ileti göndermek için kişinin onayı ve bu onayın İYS'ye kayıtlı olması ayrıca gerekir.";
 
+/** Gönderim servisi (işçi) bu süreden uzun süredir çalışmıyorsa yöneticiye uyarı gösterilir. */
+export const ISCI_UYARI_DAKIKA = 5;
+
+/**
+ * Kampanya detayında gönderim servisinin durumu. sonNabiz: işçinin en son çalıştığı an (isci_kilitleri.son_nabiz).
+ * Dönüş: gösterilecek metin ve uyarı gerekip gerekmediği (5 dakikadan uzun süredir çalışmıyor ya da hiç çalışmadı).
+ */
+export function isciDurumu(sonNabiz: Date | null, simdi: Date): { metin: string; uyari: boolean } {
+  if (!sonNabiz) return { metin: "Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı.", uyari: true };
+  const dakika = Math.max(0, Math.floor((simdi.getTime() - sonNabiz.getTime()) / 60_000));
+  const ne = dakika < 1 ? "az önce" : `en son ${dakika} dakika önce`;
+  return { metin: `Gönderim kuyrukta — gönderim servisi ${ne} çalıştı.`, uyari: dakika >= ISCI_UYARI_DAKIKA };
+}
+
 /** Ret onay penceresinin metni; ret isteği onaysız gönderilemez (API'ler retOnayi: true ister). */
 export const RET_ONAY_METNI = "Bu kişiye hiçbir kanaldan ileti gönderilmeyecek ve bu işlem geri alınamaz.";
 export const RET_ONAYI_GEREKLI = "Ret geri alınamaz; onay penceresinde onaylanmalıdır.";

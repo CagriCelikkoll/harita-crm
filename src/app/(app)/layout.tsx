@@ -1,4 +1,5 @@
 import { sayfaBaglami } from "@/server/oturum";
+import { BildirimAlani } from "@/components/bildirim";
 import { Menu } from "@/components/menu";
 
 export default async function UygulamaLayout({ children }: LayoutProps<"/">) {
@@ -12,6 +13,7 @@ export default async function UygulamaLayout({ children }: LayoutProps<"/">) {
         alanlar={b.uyelikler.map((u) => ({ tenantId: u.tenantId, ad: u.ad }))}
       />
       <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7">{children}</main>
+      <BildirimAlani />
     </div>
   );
 }

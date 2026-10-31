@@ -8,6 +8,7 @@ import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/ap
 import { apiBaglami } from "@/server/oturum";
 import { KayitKuraliHatasi } from "@/server/repo/baglam";
 import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
+import { engelliKayitlar } from "@/server/repo/engel-listesi";
 import { kotaDurumu } from "@/server/repo/kullanim";
 import { olaylariListele } from "@/server/repo/olaylar";
 import { canliBilgiGetir, type CanliSonuc } from "@/server/servisler/canli-bilgi";
@@ -42,6 +43,8 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
     {
       kayit: kayitDto(kayit),
       whatsapp: whatsappKisiDto(whatsappKisisiGetir(ctx, kayit.id)),
+      // Kendi adreslerinden biri engel listesinde (ör. ret vermiş bir adresle eklenmiş kişi): hiçbir kanaldan gönderilmez.
+      engelli: engelliKayitlar(ctx, [kayit]).has(kayit.id),
       olaylar: olaylariListele(ctx, kayit.id).map(olayDto),
       canli,
       canliAtlandi,

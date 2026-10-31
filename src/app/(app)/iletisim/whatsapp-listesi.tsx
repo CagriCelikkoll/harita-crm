@@ -5,7 +5,9 @@
 // yenilemek Places çağrısı yapmaz. Numara ekranda yalnızca kayıtta ek_telefon varsa gösterilir.
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { GoogleBilgisiHucresi, useGoogleBilgisi } from "@/components/google-bilgisi";
 import { RetDugmesi } from "@/components/ret-onayi";
+import { GOOGLE_ADSIZ } from "@/lib/sabitler";
 import { apiIstek } from "@/lib/api-istemci";
 import {
   ALICI_TURLERI,
@@ -28,6 +30,14 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
   const [durum, setDurum] = useState("yeni");
   const [etiket, setEtiket] = useState("");
   const [aliciTuru, setAliciTuru] = useState("");
+  // Google adı (kaydın kendi adı yoksa): "Göster" (3 birim) ya da "WhatsApp'ta aç"ın zaten yaptığı Enterprise çağrısından
+  // (displayName ek ücret doğurmaz). Yalnızca bu bileşenin belleğinde; hiçbir yere yazılmaz.
+  const google = useGoogleBilgisi();
+  const [acilanAdlar, setAcilanAdlar] = useState<Record<string, string>>({});
+  const googleAdi = (leadId: string) => {
+    const b = google.bilgi.get(leadId);
+    return acilanAdlar[leadId] ?? (b && "ad" in b ? b.ad : null);
+  };
 
   // İlk yükleme ve sekmeye geri dönüş (WhatsApp sekmesinden): liste yenilenir. Places çağrısı yapmaz.
   useEffect(() => {
@@ -59,6 +69,31 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
     setVeri(s.veri);
     if (s.veri.hazirlik) setHazirlik(s.veri.hazirlik);
     setAcildi(null);
+  }
+
+  /**
+   * "WhatsApp'ta aç": sekme tıklama anında açılır (açılır pencere engelleyicisine takılmasın), adres sunucudan gelir.
+   * Numara Places'tan çözüldüyse aynı çağrının adı döner ve listede bellekte gösterilir.
+   */
+  async function ac(ogeId: string, leadId: string) {
+    const pencere = window.open("about:blank", "_blank");
+    setAcildi(ogeId);
+    const s = await apiIstek<{ url?: string; googleAd?: string; geri?: string }>(`/api/whatsapp/ac/${ogeId}`, { method: "POST" });
+    if (s.ok && s.veri.url) {
+      if (pencere) {
+        pencere.opener = null;
+        pencere.location.href = s.veri.url;
+      } else {
+        window.location.href = s.veri.url;
+      }
+      const ad = s.veri.googleAd;
+      if (ad) setAcilanAdlar((a) => ({ ...a, [leadId]: ad }));
+      return;
+    }
+    pencere?.close();
+    setAcildi(null);
+    if (s.ok && s.veri.geri) window.location.href = s.veri.geri;
+    else if (!s.ok) setHata(s.hata);
   }
 
   const siradaki = veri?.siradaki ?? null;
@@ -162,7 +197,24 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
       {siradaki && (
         <div className="mb-4 rounded-lg border border-ana/30 bg-ana-acik/40 p-4" aria-live="polite">
           <p className="text-xs font-medium text-soluk">Sıradaki işletme</p>
-          <p className="text-lg font-semibold">{siradaki.isletmeAdi ?? "İşletme adı girilmemiş"}</p>
+          <p className={siradaki.isletmeAdi || !siradaki.google ? "text-lg font-semibold" : "text-lg text-soluk italic"}>
+            {siradaki.isletmeAdi ?? (siradaki.google ? GOOGLE_ADSIZ : "İşletme adı girilmemiş")}
+          </p>
+          {!siradaki.isletmeAdi && siradaki.google && (
+            <p className="text-sm">
+              {googleAdi(siradaki.leadId) ? (
+                <span className="text-soluk">Google: {googleAdi(siradaki.leadId)}</span>
+              ) : (
+                <GoogleBilgisiHucresi
+                  id={siradaki.leadId}
+                  alan="ad"
+                  bilgi={google.bilgi.get(siradaki.leadId)}
+                  yukleniyor={google.yukleniyor.has(siradaki.leadId)}
+                  onGoster={google.goster}
+                />
+              )}
+            </p>
+          )}
           <p className="text-sm tabular-nums">
             {siradaki.telefon ?? (
               <span className="text-xs text-soluk">Numara kayıtta yok; &quot;WhatsApp&apos;ta aç&quot;ta Google&apos;dan alınır (4 birim, saklanmaz).</span>
@@ -175,7 +227,11 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
               target="_blank"
               rel="noopener noreferrer"
               className="dugme-ana"
-              onClick={() => setAcildi(siradaki.ogeId)}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return setAcildi(siradaki.ogeId); // sunucu yönlendirmesi
+                e.preventDefault();
+                void ac(siradaki.ogeId, siradaki.leadId);
+              }}
             >
               WhatsApp&apos;ta aç
             </a>
@@ -214,7 +270,7 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
             {veri.ogeler.map((o) => (
               <li key={o.id} className="flex flex-wrap justify-between gap-2 border-b border-kenar py-1 last:border-0">
                 <Link href={`/kayitlar?secili=${o.leadId}`} className="text-ana underline">
-                  {o.sira}. {o.isletmeAdi ?? "İşletme adı girilmemiş"}
+                  {o.sira}. {o.isletmeAdi ?? (googleAdi(o.leadId) ? `Google: ${googleAdi(o.leadId)}` : "İşletme adı girilmemiş")}
                 </Link>
                 <span className="text-xs text-soluk">
                   {WHATSAPP_DURUM_ADLARI[o.durum]}

@@ -21,6 +21,7 @@ import {
   degiskenAnahtari,
   KALITE_ADLARI,
   SABLON_KATEGORI_ADLARI,
+  sablonParcalari,
   type DegiskenEslemi,
   type DegiskenKaynagi,
 } from "@/lib/whatsapp-api";
@@ -461,6 +462,7 @@ function WhatsappSablonSecimi(props: {
           </select>
         </label>
       )}
+      {sablon && <SablonMetni bilesenler={sablon.bilesenler} eslem={props.eslem} />}
       {sablon?.degiskenler.map((dg) => {
         const anahtar = degiskenAnahtari(dg);
         const a = props.eslem[anahtar] ?? { kaynak: "isletme_adi" as DegiskenKaynagi };
@@ -514,6 +516,45 @@ function WhatsappSablonSecimi(props: {
         </p>
       )}
     </fieldset>
+  );
+}
+
+const BOLUM_ADLARI = { baslik: "Başlık", govde: "Gövde", altbilgi: "Altbilgi", butonlar: "Butonlar" } as const;
+/** Önizlemede değişken yerine konan örnek değer (kaynak kayıtsa örnek; sabitse girilen metin). */
+const ornekDeger = (a: DegiskenEslemi[string] | undefined) =>
+  a?.kaynak === "sabit" ? a.deger || "…" : a?.kaynak === "yetkili_adi" ? "Örnek Yetkili" : "Örnek İşletme";
+
+/** Şablonun tam metni: değişkenler vurgulu ({{1}} …); altında örnek değerlerle önizleme (yerleri görünür). */
+function SablonMetni(props: { bilesenler: SablonDto["bilesenler"]; eslem: DegiskenEslemi }) {
+  const bolumler = sablonParcalari(props.bilesenler);
+  const yaz = (onizleme: boolean) =>
+    bolumler.map((b, i) => (
+      <p key={i} className={b.tur === "baslik" ? "font-semibold" : b.tur === "altbilgi" ? "text-xs text-soluk" : ""}>
+        {!onizleme && <span className="mr-1 text-xs text-soluk">{BOLUM_ADLARI[b.tur]}:</span>}
+        {b.parcalar.map((x, j) =>
+          "metin" in x ? (
+            <span key={j} className="whitespace-pre-wrap">
+              {x.metin}
+            </span>
+          ) : (
+            <mark key={j} className="rounded bg-amber-100 px-1 text-amber-900" title={DEGISKEN_KAYNAK_ADLARI[props.eslem[degiskenAnahtari(x.degisken)]?.kaynak ?? "isletme_adi"]}>
+              {onizleme ? ornekDeger(props.eslem[degiskenAnahtari(x.degisken)]) : `{{${x.degisken.ad}}}`}
+            </mark>
+          ),
+        )}
+      </p>
+    ));
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <div className="flex flex-col gap-1 rounded-md bg-zemin p-2 text-sm">
+        <p className="text-xs font-medium text-soluk">Şablonun tam metni (Meta&apos;da onaylı; değiştirilemez)</p>
+        {yaz(false)}
+      </div>
+      <div className="flex flex-col gap-1 rounded-md border border-kenar p-2 text-sm">
+        <p className="text-xs font-medium text-soluk">Önizleme (değişkenlerin yeri işaretli, örnek değerlerle)</p>
+        {yaz(true)}
+      </div>
+    </div>
   );
 }
 

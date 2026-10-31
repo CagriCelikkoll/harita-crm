@@ -220,11 +220,11 @@ export function kayitGuncelle(
       olaylar.push(
         degisiklik.iletiIzni === "ret"
           ? { tur: "ret", aciklama: "İleti reddi işaretlendi" }
-          : { tur: "not", aciklama: `İleti izni: ${ILETI_IZNI_ADLARI[degisiklik.iletiIzni]}` },
+          : { tur: "izin", aciklama: `İleti izni: ${ILETI_IZNI_ADLARI[degisiklik.iletiIzni]}` },
       );
     }
     if (degisiklik.notlar !== undefined && (degisiklik.notlar ?? "") !== (eski.notlar ?? "")) {
-      olaylar.push({ tur: "not", aciklama: "Notlar güncellendi" });
+      olaylar.push({ tur: "bilgi", aciklama: "Kayıt notu güncellendi" });
     }
     const degisenBilgiler = Object.keys(BILGI_ALANLARI).filter((alan) => {
       const k = alan as keyof KayitDegisikligi;
@@ -232,7 +232,7 @@ export function kayitGuncelle(
     });
     if (degisenBilgiler.length) {
       olaylar.push({
-        tur: "not",
+        tur: "bilgi",
         aciklama: `Bilgiler güncellendi: ${degisenBilgiler.map((a) => BILGI_ALANLARI[a]).join(", ")}`,
       });
     }

@@ -414,6 +414,11 @@ const engelTestleri: Record<keyof typeof engelListesi, () => void> = {
     expect(engelListesi.engelSayisi(A)).toBe(0);
     expect(engelListesi.engelSayisi(B)).toBe(once);
   },
+  engelliKayitlar: () => {
+    // B'nin engel listesi A'nın kayıtlarını etkilemez (özetler kiracıya özgü).
+    const bEngelliKisi = { id: "x", eposta: null, ekTelefon: "0533 444 55 66" };
+    expect(engelListesi.engelliKayitlar(A, [bEngelliKisi]).size).toBe(0);
+  },
 };
 
 const sayacTestleri: Record<keyof typeof gonderimSayaci, () => void> = {

@@ -8,6 +8,7 @@
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
+import { SonucMesaji } from "@/components/bildirim";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { apiIstek } from "@/lib/api-istemci";
@@ -42,6 +43,7 @@ type DetayVerisi = {
   olaylar: OlayDto[];
   canli?: CanliSonuc;
   canliAtlandi?: "ilgilenmiyor" | "kota";
+  engelli: boolean;
 };
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 
@@ -51,11 +53,12 @@ export function DetayPaneli(props: {
   /** Bu sayfa görünümünde daha önce çekilmiş Places detayları (yalnızca bellek). */
   canliOnbellegi?: Map<string, CanliSonuc>;
   onKapat: () => void;
-  onKayitDegisti: (k: KayitDto) => void;
+  /** Liste satırını sayfa yenilemeden günceller (izin rozeti, engelli işareti, son işlem tarihi). */
+  onKayitDegisti: (k: KayitDto, ek: { whatsappIzni: WhatsappKisiDto["izin"]; engelli: boolean }) => void;
   onSilindi: (id: string) => void;
 }) {
   const { id, onKayitDegisti, canliOnbellegi } = props;
-  const [veri, setVeri] = useState<Omit<DetayVerisi, "canli"> | null>(null);
+  const [veri, setVeri] = useState<Omit<DetayVerisi, "canli" | "canliAtlandi"> | null>(null);
   const [canli, setCanli] = useState<CanliSonuc | null>(null);
   const [canliAtlandi, setCanliAtlandi] = useState<DetayVerisi["canliAtlandi"]>(undefined);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -75,7 +78,7 @@ export function DetayPaneli(props: {
           setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
           return;
         }
-        setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar });
+        setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli });
         const c = onceki ?? s.veri.canli ?? null;
         setCanli(c);
         setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
@@ -103,8 +106,8 @@ export function DetayPaneli(props: {
   const yenile = useCallback(async () => {
     const s = await apiIstek<DetayVerisi>(`/api/kayitlar/${id}`);
     if (s.ok) {
-      setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar });
-      onKayitDegisti(s.veri.kayit);
+      setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli });
+      onKayitDegisti(s.veri.kayit, { whatsappIzni: s.veri.whatsapp.izin, engelli: s.veri.engelli });
     } else if (s.durum === 404) {
       setBulunamadi(true);
     }
@@ -138,11 +141,15 @@ export function DetayPaneli(props: {
       tamamMetni,
     );
 
-  const olayEkle = async (govde: { tur: "not" | "arama" | "eposta"; aciklama?: string }, alan: string) =>
-    islem(alan, async () => {
-      const s = await apiIstek(`/api/kayitlar/${id}/olaylar`, { method: "POST", govde });
-      return s.ok ? { ok: true } : { ok: false, hata: s.hata };
-    });
+  const olayEkle = async (govde: { tur: "not" | "arama" | "eposta"; aciklama?: string }, alan: string, tamamMetni?: string) =>
+    islem(
+      alan,
+      async () => {
+        const s = await apiIstek(`/api/kayitlar/${id}/olaylar`, { method: "POST", govde });
+        return s.ok ? { ok: true } : { ok: false, hata: s.hata };
+      },
+      tamamMetni,
+    );
 
   if (yukleniyor) {
     return (
@@ -163,6 +170,11 @@ export function DetayPaneli(props: {
   }
 
   const { kayit, olaylar } = veri;
+  // Ret: izin kaynağı yerine "Ret · <tarih> · <nasıl>" (en son ret olayı; olaylar yeniden eskiye).
+  const retOlayi = kayit.iletiIzni === "ret" ? (olaylar.find((o) => o.tur === "ret") ?? null) : null;
+  const retMetni = retOlayi
+    ? ["Ret", tarihYaz(retOlayi.tarih), retOlayi.aciklama, retOlayi.kullaniciAdi].filter(Boolean).join(" · ")
+    : "Ret";
   const google = kayit.placeId !== null;
   const yer = canli?.durum === "tamam" ? canli.yer : null;
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
@@ -177,6 +189,12 @@ export function DetayPaneli(props: {
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{baslik}</h2>
           {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[kayit.kaynak]}</span>}
+          {veri.engelli && kayit.iletiIzni !== "ret" && (
+            <p className="mt-1 text-sm text-tehlike">
+              <span className="rozet bg-red-100 text-tehlike">Engelli</span> Bu kişinin adreslerinden biri engel listesinde
+              (daha önce ret verilmiş); hiçbir kanaldan ileti gönderilmez.
+            </p>
+          )}
           {yer?.adres && <p className="text-sm text-soluk">{yer.adres}</p>}
         </div>
         <button type="button" className="dugme shrink-0" onClick={props.onKapat}>
@@ -313,6 +331,7 @@ export function DetayPaneli(props: {
         key={`wa-izin-${surum}-${veri.whatsapp.izin}`}
         id={kayit.id}
         ad={baslik}
+        retMetni={retMetni}
         whatsapp={veri.whatsapp}
         bireysel={kayit.aliciTuru === "bireysel"}
         onDegisti={yenile}
@@ -325,7 +344,7 @@ export function DetayPaneli(props: {
           onSubmit={(e) => {
             e.preventDefault();
             const durum = new FormData(e.currentTarget).get("durum") as KayitDurumu;
-            if (durum !== kayit.durum) void guncelle("durum", { durum });
+            if (durum !== kayit.durum) void guncelle("durum", { durum }, "Durum güncellendi.");
           }}
         >
           <label className="etiket flex-1">
@@ -347,18 +366,20 @@ export function DetayPaneli(props: {
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span>
             İleti izni:{" "}
-            <strong className={kayit.iletiIzni === "ret" ? "text-tehlike" : ""}>{ILETI_IZNI_ADLARI[kayit.iletiIzni]}</strong>
+            <strong className={kayit.iletiIzni === "ret" ? "text-tehlike" : ""}>
+              {kayit.iletiIzni === "ret" ? retMetni : ILETI_IZNI_ADLARI[kayit.iletiIzni]}
+            </strong>
           </span>
           {kayit.iletiIzni !== "ret" && (
             <RetDugmesi
               ad={baslik}
               etiket="İleti reddi işaretle"
               disabled={mesgul}
-              onOnay={() => void guncelle("izin", { iletiIzni: "ret", retOnayi: true })}
+              onOnay={() => void guncelle("izin", { iletiIzni: "ret", retOnayi: true }, "İleti reddi kaydedildi.")}
             />
           )}
           {kayit.iletiIzni === "bekliyor" && (
-            <button type="button" className="dugme" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "onayli" })}>
+            <button type="button" className="dugme" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "onayli" }, "İzin kaydedildi.")}>
               İzin alındı
             </button>
           )}
@@ -367,7 +388,7 @@ export function DetayPaneli(props: {
       </section>
 
       <section className="border-t border-kenar pt-4">
-        <h3 className="mb-2 font-semibold">Bilgiler ve notlar</h3>
+        <h3 className="mb-2 font-semibold">Bilgiler</h3>
         <form
           key={`bilgi-${surum}`}
           className="flex flex-col gap-2.5"
@@ -384,7 +405,6 @@ export function DetayPaneli(props: {
                 yetkiliAdi: al("yetkiliAdi"),
                 eposta: al("eposta"),
                 ekTelefon: al("ekTelefon"),
-                notlar: al("notlar"),
                 etiketler: al("etiketler")
                   .split(",")
                   .map((s) => s.trim().toLocaleLowerCase("tr"))
@@ -453,10 +473,6 @@ export function DetayPaneli(props: {
             Etiketler <span className="text-xs font-normal text-soluk">(virgülle ayırın)</span>
             <input name="etiketler" defaultValue={kayit.etiketler.join(", ")} maxLength={500} className="girdi" />
           </label>
-          <label className="etiket">
-            Notlar
-            <textarea name="notlar" defaultValue={kayit.notlar ?? ""} rows={3} maxLength={5000} className="girdi" />
-          </label>
           <MesajGoster mesaj={mesaj} alan="bilgi" />
           <button type="submit" className="dugme-ana self-start" disabled={mesgul}>
             Kaydet
@@ -465,14 +481,23 @@ export function DetayPaneli(props: {
       </section>
 
       <section className="border-t border-kenar pt-4">
-        <h3 className="mb-2 font-semibold">Etkinlikler</h3>
+        <h3 className="mb-2 font-semibold">Notlar ve geçmiş</h3>
+        {kayit.notlar && (
+          <KayitNotu
+            key={`kayit-notu-${surum}`}
+            notlar={kayit.notlar}
+            mesgul={mesgul}
+            onKaydet={(notlar) => guncelle("kayitNotu", { notlar }, "Kayıt notu kaydedildi.")}
+          />
+        )}
+        <MesajGoster mesaj={mesaj} alan="kayitNotu" />
         <form
           key={`not-${olaylar.length}`}
           className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             const aciklama = String(new FormData(e.currentTarget).get("metin") ?? "").trim();
-            if (aciklama) void olayEkle({ tur: "not", aciklama }, "not");
+            if (aciklama) void olayEkle({ tur: "not", aciklama }, "not", "Not eklendi.");
           }}
         >
           <label className="etiket">
@@ -488,7 +513,8 @@ export function DetayPaneli(props: {
           {olaylar.map((o) => (
             <li key={o.id} className="border-l-2 border-ana/40 pl-3 text-sm">
               <p className="text-xs text-soluk">
-                {tarihYaz(o.tarih)} · {OLAY_TURU_ADLARI[o.tur]}
+                {/* Eski kayıtlarda bilgi değişiklikleri "not" türüyle (sistem) yazılmıştı. */}
+                {tarihYaz(o.tarih)} · {OLAY_TURU_ADLARI[o.tur === "not" && o.sistem ? "bilgi" : o.tur]}
                 {o.kullaniciAdi && ` · ${o.kullaniciAdi}`}
               </p>
               {o.tur === "not" && !o.sistem && o.kullaniciId === props.kullaniciId && o.aciklama ? (
@@ -536,6 +562,46 @@ export function DetayPaneli(props: {
         <MesajGoster mesaj={mesaj} alan="sil" />
       </section>
     </aside>
+  );
+}
+
+/** Kişi eklerken ya da içe aktarırken girilen tek, kalıcı not (leads.notlar). Tarihli notlar "Not ekle" ile eklenir. */
+function KayitNotu(props: { notlar: string; mesgul: boolean; onKaydet: (notlar: string) => Promise<boolean> }) {
+  const [duzenle, setDuzenle] = useState(false);
+  return (
+    <div className="mb-3 rounded-md bg-zemin p-3 text-sm">
+      <p className="mb-1 text-xs text-soluk">Kayıt notu (kişi eklenirken ya da içe aktarılırken girilen)</p>
+      {duzenle ? (
+        <form
+          className="flex flex-col gap-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const metin = String(new FormData(e.currentTarget).get("notlar") ?? "");
+            if (await props.onKaydet(metin)) setDuzenle(false);
+          }}
+        >
+          <label className="sr-only" htmlFor="kayit-notu">
+            Kayıt notunu düzenle
+          </label>
+          <textarea id="kayit-notu" name="notlar" defaultValue={props.notlar} rows={3} maxLength={5000} className="girdi" />
+          <div className="flex gap-2">
+            <button type="submit" className="dugme-ana" disabled={props.mesgul}>
+              Kaydet
+            </button>
+            <button type="button" className="dugme" onClick={() => setDuzenle(false)}>
+              Vazgeç
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <p className="whitespace-pre-wrap">{props.notlar}</p>
+          <button type="button" className="mt-1 text-xs text-ana underline" onClick={() => setDuzenle(true)}>
+            Düzenle
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -593,11 +659,8 @@ function NotSatiri(props: {
 
 function MesajGoster({ mesaj, alan }: { mesaj: Mesaj; alan: string }) {
   if (!mesaj || mesaj.alan !== alan) return null;
-  return (
-    <p role={mesaj.tur === "hata" ? "alert" : "status"} className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>
-      {mesaj.metin}
-    </p>
-  );
+  // Görünür alana kaydırılır; başarılıysa sağ üstte bildirim olarak da gösterilir.
+  return <SonucMesaji key={mesaj.metin} tur={mesaj.tur} metin={mesaj.metin} />;
 }
 
 /**
@@ -675,6 +738,8 @@ function WhatsappIzinBolumu(props: {
   id: string;
   /** Ret onay penceresinde gösterilen kayıt adı. */
   ad: string;
+  /** Ret verilmişse "Ret · <tarih> · <nasıl>". */
+  retMetni: string;
   whatsapp: WhatsappKisiDto;
   bireysel: boolean;
   onDegisti: () => Promise<void>;
@@ -707,10 +772,11 @@ function WhatsappIzinBolumu(props: {
       </div>
       <p>
         <span className={w.izin === "var" ? "text-ana" : w.izin === "ret" ? "text-tehlike" : "text-soluk"}>
-          {WHATSAPP_IZNI_ADLARI[w.izin]}
+          {w.izin === "ret" ? props.retMetni : WHATSAPP_IZNI_ADLARI[w.izin]}
         </span>
-        {w.izinKaynagi && ` · ${WHATSAPP_IZIN_KAYNAK_ADLARI[w.izinKaynagi]}`}
-        {w.izinTarihi && ` · ${tarihYaz(w.izinTarihi)}`}
+        {/* Ret verilmişse eski izin kaynağı gösterilmez. */}
+        {w.izin !== "ret" && w.izinKaynagi && ` · ${WHATSAPP_IZIN_KAYNAK_ADLARI[w.izinKaynagi]}`}
+        {w.izin !== "ret" && w.izinTarihi && ` · ${tarihYaz(w.izinTarihi)}`}
         {w.izin === "var" && props.bireysel && (w.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok (kampanyaya girmez)")}
       </p>
       {w.izinNotu && <p className="text-soluk">{w.izinNotu}</p>}

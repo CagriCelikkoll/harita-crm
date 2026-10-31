@@ -8,6 +8,7 @@
 // Kullanıcı başına günlük sayaç (İstanbul günü): "Gönderdim" (liste ya da kayıt detayı) sayılır.
 import { z } from "zod";
 import { ALICI_TURLERI, RET_ONAYI_GEREKLI, WHATSAPP_AZAMI_GUNLUK, waMeBaglantisi, type HaricNedeni } from "@/lib/mesajlasma";
+import { telefonBicimle } from "@/lib/adres-normal";
 import { KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sablonDoldur, whatsappAltbilgisi } from "@/lib/sablon";
 import { gunAnahtari } from "@/lib/zaman";
@@ -61,7 +62,7 @@ export function whatsappMesaji(a: IletiAyarlari, isletmeAdi: string | null) {
 }
 
 /** 905321234567 → "+90 532 123 45 67" (gösterim). */
-const telefonGoster = (n: string) => `+90 ${n.slice(2, 5)} ${n.slice(5, 8)} ${n.slice(8, 10)} ${n.slice(10)}`;
+const telefonGoster = telefonBicimle;
 
 function gunlukSayac(ctx: TenantContext, ayar: IletiAyarlari, gun: string) {
   const sinir = whatsappSiniri(ayar);
@@ -78,6 +79,8 @@ export type SiradakiKayit = {
   ogeId: string;
   leadId: string;
   isletmeAdi: string | null;
+  /** Google kaydı mı (kendi adı yoksa ad istenince "Göster" ile gelir; saklanmaz). */
+  google: boolean;
   /** Yalnızca kayıtta ek_telefon varsa (kullanıcının kendi verisi); Places numarası ekranda gösterilmez. */
   telefon: string | null;
   mesaj: string;
@@ -118,6 +121,7 @@ export function listeDurumu(ctx: TenantContext, simdi = new Date()): ListeDurumu
         ogeId: oge.id,
         leadId: oge.leadId,
         isletmeAdi: kayit.isletmeAdi,
+        google: kayit.placeId !== null,
         telefon: karar.adres ? telefonGoster(karar.adres) : null,
         mesaj: whatsappMesaji(ayar, kayit.isletmeAdi),
         baglanti: `/api/whatsapp/ac/${oge.id}`,
@@ -156,16 +160,23 @@ export function listeHazirla(ctx: TenantContext, filtre: z.infer<typeof ListeFil
 }
 
 /** Yönlendirme sonucu: wa.me'ye git ya da nedeni koduyla geri dön (WHATSAPP_DONUS_MESAJLARI). */
-export type AcSonucu = { tur: "yonlendir"; url: string } | { tur: "geri"; kod: string; neden?: HaricNedeni };
+/**
+ * googleAd: numara Places'tan çözüldüyse aynı (Enterprise) çağrının döndürdüğü ad; displayName Pro katmanında
+ * olduğundan ek ücret doğurmaz (istek en yüksek SKU'dan faturalanır). Yalnızca kaydın kendi adı yoksa döner;
+ * hiçbir yere yazılmaz, istemci yalnızca o sayfa görünümünün belleğinde gösterir.
+ */
+export type AcSonucu = { tur: "yonlendir"; url: string; googleAd?: string } | { tur: "geri"; kod: string; neden?: HaricNedeni };
 
 /** Numara çözümü: ek_telefon ya da Places (kota düşer); saklanmaz. Uygunsa normal numara. */
 async function numaraCoz(
   ctx: TenantContext,
   kayit: Kayit,
-): Promise<{ tamam: true; numara: string } | { tamam: false; kod: string; neden?: HaricNedeni }> {
+): Promise<{ tamam: true; numara: string; googleAd?: string } | { tamam: false; kod: string; neden?: HaricNedeni }> {
   let karar = kuralKontrolu(ctx, kayit);
+  let googleAd: string | undefined;
   if (karar.uygun && karar.adres === null) {
     const tel = await placesTelefonuGetir(ctx, karar.placeId);
+    if (tel.durum === "tamam") googleAd = tel.ad;
     if (tel.durum === "kota") return { tamam: false, kod: "kota" };
     if (tel.durum === "hata") return { tamam: false, kod: "hata" };
     karar = aliciDegerlendir(kayit, "whatsapp", engelSorgusuOlustur(ctx, [kayit]), {
@@ -174,7 +185,7 @@ async function numaraCoz(
   }
   if (!karar.uygun) return { tamam: false, kod: "atlandi", neden: karar.neden };
   if (karar.adres === null) return { tamam: false, kod: "atlandi", neden: "iletisim_yok" };
-  return { tamam: true, numara: karar.adres };
+  return { tamam: true, numara: karar.adres, googleAd };
 }
 
 /**
@@ -195,7 +206,11 @@ export async function whatsappAc(ctx: TenantContext, ogeId: string, simdi = new 
     return { tur: "geri", kod: cozum.kod, neden: cozum.neden };
   }
   ogeAdresOzetiYaz(ctx, oge.id, adresOzeti(ctx.tenantId, "telefon", cozum.numara));
-  return { tur: "yonlendir", url: waMeBaglantisi(cozum.numara, whatsappMesaji(ayar, kayit.isletmeAdi)) };
+  return {
+    tur: "yonlendir",
+    url: waMeBaglantisi(cozum.numara, whatsappMesaji(ayar, kayit.isletmeAdi)),
+    ...(!kayit.isletmeAdi && cozum.googleAd ? { googleAd: cozum.googleAd } : {}),
+  };
 }
 
 // retOnayi: ret geri alınamaz; arayüzdeki onay penceresinde onaylandığını gösterir (ret için zorunlu).
