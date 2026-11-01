@@ -1,8 +1,10 @@
 // Yeni düzen (docs/plan-yeni-duzen.md) — Grup 1: sayfa iskeleti, ana menü, kullanım göstergesi ve ortak parçalar.
 // Grup 2: Ayarlar alt rotaları, role göre ayar menüsü, WhatsApp kurulum adımları, ayrı formlardan alan güncelleme.
 // Grup 4: Kayıtlar sekmeleri (İlgilendiklerim / İncelenmemiş / Tümü), süzgeç adresi, CSV ve otomatik Google bilgisi.
+// Grup 5: Bölge tara sonuçları (tarama_sonuclari, süzgeç, sıra, migration 0016), ekran ve eski adresin yönlendirilmesi.
 // Menüde kullanım yalnızca yüzde olarak görünür; GET /api/kullanim birim, kota ya da kalan miktar döndürmez.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { TenantContext } from "@/server/repo/baglam";
@@ -11,14 +13,15 @@ const oturum = vi.hoisted(() => ({ ctx: null as TenantContext | null }));
 vi.mock("@/server/oturum", () => ({ apiBaglami: async () => oturum.ctx, sayfaBaglami: async () => ({ ctx: oturum.ctx }) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { db } = await import("@/server/db");
+const { db, veritabaniAc } = await import("@/server/db");
+const { migrasyonlariUygula } = await import("@/server/db/migrasyon");
 const { kotaAyir } = await import("@/server/repo/kullanim");
 const { basHarfler, kullanimOzeti, sekmeKlavye } = await import("@/lib/arayuz");
 const kullanimRotasi = await import("@/app/api/kullanim/route");
 const { calismaAlaniGetir } = await import("@/server/repo/calisma-alani");
 const { alanGuncelle } = await import("@/app/(app)/ayarlar/eylemler");
 const { AYAR_GRUPLARI, ayarBolumuAcikMi, ayarGruplari, ILK_AYAR_BOLUMU } = await import("@/lib/ayar-bolumleri");
-const { kotaDonemiMetni } = await import("@/lib/arayuz");
+const { kotaDonemiMetni, mesafeMetni } = await import("@/lib/arayuz");
 const { kurulumAdimlari } = await import("@/lib/whatsapp-api");
 const kayitlar = await import("@/server/repo/kayitlar");
 const { taramaOlustur } = await import("@/server/repo/taramalar");
@@ -294,5 +297,101 @@ describe("Kayıtlar: sekmeler ve süzgeç (Grup 4)", () => {
     expect(oku("src/app/(app)/panel/page.tsx")).toContain("href={`/kayitlar?grup=tum&durum=${d}`}");
     expect(oku("src/app/(app)/iletisim/yeni-kampanya.tsx")).toContain('href="/kayitlar?grup=tum&ad=bos"');
     expect(oku("src/app/(app)/kayitlar/ice-aktar/sihirbaz.tsx")).toContain('href="/kayitlar?grup=tum&kaynak=ice_aktarma"');
+  });
+});
+
+describe("Bölge tara: sonuçlar (Grup 5)", () => {
+  function tarama(ctx: TenantContext, idler: string[]) {
+    const t = taramaOlustur(ctx, { merkezLat: 41, merkezLng: 29, yaricapM: 1000, kategori: "kafe" });
+    kayitlar.kayitlariEkle(ctx, t.id, idler);
+    return t;
+  }
+
+  it("bir tarama, daha önce başka taramayla eklenmiş işletmeyi de kendi sonuçlarında gösterir (yalnızca kimlik eşleşmesi)", () => {
+    const { ctx } = kiraciOlustur(`T5${Math.random().toString(36).slice(2, 7)}`);
+    const t1 = tarama(ctx, ["mock_cafe_40200_1", "mock_cafe_40200_2"]);
+    const t2 = tarama(ctx, ["mock_cafe_40200_2", "mock_cafe_40200_3"]);
+    const id = (pid: string) => kayitlar.kayitlariListele(ctx, { grup: "tum" }).kayitlar.find((k) => k.placeId === pid)!.id;
+    const ikinci = kayitlar.taramaSonuclariListele(ctx, t2.id);
+    expect(ikinci.kayitlar.map((k) => k.id).sort()).toEqual([id("mock_cafe_40200_2"), id("mock_cafe_40200_3")].sort());
+    expect(ikinci.sayilar).toEqual({ bulunan: 2, incelenmedi: 2, ilgilenilen: 0, gecilen: 0 });
+    expect(kayitlar.taramaSonuclariListele(ctx, t1.id).toplam).toBe(2);
+    // Kaydı ilk bulan tarama değişmez.
+    expect(kayitlar.kayitGetir(ctx, id("mock_cafe_40200_2"))!.scanId).toBe(t1.id);
+    // Aynı tarama aynı kaydı iki kez eklemez.
+    kayitlar.kayitlariEkle(ctx, t2.id, ["mock_cafe_40200_3"]);
+    expect(kayitlar.taramaSonuclariListele(ctx, t2.id).toplam).toBe(2);
+  });
+
+  it("İlgilenilen / Geçilen süzgeci, sayılar ve sabit sıra (karar verilince kayıt sayfadan kaymaz)", () => {
+    const { ctx } = kiraciOlustur(`T5${Math.random().toString(36).slice(2, 7)}`);
+    const pidler = Array.from({ length: 23 }, (_, i) => `mock_cafe_40300_${i + 1}`);
+    const t = tarama(ctx, pidler);
+    const ilk = kayitlar.taramaSonuclariListele(ctx, t.id);
+    expect(ilk).toMatchObject({ toplam: 23, sayfaSayisi: 2 });
+    expect(ilk.kayitlar).toHaveLength(20);
+    kayitlar.incelemeAyarla(ctx, [ilk.kayitlar[0].id], "ilgileniyor");
+    kayitlar.incelemeAyarla(ctx, [ilk.kayitlar[1].id, ilk.kayitlar[2].id], "ilgilenmiyor");
+    const sonra = kayitlar.taramaSonuclariListele(ctx, t.id);
+    expect(sonra.kayitlar.map((k) => k.id)).toEqual(ilk.kayitlar.map((k) => k.id));
+    expect(sonra.sayilar).toEqual({ bulunan: 23, incelenmedi: 20, ilgilenilen: 1, gecilen: 2 });
+    expect(kayitlar.taramaSonuclariListele(ctx, t.id, { karar: "ilgi" }).kayitlar.map((k) => k.id)).toEqual([ilk.kayitlar[0].id]);
+    expect(kayitlar.taramaSonuclariListele(ctx, t.id, { karar: "gec" }).toplam).toBe(2);
+    expect(kayitlar.taramaSonuclariListele(ctx, t.id, { sayfa: 2 }).kayitlar).toHaveLength(3);
+  });
+
+  it("migration 0016: mevcut taramaların ilk bulma eşleşmesi tarama_sonuclari'na taşınır", () => {
+    const gecici = fs.mkdtempSync(path.join(os.tmpdir(), "harita-crm-0016-"));
+    let v: ReturnType<typeof veritabaniAc> | null = null;
+    try {
+      const gercek = path.join(KOK, "drizzle");
+      const gunluk = JSON.parse(fs.readFileSync(path.join(gercek, "meta/_journal.json"), "utf8"));
+      const once = path.join(gecici, "once");
+      fs.mkdirSync(path.join(once, "meta"), { recursive: true });
+      const onceki = gunluk.entries.filter((e: { tag: string }) => e.tag < "0016_");
+      for (const e of onceki) fs.copyFileSync(path.join(gercek, `${e.tag}.sql`), path.join(once, `${e.tag}.sql`));
+      fs.writeFileSync(path.join(once, "meta/_journal.json"), JSON.stringify({ ...gunluk, entries: onceki }));
+      v = veritabaniAc(path.join(gecici, "v.db"));
+      migrasyonlariUygula(v, once);
+      v.$client.prepare("insert into tenants (id, ad, slug) values ('t1', 'T', 't')").run();
+      v.$client.prepare("insert into scans (id, tenant_id, yaricap_m, kategori) values ('s1', 't1', 1000, 'kafe')").run();
+      v.$client.prepare("insert into leads (id, tenant_id, kaynak, place_id, scan_id) values ('l1', 't1', 'google', 'mock_x_1_1', 's1')").run();
+      v.$client.prepare("insert into leads (id, tenant_id, kaynak) values ('l2', 't1', 'elle')").run();
+      migrasyonlariUygula(v, gercek);
+      expect(v.$client.prepare("select tenant_id, scan_id, lead_id from tarama_sonuclari").all()).toEqual([
+        { tenant_id: "t1", scan_id: "s1", lead_id: "l1" },
+      ]);
+    } finally {
+      v?.$client.close();
+      fs.rmSync(gecici, { recursive: true, force: true });
+    }
+  });
+
+  it("ekran: form + harita, kategori çipleri, süre bilgisi; kartlarda İlgilen / Geç / Geri al; otomatik ad; eski adres yönlenir", () => {
+    const panel = oku("src/app/(app)/tarama/tarama-paneli.tsx");
+    expect(panel).toContain("<SecimCipi");
+    expect(panel).toContain("Tarama birkaç dakika sürebilir");
+    expect(panel).not.toMatch(/Tahmini sonuç/);
+    expect(panel).toContain("Önceki taramalar");
+    expect(panel).toContain("router.push(`/tarama?tarama=${t.id}`, { scroll: false })");
+    const izgara = oku("src/app/(app)/tarama/sonuc-izgarasi.tsx");
+    for (const m of [">\n                      İlgilen", ">\n                      Geç", "Geri al", "Bu sayfadakileri geç", "Sonraki sayfa"]) expect(izgara).toContain(m);
+    expect(izgara).toContain("otomatikIdler: props.otomatik ? props.satirlar.filter((s) => !s.isletmeAdi)");
+    expect(izgara).toContain("mesafeMetni(props.merkez, yer.konum)");
+    // İlgilen ad girme alanı açmaz (Google adı ad alanının yanında görünmez).
+    expect(izgara).not.toMatch(/name="isletmeAdi"|AD_GIRME_IPUCU/);
+    const sayfa = oku("src/app/(app)/tarama/page.tsx");
+    expect(sayfa).not.toMatch(/canliBilgiGetir|servisler\/canli-bilgi/);
+    expect(sayfa).toContain("otomatik={!kota.uyari && !kota.doldu}");
+    expect(oku("src/app/(app)/tarama/inceleme/page.tsx")).toContain(
+      'redirect(tarama ? `/tarama?tarama=${encodeURIComponent(tarama)}` : "/kayitlar?grup=incelenmemis")',
+    );
+    expect(fs.existsSync(path.join(KOK, "src/app/(app)/tarama/inceleme/inceleme-ekrani.tsx"))).toBe(false);
+  });
+
+  it("mesafe metni Türkçe biçimde", () => {
+    expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41, lng: 29 })).toBe("0,0 km");
+    expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41.0036, lng: 29 })).toBe("0,4 km");
+    expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41.1, lng: 29 })).toBe("11 km");
   });
 });

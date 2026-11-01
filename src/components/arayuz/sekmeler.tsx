@@ -26,7 +26,7 @@ export function SekmeGrubu<T extends string>(props: { etiket: string; secenekler
           </>
         );
         return s.href ? (
-          <Link key={s.deger} href={s.href} aria-current={secili ? "page" : undefined} className={sinif}>
+          <Link key={s.deger} href={s.href} scroll={false} aria-current={secili ? "page" : undefined} className={sinif}>
             {icerik}
           </Link>
         ) : (

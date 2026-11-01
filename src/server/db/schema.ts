@@ -177,6 +177,27 @@ export const leads = sqliteTable(
 );
 
 /**
+ * Bir taramanın bulduğu kayıtlar (yalnızca kimlikler; Places içeriği yok). leads.scan_id yalnızca kaydı İLK bulan
+ * taramayı tutar; aynı işletme sonraki bir taramada yeniden bulunursa o taramanın sonuçlarında da görünsün diye
+ * eşleşme burada tutulur. Tarama ya da kayıt silinince satır da silinir.
+ */
+export const taramaSonuclari = sqliteTable(
+  "tarama_sonuclari",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    scanId: text("scan_id")
+      .notNull()
+      .references(() => scans.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.scanId, t.leadId] }), index("tarama_sonuclari_tenant_scan_idx").on(t.tenantId, t.scanId)],
+);
+
+/**
  * Kaydın WhatsApp (Cloud API) bilgileri, leads ile 1:1. İzin kanıtı (tarih, kaynak, not, içe aktarma) burada tutulur.
  * bsuid: Meta'nın işletmeye özel kullanıcı kimliği; kişi eşleştirmesi önce bununla, yoksa telefon_e164 ile yapılır.
  * Gelen mesajların METNİ hiçbir yerde saklanmaz.

@@ -219,10 +219,11 @@ describe("tarayıcı turu düzeltmeleri (Grup D)", () => {
     expect(oku("src/components/bildirim.tsx")).toMatch(/if \(tur === "tamam" && !bildirildi\.current\) \{\s*bildirildi\.current = true;/);
   });
 
-  it("inceleme ekranında 'İlgilenilmiyor' etiketi 'İlgilenilen'den ayırt edilir (gri, üstü çizili)", () => {
-    expect(oku("src/app/(app)/tarama/inceleme/inceleme-ekrani.tsx")).toContain(
-      'karar === "ilgilenmiyor" ? "bg-zemin text-soluk line-through" : "bg-ana-acik"',
-    );
+  it("tarama sonuçlarında geçilen kart ilgilenilenden ayırt edilir (soluk; ilgilenilen yeşil çerçeveli, etiketleri ayrı)", () => {
+    const izgara = oku("src/app/(app)/tarama/sonuc-izgarasi.tsx");
+    expect(izgara).toContain('karar === "ilgileniyor" ? "border-2 border-ana" : karar === "ilgilenmiyor" ? "border border-kenar opacity-60"');
+    expect(izgara).toContain("Kayıtlara eklendi");
+    expect(izgara).toContain("Geçildi");
   });
 
   it("içe aktarma önizlemesi açılınca görünür alana kaydırılır", () => {

@@ -95,7 +95,7 @@ describe("kayıt listesi Places'a kendiliğinden gitmez", () => {
       "src/app/(app)/kayitlar/kayitlar-ekrani.tsx",
       "src/app/(app)/kayitlar/kayit-tablosu.tsx",
       "src/app/(app)/kayitlar/detay-paneli.tsx",
-      "src/app/(app)/tarama/inceleme/inceleme-ekrani.tsx",
+      "src/app/(app)/tarama/sonuc-izgarasi.tsx",
       "src/app/(app)/iletisim/kampanya/[id]/kampanya-detayi.tsx",
     ]) {
       const kod = fs

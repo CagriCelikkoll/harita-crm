@@ -9,9 +9,10 @@ import {
   type KayitDurumu,
   type OlayTuru,
   type KayitGrubu,
+  type TaramaKarari,
 } from "@/lib/sabitler";
 import { db } from "../db";
-import { leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
+import { leadEvents, leads, scans, taramaSonuclari, whatsappKisileri, type Kayit } from "../db/schema";
 import { telefonNormallestir } from "../messaging/adres";
 import type { AliciTuru, WhatsappIzni } from "@/lib/mesajlasma";
 import { KayitKuraliHatasi, likeKacir, type TenantContext } from "./baglam";
@@ -150,6 +151,18 @@ export function kayitlariEkle(ctx: TenantContext, scanId: string, placeIdler: st
           .run();
       }
       yeni += eklenen.length;
+      // Bu taramanın bulduğu tüm kayıtlar (yeni ve daha önce başka taramayla eklenmiş olanlar): yalnızca kimlikler.
+      const bulunan = tx
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.placeId, parca)))
+        .all();
+      if (bulunan.length) {
+        tx.insert(taramaSonuclari)
+          .values(bulunan.map((b) => ({ tenantId: ctx.tenantId, scanId, leadId: b.id })))
+          .onConflictDoNothing()
+          .run();
+      }
     }
     return { yeni, toplam: benzersiz.length };
   });
@@ -330,6 +343,49 @@ export function taramaKayitlari(ctx: TenantContext, scanId: string) {
     .from(leads)
     .where(and(eq(leads.tenantId, ctx.tenantId), eq(leads.scanId, scanId), isNotNull(leads.placeId)))
     .all() as { id: string; placeId: string; durum: Kayit["durum"] }[];
+}
+
+/**
+ * Bölge tara > sonuçlar: bir taramanın bulduğu kayıtlar (tarama_sonuclari; yeniden bulunanlar dahil), 20'şer.
+ * karar: "ilgi" = inceleme "ilgileniyor", "gec" = "ilgilenmiyor", "tum" = hepsi. Sayılar her zaman taramanın tamamı
+ * için döner. Sıra taramada eklenme sırasıdır (karar verilince kayıt sayfadan kaymaz).
+ */
+export function taramaSonuclariListele(ctx: TenantContext, scanId: string, secenek: { sayfa?: number; karar?: TaramaKarari } = {}) {
+  const sayfa = Math.max(1, Math.floor(secenek.sayfa ?? 1));
+  const temel = and(eq(taramaSonuclari.tenantId, ctx.tenantId), eq(taramaSonuclari.scanId, scanId), eq(leads.tenantId, ctx.tenantId));
+  const kararKosulu =
+    secenek.karar === "ilgi" ? eq(leads.inceleme, "ilgileniyor") : secenek.karar === "gec" ? eq(leads.inceleme, "ilgilenmiyor") : undefined;
+  const kosul = kararKosulu ? and(temel, kararKosulu) : temel;
+  const toplam = db.select({ n: count() }).from(taramaSonuclari).innerJoin(leads, eq(leads.id, taramaSonuclari.leadId)).where(kosul).get()?.n ?? 0;
+  const kayitlar = db
+    .select({ id: leads.id, isletmeAdi: leads.isletmeAdi, inceleme: leads.inceleme, durum: leads.durum })
+    .from(taramaSonuclari)
+    .innerJoin(leads, eq(leads.id, taramaSonuclari.leadId))
+    .where(kosul)
+    .orderBy(leads.olusturmaTarihi, leads.id)
+    .limit(SAYFA_BOYUTU)
+    .offset((sayfa - 1) * SAYFA_BOYUTU)
+    .all();
+  const dagilim = db
+    .select({ inceleme: leads.inceleme, n: count() })
+    .from(taramaSonuclari)
+    .innerJoin(leads, eq(leads.id, taramaSonuclari.leadId))
+    .where(temel)
+    .groupBy(leads.inceleme)
+    .all();
+  const say = (i: IncelemeDurumu) => dagilim.find((x) => x.inceleme === i)?.n ?? 0;
+  return {
+    kayitlar,
+    toplam,
+    sayfa,
+    sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)),
+    sayilar: {
+      bulunan: dagilim.reduce((a, x) => a + x.n, 0),
+      incelenmedi: say("incelenmedi"),
+      ilgilenilen: say("ilgileniyor"),
+      gecilen: say("ilgilenmiyor"),
+    },
+  };
 }
 
 /** CSV için: yalnızca kullanıcının kendi verisi (Places içeriği yok). */

@@ -58,3 +58,11 @@ export function basHarfler(ad: string): string {
   const harfler = parcalar.length === 1 ? parcalar[0].slice(0, 2) : `${parcalar[0][0]}${parcalar[parcalar.length - 1][0]}`;
   return harfler.toLocaleUpperCase("tr");
 }
+
+/** İki nokta arası kuş uçuşu mesafe, Türkçe biçimde ("0,4 km", "12 km"); tarama sonuç kartlarında. */
+export function mesafeMetni(a: { lat: number; lng: number }, b: { lat: number; lng: number }): string {
+  const r = (x: number) => (x * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  const km = 2 * 6_371 * Math.asin(Math.min(1, Math.sqrt(h)));
+  return `${km < 10 ? km.toFixed(1).replace(".", ",") : Math.round(km)} km`;
+}

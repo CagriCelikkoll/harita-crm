@@ -1,7 +1,11 @@
 "use client";
+// Bölge tara (docs/tasarim/Tarama.dc.html): solda form kartı (merkez, kategori çipleri, yarıçap, süre bilgisi,
+// Taramayı başlat, tarama durumu), sağda geniş harita; altında son taramanın sonuçları (children, sunucudan) ve
+// katlanır "Önceki taramalar" (Sonuçları gör, Haritada göster, Tekrar kullan).
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { SecimCipi } from "@/components/arayuz/sekmeler";
 import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { Harita, haritaAnahtariVar, type Isaret } from "@/components/harita";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
@@ -16,10 +20,10 @@ import {
 } from "@/lib/sabitler";
 import type { KotaDurumu } from "@/server/repo/kullanim";
 
-type TaramaOzeti = {
+export type TaramaOzeti = {
   id: string;
   merkezKaynagi: MerkezKaynagi;
-  // 'adres' kaynaklı merkezler 30 gün sonra silinir (null).
+  // Merkez koordinatları 30 gün sonra silinir (null).
   merkezLat: number | null;
   merkezLng: number | null;
   adresMetni: string | null;
@@ -31,23 +35,28 @@ type TaramaOzeti = {
   kapsamTamam: boolean | null;
   hataMesaji: string | null;
   olusturmaTarihi: string;
-  /** İncelenmemiş sonuç sayısı (Sonuçları incele). */
+  /** İncelenmemiş sonuç sayısı. */
   incelenmemis?: number;
 };
 
 const VARSAYILAN_MERKEZ = { lat: 40.9903, lng: 29.0292 }; // Kadıköy
 const bitti = (d: TaramaDurumu) => d === "tamamlandi" || d === "hata";
+/** Çip olarak gösterilen sık kategoriler; diğerleri "Diğer…" listesinde. */
+const CIP_SAYISI = 5;
 
 export function TaramaPaneli({
   gecmis,
   butce,
   mock,
   kota,
+  children,
 }: {
   gecmis: TaramaOzeti[];
   butce: number;
   mock: boolean;
   kota: KotaDurumu;
+  /** Seçili taramanın sonuçları (sunucuda hazırlanır). */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const son = gecmis[0];
@@ -60,7 +69,7 @@ export function TaramaPaneli({
   );
   const [yaricapKm, setYaricapKm] = useState(son ? son.yaricapM / 1000 : 3);
   const [kategori, setKategori] = useState(son?.kategori ?? KATEGORILER[0].anahtar);
-  const [adres, setAdres] = useState("");
+  const [adres, setAdres] = useState(son?.merkezKaynagi === "adres" ? (son.adresMetni ?? "") : "");
   const [adresMesaji, setAdresMesaji] = useState<string | null>(null);
 
   // "Tekrar kullan": haritadan seçilmiş merkezi 30 gün kuralıyla silinmiş taramada yeni nokta beklenir.
@@ -111,9 +120,7 @@ export function TaramaPaneli({
     setMerkezDurumu({ lat: veri.lat, lng: veri.lng });
     setKaynak({ tur: "adres", adresMetni: metin.trim() });
     setMerkezSecimiBekleniyor(false);
-    setAdresMesaji(
-      `${veri.adres ? `Merkez: ${veri.adres}. ` : ""}Adresten bulunan konum Google içeriğidir; taramada 30 gün saklanır.`,
-    );
+    setAdresMesaji(`${veri.adres ? `Merkez: ${veri.adres}. ` : ""}Adresten bulunan konum Google içeriğidir; taramada 30 gün saklanır.`);
   }
 
   async function baslat() {
@@ -147,14 +154,16 @@ export function TaramaPaneli({
     }, 1000);
     const sonuc = await calistir.catch(() => null);
     if (yoklama.current) clearInterval(yoklama.current);
+    kullanimDegisti();
     if (sonuc?.ok) {
       const t = (await sonuc.json()) as TaramaOzeti;
       setAktif(t);
       if (t.durum === "tamamlandi") await isaretleriGetir(t.id);
+      // Sonuçlar aşağıda bu taramanınkiler olarak gösterilir.
+      router.push(`/tarama?tarama=${t.id}`, { scroll: false });
     } else {
-      setHata("Tarama isteği tamamlanamadı. Geçmişten durumunu kontrol edin.");
+      setHata("Tarama isteği tamamlanamadı. Önceki taramalardan durumunu kontrol edin.");
     }
-    kullanimDegisti();
     router.refresh();
   }
 
@@ -180,6 +189,7 @@ export function TaramaPaneli({
       setMerkezSecimiBekleniyor(true);
       setAdresMesaji(null);
     }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function gecmistenGoster(t: TaramaOzeti) {
@@ -189,227 +199,238 @@ export function TaramaPaneli({
       setYaricapKm(t.yaricapM / 1000);
     }
     void isaretleriGetir(t.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const calisiyor = aktif !== null && !bitti(aktif.durum);
+  const cipler = KATEGORILER.slice(0, CIP_SAYISI);
+  const digerSecili = !cipler.some((k) => k.anahtar === kategori);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="h-[420px] lg:h-[520px]">
-          <Harita
-            merkez={merkez}
-            yaricapM={yaricapKm * 1000}
-            isaretler={isaretler}
-            onMerkezSec={(m) => !calisiyor && merkezSec(m)}
-            onIsaretSec={(id) => router.push(`/kayitlar?secili=${id}`)}
-          />
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <section className="kart flex flex-col gap-3">
-            <h2 className="font-semibold">Yeni tarama</h2>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-stretch gap-6">
+        <section
+          aria-label="Yeni tarama"
+          className="flex min-w-0 flex-[1_1_320px] flex-col gap-6 rounded-kart border border-kenar bg-white p-7 sm:max-w-[400px]"
+        >
+          <div className="flex flex-col gap-2">
             <form
-              className="flex gap-2"
+              className="flex flex-col gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 void adresBul();
               }}
             >
-              <label className="etiket flex-1">
-                Adres
-                <input value={adres} onChange={(e) => setAdres(e.target.value)} className="girdi" placeholder="ör. Bağdat Caddesi, Kadıköy" />
+              <label htmlFor="tarama-merkez" className="font-semibold">
+                Merkez
               </label>
-              <button type="submit" className="dugme self-end" disabled={adres.trim().length < 2 || calisiyor}>
-                Bul
-              </button>
+              <div className="flex gap-2">
+                <input
+                  id="tarama-merkez"
+                  value={adres}
+                  onChange={(e) => setAdres(e.target.value)}
+                  className="girdi min-w-0"
+                  placeholder="ör. Bağdat Caddesi, Kadıköy"
+                />
+                <button type="submit" className="dugme shrink-0" disabled={adres.trim().length < 2 || calisiyor}>
+                  Bul
+                </button>
+              </div>
             </form>
-            {adresMesaji && <p className="text-xs text-soluk">{adresMesaji}</p>}
-
-            <div className="grid grid-cols-2 gap-2">
-              <label className="etiket">
-                Enlem
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={merkez.lat}
-                  onChange={(e) => merkezSec({ ...merkez, lat: Number(e.target.value) })}
-                  className="girdi"
-                />
-              </label>
-              <label className="etiket">
-                Boylam
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={merkez.lng}
-                  onChange={(e) => merkezSec({ ...merkez, lng: Number(e.target.value) })}
-                  className="girdi"
-                />
-              </label>
-            </div>
-            <p className="text-xs text-soluk">
-              Merkez kaynağı:{" "}
-              <strong>{kaynak.tur === "adres" ? `adres araması (“${kaynak.adresMetni}”)` : "haritada / elle seçildi"}</strong>
+            <p className="text-[13px] text-soluk">
+              {kaynak.tur === "adres" && kaynak.adresMetni ? `Adres araması: ${kaynak.adresMetni}. ` : ""}Ya da haritada bir noktaya
+              tıklayın.
             </p>
+            {adresMesaji && <p className="text-[13px] text-soluk">{adresMesaji}</p>}
+            <details className="text-sm">
+              <summary className="cursor-pointer text-[13px] text-ana">Koordinatla gir</summary>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="etiket">
+                  Enlem
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={merkez.lat}
+                    onChange={(e) => merkezSec({ ...merkez, lat: Number(e.target.value) })}
+                    className="girdi"
+                  />
+                </label>
+                <label className="etiket">
+                  Boylam
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={merkez.lng}
+                    onChange={(e) => merkezSec({ ...merkez, lng: Number(e.target.value) })}
+                    className="girdi"
+                  />
+                </label>
+              </div>
+            </details>
+          </div>
 
-            <label className="etiket">
-              Yarıçap: {yaricapKm} km
-              <input
-                type="range"
-                min={YARICAP_MIN_KM}
-                max={YARICAP_MAX_KM}
-                step={0.5}
-                value={yaricapKm}
-                onChange={(e) => setYaricapKm(Number(e.target.value))}
-                className="accent-ana"
-              />
-            </label>
-
-            <label className="etiket">
-              Kategori
-              <select value={kategori} onChange={(e) => setKategori(e.target.value)} className="girdi">
-                {KATEGORILER.map((k) => (
+          <div className="flex flex-col gap-2.5" role="group" aria-labelledby="tarama-kategori">
+            <span id="tarama-kategori" className="font-semibold">
+              Ne arıyorsunuz?
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {cipler.map((k) => (
+                <SecimCipi key={k.anahtar} secili={kategori === k.anahtar} onClick={() => setKategori(k.anahtar)} disabled={calisiyor}>
+                  {k.etiket}
+                </SecimCipi>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1.5 text-[13px] text-soluk">
+              Diğer…
+              <select
+                value={digerSecili ? kategori : ""}
+                onChange={(e) => e.target.value && setKategori(e.target.value)}
+                className={`girdi ${digerSecili ? "border-ana" : ""}`}
+                disabled={calisiyor}
+              >
+                <option value="">Başka bir kategori seçin</option>
+                {KATEGORILER.slice(CIP_SAYISI).map((k) => (
                   <option key={k.anahtar} value={k.anahtar}>
                     {k.etiket}
                   </option>
                 ))}
               </select>
             </label>
+          </div>
 
-            <p className="text-xs text-soluk">
-              Tarama birkaç dakika sürebilir; bulunan işletmeler incelemeniz için listelenir. İşletme bilgileri
-              saklanmaz; görüntülerken Google Haritalar&apos;dan anlık gösterilir.
-              {mock && <strong className="mt-1 block text-amber-700">PLACES_MOCK açık: örnek veri kullanılıyor.</strong>}
+          <label className="flex flex-col gap-2.5">
+            <span className="flex justify-between font-semibold">
+              Yarıçap <span className="text-ana">{yaricapKm} km</span>
+            </span>
+            <input
+              type="range"
+              min={YARICAP_MIN_KM}
+              max={YARICAP_MAX_KM}
+              step={0.5}
+              value={yaricapKm}
+              onChange={(e) => setYaricapKm(Number(e.target.value))}
+              className="h-7 w-full accent-ana"
+            />
+          </label>
+
+          <p className="rounded-[10px] bg-ic-kutu px-4 py-3.5 text-[13px] text-metin-ikincil">
+            Tarama birkaç dakika sürebilir; bulunan işletmeler aşağıda incelemeniz için listelenir. İşletme bilgileri
+            saklanmaz; Google Haritalar&apos;dan anlık gösterilir.
+            {mock && <strong className="mt-1 block text-uyari">Örnek veri kullanılıyor (PLACES_MOCK).</strong>}
+          </p>
+
+          {merkezSecimiBekleniyor && (
+            <p role="alert" className="rounded-lg bg-uyari-acik p-3 text-sm text-uyari">
+              Bu taramanın merkezi 30 gün kuralıyla silindi. Haritada yeni bir merkez seçin (ya da adres arayın veya
+              koordinat girin); yarıçap ve kategori forma alındı.
             </p>
-
-            {merkezSecimiBekleniyor && (
-              <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
-                Bu taramanın merkezi 30 gün kuralıyla silindi. Haritada yeni bir merkez seçin (veya enlem/boylam girin ya
-                da adres arayın); yarıçap ve kategori forma alındı.
-              </p>
-            )}
-            {kota.doldu && (
-              <p role="alert" className="text-sm text-tehlike">
-                {KOTA_DOLDU_MESAJI} Yeni tarama ay sonuna kadar yapılamaz.
-              </p>
-            )}
-            {hata && (
-              <p role="alert" className="text-sm text-tehlike">
-                {hata}
-              </p>
-            )}
-            <button type="button" className="dugme-ana" onClick={baslat} disabled={calisiyor || merkezSecimiBekleniyor || kota.doldu}>
-              {calisiyor ? "Tarama sürüyor…" : "Taramayı başlat"}
-            </button>
-          </section>
+          )}
+          {kota.doldu && (
+            <p role="alert" className="text-sm text-tehlike">
+              {KOTA_DOLDU_MESAJI} Yeni tarama ay sonuna kadar yapılamaz.
+            </p>
+          )}
+          {hata && (
+            <p role="alert" className="text-sm text-tehlike">
+              {hata}
+            </p>
+          )}
 
           {aktif && (
-            <section className="kart" aria-live="polite">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Tarama durumu</h2>
+            <div className="flex flex-col gap-2 text-sm" aria-live="polite">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">Tarama durumu</span>
                 <TaramaDurumuRozeti durum={aktif.durum} />
               </div>
-              <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-                <dt className="text-soluk">Places isteği</dt>
-                <dd className="tabular-nums">
-                  {aktif.istekSayisi} / {butce}
-                </dd>
-                <dt className="text-soluk">Bulunan işletme</dt>
-                <dd className="tabular-nums">{sayiYaz(aktif.bulunanSayisi)}</dd>
-              </dl>
+              <p className="text-soluk">{sayiYaz(aktif.bulunanSayisi)} işletme bulundu</p>
               {calisiyor && (
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zemin">
+                <div className="h-1.5 overflow-hidden rounded-full bg-zemin">
                   <div className="h-1.5 bg-ana transition-all" style={{ width: `${Math.min(100, (aktif.istekSayisi / butce) * 100)}%` }} />
                 </div>
               )}
               {aktif.durum === "tamamlandi" && aktif.kapsamTamam === false && (
-                <p className="mt-2 text-xs text-amber-700">
+                <p className="text-[13px] text-uyari">
                   {aktif.hataMesaji ??
-                    "İstek sınırına ulaşıldı veya bazı küçük bölgelerde 60'tan fazla sonuç vardı; alanın tamamı taranmamış olabilir. Daha küçük bir yarıçapla tekrar deneyin."}
+                    "Alanın tamamı taranmamış olabilir (bazı küçük bölgelerde çok fazla sonuç vardı). Daha küçük bir yarıçapla tekrar deneyin."}
                 </p>
               )}
-              {aktif.durum === "hata" && <p className="mt-2 text-xs text-tehlike">{aktif.hataMesaji}</p>}
-              {isaretBilgisi && <p className="mt-2 text-xs text-soluk">{isaretBilgisi}</p>}
-              {aktif.durum === "tamamlandi" && (
-                <div className="mt-3 flex flex-col gap-2">
-                  {aktif.bulunanSayisi > 0 && (
-                    <button type="button" className="dugme-ana w-full" onClick={() => router.push(`/tarama/inceleme?tarama=${aktif.id}`)}>
-                      Sonuçları incele
-                    </button>
-                  )}
-                  <button type="button" className="dugme w-full" onClick={() => router.push("/kayitlar")}>
-                    Kayıtlara git
-                  </button>
-                </div>
-              )}
-            </section>
+              {aktif.durum === "hata" && <p className="text-[13px] text-tehlike">{aktif.hataMesaji}</p>}
+              {isaretBilgisi && <p className="text-[13px] text-soluk">{isaretBilgisi}</p>}
+            </div>
           )}
-        </div>
+
+          <button
+            type="button"
+            className="dugme-ana mt-auto min-h-12 w-full rounded-[10px] text-[15px]"
+            onClick={baslat}
+            disabled={calisiyor || merkezSecimiBekleniyor || kota.doldu}
+          >
+            {calisiyor ? "Tarama sürüyor…" : "Taramayı başlat"}
+          </button>
+        </section>
+
+        <section aria-label="Harita" className="relative min-h-[440px] min-w-0 flex-[999_1_460px] overflow-hidden rounded-kart">
+          <div className="absolute inset-0 [&>div]:rounded-kart">
+            <Harita
+              merkez={merkez}
+              yaricapM={yaricapKm * 1000}
+              isaretler={isaretler}
+              onMerkezSec={(m) => !calisiyor && merkezSec(m)}
+              onIsaretSec={(id) => router.push(`/kayitlar?grup=tum&secili=${id}`)}
+            />
+          </div>
+        </section>
       </div>
 
-      <section className="kart">
-        <h2 className="mb-3 font-semibold">Tarama geçmişi</h2>
+      {children}
+
+      <details className="group overflow-hidden rounded-kart border border-kenar bg-white">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-7 [&::-webkit-details-marker]:hidden">
+          <span className="font-semibold">Önceki taramalar</span>
+          <span className="text-[13px] text-soluk">{sayiYaz(gecmis.length)} tarama</span>
+        </summary>
         {gecmis.length === 0 ? (
-          <p className="text-sm text-soluk">Henüz tarama yok.</p>
+          <p className="border-t border-cizgi px-7 py-4 text-sm text-soluk">Henüz tarama yok.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b border-kenar text-xs text-soluk">
-                <tr>
-                  <th className="py-2 pr-3 font-medium">Tarih</th>
-                  <th className="py-2 pr-3 font-medium">Kategori</th>
-                  <th className="py-2 pr-3 font-medium">Merkez</th>
-                  <th className="py-2 pr-3 font-medium">Yarıçap</th>
-                  <th className="py-2 pr-3 font-medium">Durum</th>
-                  <th className="py-2 pr-3 text-right font-medium">Bulunan</th>
-                  <th className="py-2 pr-3 text-right font-medium">İstek</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-kenar">
-                {gecmis.map((t) => (
-                  <tr key={t.id}>
-                    <td className="py-2 pr-3 whitespace-nowrap">{tarihYaz(t.olusturmaTarihi)}</td>
-                    <td className="py-2 pr-3">{kategoriBul(t.kategori)?.etiket ?? t.kategori}</td>
-                    <td className="max-w-48 py-2 pr-3 text-xs">
-                      <span className="block truncate" title={t.adresMetni ?? ""}>
-                        {t.merkezKaynagi === "adres" ? `Adres: ${t.adresMetni}` : "Haritadan"}
-                      </span>
-                      {t.merkezLat === null && <span className="text-soluk">konum silindi (30 gün)</span>}
-                    </td>
-                    <td className="py-2 pr-3">{t.yaricapM / 1000} km</td>
-                    <td className="py-2 pr-3">
-                      <TaramaDurumuRozeti durum={t.durum} />
-                      {t.kapsamTamam === false && <span className="ml-1 text-xs text-amber-700">kısmi</span>}
-                      {t.durum === "hata" && t.hataMesaji && (
-                        <span className="mt-0.5 block text-xs text-tehlike">{t.hataMesaji}</span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{sayiYaz(t.bulunanSayisi)}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{t.istekSayisi}</td>
-                    <td className="py-2 text-right whitespace-nowrap">
-                      {(t.incelenmemis ?? 0) > 0 && (
-                        <>
-                          <Link className="dugme-ana" href={`/tarama/inceleme?tarama=${t.id}`}>
-                            Sonuçları incele ({sayiYaz(t.incelenmemis ?? 0)})
-                          </Link>{" "}
-                        </>
-                      )}
-                      <button type="button" className="dugme" onClick={() => gecmistenGoster(t)} disabled={calisiyor}>
-                        Haritada göster
-                      </button>{" "}
-                      <button type="button" className="dugme" onClick={() => tekrarKullan(t)} disabled={calisiyor}>
-                        Tekrar kullan
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul>
+            {gecmis.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-cizgi px-7 py-4 text-sm">
+                <div className="min-w-0 flex-[1_1_260px]">
+                  <p className="font-semibold">
+                    {kategoriBul(t.kategori)?.etiket ?? t.kategori} · {t.yaricapM / 1000} km
+                  </p>
+                  <p className="text-[13px] text-soluk">
+                    {tarihYaz(t.olusturmaTarihi)} · {t.merkezKaynagi === "adres" ? t.adresMetni : "Haritadan seçilen nokta"}
+                    {t.merkezLat === null && " · konum silindi (30 gün)"}
+                  </p>
+                  {t.durum === "hata" && t.hataMesaji && <p className="text-[13px] text-tehlike">{t.hataMesaji}</p>}
+                </div>
+                <span className="flex items-center gap-2">
+                  <TaramaDurumuRozeti durum={t.durum} />
+                  {t.kapsamTamam === false && <span className="text-[13px] text-uyari">kısmi</span>}
+                </span>
+                <span className="text-[13px] text-soluk tabular-nums">
+                  {sayiYaz(t.bulunanSayisi)} bulundu
+                  {(t.incelenmemis ?? 0) > 0 && ` · ${sayiYaz(t.incelenmemis ?? 0)} incelenmedi`}
+                </span>
+                <span className="flex flex-wrap gap-2">
+                  {t.bulunanSayisi > 0 && (
+                    <Link className="dugme dugme-kucuk" href={`/tarama?tarama=${t.id}`} scroll={false}>
+                      Sonuçları gör
+                    </Link>
+                  )}
+                  <button type="button" className="dugme dugme-kucuk" onClick={() => gecmistenGoster(t)} disabled={calisiyor}>
+                    Haritada göster
+                  </button>
+                  <button type="button" className="dugme dugme-kucuk" onClick={() => tekrarKullan(t)} disabled={calisiyor}>
+                    Tekrar kullan
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-      </section>
+      </details>
     </div>
   );
 }

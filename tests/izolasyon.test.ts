@@ -206,6 +206,11 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
     expect(kayitlar.kayitSil(A, bKayit.id)).toBe(false);
     expect(kayitlar.kayitGetir(B, bKayit.id)).not.toBeNull();
   },
+  taramaSonuclariListele: () => {
+    // B'nin taramasının sonuçları A'nın bağlamıyla görünmez; B kendi sonuçlarını görür.
+    expect(kayitlar.taramaSonuclariListele(A, bTarama.id)).toMatchObject({ toplam: 0, kayitlar: [], sayilar: { bulunan: 0 } });
+    expect(kayitlar.taramaSonuclariListele(B, bTarama.id).toplam).toBeGreaterThanOrEqual(2);
+  },
   grupSayilari: () => {
     // B'nin 2 taramadan gelmiş (incelenmemiş) kaydı A'nın sekme sayılarına karışmaz.
     const a = kayitlar.grupSayilari(A);

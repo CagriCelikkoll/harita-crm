@@ -8,6 +8,10 @@ export const ILETI_IZINLERI = ["bekliyor", "onayli", "ret"] as const;
 export const KAYIT_GRUPLARI = ["ilgi", "incelenmemis", "tum"] as const;
 export type KayitGrubu = (typeof KAYIT_GRUPLARI)[number];
 export const KAYIT_GRUP_ADLARI: Record<KayitGrubu, string> = { ilgi: "İlgilendiklerim", incelenmemis: "İncelenmemiş", tum: "Tümü" };
+/** Bölge tara > sonuçların süzgeci (repo/kayitlar.ts, taramaSonuclariListele). */
+export const TARAMA_KARARLARI = ["tum", "ilgi", "gec"] as const;
+export type TaramaKarari = (typeof TARAMA_KARARLARI)[number];
+export const TARAMA_KARAR_ADLARI: Record<TaramaKarari, string> = { tum: "Tümü", ilgi: "İlgilenilen", gec: "Geçilen" };
 export const OLAY_TURLERI = [
   "eklendi",
   "durum",
