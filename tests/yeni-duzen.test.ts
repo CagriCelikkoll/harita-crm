@@ -3,6 +3,7 @@
 // Grup 4: Kayıtlar sekmeleri (İlgilendiklerim / İncelenmemiş / Tümü), süzgeç adresi, CSV ve otomatik Google bilgisi.
 // Grup 5: Bölge tara sonuçları (tarama_sonuclari, süzgeç, sıra, migration 0016), ekran ve eski adresin yönlendirilmesi.
 // Grup 6: Kampanyalar (/iletisim → /kampanyalar), sekmeler ve 4 adımlı kampanya sihirbazının adım kuralları.
+// Grup 7: Panel (sıradaki işler, bu ay gönderilen mesaj) ve kampanya ayrıntısının sekmeleri.
 // Menüde kullanım yalnızca yüzde olarak görünür; GET /api/kullanim birim, kota ya da kalan miktar döndürmez.
 import fs from "node:fs";
 import os from "node:os";
@@ -30,6 +31,8 @@ const { taramaOlustur } = await import("@/server/repo/taramalar");
 const { etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } = await import("@/lib/kayit-filtresi");
 const disaAktarRotasi = await import("@/app/api/kayitlar/disa-aktar/route");
 const { adimCoz, adimEngeli, enIleriAdim } = await import("@/lib/kampanya-sihirbazi");
+const kampanyalar = await import("@/server/repo/kampanyalar");
+const { siradakiIsler } = await import("@/lib/panel");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
 
 const KOK = path.resolve(__dirname, "..");
@@ -464,5 +467,80 @@ describe("Kampanyalar ve sihirbaz (Grup 6)", () => {
     const liste = oku("src/app/(app)/kampanyalar/page.tsx");
     expect(liste).toContain('href: "/kampanyalar?sekme=whatsapp"');
     expect(liste).toContain('<Link href="/kampanyalar/yeni" className="dugme-ana">');
+  });
+});
+
+describe("Panel ve kampanya ayrıntısı (Grup 7)", () => {
+  const bos = { yonetici: true, incelenmemis: 0, waBekleyen: 0, gonderimdekiKampanya: 0, isciUyari: false, eksikAyarlar: [], waTestModu: false };
+
+  it("Sıradaki işler: yalnızca yapılacak iş varsa; önce engelleyici uyarılar; yönetici uyarıları üyeye gösterilmez", () => {
+    expect(siradakiIsler(bos)).toEqual([]);
+    const hepsi = siradakiIsler({
+      ...bos,
+      incelenmemis: 17,
+      waBekleyen: 3,
+      gonderimdekiKampanya: 2,
+      isciUyari: true,
+      eksikAyarlar: ["İYS numarası"],
+      waTestModu: true,
+    });
+    expect(hepsi.map((i) => i.href)).toEqual([
+      "/kampanyalar",
+      "/ayarlar/gonderen",
+      "/kayitlar?grup=incelenmemis",
+      "/kampanyalar?sekme=whatsapp",
+      "/kampanyalar",
+      "/ayarlar/whatsapp",
+    ]);
+    expect(hepsi[0]).toMatchObject({ ton: "tehlike", metin: "Gönderim servisi çalışmıyor" });
+    expect(hepsi[2].metin).toBe("17 incelenmemiş tarama sonucu");
+    expect(hepsi[1].aciklama).toContain("İYS numarası");
+    const uye = siradakiIsler({ ...bos, yonetici: false, isciUyari: true, eksikAyarlar: ["x"], waTestModu: true, waBekleyen: 1 });
+    expect(uye.map((i) => i.href)).toEqual(["/kampanyalar?sekme=whatsapp"]);
+  });
+
+  it("bu ay gönderilen mesaj: yalnızca bu ayın (İstanbul takvimi) gönderilmiş mesajları sayılır", () => {
+    const { ctx } = kiraciOlustur(`P7${Math.random().toString(36).slice(2, 7)}`);
+    const kisiler = kayitlar.kisileriEkle(
+      ctx,
+      [1, 2, 3, 4].map((i) => ({ kaynak: "elle" as const, isletmeAdi: `K${i}`, eposta: `k${i}@ornek.test` })),
+      "t",
+    );
+    const k = kampanyalar.kampanyaOlustur(
+      ctx,
+      { kanal: "eposta", ad: "Panel", konu: "K", sablon: "S", bosIsimHitabi: null, filtre: {}, sandbox: true, planlananTarih: null },
+      kisiler.map((x) => ({ leadId: x.id })),
+    );
+    const mesajlar = kampanyalar.kampanyaMesajlari(ctx, k.id).mesajlar;
+    const ayarla = (i: number, durum: string, tarih: string) =>
+      db.$client.prepare("update message_queue set durum = ?, gonderim_tarihi = ? where id = ?").run(durum, Date.parse(tarih), mesajlar[i].id);
+    ayarla(0, "gonderildi", "2026-11-10T09:00:00Z"); // Kasım: sayılır
+    ayarla(1, "gonderildi", "2026-10-31T21:30:00Z"); // 1 Kasım 00:30 İstanbul: sayılır
+    ayarla(2, "gonderildi", "2026-10-31T20:30:00Z"); // 31 Ekim 23:30 İstanbul: sayılmaz
+    ayarla(3, "basarisiz", "2026-11-10T09:00:00Z"); // gönderilmedi: sayılmaz
+    expect(kampanyalar.buAyGonderilenMesaj(ctx, new Date("2026-11-15T09:00:00Z"))).toBe(2);
+    expect(kampanyalar.buAyGonderilenMesaj(ctx, new Date("2026-10-31T20:59:00Z"))).toBe(3); // hâlâ Ekim (İstanbul): üçü de ≥ 1 Ekim
+  });
+
+  it("Panel: dört özet, sıradaki işler, durum renkli huni, son taramalar ve kampanyalar; kullanım gösterilmez", () => {
+    const panel = oku("src/app/(app)/panel/page.tsx");
+    for (const b of ["Toplam kayıt", "İletişimde + görüşme", "Kazanıldı", "Bu ay gönderilen mesaj"]) expect(panel).toContain(`baslik: "${b}"`);
+    expect(panel).toContain("siradakiIsler({");
+    expect(panel).toContain("TON_DOLGUSU[DURUM_TONU[d]]");
+    expect(panel).toContain('baslik="Son kampanyalar"');
+    expect(panel).not.toMatch(/kotaDurumu|KullanimGostergesi|kullanimOzeti/);
+    expect(panel).not.toMatch(/canliBilgiGetir|servisler\/canli-bilgi/);
+  });
+
+  it("kampanya ayrıntısı: durum kartı ve Alıcılar / Mesaj / Geçmiş sekmeleri; işlemler aynı uç noktada", () => {
+    const d = oku("src/app/(app)/kampanyalar/[id]/kampanya-detayi.tsx");
+    for (const s of ['{ deger: "alicilar", ad: "Alıcılar" }', '{ deger: "mesaj", ad: "Mesaj" }', '{ deger: "gecmis", ad: "Geçmiş" }']) {
+      expect(d).toContain(s);
+    }
+    expect(d).toContain('<IlerlemeCubugu yuzde={yuzde} etiket="Kampanya ilerlemesi" kalin />');
+    expect(d).toContain("apiIstek(`/api/kampanyalar/${k.id}?islem=${yol}`, { method: \"POST\" })");
+    expect(d).toContain('void islem("devam")');
+    expect(d).toContain('void islem("iptal", "Kampanya iptal edilsin mi? Gönderilmemiş mesajlar gönderilmeyecek.")');
+    expect(d).toContain("<IsciDurumu");
   });
 });

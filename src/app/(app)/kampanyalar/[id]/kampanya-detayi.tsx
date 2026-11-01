@@ -1,7 +1,12 @@
 "use client";
-// Kampanya detayı: ilerleme, nedenlere göre döküm, alıcı bazında durum. Kampanya sürerken 10 sn'de bir yenilenir.
+// Kampanya ayrıntısı: üstte durum kartı (rozetler, uyarılar, ilerleme, sayılar), altında sekmeler: Alıcılar (alıcı
+// bazında durum, süzgeç, sayfalama), Mesaj (konu ve şablon), Geçmiş (zaman çizelgesi, nedenler, Meta teslim
+// bildirimleri). Kampanya sürerken 10 sn'de bir yenilenir.
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { IlerlemeCubugu, IstatistikKutusu } from "@/components/arayuz/gosterge";
+import { DurumRozeti, type RozetTonu } from "@/components/arayuz/rozet";
+import { Sekmeler, sekmeId, sekmePaneliId } from "@/components/arayuz/sekmeler";
 import { GoogleBilgisiHucresi, useGoogleBilgisi } from "@/components/google-bilgisi";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { apiIstek } from "@/lib/api-istemci";
@@ -52,14 +57,21 @@ const nedenAdi = (n: string | null): string =>
       ? `Kampanya duraklatıldı (${DURAKLATMA_NEDEN_ADLARI[n.slice(13)] ?? n.slice(13)})`
       : ((HARIC_NEDEN_ADLARI as Record<string, string>)[n] ?? BEKLEME_NEDEN_ADLARI[n] ?? DIGER_NEDENLER[n] ?? n);
 
-const ROZET: Record<MesajDurumu, string> = {
-  kuyrukta: "bg-zemin text-soluk",
-  gonderiliyor: "bg-blue-50 text-blue-800",
-  gonderildi: "",
-  basarisiz: "bg-red-50 text-tehlike",
-  haric: "bg-amber-50 text-amber-800",
-  iptal: "bg-zemin text-soluk",
+const ROZET: Record<MesajDurumu, RozetTonu> = {
+  kuyrukta: "notr",
+  gonderiliyor: "mavi",
+  gonderildi: "ana",
+  basarisiz: "tehlike",
+  haric: "uyari",
+  iptal: "notr",
 };
+
+type DetaySekmesi = "alicilar" | "mesaj" | "gecmis";
+const DETAY_SEKMELERI: { deger: DetaySekmesi; ad: string }[] = [
+  { deger: "alicilar", ad: "Alıcılar" },
+  { deger: "mesaj", ad: "Mesaj" },
+  { deger: "gecmis", ad: "Geçmiş" },
+];
 
 export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: string | null; simdi: string; yonetici: boolean } }) {
   const [veri, setVeri] = useState(ilk);
@@ -68,6 +80,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
   const [acik, setAcik] = useState<string | null>(null);
+  const [sekme, setSekme] = useState<DetaySekmesi>("alicilar");
   const k = veri.kampanya;
 
   const yukle = useCallback(
@@ -93,36 +106,49 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
   const bitti = s.gonderildi + s.basarisiz;
   const yuzde = hedef ? Math.round((bitti / hedef) * 100) : 100;
 
+  const islem = async (yol: string, onay?: string) => {
+    if (onay && !confirm(onay)) return;
+    setMesgul(true);
+    setHata(null);
+    const r = await apiIstek(`/api/kampanyalar/${k.id}?islem=${yol}`, { method: "POST" });
+    setMesgul(false);
+    if (r.ok) await yukle(1, filtre);
+    else setHata(r.hata);
+  };
+
   return (
     <>
       <SayfaBasligi baslik={k.ad} aciklama={`${KANAL_ADLARI[k.kanal]} kampanyası · ${tarihYaz(k.olusturmaTarihi)}`}>
         <Link href="/kampanyalar" className="dugme">
           Kampanyalara dön
         </Link>
+        {iptalEdilebilir && (
+          <button
+            type="button"
+            className="dugme-tehlike"
+            disabled={mesgul}
+            onClick={() => void islem("iptal", "Kampanya iptal edilsin mi? Gönderilmemiş mesajlar gönderilmeyecek.")}
+          >
+            Kampanyayı iptal et
+          </button>
+        )}
       </SayfaBasligi>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <section className="kart flex flex-col gap-3 self-start" aria-label="İlerleme">
+      <div className="flex max-w-[1100px] flex-col gap-6">
+        <section aria-label="Durum" className="flex flex-col gap-5 rounded-kart border border-kenar bg-white p-7">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rozet">{KAMPANYA_DURUM_ADLARI[k.durum]}</span>
-            {k.sandbox && <span className="rozet bg-amber-100 text-amber-800">Sandbox: gerçek gönderim yok</span>}
+            <DurumRozeti ton={k.durum === "tamamlandi" ? "ana" : k.durum === "duraklatildi" ? "uyari" : k.durum === "calisiyor" ? "mavi" : "notr"}>
+              {KAMPANYA_DURUM_ADLARI[k.durum]}
+            </DurumRozeti>
+            {k.sandbox && <DurumRozeti ton="uyari">Test modu: gerçek gönderim yok</DurumRozeti>}
+            {k.durum === "zamanlandi" && k.planlananTarih && (
+              <span className="text-[13px] text-soluk">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</span>
+            )}
           </div>
           {k.durum === "duraklatildi" && (
-            <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-tehlike">
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] bg-tehlike-acik p-4 text-sm text-tehlike">
               <p>{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Kampanya sistem tarafından duraklatıldı."}</p>
-              <button
-                type="button"
-                className="dugme mt-2"
-                disabled={mesgul}
-                onClick={async () => {
-                  setMesgul(true);
-                  setHata(null);
-                  const r = await apiIstek(`/api/kampanyalar/${k.id}?islem=devam`, { method: "POST" });
-                  setMesgul(false);
-                  if (r.ok) await yukle(1, filtre);
-                  else setHata(r.hata);
-                }}
-              >
+              <button type="button" className="dugme dugme-kucuk" disabled={mesgul} onClick={() => void islem("devam")}>
                 Devam ettir (yönetici)
               </button>
             </div>
@@ -134,87 +160,24 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
               yonetici={isci.yonetici}
             />
           )}
-          {k.durum === "zamanlandi" && k.planlananTarih && (
-            <p className="text-sm">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</p>
-          )}
           <div>
-            <div className="mb-1 flex justify-between text-sm">
-              <span>İlerleme</span>
+            <div className="mb-1.5 flex justify-between text-sm">
+              <span className="font-semibold">İlerleme</span>
               <span className="tabular-nums">
                 {sayiYaz(bitti)} / {sayiYaz(hedef)}
               </span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-zemin" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={yuzde}>
-              <div className="h-2.5 rounded-full bg-ana" style={{ width: `${yuzde}%` }} />
-            </div>
+            <IlerlemeCubugu yuzde={yuzde} etiket="Kampanya ilerlemesi" kalin />
           </div>
-          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
-            {MESAJ_DURUMLARI.map((d) => (
-              <div key={d} className="contents">
-                <dt className="text-soluk">{MESAJ_DURUM_ADLARI[d]}</dt>
-                <dd className="text-right tabular-nums">{sayiYaz(s[d])}</dd>
-              </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
+            {(["kuyrukta", "gonderildi", "haric", "basarisiz"] as const).map((d) => (
+              <IstatistikKutusu key={d} baslik={MESAJ_DURUM_ADLARI[d]} deger={sayiYaz(s[d])} />
             ))}
-          </dl>
-          {k.nedenler.some((n) => n.neden) && (
-            <div>
-              <h3 className="mb-1 text-sm font-semibold">Nedenler</h3>
-              <ul className="text-sm">
-                {k.nedenler
-                  .filter((n) => n.neden)
-                  .map((n) => (
-                    <li key={`${n.durum}-${n.neden}`} className="flex justify-between gap-3 border-b border-kenar py-1 last:border-0">
-                      <span>
-                        {nedenAdi(n.neden)} <span className="text-xs text-soluk">({MESAJ_DURUM_ADLARI[n.durum]})</span>
-                      </span>
-                      <span className="tabular-nums">{sayiYaz(n.n)}</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-          {k.kanal === "whatsapp_api" && k.teslim.length > 0 && (
-            <div>
-              <h3 className="mb-1 text-sm font-semibold">Meta teslim bildirimleri</h3>
-              <ul className="text-sm">
-                {k.teslim.map((t) => (
-                  <li key={`${t.durum}-${t.kod}`} className="flex justify-between gap-3 border-b border-kenar py-1 last:border-0">
-                    <span>
-                      {TESLIM_ADLARI[t.durum ?? ""] ?? t.durum}
-                      {t.kod !== null && <span className="text-xs text-soluk"> (hata {t.kod})</span>}
-                    </span>
-                    <span className="tabular-nums">{sayiYaz(t.n)}</span>
-                  </li>
-                ))}
-              </ul>
-              {k.ucretli.length > 0 && (
-                <p className="mt-1 text-xs text-soluk">
-                  Meta&apos;nın ücretlendirdiği: {k.ucretli.map((u) => `${sayiYaz(u.n)} ${u.kategori ?? ""}`).join(", ")}
-                </p>
-              )}
-            </div>
-          )}
-          <details className="text-sm">
-            <summary className="cursor-pointer text-soluk">Mesaj şablonu</summary>
-            {k.konu && <p className="mt-2 font-medium">Konu: {k.konu}</p>}
-            <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-zemin p-2">{k.sablon}</p>
-          </details>
-          {iptalEdilebilir && (
-            <button
-              type="button"
-              className="dugme-tehlike self-start"
-              disabled={mesgul}
-              onClick={async () => {
-                if (!confirm("Kampanya iptal edilsin mi? Gönderilmemiş mesajlar gönderilmeyecek.")) return;
-                setMesgul(true);
-                const r = await apiIstek(`/api/kampanyalar/${k.id}?islem=iptal`, { method: "POST" });
-                setMesgul(false);
-                if (r.ok) await yukle(1, filtre);
-                else setHata(r.hata);
-              }}
-            >
-              Kampanyayı iptal et
-            </button>
+          </div>
+          {(s.gonderiliyor > 0 || s.iptal > 0) && (
+            <p className="text-[13px] text-soluk">
+              {MESAJ_DURUM_ADLARI.gonderiliyor}: {sayiYaz(s.gonderiliyor)} · {MESAJ_DURUM_ADLARI.iptal}: {sayiYaz(s.iptal)}
+            </p>
           )}
           {hata && (
             <p role="alert" className="text-sm text-tehlike">
@@ -223,104 +186,200 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
           )}
         </section>
 
-        <section className="kart min-w-0" aria-label="Alıcılar">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <h2 className="font-semibold">Alıcılar</h2>
-            <label className="etiket">
-              <span className="sr-only">Duruma göre süz</span>
-              <select
-                value={filtre}
-                onChange={(e) => {
-                  const d = e.target.value as MesajDurumu | "";
-                  setFiltre(d);
-                  void yukle(1, d);
-                }}
-                className="girdi"
-              >
-                <option value="">Tüm durumlar</option>
-                {MESAJ_DURUMLARI.map((d) => (
-                  <option key={d} value={d}>
-                    {MESAJ_DURUM_ADLARI[d]}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <section className="overflow-hidden rounded-kart border border-kenar bg-white" aria-label="Kampanya ayrıntıları">
+          <div className="px-7 pt-2">
+            <Sekmeler etiket="Kampanya ayrıntıları" onEk={`kampanya-${k.id}`} sekmeler={DETAY_SEKMELERI} secili={sekme} onSec={setSekme} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-xs text-soluk">
-                <tr className="border-b border-kenar">
-                  <th className="py-2 pr-3 text-left font-medium">Kayıt</th>
-                  <th className="py-2 pr-3 text-left font-medium">Durum</th>
-                  <th className="py-2 text-left font-medium">Ayrıntı</th>
-                </tr>
-              </thead>
-              <tbody>
-                {veri.mesajlar.map((m) => (
-                  <tr key={m.id} className="border-b border-kenar align-top last:border-0">
-                    <td className="py-2 pr-3">
-                      <Link
-                        href={`/kayitlar?secili=${m.leadId}`}
-                        className={m.isletmeAdi || m.kaynak !== "google" ? "text-ana underline" : "text-soluk italic underline"}
-                      >
-                        {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
-                      </Link>
-                      {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
-                      {!m.isletmeAdi && m.kaynak === "google" && (
-                        <span className="block">
-                          <GoogleBilgisiHucresi
-                            id={m.leadId}
-                            alan="ad"
-                            bilgi={google.bilgi.get(m.leadId)}
-                            yukleniyor={google.yukleniyor.has(m.leadId)}
-                            onGoster={google.goster}
-                          />
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <span className={`rozet ${ROZET[m.durum]}`}>{MESAJ_DURUM_ADLARI[m.durum]}</span>
-                    </td>
-                    <td className="py-2 text-xs text-soluk">
-                      {m.gonderimTarihi && <span className="block">{tarihYaz(m.gonderimTarihi)}</span>}
-                      {m.neden && <span className="block">{nedenAdi(m.neden)}</span>}
-                      {m.hata && <span className="block text-tehlike">{m.hata}</span>}
-                      {m.durum === "kuyrukta" && m.sonrakiDeneme && <span className="block">Sonraki deneme: {tarihYaz(m.sonrakiDeneme)}</span>}
-                      {m.sandboxIcerik && (
-                        <button type="button" className="text-ana underline" onClick={() => setAcik(acik === m.id ? null : m.id)}>
-                          {acik === m.id ? "Mesajı gizle" : "Kaydedilen mesajı göster"}
-                        </button>
-                      )}
-                      {acik === m.id && m.sandboxIcerik && (
-                        <pre className="mt-1 max-w-prose whitespace-pre-wrap break-words rounded-md bg-zemin p-2 font-sans text-metin">
-                          {m.sandboxIcerik}
-                        </pre>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {veri.mesajlar.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="py-4 text-center text-soluk">
-                      Bu durumda alıcı yok.
-                    </td>
-                  </tr>
+
+          {sekme === "alicilar" && (
+            <div role="tabpanel" id={sekmePaneliId(`kampanya-${k.id}`, "alicilar")} aria-labelledby={sekmeId(`kampanya-${k.id}`, "alicilar")} className="p-7">
+              <div className="mb-3 flex justify-end">
+                <label className="etiket">
+                  <span className="sr-only">Duruma göre süz</span>
+                  <select
+                    value={filtre}
+                    onChange={(e) => {
+                      const d = e.target.value as MesajDurumu | "";
+                      setFiltre(d);
+                      void yukle(1, d);
+                    }}
+                    className="girdi"
+                  >
+                    <option value="">Tüm durumlar</option>
+                    {MESAJ_DURUMLARI.map((d) => (
+                      <option key={d} value={d}>
+                        {MESAJ_DURUM_ADLARI[d]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-[13px] text-soluk">
+                    <tr className="border-b border-cizgi">
+                      <th className="py-2.5 pr-3 text-left font-semibold">Kayıt</th>
+                      <th className="py-2.5 pr-3 text-left font-semibold">Durum</th>
+                      <th className="py-2.5 text-left font-semibold">Ayrıntı</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {veri.mesajlar.map((m) => (
+                      <tr key={m.id} className="border-b border-cizgi align-top last:border-0">
+                        <td className="py-2.5 pr-3">
+                          <Link
+                            href={`/kayitlar?grup=tum&secili=${m.leadId}`}
+                            className={m.isletmeAdi || m.kaynak !== "google" ? "text-ana underline" : "text-soluk italic underline"}
+                          >
+                            {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
+                          </Link>
+                          {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
+                          {!m.isletmeAdi && m.kaynak === "google" && (
+                            <span className="block">
+                              <GoogleBilgisiHucresi
+                                id={m.leadId}
+                                alan="ad"
+                                bilgi={google.bilgi.get(m.leadId)}
+                                yukleniyor={google.yukleniyor.has(m.leadId)}
+                                onGoster={google.goster}
+                              />
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <DurumRozeti ton={ROZET[m.durum]}>{MESAJ_DURUM_ADLARI[m.durum]}</DurumRozeti>
+                        </td>
+                        <td className="py-2.5 text-xs text-soluk">
+                          {m.gonderimTarihi && <span className="block">{tarihYaz(m.gonderimTarihi)}</span>}
+                          {m.neden && <span className="block">{nedenAdi(m.neden)}</span>}
+                          {m.hata && <span className="block text-tehlike">{m.hata}</span>}
+                          {m.durum === "kuyrukta" && m.sonrakiDeneme && <span className="block">Sonraki deneme: {tarihYaz(m.sonrakiDeneme)}</span>}
+                          {m.sandboxIcerik && (
+                            <button type="button" className="text-ana underline" onClick={() => setAcik(acik === m.id ? null : m.id)}>
+                              {acik === m.id ? "Mesajı gizle" : "Kaydedilen mesajı göster"}
+                            </button>
+                          )}
+                          {acik === m.id && m.sandboxIcerik && (
+                            <pre className="mt-1 max-w-prose whitespace-pre-wrap break-words rounded-lg bg-ic-kutu p-2 font-sans text-metin">
+                              {m.sandboxIcerik}
+                            </pre>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {veri.mesajlar.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="py-4 text-center text-soluk">
+                          Bu durumda alıcı yok.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {veri.sayfaSayisi > 1 && (
+                <nav className="mt-3 flex items-center justify-between text-sm" aria-label="Sayfalar">
+                  <button type="button" className="dugme dugme-kucuk" disabled={veri.sayfa <= 1} onClick={() => void yukle(veri.sayfa - 1, filtre)}>
+                    Önceki
+                  </button>
+                  <span className="tabular-nums">
+                    {veri.sayfa} / {veri.sayfaSayisi}
+                  </span>
+                  <button
+                    type="button"
+                    className="dugme dugme-kucuk"
+                    disabled={veri.sayfa >= veri.sayfaSayisi}
+                    onClick={() => void yukle(veri.sayfa + 1, filtre)}
+                  >
+                    Sonraki
+                  </button>
+                </nav>
+              )}
+            </div>
+          )}
+
+          {sekme === "mesaj" && (
+            <div role="tabpanel" id={sekmePaneliId(`kampanya-${k.id}`, "mesaj")} aria-labelledby={sekmeId(`kampanya-${k.id}`, "mesaj")} className="flex flex-col gap-3 p-7 text-sm">
+              {k.konu && (
+                <p>
+                  <span className="text-soluk">Konu:</span> <span className="font-semibold">{k.konu}</span>
+                </p>
+              )}
+              <p className="text-[13px] text-soluk">
+                {k.kanal === "whatsapp_api" ? "Meta'da onaylı şablon" : "Mesaj şablonu ({isletme} kaydın kendi işletme adıyla dolar)"}
+              </p>
+              <p className="whitespace-pre-wrap break-words rounded-[10px] bg-ic-kutu p-4">{k.sablon}</p>
+            </div>
+          )}
+
+          {sekme === "gecmis" && (
+            <div role="tabpanel" id={sekmePaneliId(`kampanya-${k.id}`, "gecmis")} aria-labelledby={sekmeId(`kampanya-${k.id}`, "gecmis")} className="flex flex-col gap-5 p-7 text-sm">
+              <ol className="flex flex-col gap-3">
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="mt-1.5 size-2.5 shrink-0 rounded-full bg-ana" />
+                  <div>
+                    <p>Oluşturuldu</p>
+                    <p className="text-[13px] text-soluk">{tarihYaz(k.olusturmaTarihi)}</p>
+                  </div>
+                </li>
+                {k.planlananTarih && (
+                  <li className="flex gap-3">
+                    <span aria-hidden="true" className="mt-1.5 size-2.5 shrink-0 rounded-full bg-pasif" />
+                    <div>
+                      <p>Planlanan başlangıç</p>
+                      <p className="text-[13px] text-soluk">{tarihYaz(k.planlananTarih)}</p>
+                    </div>
+                  </li>
                 )}
-              </tbody>
-            </table>
-          </div>
-          {veri.sayfaSayisi > 1 && (
-            <nav className="mt-3 flex items-center justify-between text-sm" aria-label="Sayfalar">
-              <button type="button" className="dugme" disabled={veri.sayfa <= 1} onClick={() => void yukle(veri.sayfa - 1, filtre)}>
-                Önceki
-              </button>
-              <span className="tabular-nums">
-                {veri.sayfa} / {veri.sayfaSayisi}
-              </span>
-              <button type="button" className="dugme" disabled={veri.sayfa >= veri.sayfaSayisi} onClick={() => void yukle(veri.sayfa + 1, filtre)}>
-                Sonraki
-              </button>
-            </nav>
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="mt-1.5 size-2.5 shrink-0 rounded-full bg-pasif" />
+                  <div>
+                    <p>Şu anki durum: {KAMPANYA_DURUM_ADLARI[k.durum]}</p>
+                    {k.durum === "duraklatildi" && (
+                      <p className="text-[13px] text-soluk">{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Sistem tarafından duraklatıldı."}</p>
+                    )}
+                  </div>
+                </li>
+              </ol>
+              {k.nedenler.some((n) => n.neden) && (
+                <div>
+                  <h3 className="mb-1 font-semibold">Nedenler</h3>
+                  <ul>
+                    {k.nedenler
+                      .filter((n) => n.neden)
+                      .map((n) => (
+                        <li key={`${n.durum}-${n.neden}`} className="flex justify-between gap-3 border-b border-cizgi py-1.5 last:border-0">
+                          <span>
+                            {nedenAdi(n.neden)} <span className="text-xs text-soluk">({MESAJ_DURUM_ADLARI[n.durum]})</span>
+                          </span>
+                          <span className="tabular-nums">{sayiYaz(n.n)}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+              {k.kanal === "whatsapp_api" && k.teslim.length > 0 && (
+                <div>
+                  <h3 className="mb-1 font-semibold">Meta teslim bildirimleri</h3>
+                  <ul>
+                    {k.teslim.map((t) => (
+                      <li key={`${t.durum}-${t.kod}`} className="flex justify-between gap-3 border-b border-cizgi py-1.5 last:border-0">
+                        <span>
+                          {TESLIM_ADLARI[t.durum ?? ""] ?? t.durum}
+                          {t.kod !== null && <span className="text-xs text-soluk"> (hata {t.kod})</span>}
+                        </span>
+                        <span className="tabular-nums">{sayiYaz(t.n)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {k.ucretli.length > 0 && (
+                    <p className="mt-1 text-xs text-soluk">
+                      Meta&apos;nın ücretlendirdiği: {k.ucretli.map((u) => `${sayiYaz(u.n)} ${u.kategori ?? ""}`).join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </section>
       </div>
@@ -332,7 +391,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
 function IsciDurumu(props: { sonNabiz: string | null; simdi: string; yonetici: boolean }) {
   const d = isciDurumu(props.sonNabiz ? new Date(props.sonNabiz) : null, new Date(props.simdi));
   return (
-    <div className={`rounded-md p-3 text-sm ${d.uyari && props.yonetici ? "bg-red-50 text-tehlike" : "bg-zemin"}`} role={d.uyari ? "alert" : "status"}>
+    <div className={`rounded-[10px] p-4 text-sm ${d.uyari && props.yonetici ? "bg-tehlike-acik text-tehlike" : "bg-ic-kutu"}`} role={d.uyari ? "alert" : "status"}>
       <p>{d.metin}</p>
       {d.uyari &&
         (props.yonetici ? (

@@ -3,7 +3,7 @@
 // verisi görünür; adı girilmemiş Google kayıtlarının adı ve adresi Google Haritalar'dan anlık gelir ("Google"
 // etiketiyle; otomatik ya da "Göster" ile) ve yalnızca bellekte tutulur (components/google-bilgisi.tsx).
 import Link from "next/link";
-import { DurumRozeti, GoogleEtiketi, type RozetTonu } from "@/components/arayuz/rozet";
+import { DURUM_TONU, DurumRozeti, GoogleEtiketi, IZIN_TONU } from "@/components/arayuz/rozet";
 import { Simge } from "@/components/arayuz/simge";
 import { tarihYaz } from "@/lib/bicim";
 import {
@@ -38,15 +38,6 @@ export type TabloSatiri = {
   engelli: boolean;
 };
 
-/** Kayıt durumlarının rozet renkleri (taslaktaki eşleme; metin her zaman yazılı). */
-export const DURUM_TONU: Record<KayitDurumu, RozetTonu> = {
-  yeni: "mavi",
-  iletisimde: "uyari",
-  gorusme: "mor",
-  kazanildi: "ana",
-  ilgilenmiyor: "notr",
-};
-export const IZIN_TONU: Record<IletiIzni, RozetTonu> = { onayli: "ana", bekliyor: "uyari", ret: "tehlike" };
 
 /** Satırda gösterilen ad: yalnızca kullanıcının verisi. */
 export const satirAdi = (s: Pick<TabloSatiri, "isletmeAdi" | "yetkiliAdi" | "kaynak">) =>

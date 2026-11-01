@@ -473,6 +473,23 @@ const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
   kampanyalariListele: () => {
     expect(kampanyalar.kampanyalariListele(A).map((k) => k.id)).not.toContain(bKampanya.id);
   },
+  buAyGonderilenMesaj: () => {
+    // B'nin gönderilmiş mesajı A'nın sayısına girmez. (B'nin mesajları geçici olarak "gönderildi" yapılır, sonra geri alınır.)
+    const onceki = db.$client.prepare("select id, durum, gonderim_tarihi from message_queue where kampanya_id = ?").all(bKampanya.id) as {
+      id: string;
+      durum: string;
+      gonderim_tarihi: number | null;
+    }[];
+    const once = kampanyalar.buAyGonderilenMesaj(A);
+    try {
+      db.$client.prepare("update message_queue set durum = 'gonderildi', gonderim_tarihi = ? where kampanya_id = ?").run(Date.now(), bKampanya.id);
+      expect(kampanyalar.buAyGonderilenMesaj(B)).toBeGreaterThan(0);
+      expect(kampanyalar.buAyGonderilenMesaj(A)).toBe(once);
+    } finally {
+      const geri = db.$client.prepare("update message_queue set durum = ?, gonderim_tarihi = ? where id = ?");
+      for (const m of onceki) geri.run(m.durum, m.gonderim_tarihi, m.id);
+    }
+  },
   kampanyaGetir: () => {
     expect(kampanyalar.kampanyaGetir(A, bKampanya.id)).toBeNull();
   },

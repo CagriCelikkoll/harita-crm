@@ -1,8 +1,9 @@
 // Kampanyalar ve kuyruğa ekleme. Alıcı kuralları çağıran serviste (servisler/kampanya.ts) uygulanır;
 // burada yalnızca bu kiracının kayıtları kuyruğa yazılır.
-import { and, count, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { KAMPANYA_AZAMI_ALICI, type HaricNedeni, type MesajDurumu } from "@/lib/mesajlasma";
 import { SAYFA_BOYUTU } from "@/lib/sabitler";
+import { ayAnahtari, istanbulAni } from "@/lib/zaman";
 import { db } from "../db";
 import { kampanyalar, leads, messageQueue, type Kampanya, type KampanyaFiltresi, type Kayit } from "../db/schema";
 import { yoneticiOlmali, type TenantContext } from "./baglam";
@@ -129,6 +130,20 @@ export function kampanyalariListele(ctx: TenantContext, limit = 50) {
     .all();
   const sayilar = sayilariGetir(ctx, liste.map((k) => k.id));
   return liste.map((k) => ({ ...k, sayilar: sayilar.get(k.id) ?? bosSayilar() }));
+}
+
+/** Panel: bu ay (İstanbul takvimi) gönderilen kampanya mesajı sayısı (tüm kanallar). */
+export function buAyGonderilenMesaj(ctx: TenantContext, simdi = new Date()): number {
+  const ayBasi = istanbulAni(`${ayAnahtari(simdi)}-01`);
+  return (
+    db
+      .select({ n: count() })
+      .from(messageQueue)
+      .where(
+        and(eq(messageQueue.tenantId, ctx.tenantId), eq(messageQueue.durum, "gonderildi"), gte(messageQueue.gonderimTarihi, ayBasi)),
+      )
+      .get()?.n ?? 0
+  );
 }
 
 export function kampanyaGetir(ctx: TenantContext, id: string) {

@@ -9,7 +9,7 @@
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
 import { bildir, SonucMesaji } from "@/components/bildirim";
-import { DurumRozeti } from "@/components/arayuz/rozet";
+import { DurumRozeti, IZIN_TONU } from "@/components/arayuz/rozet";
 import { SecimCipi, Sekmeler, sekmeId, sekmePaneliId } from "@/components/arayuz/sekmeler";
 import { Simge } from "@/components/arayuz/simge";
 import { GoogleAtfi } from "@/components/google-atfi";
@@ -40,7 +40,7 @@ import {
 import type { CanliSonuc, ListeBilgisi } from "@/server/servisler/canli-bilgi";
 import type { KayitDto, OlayDto, WhatsappKisiDto } from "@/server/servisler/kayit-dto";
 import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
-import { IZIN_TONU } from "./kayit-tablosu";
+
 
 type DetayVerisi = {
   kayit: KayitDto;
