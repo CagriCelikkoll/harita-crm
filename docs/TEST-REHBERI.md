@@ -13,11 +13,15 @@ Kutucukları (`[ ]`) denedikçe işaretleyebilirsiniz. Adımları **sırayla** i
 
 > **Güvenli mi?** Evet. Demo ortamı ayrı bir veritabanı (`data/demo.db`) kullanır; gerçek veritabanınıza ve
 > `.env.local` dosyanızdaki ayarlara dokunmaz. Google ve WhatsApp'a hiç bağlanmaz, ücret oluşmaz. E-posta ve SMS
-> kampanyaları "sandbox" modunda çalışır: hiçbir mesaj gerçekten gönderilmez, yalnızca kaydedilir.
+> kampanyaları "test modunda" çalışır: hiçbir mesaj gerçekten gönderilmez, yalnızca kaydedilir.
 > Demoya **gerçek kişi bilgisi girmeyin.**
 
 **Başarılı işlemler** (kaydetme, durum değiştirme, not ekleme, kişi ekleme, bağlantı testi…) ekranın **sağ üstünde**
 birkaç saniye görünen yeşil bir bildirimle (✓) onaylanır. Bir işlemden sonra bu bildirimi görmüyorsanız not alın.
+
+**Menü:** Sol menüde **Panel, Bölge tara, Kayıtlar, Kampanyalar, Ayarlar** vardır. Menünün altında bu ayki Google
+kullanımınız yüzde olarak görünür. Ayarlar kendi içinde bölümlere ayrılır (Çalışma alanı, Ekip ve roller, Kullanım
+ve paket, Gönderen bilgileri, Saatler ve sınırlar, WhatsApp listesi, WhatsApp (Meta), SMS, E-posta, Veri saklama).
 
 ---
 
@@ -71,13 +75,13 @@ yaptığınız bütün denemeler silinir. Uygulama açıkken çalıştırırsan�
 |---|---|
 | Çalışma alanı | "Demo Emlak (Sahte Veri)" |
 | Kullanıcılar | **Yönetici:** `yonetici@demo.test` / `Demo-Yonetici-2026`<br>**Üye:** `uye@demo.test` / `Demo-Uye-2026!` |
-| Google kaynaklı kayıtlar | Kadıköy'de sahte bir "emlak ofisi" taramasından gelen 10 kayıt (henüz incelenmemiş). Google'daki adları ve adresleri yalnızca istediğinizde gösterilir; değerler sahte istemcinin uydurduğu adlardır (ör. "Bora Emlak 852"). |
+| Google kaynaklı kayıtlar | Kadıköy'de sahte bir "emlak ofisi" taramasından gelen 10 kayıt (henüz incelenmemiş). Google'daki adları ve adresleri saklanmaz; ekranda gösterilir (bu ayki kullanım %80'e ulaşana kadar kendiliğinden, sonra **Göster**'e basınca). Değerler sahte istemcinin uydurduğu adlardır (ör. "Bora Emlak 852"). |
 | Elle eklenen ve içe aktarılan kayıtlar | Örnek Kırtasiye, Sahte Fırın, Hayali Kuaför, Kurgu Oto Servis, Örnek Bireysel Müşteri |
 | Reklamdan gelen kişi | Reklamdan Gelen Deneme Kişi |
 | Ret verilmiş kayıt | "Ret Vermiş Örnek İşletme" (0500 000 00 09, `ret.ornek@demo.test`) |
 | Sabit hatlı Google kayıtları | İki Google kaydının ("Görüşme" ve "İlgilenmiyor" durumundaki, `demo` etiketli olanlar) telefonu bilerek sabit hattır: SMS'te "Cep telefonu değil" nedeniyle düşmeleri görülebilsin. |
 | WhatsApp | Sahte bağlantı (test modunda), 3 şablon (biri kampanyada kullanılamaz; bkz. adım 8c). Test numarası: **+90 500 000 00 01** (Örnek Kırtasiye). |
-| Sınırlar (demo için düşük) | Günde en fazla 5 e-posta ve 5 SMS. Places kotası ayda 1.000 birim. |
+| Sınırlar (demo için düşük) | Günde en fazla 5 e-posta ve 5 SMS. Google kullanımı yüzde olarak gösterilir (Ayarlar → Kullanım ve paket). |
 
 Telefonlar `0500 000 xx xx` biçimindedir (elle girilenler `0500 000 00 xx`, Google kaynaklı sahte kayıtlarınki
 `0500 000 10 00`–`99 99`); 0500 öneki hiçbir operatöre ayrılmamıştır. Tek istisna yukarıdaki iki sabit hatlı Google
@@ -116,10 +120,15 @@ kapatırsanız uygulama durur.
 
 **Ne görmelisin:**
 
-- **Panel** sayfası açılır: toplam kayıt, durum hunisi, son taramalar ve "Bu ayki Places kullanımı".
-- Sol menüde **Panel, Bölge taraması, Kayıtlar, İletişim, Ayarlar** vardır.
+- **Panel** açılır. Üstte dört özet: **Toplam kayıt 17**, **İletişimde + görüşme 4**, **Kazanıldı 2**, **Bu ay
+  gönderilen mesaj 0**.
+- **Sıradaki işler**: "10 incelenmemiş tarama sonucu" ve "WhatsApp test modunda" gibi yapılacak işler (her biri
+  ilgili sayfaya götürür). Altında renkli durum hunisi, son taramalar ve son kampanyalar.
+- Panelde kullanım/kota bilgisi **yoktur**; kullanım yalnızca menünün altındaki göstergede (şu an **%0**) ve
+  Ayarlar → Kullanım ve paket'te görünür.
+- Sol menüde **Panel, Bölge tara, Kayıtlar, Kampanyalar, Ayarlar**.
 
-- [ ] Yönetici girişi çalıştı.
+- [ ] Yönetici girişi çalıştı; panel sayıları yukarıdaki gibi.
 
 ### 3b. Yanlış parola
 
@@ -140,151 +149,128 @@ açamıyorsanız çıkış yapıp üye olarak girin, karşılaştırmadan sonra 
 
 | Ekran | Yönetici | Üye |
 |---|---|---|
-| Ayarlar → çalışma alanı, ticari ileti ayarları | Değiştirebilir | Görür ama alanlar kilitli (gri), "Bu ayarları yalnızca yöneticiler değiştirebilir." yazar |
-| Ayarlar → **WhatsApp Business (API)** bölümü | Görünür | **Hiç görünmez** |
-| Ayarlar → üye davet etme ve üye çıkarma | Var | Yok ("Üye davet etmek için yönetici yetkisi gerekir.") |
-| İletişim → yeni kampanyada kanal listesi | E-posta, SMS, **WhatsApp (API)** | Yalnızca E-posta, SMS |
+| Ayarlar menüsü | Bütün bölümler | Yalnızca **Çalışma alanı, Ekip ve roller, Kullanım ve paket, Saatler ve sınırlar, WhatsApp listesi** |
+| Ayarlar → Çalışma alanı | Değiştirebilir | Görür ama alanlar kilitli (gri), "Bu ayarları yalnızca yöneticiler değiştirebilir." yazar |
+| Ayarlar → WhatsApp (Meta), SMS, E-posta, Gönderen bilgileri, Veri saklama | Görünür | **Menüde yok**; adresi elle yazarsanız (ör. `/ayarlar/whatsapp`) Çalışma alanı'na döner |
+| Ayarlar → Ekip ve roller | Davet eder, üye çıkarır | "Kişi davet etmek için yönetici yetkisi gerekir."; **Çıkar** düğmesi yok |
+| Kampanyalar → Yeni kampanya, 1. adım (kanal) | E-posta, SMS, **WhatsApp (API)** | Yalnızca E-posta, SMS |
 | Kayıtları görme, düzenleme, not ekleme, ret verme | Var | Var |
 
-Ayarlar'da kota ve günlük sınırların altında hiçbir komut yazmaz; yalnızca "Kotanızı veya sınırlarınızı artırmak için
-yöneticinizle/destekle iletişime geçin." yazar.
-
-- [ ] Üye, WhatsApp Business ayarlarını göremiyor.
+- [ ] Üye, kanal ayarlarını (WhatsApp, SMS, E-posta) göremiyor; adresle de açamıyor.
 - [ ] Üye, kampanya kanallarında "WhatsApp (API)"yi göremiyor.
 
 Bundan sonraki adımları **yönetici** olarak yapın.
 
 ---
 
-## 4. Bölge taraması ve sonuçları inceleme
+## 4. Bölge tara ve sonuçları inceleme
 
 ### 4a. Tarama
 
-**Ne yap:** **Bölge taraması**'na gidin.
+**Ne yap:** **Bölge tara**'ya gidin. Sol tarafta form, sağda harita vardır.
 
-1. **Adres** kutusuna `Bağdat Caddesi, Kadıköy` yazıp yanındaki **Bul** düğmesine basın.
-2. **Kategori** olarak "Kafe" seçin.
+1. **Merkez** kutusuna `Bağdat Caddesi, Kadıköy` yazıp yanındaki **Bul** düğmesine basın.
+2. Kategorilerden **Kafe**'yi seçin.
 3. Yarıçapı olduğu gibi bırakın (form son taramanın ayarlarıyla gelir; demoda 1,5 km).
 4. **Taramayı başlat**'a basın.
 
 **Ne görmelisin:**
 
-- **Bul**'dan sonra Enlem/Boylam kutuları dolar ve "Merkez kaynağı: adres araması" yazar.
-- Sayfada "PLACES_MOCK açık: örnek veri kullanılıyor." uyarısı.
-- Tarama birkaç saniye içinde biter; sağdaki **Tarama durumu** kartında "Tamamlandı" ve **Bulunan işletme 17**
-  yazar. Kartın altında **Sonuçları incele** ve **Kayıtlara git** düğmeleri vardır (kartı görmek için biraz aşağı
-  kaydırmanız gerekebilir).
-- **Tarama geçmişi**'nde yeni satır; incelenmemiş sonucu olan taramalarda **Sonuçları incele (N)** düğmesi
-  (Kafe taraması için 17, demodaki Emlak ofisi taraması için 10).
+- **Bul**'dan sonra kutunun altında "Adres araması: Bağdat Caddesi, Kadıköy" yazar.
+- Formun altında "Örnek veri kullanılıyor (PLACES_MOCK)" notu.
+- Tarama birkaç saniye içinde biter: **Tarama durumu** "Tamamlandı · 17 işletme bulundu".
+- Haritanın altında sonuç kartları: başlıkta "Son tarama: Bağdat Caddesi, Kadıköy · Kafe · 1.5 km" ve "17 işletme
+  bulundu · 17 incelenmedi · 0 ilgilenilen". 17 kartın her birinde Google'daki ad, adres, mesafe ve küçük bir
+  **Google** etiketi vardır (kullanım %80'in altındayken bunlar kendiliğinden gelir; saklanmaz).
 
 Harita yerine "NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY tanımlı değil" yazıyorsa sorun değil: harita anahtarı yoksa
-merkezi adresle ya da enlem/boylam kutularıyla girersiniz. Bu durumda "X kaydın X tanesi haritada" gibi bir yazı
-da çıkmaz.
+merkezi adresle girersiniz.
 
-- [ ] Tarama tamamlandı (17 işletme).
+- [ ] Tarama tamamlandı (17 işletme), kartlar adlarıyla göründü.
 
 ### 4b. Sonuçları incele
 
-**Ne yap:** Tarama durumu kartındaki **Sonuçları incele**'ye basın.
-
-**Ne görmelisin:**
-
-- "Sonuçları incele" sayfası: "17 incelenmemiş sonuç · bu sayfada 17".
-- Satırlarda Google adı **yoktur**; her satırda "Google kaydı · ad girilmemiş" ve **Göster (3 birim)** yazar. Liste
-  kendiliğinden Google'a gitmez, kota harcamaz.
-- Üstte **Bu sayfanın Google bilgilerini göster (17 × 3 = 51 birim)** düğmesi: maliyet basmadan önce yazar.
-
 **Ne yap:**
 
-1. **Bu sayfanın Google bilgilerini göster**'e basın.
-2. İlk satırda **İlgilen**'e basın. Açılan "İşletme adı (sizin kaydınız)" kutusuna `Deneme Kafe` yazıp **Kaydet**'e
-   basın.
-3. İkinci satırda **İlgilenme**'ye basın.
-4. Diğer satırlara dokunmadan **Taramaya dön**'e basın.
+1. İlk kartta **İlgilen**'e basın.
+2. İkinci kartta **Geç**'e basın.
+3. Diğer kartlara dokunmayın.
 
 **Ne görmelisin:**
 
-- Bilgiler gelince her satırda "Google: Yıldız Kafe 402" gibi bir ad ve adres görünür. Bu bilgi saklanmaz;
-  sayfadan ayrılınca silinir.
-- **İlgilen**'e basınca o satırın Google bilgisi gizlenir ve **boş** bir ad kutusu açılır. Kutuda yalnızca gri
-  "İşletmeyle görüştüğünüzde adını buraya yazın" ipucu vardır; Google'daki ad kutunun yanında gösterilmez, kopyalama
-  ya da otomatik doldurma yoktur.
-- Kaydettikten sonra satırda "Deneme Kafe" ve "İlgilenilen" etiketi, ikinci satırda "İlgilenilmiyor" etiketi
-  görünür. Her ikisinin yanında **Geri al** vardır.
-- Tarama geçmişinde Kafe taraması artık **Sonuçları incele (15)** gösterir.
+- İlk kart "Kayıtlara eklendi" olur, yanında **Geri al** vardır.
+- İkinci kart "Geçildi" olur.
+- Başlıktaki özet "15 incelenmedi · 1 ilgilenilen" olur.
+- İlgilendiğiniz işletmeye ad sormaz: adı daha sonra Kayıtlar'da, işletmeyle görüştüğünüzde kendiniz yazarsınız
+  (adım 5).
 
-İlgilenmediğiniz işletmeler silinmez (sonraki taramada yeniden gelmesinler diye); **Kayıtlar**'da varsayılan olarak
-gizlenir ve hiçbir kampanyaya girmez. Hepsini tek seferde işaretlemek için "Kalan N sonucun hiçbiriyle ilgilenme"
-düğmesi vardır (bu rehberde kullanmıyoruz).
+Geçtiğiniz işletmeler silinmez (sonraki taramada yeniden gelmesinler diye); **Kayıtlar**'da "İlgilenilmiyor"
+olarak durur ve hiçbir kampanyaya girmez.
 
-- [ ] Google bilgileri istenince geldi; maliyet önceden yazıyordu.
-- [ ] Ad kutusu boş geldi, yanında Google adı yoktu.
-- [ ] İlgilen / İlgilenme işaretleri göründü.
+- [ ] İlgilen / Geç işaretleri göründü, özet sayısı güncellendi.
 
-### 4c. Tekrar kullan
+### 4c. Önceki taramalar ve Tekrar kullan
 
-**Ne yap:** **Bölge taraması**'nda, geçmişteki demo taramasında (Emlak ofisi, "Adres: Kadıköy, İstanbul")
-**Tekrar kullan**'a basın.
+**Ne yap:** Formun altındaki **Önceki taramalar**'ı açın. Demodaki Emlak ofisi taramasında **Tekrar kullan**'a
+basın.
 
-**Ne görmelisin:** Formun üstünde "Ayarlar forma alındı; taramayı başlatabilirsiniz." yazar ve kategori "Emlak ofisi"
-olur (mesajı görmek için sayfanın üstüne kaydırın).
+**Ne görmelisin:**
+
+- Listede 2 tarama vardır; Emlak ofisi satırında "Kadıköy, İstanbul · 10 bulundu · 10 incelenmedi".
+- **Tekrar kullan**'dan sonra "Ayarlar forma alındı; taramayı başlatabilirsiniz." yazar ve kategori "Emlak ofisi"
+  seçili olur.
 
 - [ ] "Tekrar kullan" formu doldurdu.
 
 ---
 
-## 5. Kayıt listesi ve kayıt detayı
+## 5. Kayıtlar ve kayıt ayrıntısı
 
 **Ne yap:** **Kayıtlar**'a gidin.
 
 **Ne görmelisin:**
 
-- Üstte **33 kayıt** (34 kayıttan "İlgilenilmiyor" işaretlediğiniz 1 tanesi varsayılan olarak gizlidir).
-- Liste yalnızca **sizin girdiğiniz** bilgileri gösterir: kendi işletme adınız (yoksa gri, eğik "Google kaydı · ad
-  girilmemiş"), durum, ileti izni, etiketler, son işlem. WhatsApp izni, kaynak ("Elle eklendi", "İçe aktarma"…) ve
-  inceleme ("İncelenmedi", "İlgilenilmiyor") adın altında küçük etiketler olarak görünür. Ayrı bir "WhatsApp izni"
-  sütunu yoktur.
-- Google kayıtlarında "Google adresi" sütununda **Göster (3 birim)**; listenin üstünde **Bu sayfadaki Google
-  bilgilerini göster (N × 3 = X birim)**. Listeyi açmak kota harcamaz.
-- İlk sayfadaki kayıtların çoğu yeni taramanın kafeleridir ("Yeni" durumunda). Demodaki farklı durumlar (İletişimde,
-  Görüşme, Kazanıldı, İlgilenmiyor) ve **Ret** ikinci sayfadadır ya da Durum süzgeciyle bulunur.
+- Üç sekme: **İlgilendiklerim 8**, **İncelenmemiş 25**, **Tümü 34**.
+- **İncelenmemiş** sekmesinde tarama sonuçları Google'daki adlarıyla ve **Google** etiketiyle listelenir. Listenin
+  altında "'Google' etiketli bilgiler … kaydedilmez" ve "İşletme bilgileri: Google Maps" yazar.
+- Liste ve sayfa başına 20 satır; **Tümü** sekmesinde altta sayfalama (‹ 1 / 2 ›).
 
 **Ne yap:**
 
-1. Üstteki süzgeçleri deneyin: **Durum** = "Görüşme" → **Filtrele**. Sonra **Temizle**.
-2. **İnceleme** süzgecinde "İlgilenilmeyen"i seçip **Filtrele**: işaretlediğiniz kafe görünür. Sonra **Temizle**.
-3. **Ara** kutusuna `demo.test` yazıp **Filtrele** (yalnızca sizin girdiğiniz alanlarda arar). Sonra **Temizle**.
+1. **Tümü** sekmesinde **Filtreler**'e basın, **Durum** = "Görüşme" seçip **Uygula**'ya basın.
+2. Filtreleri **Temizle** ile kaldırın.
+3. **Ara** kutusuna `demo.test` yazıp **Ara**'ya basın (yalnızca sizin girdiğiniz alanlarda arar).
 
-**Ne görmelisin:** Liste süzgece göre daralır ("2 kayıt", "1 kayıt" vb.).
+**Ne görmelisin:** Durum süzgeciyle **2 kayıt**; Filtreler düğmesinde **1** sayısı. `demo.test` aramasıyla **8 kayıt**.
 
-**Ne yap:** Bir Google kaydının adına tıklayın (ör. "Google kaydı · ad girilmemiş" yazan bir kafe).
+**Ne yap:** **İlgilendiklerim** sekmesinde 4b'de ilgilendiğiniz kafeyi açın (adı Google'dan gelir, ör.
+"Kordon Kafe 258").
 
-**Ne görmelisin:** Sağda detay paneli açılır:
+**Ne görmelisin:** Sağda ayrıntı paneli açılır:
 
-- Başlıkta Google'daki ad, altında adres; telefon, web sitesi, puan (hepsi sahte). Bu bilgiler panel açılınca bir
-  kez Google'dan çekilir (4 birim) ve saklanmaz. Aynı kaydı aynı sayfada yeniden açarsanız tekrar çekilmez.
-- **Bilgiler** bölümünde "İşletme adı (sizin kaydınız)" kutusu boştur; gri ipucu "İşletmeyle görüştüğünüzde adını
-  buraya yazın".
-- **Notlar ve geçmiş** bölümü: "Not ekle" ve geçmiş (Eklendi, Durum değişti, Bilgi güncellendi…).
+- Başlıkta Google'daki ad ve adres.
+- Sekmeler: **Genel**, **İletişim izni**, **Geçmiş**.
+- Genel'de "İşletme adı (sizin kaydınız)" kutusu **boştur**; gri ipucu "İşletmeyle görüştüğünüzde adını buraya
+  yazın". Google'daki ad kutuya kopyalanmaz.
+- "İletişim bilgileri (Google Haritalar)" kutusu: Telefon, Web sitesi, Puan ve "Google Haritalar'da aç". Bunlar
+  saklanmaz.
 
 **Ne yap:**
 
-1. **Durum**'u "İletişimde" yapıp **Değiştir**'e basın.
-2. **Bilgiler**'de **Yetkili adı**'na `Deneme Yetkili` yazıp **Kaydet**'e basın.
-3. **Not ekle** kutusuna bir not yazıp **Notu ekle**'ye basın.
+1. Durum çiplerinden **İletişimde**'ye basın.
+2. İşletme adına `Deneme Kafe`, yetkili adına `Deneme Yetkili` yazıp **Kaydet**'e basın.
+3. **Geçmiş** sekmesinde bir not yazıp ekleyin.
 
 **Ne görmelisin:**
 
 - Her işlemden sonra sağ üstte bildirim: "Durum güncellendi.", "Kaydedildi.", "Not eklendi.".
-- Listede o satırın durumu ve son işlem tarihi sayfa yenilenmeden değişir.
-- Geçmişte "Durum değişti · Yeni → İletişimde", "Bilgi güncellendi · Bilgiler güncellendi: yetkili adı" ve notunuz
-  görünür.
+- Listede satırın adı ve durumu sayfa yenilenmeden değişir.
+- Geçmiş'te sırayla notunuz, "Bilgi güncellendi", "Durum değişti · Yeni → İletişimde" ve "Eklendi".
 
-**Ne yap:** Demo kayıtlarından "Sahte Fırın"ı açın (Ara: `0500 000 00 02`).
+**Ne yap:** "Hayali Kuaför"ü açın (Tümü sekmesi, Ara: `elif.kurgu`).
 
-**Ne görmelisin:** Notlar ve geçmiş bölümünde gri bir **Kayıt notu** kutusu yoktur (bu kayıtta not girilmemiş).
-"Hayali Kuaför"ü açarsanız kayıt notu kutusunda "Demo notu: WhatsApp izni henüz alınmadı." ve **Düzenle** görünür.
-Kayıt notu, kişi eklerken ya da içe aktarırken girilen kalıcı nottur; tarihli notlar "Not ekle" ile eklenir.
+**Ne görmelisin:** Genel sekmesinde kayıt notu: "Demo notu: WhatsApp izni henüz alınmadı." ve **Düzenle**. Kayıt
+notu, kişi eklerken ya da içe aktarırken girilen kalıcı nottur; tarihli notlar Geçmiş'ten eklenir.
 
 ### 5b. Kişi ekle
 
@@ -293,13 +279,12 @@ seçmeden **Kaydet**'e basmayı deneyin; sonra "Tacir/esnaf (işletme)" seçip *
 
 **Ne görmelisin:**
 
-- Alıcı türü "Seçin" ile başlar ve zorunludur; seçmeden kaydedilmez (tarayıcı alanı işaretler). Altında
-  "Bireysel kişilere ticari ileti göndermek için kişinin onayı ve bu onayın İYS'ye kayıtlı olması ayrıca gerekir."
-  yazar.
-- Kaydedince Kayıtlar açılır, sağ üstte "Kişi eklendi." bildirimi; kişi "Elle eklendi" etiketiyle listede ve detayı
-  açık.
+- Alıcı türü "Seçin" ile başlar ve zorunludur; seçmeden kaydedilmez (tarayıcı alanı işaretler).
+- Kaydedince Kayıtlar açılır, sağ üstte "Kişi eklendi." bildirimi; "Deneme Kişi"nin ayrıntısı açık, altında
+  "Elle eklendi".
 
-- [ ] Liste yalnızca kendi verinizi gösterdi; Google bilgisi istenince geldi.
+- [ ] Sekme sayıları ve süzgeçler doğru çalıştı.
+- [ ] Ad kutusu boş geldi; Google adı kopyalanmadı.
 - [ ] Durum, bilgi ve not işlemleri bildirimle onaylandı.
 - [ ] Kişi eklerken alıcı türü seçmek zorunluydu.
 
@@ -366,8 +351,8 @@ Türkçe Excel'de doğrudan sütunlara ayrılır).
 
 - "İçe aktarma tamamlandı": Eklenen yeni kişi 5, Mevcut kayıtla çakışan 1, Hatalı 6, Engel listesinde 1.
 - **İçe aktarılan kayıtlar**'a basınca yeni kişiler ("Deneme Çiçekçi (Sahte)", "Kurgu Eczane (Sahte)" vb.) görünür.
-- "Sahte Fırın" ikinci kez **eklenmez** (Ara: `0500 000 00 02` → 1 kayıt).
-- "Ret Örneği Yeniden (Sahte)" kaydının adının altında kırmızı **Engelli** etiketi vardır; detayını açınca "Bu
+- "Sahte Fırın" ikinci kez **eklenmez** (Tümü sekmesi, Ara: `0500 000 00 02` → 1 kayıt).
+- "Ret Örneği Yeniden (Sahte)" kaydının adının altında kırmızı **Engelli** etiketi vardır; ayrıntısını açınca "Bu
   kişinin adreslerinden biri engel listesinde (daha önce ret verilmiş); hiçbir kanaldan ileti gönderilmez." yazar.
 
 - [ ] Önizleme sayıları tablo ile aynı.
@@ -380,81 +365,86 @@ Türkçe Excel'de doğrudan sütunlara ayrılır).
 
 **Ne yap:**
 
-1. **Kayıtlar**'da "Hayali Kuaför"ü açın (Ara: `elif.kurgu`).
-2. **WhatsApp izni (kampanyalar)** bölümünde **Düzenle**'ye basın.
+1. **Kayıtlar**'da "Hayali Kuaför"ü açın (Tümü sekmesi, Ara: `elif.kurgu`).
+2. **İletişim izni** sekmesinde WhatsApp izninin yanındaki **Düzenle**'ye basın.
 3. **İzin var** seçin. İzin kaynağı "Form", izin tarihi olarak geçmiş bir gün girin, **Kaydet**'e basın.
 
 **Ne görmelisin:**
 
-- "İzin var · Form · <tarih>" görünür; geçmişte "İzin değişti · WhatsApp izni: İzin var, Form".
-- Listede satırın altına "WhatsApp izni" etiketi **sayfa yenilenmeden** eklenir ve son işlem tarihi güncellenir.
+- "WhatsApp izni kaydedildi." bildirimi; "İzin var · Form · <tarih>" görünür.
+- Listede satırın **İzin** sütununa WhatsApp simgesi **sayfa yenilenmeden** eklenir.
 
 **Ne yap:** "Örnek Bireysel Müşteri"yi açın (Ara: `bireysel.ornek`).
 
 **Ne görmelisin:**
-- İzni var ama yanında "İYS beyanı yok (kampanyaya girmez)".
-- Bilgiler bölümünde "Bireysel kayıtlara yalnızca ileti izni "Onaylı" ise gönderim yapılır." notu.
 
-**Ne yap:** "Ret Vermiş Örnek İşletme"yi açın (Ara: `ret.ornek`).
+- İletişim izni sekmesinde WhatsApp izninin yanında "İYS beyanı yok (kampanyaya girmez)".
+- Genel sekmesinde bireysel kayıtlara yalnızca ileti izni "Onaylı" ise gönderim yapılacağını söyleyen not.
+
+**Ne yap:** Ara: `ret.ornek` (2 kayıt çıkar: "Ret Vermiş Örnek İşletme" ve 6. adımda içe aktarılan "Ret Örneği
+Yeniden (Sahte)"). **Ret Vermiş Örnek İşletme**'yi açıp **İletişim izni** sekmesine geçin.
 
 **Ne görmelisin:**
 
 - İleti izni: **Ret · <tarih> · İleti reddi işaretlendi · Demo Yönetici** (ne zaman, nasıl ve kimin verdiği).
-- WhatsApp izni bölümünde de aynı "Ret · …" yazar; eski izin kaynağı gösterilmez. "Ret verilmiş bir kişinin izni
-  değiştirilemez." yazar; **Düzenle** düğmesi yoktur.
+- WhatsApp izninde de aynı "Ret · …" yazar; **Düzenle** düğmesi yoktur ve "Ret verilmiş bir kişinin izni
+  değiştirilemez." yazar.
 
 - [ ] İzin verildi; liste sayfa yenilenmeden güncellendi.
 - [ ] Ret verilmiş kişide "Ret · tarih · nasıl" görünüyor, izin değiştirilemiyor.
 
 ---
 
-## 8. Kampanyalar (sandbox)
+## 8. Kampanyalar (test modu)
 
-Kampanyalar **İletişim** sayfasında oluşturulur. Formu doldurduktan sonra **Gönderim özetini göster**'e
-basın: özet formun altında açılır (aşağı kaydırın) ve kaç kişiye gideceğini, kaç kişinin neden hariç kaldığını ve
-bugün kaç tanesinin gidebileceğini gösterir. Özet yalnızca **sayıları** gösterir; kimin hariç kaldığını kampanya
-başladıktan sonra detay sayfasındaki alıcı listesinde görürsünüz.
+Kampanyalar **Kampanyalar → Yeni kampanya** ile, 4 adımlı bir sihirbazla oluşturulur: **1 Kanal → 2 Alıcılar →
+3 Mesaj → 4 Gönder**. Adımlar arasında **İleri** / **Geri** ile geçilir; 3. adımdaki **Gönderim özetini göster** sizi
+4. adıma götürür. 4. adımdaki özet yalnızca **sayıları** gösterir; kimin hariç kaldığını kampanya başladıktan sonra
+ayrıntı sayfasının **Alıcılar** sekmesinde görürsünüz.
 
 ### 8a. E-posta kampanyası
 
 **Ne yap:**
 
-1. Kanal **E-posta**, kampanya adı `Demo e-posta`, konu `Merhaba`.
-2. Mesaj olarak şunu yazın: `Merhaba {isletme}, bu bir deneme mesajıdır.`
-3. Alıcı grubunu "Tümü" bırakın, **Gönderim özetini göster**'e basın.
+1. **1 Kanal:** **E-posta** kartını seçin → **İleri**.
+2. **2 Alıcılar:** Kampanya adı `Demo e-posta`; Durum ve Alıcı türü "Tümü" kalsın → **İleri**.
+3. **3 Mesaj:** Konu `Merhaba`, mesaj `Merhaba {isletme}, bu bir deneme mesajıdır.` → **Gönderim özetini göster**.
 
 **Ne görmelisin:**
 
-- "E-posta sağlayıcısı tanımlı değil: kampanya sandbox modunda çalışır" uyarısı.
-- Özet (rehberi sırayla izlediyseniz):
-  - **8 alıcıya gönderilecek.**
-  - Hariç tutulanlar: İleti reddi 1, Engel listesinde 1, İletişim bilgisi yok 27, Bireysel ve onay yok 2,
-    **İlgilenilmiyor olarak işaretli 1** (adım 4b'de işaretlediğiniz kafe).
+- 1\. adımda kanal kartları: E-posta "Bağlı değil" (test modunda çalışacağını söyleyen notla), SMS "Bağlı değil",
+  WhatsApp (API) "Bağlı".
+- 2\. adımda canlı sayı: **"8 kişiye gidecek · 32 hariç"** ve hariçlerin dökümü: İleti reddi 1, Engel 1, İletişim
+  bilgisi yok 27, Bireysel ve onay yok 2, **İlgilenilmiyor 1** (4b'de geçtiğiniz kafe).
+- 4\. adımda (rehberi sırayla izlediyseniz):
+  - **8 alıcı**; Hariç tutulanlar 32 / 40.
   - "Günlük sınır nedeniyle sonraki günlere kalacak 3" (sınır günde 5).
-  - "Kendi kaydınızda işletme adı yok: 3 kayıt (Google'dan gelen ad mesajlara yazılmaz; {isletme} kaldırılacak)" ve
-    yanında **Adı boş olan Google kayıtlarını aç** bağlantısı.
+  - "Kendi kaydınızda işletme adı yok: 3 kayıt" (Google'dan gelen ad mesajlara yazılmaz).
+  - "E-posta bağlı değil: kampanya test modunda çalışır (gerçek gönderim yapılmaz, mesajlar kaydedilir)."
 
 **Ne yap:** **Kampanyayı başlat**'a basın.
 
 **Ne görmelisin:**
 
-- Kampanyanın **detay sayfası** açılır: "Gönderiliyor" ve "Sandbox: gerçek gönderim yok" etiketleri, İlerleme 0 / 8.
-- **"Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı."** yazan kırmızı bir kutu ve altında yöneticiye uyarı:
-  gönderim servisi çalışmadığı için mesajlar gönderilmeyecek. (Servisi adım 9'da başlatacaksınız.)
-- Alıcılar listesinde Google kayıtları gri, eğik "Google kaydı · ad girilmemiş" olarak görünür; yanlarında
-  **Göster (3 birim)** vardır (ad yalnızca ekranda gösterilir, mesaja yazılmaz).
+- Kampanyanın **ayrıntı sayfası** açılır: "Gönderiliyor" ve "Test modu: gerçek gönderim yok" etiketleri, ilerleme
+  0 / 8, Kuyrukta 8, Hariç 32.
+- **"Gönderim kuyrukta — gönderim servisi henüz hiç çalışmadı."** yazan kırmızı bir kutu ve altında yöneticiye
+  uyarı. (Servisi adım 9'da başlatacaksınız.)
+- Altta sekmeler: **Alıcılar**, **Mesaj**, **Geçmiş**. Alıcılar'da Google kayıtları gri, eğik "Google kaydı · ad
+  girilmemiş" olarak görünür; yanlarında **Göster** vardır (ad yalnızca ekranda gösterilir, mesaja yazılmaz).
 
 ### 8b. SMS kampanyası
 
-**Ne yap:** **İletişim**'e dönün. Kanal **SMS**, ad `Demo SMS`, alıcı grubunda **Etiket** `demo`. Mesaj:
+**Ne yap:** **Kampanyalar → Yeni kampanya**. Kanal **SMS**; ad `Demo SMS`, Etiket `demo`. Mesaj:
 `Merhaba {isletme}, demo SMS denemesi.` → **Gönderim özetini göster** → **Kampanyayı başlat**.
 
-**Ne görmelisin (özette):**
+**Ne görmelisin:**
 
-- SMS uzunluğu ve parça sayısı (1 SMS).
-- **9 alıcıya gönderilecek**; hariç: İleti reddi 1, İletişim bilgisi yok 2, Bireysel ve onay yok 2, **Cep telefonu
-  değil 1** (Kurgu Oto Servis: 0212…).
-- "Telefonu kayıtta olmayan, gönderim anında Google'dan alınacak: 3 kayıt" ve "Tahmini kota maliyeti 12 birim".
+- 2\. adımda: **"9 kişiye gidecek · 6 hariç"** (İleti reddi 1, İletişim bilgisi yok 2, Bireysel ve onay yok 2,
+  **Cep telefonu değil 1**: Kurgu Oto Servis, 0212…).
+- 3\. adımda SMS sayacı: "… karakter · 1 SMS".
+- 4\. adımda: 9 alıcı; sonraki günlere 4; "Google'dan alınacak: 3 kayıt" (telefonu kayıtta olmayan, gönderim
+  anında Google'dan alınacak) ve "Bu ayki kullanımınıza yaklaşık %2 eklenir."; işletme adı olmayan 4 kayıt.
 - Bu 3 kaydın **2'si** demodaki bilerek sabit hatlı Google kayıtlarıdır. Numara ancak gönderim anında öğrenildiği
   için özette "gönderilecek" sayılırlar; işçi gönderirken "Cep telefonu değil" nedeniyle **düşer** (adım 9).
 
@@ -462,36 +452,35 @@ başladıktan sonra detay sayfasındaki alıcı listesinde görürsünüz.
 
 **Ne yap:**
 
-1. Kanal **WhatsApp (API)**, ad `Demo WhatsApp`.
-2. Şablon olarak **kampanya_tanitim (tr, Pazarlama)** seçin. (Listede 2 şablon vardır: demodaki üçüncü şablon
-   "butonsuz_pazarlama", abonelikten çıkma butonu olmadığı için kampanyada kullanılamaz; nedeni Ayarlar → WhatsApp
-   Business (API) → Şablonlar'da yazar.)
+1. Kanal **WhatsApp (API)**; ad `Demo WhatsApp`. 2. adımda şu not görünür: "WhatsApp'ta gönderilecek kişi sayısı …
+   son adımda hesaplanır."
+2. Şablon olarak **kampanya_tanitim** seçin. (Listede 2 şablon vardır: kampanya_tanitim ve randevu_hatirlatma.
+   Demodaki üçüncü şablon "butonsuz_pazarlama", abonelikten çıkma butonu olmadığı için kampanyada kullanılamaz;
+   Ayarlar → WhatsApp (Meta)'da "Kullanılamaz" yazar.)
 3. Değişkenler: Başlık {{1}} ve Gövde {{1}} "Kaydın işletme adı" kalsın; "Kayıtta boşsa" kutularına sırasıyla
    `Merhaba` ve `Değerli işletme` yazın. Gövde {{2}} için **Sabit metin** seçip `demo.test` yazın.
-4. "Sandbox" kutusunu **işaretlemeyin.** **Gönderim özetini göster**.
+4. 4\. adımdaki "Test: Meta'ya gönderme, yalnızca şablon metnini kaydet" kutusunu **işaretlemeyin.**
 
 **Ne görmelisin:**
 
-- Şablon seçilince **şablonun tam metni** (Başlık, Gövde, Altbilgi, Butonlar) görünür; `{{1}}`, `{{2}}` sarı
-  vurgulu. Yanında **Önizleme**: değişkenlerin yerinde "Örnek İşletme", "demo.test" gibi örnek değerler.
-- Özet: "Test modu açık: kampanya yalnızca Ayarlar'daki test numaralarına gider".
-- **1 alıcıya gönderilecek** (Örnek Kırtasiye, test numarası). Hariç: İleti reddi 1, İlgilenilmiyor olarak işaretli 1,
-  WhatsApp izni yok 32, Bireysel; İYS beyanı yok 1, **Test modu: test numarası değil 4** (Sahte Fırın, Kurgu Eczane,
-  Hayali Kuaför, reklamdan gelen kişi).
-- Tahmini Meta ücreti yazar (demoda ücret oluşmaz).
+- Şablon seçilince **şablonun tam metni** (Başlık, Gövde, Altbilgi, Butonlar) ve değişkenler görünür.
+- 4\. adımda: Test modu açık notu ("kampanya yalnızca Ayarlar'daki test numaralarına gider").
+- **1 alıcı** (Örnek Kırtasiye, test numarası). Hariç: İleti reddi 1, İlgilenilmiyor 1, WhatsApp izni yok 32,
+  Bireysel İYS beyanı yok 1, **Test modu 4** (test numarası olmayanlar).
+- Kalite, pay ("1.000 ileti / 24 saat") ve tahmini Meta ücreti (ör. $0.01; demoda ücret oluşmaz).
 
 **Ne yap:** **Kampanyayı başlat**.
 
-- [ ] Özet düğmeyle açıldı, sayılar rehberle aynı.
-- [ ] Kampanya detayında gönderim servisi uyarısı göründü.
-- [ ] WhatsApp şablonunun tam metni ve önizlemesi göründü.
+- [ ] Sihirbaz adımları çalıştı; canlı sayı ve özet rehberle aynı.
+- [ ] Kampanya ayrıntısında gönderim servisi uyarısı ve Alıcılar / Mesaj / Geçmiş sekmeleri göründü.
+- [ ] WhatsApp şablonunun tam metni göründü.
 
 ---
 
 ## 9. Kampanyayı işçiyle gönderme
 
 Mesajları uygulamanın kendisi değil, ayrı çalışan **gönderim işçisi** (gönderim servisi) gönderir. İşçi çalışmazsa
-kampanyalar "Kuyrukta" bekler ve kampanya detayında uyarı görünür.
+kampanyalar "Kuyrukta" bekler ve kampanya ayrıntısında uyarı görünür.
 
 **Ne yap:**
 
@@ -507,21 +496,22 @@ kampanyalar "Kuyrukta" bekler ve kampanya detayında uyarı görünür.
 
 ```
 [işçi] başladı (parti 20, aralık 30 sn).
-[...] alınan 18, gönderilen 11, bekletilen 5, hariç 2, başarısız 0, ...
+[...] alınan 18, gönderilen 11, bekletilen 5, hariç 2, başarısız 0, ..., biten kampanya 1
 ```
 
-**Ne yap:** Tarayıcıda **İletişim**'e dönüp kampanyaların detayını açın (açık bir detay sayfası 10 saniyede bir kendini
-yeniler).
+**Ne yap:** Tarayıcıda **Kampanyalar**'a dönün ve kampanyaların ayrıntısını açın (açık bir ayrıntı sayfası 10 saniyede
+bir kendini yeniler).
 
 **Ne görmelisin:**
 
-- **E-posta:** 5 mesaj "Gönderildi", 3 mesaj "Kuyrukta" ("Günlük sınır doldu, ertesi güne kaldı"). Kuyrukta mesaj
-  olduğu için "Gönderim kuyrukta — gönderim servisi az önce çalıştı." (ya da "en son X dakika önce") yazar; kutu
-  artık kırmızı değildir.
-  - **Kaydedilen mesajı göster** ile sandbox'a kaydedilen metni görebilirsiniz: `{isletme}` yerine işletme adı (ad
-    yoksa "Merhaba,") ve altta gönderen bilgileri.
-- **SMS:** 5 "Gönderildi", 2 "Kuyrukta" (günlük sınır), hariçler arasında **"Cep telefonu değil" 3**: Kurgu Oto
-  Servis ile iki sabit hatlı Google kaydı.
+- Kampanya listesi: **Demo WhatsApp** "Tamamlandı" 1 / 1; **Demo SMS** "Gönderiliyor" 5 / 7 (8 hariç); **Demo
+  e-posta** 5 / 8.
+- **E-posta:** 5 mesaj "Gönderildi", 3 mesaj "Kuyrukta" (günlük sınır). Kutu artık kırmızı değildir; "gönderim
+  servisi az önce çalıştı" (ya da "en son X dakika önce") yazar.
+  - **Mesaj** sekmesinde konu ve şablon; alıcı satırındaki **Kaydedilen mesajı göster** ile test modunda kaydedilen
+    metni görebilirsiniz (`{isletme}` yerine işletme adı; ad yoksa "Merhaba,").
+- **SMS:** Gönderildi 5, Kuyrukta 2, Hariç 8. **Geçmiş** sekmesindeki nedenler: **Cep telefonu değil 3** (Kurgu Oto
+  Servis ile iki sabit hatlı Google kaydı), Günlük sınır doldu 2.
 - **WhatsApp:** Örnek Kırtasiye'ye "Gönderildi"; kampanya "Tamamlandı". Diğerleri "Hariç", nedenleriyle.
   - Gerçek Meta olmadığı için "Teslim edildi" ya da "Okundu" bildirimi **gelmez**. Bu beklenen bir durumdur.
 
@@ -531,8 +521,8 @@ yeniler).
 npm run demo:isci -- --bir-kez
 ```
 
-İşçi 5 dakikadan uzun süre çalışmazsa, kuyrukta mesajı olan kampanyaların detayında yöneticiye yeniden kırmızı uyarı
-çıkar.
+İşçi 5 dakikadan uzun süre çalışmazsa, kuyrukta mesajı olan kampanyaların ayrıntısında yöneticiye yeniden kırmızı
+uyarı çıkar; Panel'in "Sıradaki işler"inde de "Gönderim servisi çalışmıyor" görünür.
 
 - [ ] İşçi çalıştı, mesajlar "Gönderildi" oldu.
 - [ ] Günlük sınırı aşan mesajlar "Kuyrukta" kaldı; sabit hatlı Google kayıtları SMS'ten düştü.
@@ -546,25 +536,26 @@ Bu adımın amacı şunu görmek: ret verilen kişiye, kampanya ret'ten **önce*
 **Ne yap:**
 
 1. İşçiyi durdurun (ikinci terminalde `Ctrl + C`).
-2. Yeni bir **SMS** kampanyası başlatın (ad `Ret testi`, Etiket `demo`). Kampanya detayındaki **Alıcılar**
-   listesinde "Sahte Fırın"ın **Kuyrukta** olduğunu görün. (Özet yalnızca sayı gösterir; isimleri detayda görürsünüz.)
-3. **Kayıtlar**'da "Sahte Fırın"ı açın (Ara: `0500 000 00 02`) ve **İleti reddi işaretle**'ye basın.
+2. Yeni bir **SMS** kampanyası başlatın (ad `Ret testi`, Etiket `demo`). Kampanya ayrıntısındaki **Alıcılar**
+   sekmesinde "Sahte Fırın"ın **Kuyrukta** olduğunu görün.
+3. **Kayıtlar**'da "Sahte Fırın"ı açın (Tümü sekmesi, Ara: `0500 000 00 02`), **İletişim izni** sekmesinde **İleti
+   reddi işaretle**'ye basın.
 4. Açılan pencerede önce **Vazgeç**'e basın, sonra düğmeye yeniden basıp **Ret ver**'e basın.
-5. İşçiyi tek tur çalıştırın: `npm run demo:isci -- --bir-kez`, sonra kampanya detayını yenileyin.
+5. İşçiyi tek tur çalıştırın: `npm run demo:isci -- --bir-kez`, sonra kampanya ayrıntısını yenileyin.
 
 **Ne görmelisin:**
 
 - Onay penceresi: başlıkta **"Ret: Sahte Fırın"**, altında "Bu kişiye hiçbir kanaldan ileti gönderilmeyecek ve bu
   işlem geri alınamaz." **Vazgeç** dediğinizde hiçbir şey değişmez.
 - **Ret ver**'den sonra sağ üstte "İleti reddi kaydedildi." bildirimi; ileti izni kırmızı **Ret · <tarih> · İleti
-  reddi işaretlendi · Demo Yönetici** olur. "İleti reddi işaretle" ve "İzin alındı" düğmeleri kaybolur. **Ret geri
-  alınamaz**; yönetici de değiştiremez.
-- Kampanya detayında "Sahte Fırın" satırı **Hariç — İleti reddi** olur; mesaj gönderilmemiştir. (Günlük SMS sınırı
-  dolduğu için diğer alıcılar "Kuyrukta" kalır; bu normaldir.)
+  reddi işaretlendi · Demo Yönetici** olur ve izin düğmeleri kaybolur. **Ret geri alınamaz**; yönetici de
+  değiştiremez.
+- İşçi satırında "hariç 1"; kampanya ayrıntısında "Sahte Fırın" satırı **Hariç · İleti reddi** olur; mesaj
+  gönderilmemiştir. (Günlük SMS sınırı dolduğu için diğer alıcılar "Kuyrukta" kalır; bu normaldir.)
 - Yeni bir kampanya özetinde bu kişi her kanalda "İleti reddi" olarak hariç sayılır.
 
-Aynı onay penceresi WhatsApp izni bölümündeki **Ret istedi** düğmesinde ve İletişim → WhatsApp günlük listedeki
-**Ret istedi** düğmesinde de çıkar. İçe aktarılan dosyada "ret" işaretli kişi varsa önizlemede aynı uyarıyla bir onay
+Aynı onay penceresi WhatsApp izninin **Ret istedi** düğmesinde ve Kampanyalar → WhatsApp günlük liste'deki **Ret
+istedi** düğmesinde de çıkar. İçe aktarılan dosyada "ret" işaretli kişi varsa önizlemede aynı uyarıyla bir onay
 kutusu çıkar.
 
 - [ ] Ret onay penceresi çıktı; Vazgeç hiçbir şey değiştirmedi.
@@ -573,48 +564,44 @@ kutusu çıkar.
 
 ---
 
-## 11. WhatsApp Business ayarları ve test modu kilidi
+## 11. WhatsApp (Meta) ayarları ve test modu kilidi
 
 Gerçek kullanımda test modu, Meta'dan imzalı teslim bildirimi gelene kadar kapatılamaz. Bu kural, yanlış
 ayarlanmış bir bağlantıyla herkese mesaj gönderilmesini önler.
 
-**Ne yap:** Yönetici olarak **Ayarlar → WhatsApp Business (API)** bölümüne gidin (sayfanın alt kısmı).
+**Ne yap:** Yönetici olarak **Ayarlar → WhatsApp (Meta)**'ya gidin.
 
 **Ne görmelisin:**
 
-- Numara "+90 850 000 00 00 — Deneme İşletmesi", Numara sahipliği "Doğrulandı (numara bu WhatsApp Business hesabına
-  ait)", Kalite "Yüksek (yeşil)", Mesajlaşma limiti **"Günde 10.000 kişi"** ve altında sade bir açıklama.
-- Alanların altında kısa açıklamalar: "WhatsApp Business hesap kimliği (WABA ID)", "Telefon numarası kimliği (Phone
-  Number ID) … telefon numarasının kendisi değildir", erişim anahtarı ve App Secret ne işe yarar, bildirim adresi
-  (callback URL) ve "Webhook" ne demek.
-- **Test modu ve sınır**: "Test modu: kampanyalar yalnızca aşağıdaki test numaralarına gider." kutusu **işaretli ve
-  baştan pasiftir** (tıklanamaz). Altında "Kapatmak için webhook doğrulanmış olmalı ve imzası doğrulanmış en az bir
-  mesaj durumu bildirimi alınmış olmalı." yazar. Ayrı bir hata mesajı çıkmaz.
-- Test numaraları kutusunda **+90 500 000 00 01** (biçimlendirilmiş) yazar.
+- Üstte rozetler: "Deneme İşletmesi · +90 850 000 00 00", **Bağlı**, **Kalite: Yüksek** (yeşil), **Meta sınırı: günde
+  10.000 kişi**, **Test modu açık**.
+- **Kurulum adımları**: 1. adım tamamlandı; 2. adım "sıradaki adım" (Bildirim aboneliğini etkinleştir); 3. adım
+  önceki adımları bekliyor; 4. adım (test modunu kapatma) **kilitli**: "2. ve 3. adım tamamlanınca açılır."
+- Kampanya payı %10 ve "Günde en fazla 1.000 kişi"; test numarası **+90 500 000 00 01**.
+- Şablonlarda "butonsuz_pazarlama" yanında **Kullanılamaz**.
+- Kimlikler ve bildirim adresi **Teknik ayrıntıları göster** altında katlıdır.
 
-Demoda Meta bağlantısı olmadığı için bu kilit **hiç açılmaz**. Beklenen davranış budur.
+Demoda Meta bağlantısı olmadığı için 4. adım **hiç açılmaz**. Beklenen davranış budur.
 
 **Ne yap:** **Bağlantıyı test et**'e basın.
 
 **Ne görmelisin:** Sağ üstte "Bağlantı çalışıyor." bildirimi; "Son kontrol" zamanı güncellenir.
 
-- [ ] Test modu kutusu pasif ve açıklamalı.
-- [ ] Bağlantı testi bildirimle onaylandı; limit "Günde 10.000 kişi" görünüyor.
+- [ ] Test modunu kapatma adımı kilitli ve açıklamalı.
+- [ ] Bağlantı testi bildirimle onaylandı; sınır "günde 10.000 kişi" görünüyor.
 
 ---
 
-## 12. Kota ve sınırlar
+## 12. Kullanım ve sınırlar
 
-### 12a. Places kotası
+### 12a. Google kullanımı
 
-**Ne yap:** **Ayarlar**'da "Places kullanımı" çubuğuna bakın. Sonra Kayıtlar'da bir sayfa açın ve **Göster**'e
-basmadan geri dönün; sonra bir Google kaydının detayını açın.
+Uygulama Google'dan aldığı bilgiler için aylık bir kullanım hakkı tutar ve bunu **yalnızca yüzde olarak**
+gösterir: menünün altındaki göstergede ve **Ayarlar → Kullanım ve paket**'te (kategorilere göre: İşletme bilgileri,
+Telefon ve web sitesi, Taramalar). Kullanım **%80**'e ulaşınca Google bilgileri artık kendiliğinden gösterilmez;
+istediğinizde **Göster** ile gösterilir.
 
-**Ne görmelisin:** Listeyi açmak birim harcamaz; **Göster** (3 birim / kayıt), detay açılışı (4 birim) ve taramalar
-harcar. Çubuğun altında "Tarama, istenince gösterilen Google bilgileri ve kayıt detayı kota birimi kullanır; kayıt
-listesi kendiliğinden birim harcamaz." yazar.
-
-**Ne yap:** Kotayı doldurun. Üçüncü bir terminalde (ya da işçi terminalinde, işçiyi durdurduktan sonra) şunu
+**Ne yap:** Kullanımı doldurun. Üçüncü bir terminalde (ya da işçi terminalinde, işçiyi durdurduktan sonra) şunu
 çalıştırın:
 
 ```
@@ -625,16 +612,17 @@ Ardından sayfaları yenileyin.
 
 **Ne görmelisin:**
 
-- **Kayıtlar**'ın üstünde kırmızı kota kutusu: "Bu ayki veri kotanız doldu. İşletme bilgileri ve taramalar ay sonuna
-  kadar durduruldu; kendi verileriniz görünmeye devam eder."
-- Bir satırda **Göster**'e basınca "İşletme bilgisi gösterilemiyor (kota doldu)" yazar.
-- Bir Google kaydının detayını açınca Google bilgileri kendiliğinden çekilmez: "Bu ayki Places kotanızın %80'i
-  kullanıldı; Google bilgileri kendiliğinden çekilmedi." ve **Google bilgilerini göster (4 birim)** düğmesi. (Aynı
-  davranış kota %80'i geçince başlar; "İlgilenilmiyor" işaretli kayıtlarda da detay kendiliğinden çekilmez.)
-- **Bölge taraması**'nda **Taramayı başlat** düğmesi **pasiftir**; üstünde "Bu ayki veri kotanız doldu. Yeni tarama
-  ay sonuna kadar yapılamaz." yazar. Tarama başlamaz.
+- **Ayarlar → Kullanım ve paket**: **%100**, "<Ay> ayı · 1 <sonraki ay>'ta sıfırlanır", kategori kutuları ve "Bu ayki
+  kullanımınız doldu. İşletme bilgileri ve yeni taramalar ay sonuna kadar durduruldu; kendi verileriniz görünmeye
+  devam eder." Menüdeki gösterge "%100, doldu".
+- **Kayıtlar**'ın üstünde aynı metinle kırmızı kutu; Google kayıtları adsız gelir. Bir satırda **Göster**'e basınca
+  "İşletme bilgisi gösterilemiyor (kota doldu)".
+- Bir Google kaydının ayrıntısını açınca bilgiler kendiliğinden gelmez: "Bu ay otomatik gösterim sınırına
+  ulaşıldı; bilgileri istediğinizde gösterilir." ve **Google bilgilerini göster** düğmesi.
+- **Bölge tara**'da **Taramayı başlat** **pasiftir**; "Bu ayki veri kotanız doldu. Yeni tarama ay sonuna kadar
+  yapılamaz." yazar.
 
-**Ne yap:** Kotayı geri açın:
+**Ne yap:** Kullanımı geri açın:
 
 ```
 npm run demo:kota -- 1000
@@ -645,31 +633,33 @@ npm run demo:kota -- 1000
 ### 12b. Günlük gönderim sınırı
 
 Adım 8 ve 9'da gördünüz: demoda günde en fazla 5 e-posta ve 5 SMS gönderilir. Fazlası "Kuyrukta" kalır ve ertesi
-gün (İstanbul saatiyle) gönderilir. **Ayarlar**'da "Gönderim saatleri ve sınırlar" bölümünde günlük sınırlar yazar.
-Gerçek varsayılanlar 300 e-posta ve 200 SMS'tir.
+gün (İstanbul saatiyle) gönderilir. **Ayarlar → Saatler ve sınırlar**'da kutular: **E-posta 5 / gün**, **SMS 5 /
+gün**, **WhatsApp listesi 30 / kişi**. Gerçek varsayılanlar 300 e-posta ve 200 SMS'tir.
 
 Aynı bölümde demo gönderim saatleri **00:00 – 00:00** görünür: demo günün her saatinde gönderir; bitişteki 00:00 gün
 sonu (gece yarısı) demektir. **Kaydet**'e basınca "Kaydedildi" bildirimi çıkar (gerçek varsayılan 09:00 – 20:00).
 
-- [ ] Kota dolunca Göster ve tarama durdu; detay kendiliğinden çekilmedi.
-- [ ] Kota geri açılınca bilgiler yeniden geldi.
+- [ ] Kullanım dolunca Göster ve tarama durdu; ayrıntı kendiliğinden çekilmedi.
+- [ ] Kullanım geri açılınca bilgiler yeniden geldi.
 
 ---
 
 ## 13. CSV dışa aktarma
 
-**Ne yap:** **Kayıtlar**'da isterseniz bir süzgeç seçin, sonra **CSV dışa aktar**'a basın. İnen dosyayı Excel'de
-açın.
+**Ne yap:** **Kayıtlar**'da bir sekme seçin (ör. İlgilendiklerim), **Filtreler**'i açıp **Bu listeyi CSV olarak
+indir**'e basın. İnen dosyayı Excel'de açın. Bütün kayıtları indirmek için: **Ayarlar → Veri saklama**'daki dışa
+aktarma.
 
 **Ne görmelisin:**
 
 - Türkçe karakterler düzgün görünür; sütunlar ayrı ayrıdır.
+- Kayıtlar'dan inen dosyada yalnızca o sekmenin (ve seçili süzgeçlerin) kayıtları vardır; Veri saklama'dan inen
+  dosyada hepsi.
 - Başlıklar Türkçedir: "Google yer kimliği (place_id)", "Kaynak", "Durum", "İleti izni", "Alıcı türü", "İnceleme",
   "İşletme adı", "Yetkili adı", "E-posta", "Ek telefon", "Etiketler", "Notlar", tarihler.
 - Değerler de Türkçedir: "Yeni", "Bekliyor", "Tacir / esnaf", "Google tarama", "İncelenmedi" (kod değerleri yok).
 - Google kayıtlarının **adı, adresi ve Google telefonu dosyada yoktur.** Yalnızca `place_id` (`mock_…`) ve sizin
   girdiğiniz bilgiler vardır. Google kuralları gereği bu bilerek böyledir.
-- Süzgeç seçtiyseniz yalnızca süzülen kayıtlar dosyadadır. Varsayılan olarak "İlgilenilmiyor" işaretliler hariçtir.
 
 - [ ] Dosya Excel'de düzgün açıldı; başlık ve değerler Türkçe.
 - [ ] Google içeriği dışa aktarılmadı.
@@ -678,19 +668,17 @@ açın.
 
 ## 14. WhatsApp günlük liste (isteğe bağlı)
 
-**Ne yap:** **İletişim** sayfasının altındaki **WhatsApp günlük liste** bölümünde Durum'u **Yeni** seçip **Bugünkü
-listeyi doldur**'a basın (düğme, sayfa yüklenip liste bilgisi gelene kadar birkaç saniye pasif kalabilir).
+**Ne yap:** **Kampanyalar → WhatsApp günlük liste** sekmesinde Durum'u **Yeni** seçip **Bugünkü listeyi doldur**'a
+basın (düğme, liste bilgisi gelene kadar birkaç saniye pasif kalabilir).
 
 **Ne görmelisin:**
 
-- "25 kayıt sıraya eklendi · hariç: İleti reddi 1, Bireysel ve onay yok 2, İlgilenilmiyor olarak işaretli 1, İletişim
-  bilgisi yok 2" gibi bir özet (sayılar önceki adımlarda eklediklerinize göre değişebilir).
-
-- "Sıradaki işletme" kartı. Kayıt Google kaydıysa ve kendi adınız yoksa "Google kaydı · ad girilmemiş" ve altında
-  **Göster (3 birim)** yazar; basınca Google'daki ad yalnızca ekranda görünür.
+- "26 kayıt sıraya eklendi · hariç: Bireysel ve onay yok 2, İleti reddi 1, İlgilenilmiyor olarak işaretli 1, İletişim
+  bilgisi yok 2" gibi bir özet (sayılar önceki adımlarda yaptıklarınıza göre değişebilir).
+- "Sıradaki işletme" kartı. Kayıt Google kaydıysa ve kendi adınız yoksa "Google kaydı · ad girilmemiş" ve **Göster**
+  yazar; basınca Google'daki ad ("Google: Bora Emlak 838" gibi) yalnızca ekranda görünür.
 - **WhatsApp'ta aç** WhatsApp'ı yeni sekmede açar (demoda gerçek bir WhatsApp sohbeti açılır; mesaj göndermeyin).
-  Numara Google'dan alınıyorsa aynı işlem Google'daki adı da getirir ve listede gösterir; ek birim harcanmaz.
-- **Ret istedi** düğmesi, adım 10'daki onay penceresini açar.
+- **Ret istedi** düğmesi, adım 10'daki onay penceresini açar ("Ret: …").
 
 - [ ] Google kaydının adı istenince göründü.
 
@@ -702,6 +690,8 @@ listeyi doldur**'a basın (düğme, sayfa yüklenip liste bilgisi gelene kadar b
 - Baştan denemek için: ikisini de kapatıp `npm run demo:hazirla`, sonra `npm run demo`.
 - Demo dosyası `data/demo.db`'dir. Silmek isterseniz uygulama kapalıyken silebilirsiniz. Gerçek veritabanı
   (`data/app.db`) etkilenmez.
+- Eski adresler (`/iletisim`, `/ayarlar`, `/tarama/inceleme`) yeni sayfalara yönlendirilir; yer imleriniz çalışmaya
+  devam eder.
 
 ### Sık karşılaşılanlar
 
@@ -710,10 +700,10 @@ listeyi doldur**'a basın (düğme, sayfa yüklenip liste bilgisi gelene kadar b
 | `demo.db kullanımda` | Uygulama ya da işçi açık. İkisini `Ctrl + C` ile kapatıp yeniden deneyin. |
 | `Demo veritabanı yok` | Önce `npm run demo:hazirla` çalıştırın. |
 | `Port 3000 is in use` | Normal `npm run dev` ya da başka bir demo açık. Onu kapatın. |
-| Kampanya hep "Kuyrukta", detayda kırmızı "gönderim servisi" uyarısı | İşçi çalışmıyor. İkinci terminalde `npm run demo:isci`. |
+| Kampanya hep "Kuyrukta", ayrıntıda kırmızı "gönderim servisi" uyarısı | İşçi çalışmıyor. İkinci terminalde `npm run demo:isci`. |
 | Giriş düğmesi "Yükleniyor…" yazıyor | Sayfa henüz yükleniyor; birkaç saniye bekleyin. |
-| Harita görünmüyor | Tarayıcı harita anahtarı tanımlı değil. Adres ya da enlem/boylam ile devam edin. |
-| Listede Google adları yok | Bilerek böyle: **Göster** ya da **Bu sayfadaki Google bilgilerini göster** ile isteyin. |
+| Harita görünmüyor | Tarayıcı harita anahtarı tanımlı değil. Merkezi adresle girerek devam edin. |
+| Listede Google adları yok, satırlarda "Göster" var | Bu ayki kullanım %80'e ulaşmış: Google bilgileri artık kendiliğinden gelmez, **Göster** ile istenir. |
 | WhatsApp mesajı "Teslim edildi" olmuyor | Demoda Meta yok; teslim bildirimi gelmez. Beklenen durum. |
 
 ---
@@ -725,7 +715,7 @@ Elle denemeden bağımsız olarak, uygulamanın kurallarını kontrol eden otoma
 
 | Komut | Ne kontrol eder | Süre |
 |---|---|---|
-| `npm test` | Bütün otomatik testler (kiracı izolasyonu, ret, kota, liste maliyeti, içe aktarma, kampanya, WhatsApp, yedek, demo kurulumu…) | 1–3 dk |
+| `npm test` | Bütün otomatik testler (kiracı izolasyonu, ret, kullanım, liste maliyeti, içe aktarma, kampanya, WhatsApp, yedek, demo kurulumu, yeni düzen…) | 1–3 dk |
 | `npm run typecheck` | Kod türleri tutarlı mı | ~30 sn |
 | `npm run lint` | Kod kuralları (ör. veritabanına yalnızca izin verilen yerlerden erişim) | ~30 sn |
 | `npm run build` | Uygulama yayına hazır derlenebiliyor mu | 1–2 dk |
@@ -735,8 +725,8 @@ Elle denemeden bağımsız olarak, uygulamanın kurallarını kontrol eden otoma
 **`npm test` başarılıysa** sonda şuna benzer satırlar görünür:
 
 ```
- Test Files  29 passed (29)
-      Tests  380 passed (380)
+ Test Files  31 passed (31)
+      Tests  426 passed (426)
 ```
 
 "passed" geçti demektir. Sayılar zamanla değişebilir; önemli olan **"failed" kelimesinin hiç olmaması**.
@@ -746,7 +736,7 @@ Elle denemeden bağımsız olarak, uygulamanın kurallarını kontrol eden otoma
 ```
  FAIL  tests/kampanya.test.ts > ... > test adı
  AssertionError: expected 5 to be 6
- Test Files  1 failed | 28 passed (29)
+ Test Files  1 failed | 30 passed (31)
 ```
 
 - `FAIL` satırı hangi dosyadaki hangi testin bozulduğunu söyler.

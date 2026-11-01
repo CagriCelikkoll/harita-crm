@@ -26,7 +26,7 @@ npm run dev                        # http://localhost:3000
 `PLACES_MOCK=true` iken Places'a hiç istek gitmez; Kadıköy çevresinde deterministik örnek işletmeler döner.
 Harita anahtarı yoksa harita yerine enlem/boylam alanları kullanılır.
 
-İlk kez: **Kayıt ol** → **çalışma alanı oluştur** → **Bölge taraması** → **Kayıtlar**.
+İlk kez: **Kayıt ol** → **çalışma alanı oluştur** → **Bölge tara** → **Kayıtlar**.
 
 ### Elle deneme (demo) ortamı
 
@@ -388,7 +388,7 @@ Tarama 1. aşamada istek içinde senkron çalışır. Bu yüzden aşağıdaki ta
 Kontrol şu anlarda yapılır:
 
 - **Uygulama başlarken** (`src/instrumentation.ts` → tüm kiracılar),
-- **Tarama listesi yüklenirken** (Bölge taraması ve Panel sayfaları → yalnızca o kiracı),
+- **Tarama listesi yüklenirken** (Bölge tara ve Panel sayfaları → yalnızca o kiracı),
 - `npm run cleanup` sırasında.
 
 Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarları forma alır.
@@ -503,10 +503,11 @@ taşımaz. Sayfa (oturumsuz) yalnızca gönderen unvanını gösterir; "Abonelik
 tek tıkla çıkışı (`POST /api/abonelik/<belirteç>`) ret akışını çalıştırır. Sahte/değiştirilmiş belirteç reddedilir;
 bir kiracının belirteci başka kiracının kaydını etkileyemez.
 
-**Kampanya akışı** (İletişim sayfası): kanal, alıcı grubu (durum, etiket, alıcı türü), `{isletme}` yer tutuculu
-şablon ve canlı önizleme → **gönderim özeti** (gönderilecek alıcı sayısı; hariç tutulanların nedenlere göre
+**Kampanya akışı** (Kampanyalar → Yeni kampanya, 4 adımlı sihirbaz: Kanal → Alıcılar → Mesaj → Özet): kanal, alıcı
+grubu (durum, etiket, alıcı türü; canlı alıcı sayısı), `{isletme}` yer tutuculu şablon ve canlı önizleme → **gönderim özeti** (gönderilecek alıcı sayısı; hariç tutulanların nedenlere göre
 dökümü; günlük sınır nedeniyle sonraki günlere kalacaklar; "İşletme adı girilmemiş: N kayıt") → hemen başlat ya da
-ileri tarihe zamanla. Kampanya detayı: ilerleme, nedenlere göre döküm, alıcı bazında durum ve hata, iptal.
+ileri tarihe zamanla. Kampanya ayrıntısı: durum kartı (ilerleme, sayılar, gönderim servisi durumu) ve Alıcılar / Mesaj /
+Geçmiş sekmeleri (alıcı bazında durum ve hata, nedenlere göre döküm), iptal.
 
 `{isletme}` **yalnızca** kaydın "İşletme adı (sizin kaydınız)" alanından (`leads.isletme_adi`, kullanıcı verisi)
 dolar; Google'dan gelen ad hiçbir koşulda mesaja girmez. Alan boşsa kampanyada tanımlanan "boş isim hitabı"
@@ -684,13 +685,13 @@ başına saatte 5 ile sınırlıdır.
 Amaç hazırlığı otomatikleştirmek, gönderimi kullanıcıya bırakmak. **WhatsApp Web otomasyonu, gayriresmî kütüphane,
 otomatik gönderim ya da kullanıcı tıklamadan sekme açma yoktur**; bu bilinçli bir ürün sınırıdır.
 
-- **Ayarlar → WhatsApp günlük liste:**
+- **Ayarlar → WhatsApp listesi:**
   - `{isletme}` yer tutuculu mesaj şablonu. Yer tutucu yalnızca kaydın kullanıcı tarafından girilen işletme adıyla
     dolar.
   - Mesajın sonuna gönderen unvanı ve "Bu mesajları almak istemiyorsanız RET yazmanız yeterli." eklenir.
   - Kullanıcı başına günlük sınır: varsayılan 30 (`WHATSAPP_GUNLUK_VARSAYILAN`), çalışma alanı en fazla 50.
     `npm run sinir -- <slug> whatsapp <sayı>` ile de değiştirilebilir.
-- **İletişim → WhatsApp günlük liste:** kullanıcı alıcı grubunu (durum, etiket, alıcı türü) seçer.
+- **Kampanyalar → WhatsApp günlük liste:** kullanıcı alıcı grubunu (durum, etiket, alıcı türü) seçer.
   - Uygulama alıcı kurallarını (ret, engel listesi, izinsiz bireysel) uygular ve kayıtları sıraya koyar. Sıraya alınan
     sayı, kullanıcının bugünkü kalan sınırı kadardır (sırada bekleyenler de sayılır).
   - Aynı kayıt aynı gün iki kullanıcının listesine girmez. Liste kullanıcıya özeldir.
@@ -721,7 +722,7 @@ ve kota birimi düşmez** (`tests/whatsapp.test.ts` bunu sınar).
      "Ret istedi"de numarayı engel listesine eklemek için kullanılır.
   3. Cep numarasıysa `https://wa.me/90XXXXXXXXXX?text=<encodeURIComponent(mesaj)>` adresine **302** ile yönlendirir.
   4. Cep değilse ya da numara yoksa öğe `otomatik_atlandi` olur ve kullanıcı nedeni gösteren bir mesajla listeye
-     (`/iletisim?wa=atlandi&neden=cep_degil#whatsapp`) ya da kayda geri yönlendirilir. Kota doluysa öğe atlanmaz,
+     (`/kampanyalar?sekme=whatsapp&wa=atlandi&neden=cep_degil#whatsapp`) ya da kayda geri yönlendirilir. Kota doluysa öğe atlanmaz,
      sırada bekler.
 - `ek_telefon` cep değilse (ya da kayıt artık kurallara uymuyorsa) bu, Places'a gitmeden liste ekranında
   anlaşılır ve öğe otomatik atlanır.
@@ -744,7 +745,7 @@ kontrollüdür.
 Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bağlantı, şablonlar, kampanyalar ve
 webhook (teslim bildirimleri, ret, reklamdan gelenler).
 
-- **Ayarlar → WhatsApp Business (API)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
+- **Ayarlar → WhatsApp (Meta)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
   user token) ve App Secret.
   - Erişim anahtarı, App Secret, webhook verify token ve test numaraları AES-GCM ile şifreli saklanır (ek doğrulanmış
     veri: kiracı + `whatsapp_api`); hiçbir API yanıtında dönmez, ekranda yalnızca "tanımlı / tanımlı değil".
@@ -786,7 +787,7 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 - Testler gerçek ağa çıkmaz (sahte Graph istemcisi, `src/server/whatsapp-api/mock.ts`). Geliştirmede
   `WHATSAPP_API_MOCK=1` ile de sahte istemci kullanılır.
 
-#### WhatsApp kampanyaları (İletişim → Yeni kampanya → WhatsApp (API))
+#### WhatsApp kampanyaları (Kampanyalar → Yeni kampanya → WhatsApp (API))
 
 - **Yalnızca yönetici** başlatır (Meta ücreti var). Kanal yalnızca yöneticiye görünür.
 - **Şablon ve değişkenler:** yalnızca kampanyada kullanılabilir (onaylı, destekli) şablonlar listelenir. Her değişken
@@ -885,7 +886,7 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 4. "Token oluştur": uygulamayı seçin, süre **Hiçbir zaman**, izinler yalnızca `whatsapp_business_messaging` ve
    `whatsapp_business_management`.
 5. WABA ID ve Phone Number ID: WhatsApp Manager → Telefon numaraları (ya da uygulamanın API kurulumu sayfası).
-6. Harita CRM → Ayarlar → WhatsApp Business (API): bilgileri kaydedin; gösterilen verify token'ı ve callback URL'yi
+6. Harita CRM → Ayarlar → WhatsApp (Meta): bilgileri kaydedin; gösterilen verify token'ı ve callback URL'yi
    uygulamanın WhatsApp → Yapılandırma → Webhook alanına girin; `messages`, `message_template_status_update`,
    `phone_number_quality_update`, `business_capability_update` ve `user_preferences` alanlarına abone olun.
 7. "Webhook aboneliğini etkinleştir" ve "Bağlantıyı test et".
@@ -911,7 +912,7 @@ src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kon
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
 src/app/abonelik/[belirtec]/     herkese açık abonelikten çıkma sayfası
-src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), iletisim (+kampanya/[id]), ayarlar
+src/app/(app)/                   panel, tarama, kayitlar (istemci detay paneli), kampanyalar (+yeni, [id]), ayarlar/<bölüm>
 src/app/api/                     auth, taramalar, adres, kayitlar/[id] (+olaylar), olaylar/[id], kayitlar/disa-aktar,
                                  ayarlar/ileti, ayarlar/saglayicilar/[kanal] (+test), kampanyalar (+ozet, [id]),
                                  abonelik/[belirtec], webhook/sms/[anahtar], whatsapp/liste (+[id]),

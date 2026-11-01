@@ -505,7 +505,7 @@ function GonderAdimi(props: {
             <strong className="tabular-nums">{sayiYaz(ozet.placesTelefonGerekli)}</strong> kayıt
           </p>
           <p className="text-xs text-soluk">
-            {ozet.placesTelefonGerekli > 0 && `Bu ayki kullanımınızın yaklaşık %${ozet.tahminiKullanimYuzdesi}'i. `}Numara saklanmaz; cep
+            {ozet.placesTelefonGerekli > 0 && `Bu ayki kullanımınıza yaklaşık %${ozet.tahminiKullanimYuzdesi} eklenir. `}Numara saklanmaz; cep
             telefonu değilse o kayıt gönderim anında atlanır.
             {ozet.kotaYetmez && " Bu ayki kullanımınız yetmezse kalan mesajlar ay başını bekler."}
           </p>
