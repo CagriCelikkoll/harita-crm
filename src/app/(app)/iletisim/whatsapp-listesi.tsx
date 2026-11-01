@@ -126,7 +126,7 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
       )}
       {veri && !veri.sablonVar && (
         <p role="alert" className="mb-3 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
-          Önce <Link href="/ayarlar" className="underline">Ayarlar</Link>&apos;da WhatsApp mesaj şablonunu tanımlayın.
+          Önce <Link href="/ayarlar/whatsapp-listesi" className="underline">Ayarlar</Link>&apos;da WhatsApp mesaj şablonunu tanımlayın.
         </p>
       )}
 

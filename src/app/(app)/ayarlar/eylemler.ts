@@ -15,17 +15,20 @@ const yetkiMesaji = (h: unknown): FormDurumu => {
   throw h;
 };
 
+/** Çalışma alanı adı (Ayarlar > Çalışma alanı) ya da veri saklama süresi (Ayarlar > Veri saklama); formda olmayan alan değişmez. */
 export async function alanGuncelle(_o: FormDurumu, formData: FormData): Promise<FormDurumu> {
   const { ctx } = await sayfaBaglami();
   const sonuc = z
     .object({
-      ad: z.string().trim().min(2, "Ad en az 2 karakter olmalı.").max(80),
+      ad: z.string().trim().min(2, "Ad en az 2 karakter olmalı.").max(80).optional(),
       veriSaklamaGun: z
         .string()
         .trim()
         .transform((s) => (s === "" ? null : Number(s)))
-        .refine((n) => n === null || (Number.isInteger(n) && n >= 30 && n <= 3650), "Saklama süresi 30–3650 gün olmalı (boş = süresiz)."),
+        .refine((n) => n === null || (Number.isInteger(n) && n >= 30 && n <= 3650), "Saklama süresi 30–3650 gün olmalı (boş = süresiz).")
+        .optional(),
     })
+    .refine((d) => d.ad !== undefined || d.veriSaklamaGun !== undefined, "Değiştirilecek bir alan yok.")
     .safeParse(Object.fromEntries(formData));
   if (!sonuc.success) return { hata: sonuc.error.issues[0]?.message };
   try {
@@ -54,7 +57,7 @@ export async function davetGonder(_o: FormDurumu, formData: FormData): Promise<F
         `${ROL_ADLARI[davet.rol]} olarak davet etti.\n\nDaveti kabul etmek için: ${baglanti}\n\n` +
         `Bağlantı 7 gün geçerlidir.`,
     });
-    revalidatePath("/ayarlar");
+    revalidatePath("/ayarlar", "layout");
     return { tamam: `${davet.eposta} davet edildi. Bağlantıyı paylaşabilirsiniz:`, baglanti };
   } catch (h) {
     return yetkiMesaji(h);
@@ -64,7 +67,7 @@ export async function davetGonder(_o: FormDurumu, formData: FormData): Promise<F
 export async function davetiIptalEt(formData: FormData) {
   const { ctx } = await sayfaBaglami();
   if (!davetIptal(ctx, String(formData.get("id")))) notFound();
-  revalidatePath("/ayarlar");
+  revalidatePath("/ayarlar", "layout");
 }
 
 export async function uyeyiCikar(_o: FormDurumu, formData: FormData): Promise<FormDurumu> {
@@ -74,6 +77,6 @@ export async function uyeyiCikar(_o: FormDurumu, formData: FormData): Promise<Fo
   } catch (h) {
     return yetkiMesaji(h);
   }
-  revalidatePath("/ayarlar");
+  revalidatePath("/ayarlar", "layout");
   return { tamam: "Üye çıkarıldı." };
 }

@@ -256,3 +256,33 @@ export function sablonParcalari(bilesenler: MetaSablonBileseni[]): SablonBolumu[
   }
   return sonuc;
 }
+
+// --- Ayarlar > WhatsApp (Meta): kurulum adımları ---
+export type KurulumAdimDurumu = "tamam" | "etkin" | "bekliyor" | "kilitli";
+
+/**
+ * Dört kurulum adımının durumu; mevcut bağlantı ve test modu kilidi verisinden türetilir (yeni durum saklanmaz):
+ * 1. Hesabı bağla: bilgiler kayıtlı ve numara bu WhatsApp hesabına ait.
+ * 2. Bildirim adresini doğrula: Meta webhook doğrulaması (kilidin 1. koşulu).
+ * 3. Test numarasına kampanya gönder: imzası doğrulanmış bir durum bildirimi alındı (kilidin 2. koşulu).
+ * 4. Test modunu kapat: sunucunun "kapatılabilir" kararına bağlı; kapalıysa tamam.
+ * Önceki adım bitmeden sonraki "bekliyor" görünür; 4. adım kilit koşulları sağlanana kadar "kilitli".
+ */
+export function kurulumAdimlari(b: {
+  tanimli: boolean;
+  numaraDogrulandi: boolean;
+  webhookDogrulandi: boolean;
+  imzaliDurumAlindi: boolean;
+  testModu: boolean;
+  testModuKapatilabilir: boolean;
+}): [KurulumAdimDurumu, KurulumAdimDurumu, KurulumAdimDurumu, KurulumAdimDurumu] {
+  const bir = b.tanimli && b.numaraDogrulandi;
+  const iki = b.tanimli && b.webhookDogrulandi;
+  const uc = b.tanimli && b.imzaliDurumAlindi;
+  return [
+    bir ? "tamam" : "etkin",
+    iki ? "tamam" : bir ? "etkin" : "bekliyor",
+    uc ? "tamam" : bir && iki ? "etkin" : "bekliyor",
+    b.tanimli && !b.testModu ? "tamam" : b.tanimli && b.testModuKapatilabilir ? "etkin" : "kilitli",
+  ];
+}

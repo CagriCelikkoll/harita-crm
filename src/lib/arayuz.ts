@@ -14,6 +14,24 @@ export function kullanimOzeti(d: { oran: number; uyari: boolean; doldu: boolean 
   };
 }
 
+const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+/** Kota ayı ("2026-11", İstanbul takvimi) → "Kasım ayı · 1 Aralık'ta sıfırlanır". */
+export function kotaDonemiMetni(ay: string): string {
+  const no = Number(ay.slice(5, 7));
+  const sonraki = AY_ADLARI[no % 12];
+  return `${AY_ADLARI[no - 1]} ayı · 1 ${sonraki}'${bulunmaEki(sonraki)} sıfırlanır`;
+}
+
+/** Bulunma eki (-da/-de/-ta/-te): ünlü uyumu son ünlüye, ünsüz benzeşmesi son harfe göre. */
+function bulunmaEki(sozcuk: string): string {
+  const kucuk = sozcuk.toLocaleLowerCase("tr");
+  const sonUnlu = [...kucuk].reverse().find((h) => "aıoueiöü".includes(h)) ?? "a";
+  const unlu = "aıou".includes(sonUnlu) ? "a" : "e";
+  const unsuz = "çfhkpsşt".includes(kucuk[kucuk.length - 1]) ? "t" : "d";
+  return `${unsuz}${unlu}`;
+}
+
 /** Sekmelerde klavye: ok tuşları komşu sekmeye (başa / sona sarar), Home / End ilk ve son sekmeye; diğer tuşlar null. */
 export function sekmeKlavye(simdiki: number, tus: string, adet: number): number | null {
   if (adet <= 0) return null;

@@ -138,7 +138,7 @@ describe("arayüzde npm komutu gösterilmez", () => {
         .map((s) => `${path.relative(KOK, dosya)}: ${s.trim()}`),
     );
     expect(ihlaller).toEqual([]);
-    const ayarlar = fs.readFileSync(path.join(KOK, "src/app/(app)/ayarlar/page.tsx"), "utf8");
+    const ayarlar = fs.readFileSync(path.join(KOK, "src/app/(app)/ayarlar/kullanim/page.tsx"), "utf8");
     expect(ayarlar).toContain("SINIR_ARTIRMA_METNI");
   });
 });
