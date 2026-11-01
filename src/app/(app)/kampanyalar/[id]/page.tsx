@@ -8,7 +8,7 @@ import { KampanyaDetayi } from "./kampanya-detayi";
 
 export const metadata: Metadata = { title: "Kampanya" };
 
-export default async function KampanyaSayfasi({ params }: PageProps<"/iletisim/kampanya/[id]">) {
+export default async function KampanyaSayfasi({ params }: PageProps<"/kampanyalar/[id]">) {
   const { ctx } = await sayfaBaglami();
   const { id } = await params;
   const kampanya = kampanyaGetir(ctx, id);

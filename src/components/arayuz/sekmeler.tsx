@@ -13,7 +13,7 @@ type Secenek<T extends string> = { deger: T; ad: string; sayi?: number; href?: s
 
 export function SekmeGrubu<T extends string>(props: { etiket: string; secenekler: Secenek<T>[]; secili: T; onSec?: (d: T) => void }) {
   return (
-    <div role="group" aria-label={props.etiket} className="flex flex-wrap gap-0.5 rounded-[10px] bg-segment p-1">
+    <div role="group" aria-label={props.etiket} className="inline-flex flex-wrap gap-0.5 rounded-[10px] bg-segment p-1">
       {props.secenekler.map((s) => {
         const secili = s.deger === props.secili;
         const sinif = `inline-flex h-9 items-center gap-1.5 rounded-[7px] px-3.5 text-sm ${

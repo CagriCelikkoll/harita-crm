@@ -88,7 +88,7 @@ describe("ret onaysız gönderilemez", () => {
   it("arayüz: ret gönderen her istek onay penceresinden (RetDugmesi) geçer ve retOnayi taşır", () => {
     const dosyalar = [
       "src/app/(app)/kayitlar/detay-paneli.tsx",
-      "src/app/(app)/iletisim/whatsapp-listesi.tsx",
+      "src/app/(app)/kampanyalar/whatsapp-listesi.tsx",
     ].map((d) => fs.readFileSync(path.join(KOK, d), "utf8"));
     for (const metin of dosyalar) {
       const retIstekleri = metin.match(/(iletiIzni|izin|sonuc): "ret"[^}]*}/g) ?? [];

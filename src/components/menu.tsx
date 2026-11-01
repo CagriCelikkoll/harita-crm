@@ -10,12 +10,11 @@ import { KullanimGostergesi } from "@/components/kullanim-gostergesi";
 import { basHarfler, type KullanimOzeti } from "@/lib/arayuz";
 import { googleOnbellekleriniTemizle } from "@/lib/google-onbellegi";
 
-// "Kampanyalar" şimdilik /iletisim'e gider; rota Kampanyalar grubunda /kampanyalar olur.
 const BAGLANTILAR: { href: string; ad: string; simge: SimgeAdi }[] = [
   { href: "/panel", ad: "Panel", simge: "panel" },
   { href: "/tarama", ad: "Bölge tara", simge: "tarama" },
   { href: "/kayitlar", ad: "Kayıtlar", simge: "kayitlar" },
-  { href: "/iletisim", ad: "Kampanyalar", simge: "kampanyalar" },
+  { href: "/kampanyalar", ad: "Kampanyalar", simge: "kampanyalar" },
   { href: "/ayarlar", ad: "Ayarlar", simge: "ayarlar" },
 ];
 

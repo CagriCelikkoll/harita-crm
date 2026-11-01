@@ -8,12 +8,15 @@ import { apiBaglami } from "@/server/oturum";
 import { donusAdresi, whatsappAc } from "@/server/servisler/whatsapp";
 import { caprazSiteMi, disariYonlendir, iceriYonlendir } from "@/server/whatsapp-yonlendirme";
 
+/** Kampanyalar > WhatsApp günlük liste (dönüş adresi). */
+const WHATSAPP_LISTESI = "/kampanyalar?sekme=whatsapp";
+
 export async function GET(istek: Request, { params }: RouteContext<"/api/whatsapp/ac/[id]">) {
-  if (caprazSiteMi(istek)) return iceriYonlendir("/iletisim?wa=capraz#whatsapp");
+  if (caprazSiteMi(istek)) return iceriYonlendir("/kampanyalar?sekme=whatsapp&wa=capraz#whatsapp");
   const ctx = await apiBaglami();
   if (!ctx) return iceriYonlendir("/giris");
   const sonuc = await whatsappAc(ctx, (await params).id);
-  return sonuc.tur === "yonlendir" ? disariYonlendir(sonuc.url) : iceriYonlendir(`${donusAdresi("/iletisim", sonuc)}#whatsapp`);
+  return sonuc.tur === "yonlendir" ? disariYonlendir(sonuc.url) : iceriYonlendir(`${donusAdresi(WHATSAPP_LISTESI, sonuc)}#whatsapp`);
 }
 
 /**
@@ -29,6 +32,6 @@ export async function POST(istek: Request, { params }: RouteContext<"/api/whatsa
   const govde =
     sonuc.tur === "yonlendir"
       ? { url: sonuc.url, ...(sonuc.googleAd ? { googleAd: sonuc.googleAd } : {}) }
-      : { geri: `${donusAdresi("/iletisim", sonuc)}#whatsapp` };
+      : { geri: `${donusAdresi(WHATSAPP_LISTESI, sonuc)}#whatsapp` };
   return NextResponse.json(govde, { headers: { "Cache-Control": "no-store" } });
 }

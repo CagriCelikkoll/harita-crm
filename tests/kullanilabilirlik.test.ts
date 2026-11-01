@@ -79,7 +79,7 @@ describe("gönderim servisinin durumu", () => {
     });
     expect(isciDurumu(new Date("2026-10-12T09:07:00Z"), simdi)).toMatchObject({ metin: expect.stringContaining("en son 3 dakika önce"), uyari: false });
     expect(isciDurumu(new Date("2026-10-12T09:04:00Z"), simdi)).toMatchObject({ uyari: true });
-    const ekran = oku("src/app/(app)/iletisim/kampanya/[id]/kampanya-detayi.tsx");
+    const ekran = oku("src/app/(app)/kampanyalar/[id]/kampanya-detayi.tsx");
     expect(ekran).toContain("<IsciDurumu");
   });
 });
@@ -193,7 +193,7 @@ describe("WhatsApp günlük liste: Google adı", () => {
     const b = await ac(adli.id);
     expect(b.googleAd).toBeUndefined(); // kaydın kendi adı varken Google adı dönmez
     expect(JSON.stringify(db.$client.prepare("select * from leads where tenant_id = ?").all(ctx.tenantId))).not.toContain(a.googleAd);
-    expect(oku("src/app/(app)/iletisim/whatsapp-listesi.tsx")).toContain("GoogleBilgisiHucresi");
+    expect(oku("src/app/(app)/kampanyalar/whatsapp-listesi.tsx")).toContain("GoogleBilgisiHucresi");
   });
 });
 
@@ -255,7 +255,7 @@ describe("tarayıcı turu düzeltmeleri (Grup D)", () => {
     expect(hic.yoneticiUyarisi).not.toContain("dakika");
     expect(isciDurumu(new Date("2026-10-12T09:04:00Z"), simdi).yoneticiUyarisi).toMatch(/^Gönderim servisi 5 dakikadan uzun süredir çalışmıyor/);
     expect(isciDurumu(new Date("2026-10-12T09:09:00Z"), simdi).yoneticiUyarisi).toBeNull();
-    expect(oku("src/app/(app)/iletisim/kampanya/[id]/kampanya-detayi.tsx")).toContain("{d.yoneticiUyarisi}");
+    expect(oku("src/app/(app)/kampanyalar/[id]/kampanya-detayi.tsx")).toContain("{d.yoneticiUyarisi}");
   });
 
   it("gönderim penceresi gün sonuna (24:00) kadarsa bitiş girdisi boş kalmaz ve form kaydedilebilir", async () => {

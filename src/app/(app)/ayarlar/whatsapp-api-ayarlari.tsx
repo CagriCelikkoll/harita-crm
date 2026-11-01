@@ -162,7 +162,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                     : "Mesaj telefonunuza ulaştığında ve Meta teslim bildirimini gönderdiğinde bu adım kendiliğinden tamamlanır.",
                 eylem:
                   adim3 === "etkin" ? (
-                    <Link href="/iletisim" className="dugme-ana dugme-kucuk">
+                    <Link href="/kampanyalar/yeni?kanal=whatsapp_api" className="dugme-ana dugme-kucuk">
                       Test kampanyası oluştur
                     </Link>
                   ) : undefined,

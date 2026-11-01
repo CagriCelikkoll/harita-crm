@@ -2,11 +2,13 @@
 // Grup 2: Ayarlar alt rotaları, role göre ayar menüsü, WhatsApp kurulum adımları, ayrı formlardan alan güncelleme.
 // Grup 4: Kayıtlar sekmeleri (İlgilendiklerim / İncelenmemiş / Tümü), süzgeç adresi, CSV ve otomatik Google bilgisi.
 // Grup 5: Bölge tara sonuçları (tarama_sonuclari, süzgeç, sıra, migration 0016), ekran ve eski adresin yönlendirilmesi.
+// Grup 6: Kampanyalar (/iletisim → /kampanyalar), sekmeler ve 4 adımlı kampanya sihirbazının adım kuralları.
 // Menüde kullanım yalnızca yüzde olarak görünür; GET /api/kullanim birim, kota ya da kalan miktar döndürmez.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type { SihirbazTaslagi } from "@/lib/kampanya-sihirbazi";
 import type { TenantContext } from "@/server/repo/baglam";
 
 const oturum = vi.hoisted(() => ({ ctx: null as TenantContext | null }));
@@ -27,6 +29,7 @@ const kayitlar = await import("@/server/repo/kayitlar");
 const { taramaOlustur } = await import("@/server/repo/taramalar");
 const { etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } = await import("@/lib/kayit-filtresi");
 const disaAktarRotasi = await import("@/app/api/kayitlar/disa-aktar/route");
+const { adimCoz, adimEngeli, enIleriAdim } = await import("@/lib/kampanya-sihirbazi");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
 
 const KOK = path.resolve(__dirname, "..");
@@ -105,7 +108,7 @@ describe("sayfa iskeleti ve menü", () => {
       "src/components/google-bilgisi.tsx",
       "src/app/(app)/kayitlar/detay-paneli.tsx",
       "src/app/(app)/tarama/tarama-paneli.tsx",
-      "src/app/(app)/iletisim/whatsapp-listesi.tsx",
+      "src/app/(app)/kampanyalar/whatsapp-listesi.tsx",
     ]) {
       expect(oku(d), d).toContain("kullanimDegisti();");
     }
@@ -145,7 +148,7 @@ describe("Ayarlar: bölümler ve erişim (Grup 2)", () => {
     expect(ILK_AYAR_BOLUMU).toBe("/ayarlar/calisma-alani");
     expect(oku("src/app/(app)/ayarlar/page.tsx")).toContain("redirect(ILK_AYAR_BOLUMU)");
     expect(oku("src/app/(app)/ayarlar/erisim.ts")).toContain("if (!ayarBolumuAcikMi(yol, b.ctx.rol)) redirect(ILK_AYAR_BOLUMU);");
-    expect(oku("src/app/(app)/iletisim/whatsapp-listesi.tsx")).toContain('href="/ayarlar/whatsapp-listesi"');
+    expect(oku("src/app/(app)/kampanyalar/whatsapp-listesi.tsx")).toContain('href="/ayarlar/whatsapp-listesi"');
   });
 
   it("çalışma alanı adı ve veri saklama süresi ayrı formlardan güncellenir; formda olmayan alan değişmez", async () => {
@@ -295,7 +298,7 @@ describe("Kayıtlar: sekmeler ve süzgeç (Grup 4)", () => {
 
   it("sekmesiz eski bağlantılar Tümü sekmesine gider (ör. Panel'deki 'İlgilenmiyor' durumu)", () => {
     expect(oku("src/app/(app)/panel/page.tsx")).toContain("href={`/kayitlar?grup=tum&durum=${d}`}");
-    expect(oku("src/app/(app)/iletisim/yeni-kampanya.tsx")).toContain('href="/kayitlar?grup=tum&ad=bos"');
+    expect(oku("src/app/(app)/kampanyalar/yeni/kampanya-sihirbazi.tsx")).toContain('href="/kayitlar?grup=tum&ad=bos"');
     expect(oku("src/app/(app)/kayitlar/ice-aktar/sihirbaz.tsx")).toContain('href="/kayitlar?grup=tum&kaynak=ice_aktarma"');
   });
 });
@@ -393,5 +396,73 @@ describe("Bölge tara: sonuçlar (Grup 5)", () => {
     expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41, lng: 29 })).toBe("0,0 km");
     expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41.0036, lng: 29 })).toBe("0,4 km");
     expect(mesafeMetni({ lat: 41, lng: 29 }, { lat: 41.1, lng: 29 })).toBe("11 km");
+  });
+});
+
+describe("Kampanyalar ve sihirbaz (Grup 6)", () => {
+  const bos: SihirbazTaslagi = { kanal: null, ad: "", konu: "", sablon: "", sablonId: "", sabitDegerler: [], aliciSayisi: null, ozetVar: false };
+
+  it("adım kuralları: kanal yokken, adsız ya da 0 alıcıyla, eksik mesajla ilerlenmez; 4. adım özet ister", () => {
+    expect(adimEngeli(1, bos)).toBe("Bir kanal seçin.");
+    const e = { ...bos, kanal: "eposta" as const };
+    expect(adimEngeli(1, e)).toBeNull();
+    expect(adimEngeli(2, e)).toBe("Kampanya adı gerekli.");
+    expect(adimEngeli(2, { ...e, ad: "Kasım", aliciSayisi: 0 })).toMatch(/alıcı yok/);
+    expect(adimEngeli(2, { ...e, ad: "Kasım", aliciSayisi: null })).toBeNull(); // WhatsApp / sayım gelmeden
+    expect(adimEngeli(3, { ...e, ad: "K", sablon: "Merhaba" })).toBe("E-posta konusu gerekli.");
+    expect(adimEngeli(3, { ...e, ad: "K", konu: "Konu", sablon: "  " })).toBe("Mesaj metni gerekli.");
+    const sms = { ...bos, kanal: "sms" as const, ad: "K" };
+    expect(adimEngeli(3, { ...sms, sablon: "x".repeat(901) })).toMatch(/900/);
+    expect(adimEngeli(3, { ...sms, sablon: "x".repeat(900) })).toBeNull();
+    const wa = { ...bos, kanal: "whatsapp_api" as const, ad: "K" };
+    expect(adimEngeli(3, wa)).toBe("WhatsApp şablonu seçin.");
+    expect(adimEngeli(3, { ...wa, sablonId: "s1", sabitDegerler: [" "] })).toMatch(/Sabit/);
+    expect(adimEngeli(3, { ...wa, sablonId: "s1", sabitDegerler: ["Kasım"] })).toBeNull();
+
+    const hazir = { ...e, ad: "K", konu: "Konu", sablon: "Merhaba", aliciSayisi: 5 };
+    expect(enIleriAdim(bos)).toBe(1);
+    expect(enIleriAdim({ ...e })).toBe(2);
+    expect(enIleriAdim(hazir)).toBe(3);
+    expect(enIleriAdim({ ...hazir, ozetVar: true })).toBe(4);
+    // Adresten ileri atlanamaz; geçersiz değer 1.
+    expect(adimCoz("4", { ...e })).toBe(2);
+    expect(adimCoz("3", { ...hazir, ozetVar: true })).toBe(3);
+    expect(adimCoz("9", hazir)).toBe(1);
+    expect(adimCoz(null, hazir)).toBe(1);
+  });
+
+  it("eski /iletisim adresleri /kampanyalar'a geçici yönlenir; oturum yönlendirmesi yeni adresi de kapsar", async () => {
+    const yapilandirma = (await import("../next.config")).default;
+    expect(await yapilandirma.redirects!()).toEqual([
+      { source: "/iletisim", destination: "/kampanyalar", permanent: false },
+      { source: "/iletisim/kampanya/:id", destination: "/kampanyalar/:id", permanent: false },
+    ]);
+    expect(oku("src/proxy.ts")).toContain('"/kampanyalar/:path*"');
+    expect(oku("src/components/menu.tsx")).toContain('{ href: "/kampanyalar", ad: "Kampanyalar", simge: "kampanyalar" }');
+    expect(oku("src/app/(app)/ayarlar/whatsapp-api-ayarlari.tsx")).toContain('href="/kampanyalar/yeni?kanal=whatsapp_api"');
+    // Uygulama kodunda eski adres kalmadı (yönlendirme tanımı hariç).
+    const tara = (klasor: string): string[] =>
+      fs.readdirSync(klasor, { withFileTypes: true }).flatMap((g) => {
+        const tam = path.join(klasor, g.name);
+        return g.isDirectory() ? tara(tam) : /\.tsx?$/.test(g.name) ? [tam] : [];
+      });
+    const eski = tara(path.join(KOK, "src"))
+      .filter((d) => !d.endsWith("proxy.ts"))
+      .filter((d) => /["'`]\/iletisim/.test(fs.readFileSync(d, "utf8")));
+    expect(eski).toEqual([]);
+  });
+
+  it("sihirbaz: dört adım, adım adreste; son adım bugünkü API'ye aynı gövdeyi gönderir; WhatsApp yalnızca yöneticiye", () => {
+    const s = oku("src/app/(app)/kampanyalar/yeni/kampanya-sihirbazi.tsx");
+    expect(s).toContain("router.push(`/kampanyalar/yeni?adim=${n}`, { scroll: false })");
+    expect(s).toContain('apiIstek<{ id: string }>("/api/kampanyalar", { method: "POST", govde: girdi() })');
+    expect(s).toContain("router.push(`/kampanyalar/${s.veri.id}`)");
+    expect(s).toContain('props.whatsapp.yonetici ? ["eposta", "sms", "whatsapp_api"] : ["eposta", "sms"]');
+    expect(s).toContain("const adim = adimCoz(props.adim, taslak);");
+    const sayfa = oku("src/app/(app)/kampanyalar/yeni/page.tsx");
+    expect(sayfa).toContain('istenenKanal && (istenenKanal !== "whatsapp_api" || yonetici)');
+    const liste = oku("src/app/(app)/kampanyalar/page.tsx");
+    expect(liste).toContain('href: "/kampanyalar?sekme=whatsapp"');
+    expect(liste).toContain('<Link href="/kampanyalar/yeni" className="dugme-ana">');
   });
 });

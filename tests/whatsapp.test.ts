@@ -266,7 +266,7 @@ describe("yönlendirme rotaları", () => {
 
     oturum.ctx = ctx;
     y = await acRotasi.GET(istek(`/api/whatsapp/ac/${ogeId}`, { "sec-fetch-site": "cross-site" }), baglam);
-    expect(y.headers.get("location")).toBe("https://crm.ornek.test/iletisim?wa=capraz#whatsapp");
+    expect(y.headers.get("location")).toBe("https://crm.ornek.test/kampanyalar?sekme=whatsapp&wa=capraz#whatsapp");
 
     y = await acRotasi.GET(istek(`/api/whatsapp/ac/${ogeId}`, { "sec-fetch-site": "same-origin" }), baglam);
     expect(y.status).toBe(302);
@@ -276,7 +276,7 @@ describe("yönlendirme rotaları", () => {
     // Başka kiracının kullanıcısı aynı öğeyi açamaz.
     oturum.ctx = kiraci();
     y = await acRotasi.GET(istek(`/api/whatsapp/ac/${ogeId}`), baglam);
-    expect(y.headers.get("location")).toBe("https://crm.ornek.test/iletisim?wa=bulunamadi#whatsapp");
+    expect(y.headers.get("location")).toBe("https://crm.ornek.test/kampanyalar?sekme=whatsapp&wa=bulunamadi#whatsapp");
   });
 
   it("cep olmayan numarada öğe otomatik atlanır ve liste nedeniyle açılır", async () => {
@@ -287,7 +287,7 @@ describe("yönlendirme rotaları", () => {
     const ogeId = wa.listeDurumu(ctx).siradaki!.ogeId;
     oturum.ctx = ctx;
     const y = await acRotasi.GET(istek(`/api/whatsapp/ac/${ogeId}`), { params: Promise.resolve({ id: ogeId }) });
-    expect(y.headers.get("location")).toBe("https://crm.ornek.test/iletisim?wa=atlandi&neden=cep_degil#whatsapp");
+    expect(y.headers.get("location")).toBe("https://crm.ornek.test/kampanyalar?sekme=whatsapp&wa=atlandi&neden=cep_degil#whatsapp");
   });
 
   it("/api/whatsapp/ac-kayit/[leadId]: uygunsa wa.me, ret ise kayda nedeniyle döner, başka kiracı için bulunamadı", async () => {
