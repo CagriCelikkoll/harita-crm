@@ -20,8 +20,9 @@ const ENTERPRISE = [
 const alanlar = (maske: string) => maske.split(",");
 
 describe("Places alan maskeleri", () => {
-  it("liste yalnızca ad + adres ister (Place Details Pro), Enterprise alanı yok", () => {
-    expect(alanlar(ALAN_MASKELERI.liste).sort()).toEqual(["displayName", "formattedAddress", "id"]);
+  it("liste yalnızca ad, adres ve konum ister (Place Details Pro), Enterprise alanı yok", () => {
+    // location Essentials alanıdır; istek displayName nedeniyle zaten Pro faturalanır.
+    expect(alanlar(ALAN_MASKELERI.liste).sort()).toEqual(["displayName", "formattedAddress", "id", "location"]);
     expect(alanlar(ALAN_MASKELERI.liste).filter((a) => ENTERPRISE.includes(a))).toEqual([]);
     expect(alanlar(ALAN_MASKELERI.liste).some((a) => PRO.includes(a))).toBe(true); // ad için Pro gerekir
   });

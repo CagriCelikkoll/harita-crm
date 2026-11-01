@@ -279,6 +279,13 @@ export const usageCounters = sqliteTable(
     ay: text("ay").notNull(), // "YYYY-MM" (Europe/Istanbul)
     // Tarihsel ad: değer, ayın kullanılan Places BİRİMİdir (src/lib/places-birimleri.ts).
     placesIstekSayisi: integer("places_istek_sayisi").notNull().default(0),
+    // Kalemlere göre döküm (Ayarlar > Kullanım); toplam her zaman places_istek_sayisi'dır ve kota onunla denetlenir.
+    // İşletme bilgileri: liste / incelemede ad ve adres (Place Details Pro).
+    isletmeBilgisiBirim: integer("isletme_bilgisi_birim").notNull().default(0),
+    // Telefon ve web sitesi: kayıt detayı, arama, WhatsApp / SMS numarası (Place Details Enterprise).
+    iletisimBilgisiBirim: integer("iletisim_bilgisi_birim").notNull().default(0),
+    // Taramalar: sınır hücreleri ve adres araması (Text Search Pro).
+    taramaBirim: integer("tarama_birim").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.ay] })],
 );

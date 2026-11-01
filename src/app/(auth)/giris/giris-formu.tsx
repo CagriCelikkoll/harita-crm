@@ -2,6 +2,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authIstemci } from "@/lib/auth-istemci";
+import { googleOnbellekleriniTemizle } from "@/lib/google-onbellegi";
 import { guvenliYol } from "@/lib/yol";
 
 type Mod = "giris" | "kayit";
@@ -36,6 +37,8 @@ export function GirisFormu() {
       setHata(hataMetni(error.code, error.message));
       return;
     }
+    // Aynı sekmede önceki oturumdan kalmış Google bilgileri yeni oturumda kullanılmaz.
+    googleOnbellekleriniTemizle();
     router.replace(sonra);
     router.refresh();
   }

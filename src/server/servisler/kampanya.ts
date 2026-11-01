@@ -136,6 +136,9 @@ export type KampanyaOzeti = {
   placesTelefonGerekli: number;
   tahminiKotaBirimi: number;
   kotaKalan: number;
+  /** Arayüz için: tahmini kullanımın aylık kotaya oranı (yüzde, yukarı yuvarlanmış) ve kalan kotanın yetip yetmediği. */
+  tahminiKullanimYuzdesi: number;
+  kotaYetmez: boolean;
   /** SMS: ilk alıcının mesajı (altbilgi dahil) kaç parça. */
   smsParca: number | null;
   whatsapp: WhatsappOzeti | null;
@@ -252,13 +255,22 @@ function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
     eksikAyarlar: sandbox ? [] : ticariIletiEksikleri(ayar, g.kanal),
     onizleme,
     placesTelefonGerekli,
-    tahminiKotaBirimi: placesTelefonGerekli * cagriBirimi("telefon"),
-    kotaKalan: kotaDurumu(ctx).kalan,
+    ...telefonKullanimi(placesTelefonGerekli * cagriBirimi("telefon"), kotaDurumu(ctx)),
     whatsapp,
     smsParca: g.kanal === "sms" && onizleme !== null ? smsUzunlugu(`${onizleme}
 ${smsAltbilgisi(ayar)}`).parca : null,
   };
   return { ozet, kararlar, sablon: wa?.sablon ?? null };
+}
+
+/** Gönderim anında Places'tan alınacak numaraların tahmini kullanımı (birim) ve arayüzdeki yüzdesi. */
+function telefonKullanimi(birim: number, kota: { kota: number; kalan: number }) {
+  return {
+    tahminiKotaBirimi: birim,
+    kotaKalan: kota.kalan,
+    tahminiKullanimYuzdesi: birim === 0 ? 0 : kota.kota > 0 ? Math.ceil((birim / kota.kota) * 100) : 100,
+    kotaYetmez: birim > kota.kalan,
+  };
 }
 
 export function kampanyaOzeti(ctx: TenantContext, g: KampanyaGirdisi, simdi = new Date()): KampanyaOzeti {

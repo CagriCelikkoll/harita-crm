@@ -15,12 +15,17 @@ export type CanliSonuc =
 
 const ES_ZAMANLI = 5;
 
+/**
+ * `esik` verilirse (otomatik gösterim) her istek yalnızca aylık kullanım kota × esik'in altında kalıyorsa yapılır;
+ * aksi halde sonuç "kota" olur (istek yapılmaz, birim düşmez).
+ */
 export async function canliBilgiGetir(
   ctx: TenantContext,
   placeIdler: string[],
   kapsam: DetayKapsami,
+  secenek: { esik?: number } = {},
 ): Promise<Map<string, CanliSonuc>> {
-  const istemci = placesIstemcisiOlustur({ kota: kotaKapisi(ctx) });
+  const istemci = placesIstemcisiOlustur({ kota: kotaKapisi(ctx, secenek) });
   const sonuclar = new Map<string, CanliSonuc>();
   const kuyruk = [...new Set(placeIdler)];
   let kotaDoldu = false;
@@ -57,11 +62,14 @@ export async function adresiKonumaCevir(ctx: TenantContext, metin: string) {
   return placesIstemcisiOlustur({ kota: kotaKapisi(ctx) }).adresBul(metin);
 }
 
-/** Listede / incelemede / kampanya alıcılarında istenince gösterilen Google bilgisi (yalnızca ad ve adres). */
-export type ListeBilgisi = { ad: string; adres: string | null } | { hata: string };
+/**
+ * Listede / incelemede / kampanya alıcılarında gösterilen Google bilgisi: ad, adres ve (mesafe için) konum.
+ * Yalnızca istemcinin belleğinde tutulur; saklanmaz.
+ */
+export type ListeBilgisi = { ad: string; adres: string | null; konum: { lat: number; lng: number } | null } | { hata: string };
 
 export function listeBilgisi(c: CanliSonuc | undefined): ListeBilgisi {
-  if (c?.durum === "tamam") return { ad: c.yer.ad, adres: c.yer.adres ?? null };
+  if (c?.durum === "tamam") return { ad: c.yer.ad, adres: c.yer.adres ?? null, konum: c.yer.konum ?? null };
   if (c?.durum === "kota") return { hata: "İşletme bilgisi gösterilemiyor (kota doldu)" };
   if (c?.durum === "bulunamadi") return { hata: "Google'da artık bulunmuyor" };
   return { hata: "Bilgi alınamadı" };

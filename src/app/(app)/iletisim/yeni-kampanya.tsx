@@ -338,9 +338,9 @@ export function YeniKampanya(props: {
                 <strong className="tabular-nums">{sayiYaz(ozet.placesTelefonGerekli)}</strong> kayıt
               </p>
               <p className="text-xs text-soluk">
-                Tahmini kota maliyeti {sayiYaz(ozet.tahminiKotaBirimi)} birim (bu ay kalan {sayiYaz(ozet.kotaKalan)}). Numara
+                {ozet.placesTelefonGerekli > 0 && `Bu ayki kullanımınızın yaklaşık %${ozet.tahminiKullanimYuzdesi}'i. `}Numara
                 saklanmaz; cep telefonu değilse o kayıt gönderim anında atlanır.
-                {ozet.tahminiKotaBirimi > ozet.kotaKalan && " Kota yetmezse kalan mesajlar ay başını bekler."}
+                {ozet.kotaYetmez && " Bu ayki kullanımınız yetmezse kalan mesajlar ay başını bekler."}
               </p>
               {ozet.smsParca !== null && (
                 <p className="mt-1 text-xs text-soluk">İlk alıcının mesajı (altbilgi dahil): {ozet.smsParca} SMS</p>

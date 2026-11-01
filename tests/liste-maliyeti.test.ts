@@ -140,9 +140,9 @@ describe("detay paneli: otomatik Enterprise çağrısı istisnalarla", () => {
     expect(aylikPlacesBirimi(ctx)).toBe(8);
   });
 
-  it("detay paneli aynı sayfa görünümünde aynı kaydı bellekten açar; ad alanı boş ve yalnızca genel ipucu", () => {
+  it("detay paneli aynı kaydı bellek önbelleğinden açar (Places'a gitmez); ad alanı boş ve yalnızca genel ipucu", () => {
     const panel = fs.readFileSync(path.join(KOK, "src/app/(app)/kayitlar/detay-paneli.tsx"), "utf8");
-    expect(panel).toContain("canliOnbellegi?.get(id)");
+    expect(panel).toContain("const onceki = detayOnbellegi.al(id);");
     expect(panel).toMatch(/name="isletmeAdi"\s+defaultValue=\{kayit\.isletmeAdi \?\? ""\}[\s\S]{0,120}placeholder=\{AD_GIRME_IPUCU\}/);
     expect(AD_GIRME_IPUCU).toBe("İşletmeyle görüştüğünüzde adını buraya yazın");
   });

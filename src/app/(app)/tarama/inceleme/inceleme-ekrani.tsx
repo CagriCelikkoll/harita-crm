@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleAtfi } from "@/components/google-atfi";
-import { GoogleBilgisiHucresi, maliyetMetni, useGoogleBilgisi } from "@/components/google-bilgisi";
+import { GoogleBilgisiHucresi, useGoogleBilgisi } from "@/components/google-bilgisi";
 import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz } from "@/lib/bicim";
 import { AD_GIRME_IPUCU, GOOGLE_ADSIZ, type IncelemeDurumu } from "@/lib/sabitler";
@@ -16,7 +16,7 @@ type Karar = "ilgileniyor" | "ad" | "ilgilenmiyor";
 
 export function IncelemeEkrani(props: { satirlar: Satir[]; kalan: number }) {
   const router = useRouter();
-  const google = useGoogleBilgisi();
+  const google = useGoogleBilgisi(props.satirlar.map((s) => s.id));
   const [kararlar, setKararlar] = useState<Record<string, Karar>>({});
   const [adlar, setAdlar] = useState<Record<string, string>>({});
   const [hata, setHata] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export function IncelemeEkrani(props: { satirlar: Satir[]; kalan: number }) {
               disabled={gosterilmemis.some((id) => google.yukleniyor.has(id))}
               onClick={() => void google.goster(gosterilmemis)}
             >
-              Bu sayfanın Google bilgilerini göster ({maliyetMetni(gosterilmemis.length)})
+              Bu sayfanın Google bilgilerini göster
             </button>
           )}
           {kararsiz.length > 0 && (

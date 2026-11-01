@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { KotaCubugu } from "@/components/kota-cubugu";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
@@ -8,7 +7,6 @@ import { kategoriBul } from "@/lib/kategoriler";
 import { KAYIT_DURUM_ADLARI, KAYIT_DURUMLARI } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { durumSayilari } from "@/server/repo/kayitlar";
-import { kotaDurumu } from "@/server/repo/kullanim";
 import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/taramalar";
 
 export const metadata: Metadata = { title: "Panel" };
@@ -19,7 +17,6 @@ export default async function PanelSayfasi() {
   const toplam = KAYIT_DURUMLARI.reduce((t, d) => t + sayilar[d], 0);
   yarimKalanTaramalariKapat(ctx);
   const taramalar = taramalariListele(ctx, 5);
-  const kota = kotaDurumu(ctx);
   const enBuyuk = Math.max(1, ...KAYIT_DURUMLARI.map((d) => sayilar[d]));
 
   return (
@@ -32,9 +29,6 @@ export default async function PanelSayfasi() {
         <Ozet baslik="Kazanıldı" deger={sayiYaz(sayilar.kazanildi)} />
       </section>
 
-      <section className="kart mt-3" aria-label="Places kotası">
-        <KotaCubugu durum={kota} />
-      </section>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="kart">

@@ -8,6 +8,7 @@ import { aktifAlanSec, cikisYap } from "@/app/eylemler/oturum";
 import { Simge, type SimgeAdi } from "@/components/arayuz/simge";
 import { KullanimGostergesi } from "@/components/kullanim-gostergesi";
 import { basHarfler, type KullanimOzeti } from "@/lib/arayuz";
+import { googleOnbellekleriniTemizle } from "@/lib/google-onbellegi";
 
 // "Kampanyalar" şimdilik /iletisim'e gider; rota Kampanyalar grubunda /kampanyalar olur.
 const BAGLANTILAR: { href: string; ad: string; simge: SimgeAdi }[] = [
@@ -75,7 +76,7 @@ export function Menu(props: {
         <div className="mt-auto flex flex-col gap-4 md:px-2">
           <KullanimGostergesi ilk={props.kullanim} />
           {props.alanlar.length > 1 && (
-            <form key={props.aktifAlan.tenantId} action={aktifAlanSec}>
+            <form key={props.aktifAlan.tenantId} action={aktifAlanSec} onSubmit={googleOnbellekleriniTemizle}>
               <label className="flex flex-col gap-1 text-xs text-menu-soluk">
                 Çalışma alanı
                 <select
@@ -109,7 +110,8 @@ export function Menu(props: {
               </span>
             </div>
           </div>
-          <form action={cikisYap}>
+          {/* Çıkışta Google bilgilerinin bellek önbelleği silinir (lib/google-onbellegi.ts). */}
+          <form action={cikisYap} onSubmit={googleOnbellekleriniTemizle}>
             <button type="submit" className="text-xs text-menu-metin underline hover:text-white">
               Çıkış yap
             </button>

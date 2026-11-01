@@ -4,7 +4,7 @@
 // "Göster" ile, maliyet önceden yazılarak istenir ve yalnızca bellekte tutulur (components/google-bilgisi.tsx).
 import { useState } from "react";
 import Link from "next/link";
-import { GoogleBilgisiHucresi, maliyetMetni } from "@/components/google-bilgisi";
+import { GoogleBilgisiHucresi } from "@/components/google-bilgisi";
 import { tarihYaz } from "@/lib/bicim";
 import {
   GOOGLE_ADSIZ,
@@ -83,9 +83,9 @@ export function KayitTablosu(props: {
               disabled={gosterilmemis.some((id) => yukleniyor.has(id))}
               onClick={() => goster(gosterilmemis)}
             >
-              Bu sayfadaki Google bilgilerini göster ({maliyetMetni(gosterilmemis.length)})
+              Bu sayfadaki Google bilgilerini göster
             </button>
-            <span className="text-xs text-soluk">Ad ve adres Google&apos;dan çekilir, saklanmaz; sayfadan ayrılınca silinir.</span>
+            <span className="text-xs text-soluk">Ad ve adres Google Haritalar&apos;dan anlık gösterilir, kaydedilmez.</span>
           </div>
         )}
       </div>

@@ -8,7 +8,6 @@ import Link from "next/link";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { useGoogleBilgisi } from "@/components/google-bilgisi";
 import { sayiYaz } from "@/lib/bicim";
-import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
 import type { KayitDto } from "@/server/servisler/kayit-dto";
 import { DetayPaneli } from "./detay-paneli";
 import { KayitTablosu, type TabloSatiri } from "./kayit-tablosu";
@@ -28,8 +27,7 @@ export function KayitlarEkrani(props: {
   const [satirlar, setSatirlar] = useState(props.satirlar);
   const [toplam, setToplam] = useState(props.toplam);
   const [secili, setSecili] = useState<string | null>(props.seciliIlk);
-  const google = useGoogleBilgisi();
-  const [detayOnbellegi] = useState(() => new Map<string, CanliSonuc>());
+  const google = useGoogleBilgisi(props.satirlar.map((s) => s.id));
 
   const seciliBaglantisi = useCallback(
     (id: string | null) => {
@@ -109,7 +107,6 @@ export function KayitlarEkrani(props: {
             key={secili}
             id={secili}
             kullaniciId={props.kullaniciId}
-            canliOnbellegi={detayOnbellegi}
             onKapat={() => sec(null)}
             onKayitDegisti={kayitDegisti}
             onSilindi={silindi}

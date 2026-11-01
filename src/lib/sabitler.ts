@@ -115,6 +115,9 @@ export const VARSAYILAN_AYLIK_PLACES_KOTASI = 6000;
 export const KOTA_UYARI_ORANI = 0.8;
 /** Kota %80'e ulaşınca Google bilgilerinin otomatik gösterimi durur (Kayıtlar, detay, Ayarlar > Kullanım). */
 export const OTOMATIK_GOSTERIM_SINIRI_METNI = "Bu ay otomatik gösterim sınırına ulaşıldı; bilgileri istediğinizde gösterilir.";
+/** Kota dolunca (sayı yazmadan): Kayıtlar ve Ayarlar > Kullanım. */
+export const KULLANIM_DOLDU_METNI =
+  "Bu ayki kullanımınız doldu. İşletme bilgileri ve yeni taramalar ay sonuna kadar durduruldu; kendi verileriniz görünmeye devam eder.";
 export const KOTA_DOLDU_MESAJI = "Bu ayki veri kotanız doldu.";
 /** Kota ve günlük sınırlar arayüzden değiştirilmez; komutlar yalnızca README'de (arayüzde komut gösterilmez). */
 export const SINIR_ARTIRMA_METNI = "Kotanızı veya sınırlarınızı artırmak için yöneticinizle/destekle iletişime geçin.";

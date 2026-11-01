@@ -265,7 +265,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
                       >
                         {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
                       </Link>
-                      {/* Google adı yalnızca istenince (3 birim) ve yalnızca bellekte; mesaja yazılmaz. */}
+                      {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
                       {!m.isletmeAdi && m.kaynak === "google" && (
                         <span className="block">
                           <GoogleBilgisiHucresi

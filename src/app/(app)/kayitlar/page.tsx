@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { whatsappDonusMetni } from "@/lib/mesajlasma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { KotaCubugu } from "@/components/kota-cubugu";
+import { BilgiNotu } from "@/components/arayuz/not";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import {
   ILETI_IZINLERI,
@@ -13,6 +13,8 @@ import {
   KAYIT_DURUMLARI,
   KAYIT_KAYNAK_ADLARI,
   KAYIT_KAYNAKLARI,
+  KULLANIM_DOLDU_METNI,
+  OTOMATIK_GOSTERIM_SINIRI_METNI,
   type IletiIzni,
   type IncelemeDurumu,
   type KayitKaynagi,
@@ -113,9 +115,10 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
       </SayfaBasligi>
 
       {(kota.doldu || kota.uyari) && (
-        <section className={`kart mb-4 ${kota.doldu ? "border-tehlike/40 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
-          <KotaCubugu durum={kota} aciklama={false} />
-        </section>
+        // Kullanım yalnızca menüde yüzde olarak görünür; burada sayı yazmadan davranış değişikliği açıklanır.
+        <BilgiNotu ton={kota.doldu ? "tehlike" : "uyari"} uyariRolu className="mb-4">
+          {kota.doldu ? KULLANIM_DOLDU_METNI : OTOMATIK_GOSTERIM_SINIRI_METNI}
+        </BilgiNotu>
       )}
 
       {waDonus && (

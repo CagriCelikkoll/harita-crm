@@ -33,7 +33,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "olusturma_tarihi", "guncelleme_tarihi",
   ],
   lead_events: ["id", "tenant_id", "lead_id", "tur", "aciklama", "kullanici_id", "sistem", "tarih"],
-  usage_counters: ["tenant_id", "ay", "places_istek_sayisi"],
+  // Kalem sütunları yalnızca birim sayacıdır (Places içeriği değil).
+  usage_counters: ["tenant_id", "ay", "places_istek_sayisi", "isletme_bilgisi_birim", "iletisim_bilgisi_birim", "tarama_birim"],
   place_locations: ["tenant_id", "place_id", "lat", "lng", "alinma_tarihi"],
   // Mesajlaşma: çalışma alanı / kullanıcı verisi. Alıcı adresi kuyrukta tutulmaz; engel listesinde yalnızca özet.
   ileti_ayarlari: [

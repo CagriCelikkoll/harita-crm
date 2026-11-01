@@ -165,6 +165,8 @@ describe("SMS kampanyası: alıcılar ve Places telefonu", () => {
 
     const ozet = kampanyaOzeti(ctx, girdi(), OGLE);
     expect(ozet).toMatchObject({ gonderilecek: 2, placesTelefonGerekli: 2, tahminiKotaBirimi: 8 });
+    // Arayüzde birim yerine kullanım yüzdesi: 8 / 6.000 → yukarı yuvarlanmış %1.
+    expect(ozet).toMatchObject({ tahminiKullanimYuzdesi: 1, kotaYetmez: false });
     expect(ozet.smsParca).toBe(1);
 
     const k = kampanyaBaslat(ctx, girdi(), OGLE);

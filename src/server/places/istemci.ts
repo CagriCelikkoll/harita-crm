@@ -5,12 +5,13 @@
 // en yüksek katmandan TEK olay olarak faturalanır.
 //   Tarama, daire içi hücre : places.id,nextPageToken                 → Text Search Essentials (IDs Only), ücretsiz
 //   Tarama, sınır hücresi   : places.id,places.location,nextPageToken → Text Search Pro
-//   Liste satırı            : id,displayName,formattedAddress          → Place Details Pro
+//   Liste satırı            : id,displayName,formattedAddress,location → Place Details Pro
 //                             (displayName Pro katmanındadır; ad istenince Essentials mümkün değil)
 //   Detay paneli (ayrı)     : telefon, web sitesi, puan + ad/adres/konum/googleMapsUri → Place Details Enterprise
 //   Adres arama             : places.location,places.formattedAddress  → Text Search Pro
 //   SMS/WhatsApp telefonu   : id,nationalPhoneNumber,internationalPhoneNumber → Place Details Enterprise
 import { PLACES_BIRIMLERI, type PlacesSku } from "@/lib/places-birimleri";
+import type { KullanimKalemi } from "../repo/kullanim";
 import { mockPlacesIstemcisi } from "./mock";
 import {
   kotaKontrol,
@@ -29,7 +30,8 @@ export const ALAN_MASKELERI = {
   taramaYalnizcaId: "places.id,nextPageToken",
   taramaKonumlu: "places.id,places.location,nextPageToken",
   // Enterprise alanı (telefon, web sitesi, puan, çalışma saatleri) EKLEMEYİN: tüm liste Enterprise'a çıkar.
-  liste: "id,displayName,formattedAddress",
+  // location Essentials alanıdır (Bölge tara kartlarında mesafe); istek zaten Pro faturalandığı için ek ücret yok.
+  liste: "id,displayName,formattedAddress,location",
   detay:
     "id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,websiteUri," +
     "googleMapsUri,rating,userRatingCount,location,businessStatus",
@@ -50,6 +52,16 @@ export const CAGRI_SKULARI = {
 } as const satisfies Record<keyof typeof ALAN_MASKELERI, PlacesSku>;
 
 export const cagriBirimi = (cagri: keyof typeof CAGRI_SKULARI) => PLACES_BIRIMLERI[CAGRI_SKULARI[cagri]];
+
+/** Her çağrının kullanım kalemi (Ayarlar > Kullanım dökümü). */
+export const CAGRI_KALEMLERI = {
+  taramaYalnizcaId: "tarama",
+  taramaKonumlu: "tarama",
+  liste: "isletmeBilgisi",
+  detay: "iletisimBilgisi",
+  adres: "tarama",
+  telefon: "iletisimBilgisi",
+} as const satisfies Record<keyof typeof ALAN_MASKELERI, KullanimKalemi>;
 
 type GooglePlace = {
   id?: string;
@@ -85,7 +97,7 @@ function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): Place
     const alanMaskesi = ALAN_MASKELERI[cagri];
     const anahtar = process.env.GOOGLE_PLACES_API_KEY;
     if (!anahtar) throw new PlacesHatasi("GOOGLE_PLACES_API_KEY tanımlı değil (veya PLACES_MOCK=true kullanın).");
-    const iade = kotaKontrol(kota, cagriBirimi(cagri)); // kota yoksa istek YAPILMAZ
+    const iade = kotaKontrol(kota, cagriBirimi(cagri), CAGRI_KALEMLERI[cagri]); // kota yoksa istek YAPILMAZ
     let yanit: Response;
     try {
       yanit = await fetch(`${TABAN}${yol}`, {

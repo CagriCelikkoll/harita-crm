@@ -570,3 +570,6 @@ Plan onaylandı. Yukarıdaki maddelere verilen yanıtlar:
 Önbellek (karar 3), Grup 3'e eklenir: `canli` sonuçları ve detay iletişim bilgileri ortak bir istemci önbelleğinden
 geçer. Önbellek `bildirim.tsx` gibi tek bir istemci modülünde, `(app)` layout'una bağlı bir sağlayıcıyla tutulur ve
 çıkış eyleminde temizlenir.
+
+Karar 3 sonrası tüketim yeniden hesaplandı (Grup 3): README, "Tahmini aylık tüketim". Oturum başına 40 / 60 / 100 farklı
+kayıtla 8.640 / 11.280 / 16.560 birim; bölüm 4.5'teki önbelleksiz rakamların yerini alır.

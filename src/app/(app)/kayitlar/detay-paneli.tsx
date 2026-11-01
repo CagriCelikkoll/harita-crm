@@ -2,9 +2,9 @@
 // Kayıt detay paneli.
 // - Açılınca İŞLETME BİLGİSİ için tek bir Place Details Enterprise çağrısı yapılır (?canli=oto); yalnızca Google
 //   kayıtlarında (içe aktarılan / elle eklenen kişide sunucu Places'a gitmez). Kayıt "ilgilenmiyor" işaretliyse ya da
-//   aylık kota %80'i geçtiyse otomatik çağrı yapılmaz; "Google bilgilerini göster" düğmesi çıkar (?canli=1).
-// - Sonuç yalnızca bu sayfa görünümünün belleğinde tutulur (canliOnbellegi): aynı kayıt yeniden açılınca Places'a
-//   yeniden gidilmez; tarayıcı depolamasına yazılmaz.
+//   aylık kullanım %80'e ulaştıysa otomatik çağrı yapılmaz; "Google bilgilerini göster" düğmesi çıkar (?canli=1).
+// - Sonuç yalnızca bellekte, en fazla 30 dakika tutulur (lib/google-onbellegi.ts): aynı kayıt yeniden açılınca
+//   Places'a yeniden gidilmez; tarayıcı depolamasına yazılmaz.
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
@@ -13,8 +13,8 @@ import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
+import { detayOnbellegi, listeOnbellegi } from "@/lib/google-onbellegi";
 import { tarihYaz } from "@/lib/bicim";
-import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
 import {
   ALICI_TURLERI,
   ALICI_TURU_ADLARI,
@@ -28,6 +28,7 @@ import {
   GOOGLE_ADSIZ,
   ILETI_IZNI_ADLARI,
   KOTA_DOLDU_MESAJI,
+  OTOMATIK_GOSTERIM_SINIRI_METNI,
   KAYIT_DURUM_ADLARI,
   KAYIT_DURUMLARI,
   KAYIT_KAYNAK_ADLARI,
@@ -48,17 +49,22 @@ type DetayVerisi = {
 };
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 
+/** Başarılı detay sonucu bellek önbelleğine; ad, adres ve konum liste önbelleğine de (aynı kayıt listede yeniden istenmez). */
+function onbellegeYaz(id: string, c: CanliSonuc) {
+  if (c.durum !== "tamam") return;
+  detayOnbellegi.koy(id, c);
+  listeOnbellegi.koy(id, { ad: c.yer.ad, adres: c.yer.adres ?? null, konum: c.yer.konum ?? null });
+}
+
 export function DetayPaneli(props: {
   id: string;
   kullaniciId: string;
-  /** Bu sayfa görünümünde daha önce çekilmiş Places detayları (yalnızca bellek). */
-  canliOnbellegi?: Map<string, CanliSonuc>;
   onKapat: () => void;
   /** Liste satırını sayfa yenilemeden günceller (izin rozeti, engelli işareti, son işlem tarihi). */
   onKayitDegisti: (k: KayitDto, ek: { whatsappIzni: WhatsappKisiDto["izin"]; engelli: boolean }) => void;
   onSilindi: (id: string) => void;
 }) {
-  const { id, onKayitDegisti, canliOnbellegi } = props;
+  const { id, onKayitDegisti } = props;
   const [veri, setVeri] = useState<Omit<DetayVerisi, "canli" | "canliAtlandi"> | null>(null);
   const [canli, setCanli] = useState<CanliSonuc | null>(null);
   const [canliAtlandi, setCanliAtlandi] = useState<DetayVerisi["canliAtlandi"]>(undefined);
@@ -71,7 +77,7 @@ export function DetayPaneli(props: {
   // Panel üst bileşende key={id} ile oluşturulur; kayıt değişince durum zaten sıfırdan başlar.
   useEffect(() => {
     const iptal = new AbortController();
-    const onceki = canliOnbellegi?.get(id);
+    const onceki = detayOnbellegi.al(id);
     apiIstek<DetayVerisi>(onceki ? `/api/kayitlar/${id}` : `/api/kayitlar/${id}?canli=oto`, { sinyal: iptal.signal })
       .then((s) => {
         if (!s.ok) {
@@ -83,17 +89,19 @@ export function DetayPaneli(props: {
         const c = onceki ?? s.veri.canli ?? null;
         setCanli(c);
         setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
-        if (c) canliOnbellegi?.set(id, c);
-        if (s.veri.canli) kullanimDegisti();
+        if (s.veri.canli) {
+          onbellegeYaz(id, s.veri.canli);
+          kullanimDegisti();
+        }
       })
       .catch(() => {})
       .finally(() => {
         if (!iptal.signal.aborted) setYukleniyor(false);
       });
     return () => iptal.abort();
-  }, [id, canliOnbellegi]);
+  }, [id]);
 
-  /** Kullanıcı istedi: koşulsuz canlı detay (Enterprise, 4 birim). */
+  /** Kullanıcı istedi: koşulsuz canlı detay (Place Details Enterprise). */
   async function googleBilgisiGetir() {
     setMesgul(true);
     const s = await apiIstek<DetayVerisi>(`/api/kayitlar/${id}?canli=1`);
@@ -101,7 +109,7 @@ export function DetayPaneli(props: {
     if (!s.ok) return setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
     setCanli(s.veri.canli ?? null);
     setCanliAtlandi(undefined);
-    if (s.veri.canli) canliOnbellegi?.set(id, s.veri.canli);
+    if (s.veri.canli) onbellegeYaz(id, s.veri.canli);
     kullanimDegisti();
   }
 
@@ -258,10 +266,10 @@ export function DetayPaneli(props: {
           <p>
             {canliAtlandi === "ilgilenmiyor"
               ? "Bu kayıt ilgilenilmiyor olarak işaretli; Google bilgileri kendiliğinden çekilmedi."
-              : "Bu ayki Places kotanızın %80'i kullanıldı; Google bilgileri kendiliğinden çekilmedi."}
+              : OTOMATIK_GOSTERIM_SINIRI_METNI}
           </p>
           <button type="button" className="dugme" disabled={mesgul} onClick={() => void googleBilgisiGetir()}>
-            Google bilgilerini göster ({PLACES_BIRIMLERI.placeDetailsEnterprise} birim)
+            Google bilgilerini göster
           </button>
         </div>
       ) : (
@@ -725,7 +733,7 @@ function WhatsappButonu({ id, onGonderildi }: { id: string; onGonderildi: () => 
       </div>
       {durum.durum !== "hazir" && durum.mesaj && <p className="text-xs text-soluk">WhatsApp: {durum.mesaj}</p>}
       {durum.durum === "hazir" && !durum.telefon && (
-        <p className="text-xs text-soluk">Numara kayıtta yok; açarken Google&apos;dan alınır (4 birim, saklanmaz).</p>
+        <p className="text-xs text-soluk">Numara kayıtta yok; açarken Google&apos;dan alınır, saklanmaz.</p>
       )}
       {mesaj && (
         <p role={mesaj.tur === "hata" ? "alert" : "status"} className={`text-sm ${mesaj.tur === "hata" ? "text-tehlike" : "text-ana"}`}>

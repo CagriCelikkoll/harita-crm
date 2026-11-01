@@ -309,6 +309,14 @@ const kullanimTestleri: Record<keyof typeof kullanim, () => void> = {
     expect(kullanim.kotaDurumu(B)).toMatchObject({ kullanilan: 7, kota: 9, kalan: 2 });
     db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(B.tenantId);
   },
+  kullanimDokumu: () => {
+    // A'nın kalemli kullanımı B'nin dökümüne karışmaz.
+    const once = kullanim.kullanimDokumu(B);
+    expect(kullanim.kotaAyir(A, 3, { kalem: "tarama" })).toBe(true);
+    expect(kullanim.kullanimDokumu(A).tarama).toBe(100);
+    expect(kullanim.kullanimDokumu(B)).toEqual(once);
+    kullanim.kotaIadeEt(A, 3, { kalem: "tarama" });
+  },
 };
 
 const konumTestleri: Record<keyof typeof konumlar, () => void> = {

@@ -145,6 +145,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 3 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
 | `tests/dogruluk-demo.test.ts` | Ret'in onaysız gönderilememesi (kayıt, WhatsApp izni, günlük liste); sahte Places'in yalnızca 0500 000 xx xx üretmesi; arayüzde npm komutu olmaması; alıcı türünün varsayılanı olmaması (Kişi ekle, içe aktarma). |
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
+| `tests/yeni-duzen.test.ts` | Yeni düzen: menüdeki kullanım göstergesinin yalnızca yüzde göstermesi (`GET /api/kullanim` birim, kota ya da kalan döndürmez; %80 uyarı, dolmadan %100 yok); sekmelerde klavye, baş harfler; menü ve sayfa iskeleti ölçüleri; Ayarlar bölümlerinin role göre görünmesi (üye yalnızca kendini ilgilendirenleri) ve her bölüm sayfasının rol denetimi; çalışma alanı adı ile saklama süresinin ayrı formlardan güncellenmesi; WhatsApp kurulum adımlarının test modu kilidinden türetilmesi. || `tests/gorunurluk.test.ts` | Kullanım kalemlerinin toplamla aynı atomik ifadede artması ve iadesi; her Places çağrısının kalemi; eşikli ayırma (sonraki toplam kota × 0,8'in altında); otomatik gösterimin yalnızca adı girilmemiş kayıtlara ve %80'in altına gitmesi, eşikte istek yapmaması ve birim düşmemesi, elle Göster'in %100'e kadar sürmesi; detay panelinin otomatik açılışında aynı eşik; 30 dakikalık bellek önbelleğinin süresi, çıkış / giriş / alan değişince temizlenmesi ve tarayıcı depolaması kullanmaması; arayüzde "birim" sözcüğünün geçmemesi. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -172,7 +173,10 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
   `src/server/places/istemci.ts` içinde, yalnızca sunucuda; `PLACES_MOCK=true` iken `mock.ts` kullanılır.
 - **Saklama:** İşletme adı, telefon, adres, web sitesi, puan **hiçbir tabloya yazılmaz** ve önbelleğe alınmaz
   (`fetch(..., { cache: "no-store" })`). Veritabanında süresiz tutulan tek Places verisi `place_id`'dir.
-  Ekranda gösterileceği an sunucuda Place Details ile çekilir ve yalnızca o isteğin belleğinde yaşar.
+  Ekranda gösterileceği an sunucuda Place Details ile çekilir ve yalnızca o isteğin belleğinde yaşar. Tarayıcıda
+  yalnızca bellekte, kayıt kimliğine göre en fazla 30 dakika tutulur (`src/lib/google-onbellegi.ts`; aşağıda
+  "Alınan kararlar"): tarayıcı depolamasına ve sunucuya yazılmaz; sayfa yenilenince, çıkış / giriş yapılınca ve
+  çalışma alanı değişince silinir.
 - **Konum (30 gün):** Places'tan gelen enlem/boylam yalnızca `place_locations` tablosunda `alinma_tarihi` ile tutulur.
   Okurken 30 günden eskiler yok sayılır; `npm run cleanup` fiziksel olarak siler.
 - **Tarama merkezi (30 gün):** Merkez koordinatları (`scans.merkez_lat/lng`), **kaynağı ne olursa olsun**
@@ -221,21 +225,32 @@ isteği" olarak görünür.
 **Liste ve detay neden ayrı:** Places bir isteği maskedeki en yüksek katmandan **tek** olay olarak faturalar.
 Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır Enterprise olurdu. Bu yüzden:
 
-- **Kayıt listesi Places'a kendiliğinden gitmez (0 birim).** Satırlarda yalnızca kullanıcının verisi görünür: kendi
-  girdiği işletme adı (yoksa "Google kaydı · ad girilmemiş"), durum, izinler, etiketler, son işlem, kaynak, inceleme.
-- Google adı ve adresi **istenince** gelir: satırda "Göster (3 birim)" ya da "Bu sayfadaki Google bilgilerini göster
-  (N × 3 = X birim)" — maliyet düğmede yazar. `POST /api/kayitlar/canli` (en fazla 20 kayıt, yalnızca kiracının
-  Google kayıtları, `no-store`). Yalnızca **ad + adres** istenir: `displayName` Pro katmanında olduğundan en ucuz
-  uygun katman **Place Details Pro**'dur. Gösterilen içerik yalnızca o sayfa görünümünün React belleğinde tutulur;
-  tarayıcı depolamasına ve sunucuya yazılmaz, sayfa/süzgeç değişince silinir (`components/google-bilgisi.tsx`).
+- **Kayıt listesini çizen sunucu sayfası Places'a gitmez.** Satırlarda kullanıcının verisi görünür: kendi girdiği
+  işletme adı (yoksa "Google kaydı · ad girilmemiş"), durum, izinler, etiketler, son işlem, kaynak, inceleme.
+- Google adı, adresi ve konumu `POST /api/kayitlar/canli` ile gelir (en fazla 20 kayıt, yalnızca kiracının Google
+  kayıtları, `no-store`). Maske `id,displayName,formattedAddress,location`: `displayName` Pro katmanında olduğundan
+  en ucuz uygun katman **Place Details Pro**'dur; `location` Essentials alanıdır, ek ücret doğurmaz (Bölge tara
+  kartlarında mesafe).
+  - **Otomatik gösterim** (`otomatik: true`; Kayıtlar listesi ve Bölge tara sonuçları): yalnızca kendi adı
+    girilmemiş Google kayıtları için ve yalnızca aylık kullanım **%80'in altında kalıyorsa**. Eşik, kota ayırmanın
+    atomik SQL ifadesinde uygulanır (`kotaAyir(..., { esik: 0.8 })`: ayırmadan sonraki toplam kota × 0,8'in altında
+    kalmalı); eşzamanlı istekler de eşiği aşamaz. Eşiğe gelinince istek yapılmaz, birim düşmez, yanıt
+    `otomatikKapali: true` olur ve satır "Göster" düğmesine döner. Kayıtlar ve Ayarlar > Kullanım "Bu ay otomatik
+    gösterim sınırına ulaşıldı; bilgileri istediğinizde gösterilir." yazar.
+  - **Elle** ("Göster", "Bu sayfadaki Google bilgilerini göster"): kota dolana kadar.
+  - Arayüzde birim ya da tıklama başı maliyet yazmaz; kullanım yalnızca menüdeki yüzde göstergesinde ve Ayarlar >
+    Kullanım ve paket'te görünür.
+  - Gösterilen içerik React belleğinde ve en fazla 30 dakikalık bellek önbelleğinde tutulur; aynı oturumda aynı kayıt
+    için Google'a yeniden gidilmez (`components/google-bilgisi.tsx`, `lib/google-onbellegi.ts`).
 - Telefon, web sitesi ve puan **detay paneli açıldığında**, tek bir Enterprise çağrısıyla çekilir. İstisnalar: kayıt
-  "ilgilenmiyor" işaretliyse ya da aylık kota %80'i geçtiyse otomatik çağrı yapılmaz, panel "Google bilgilerini
-  göster (4 birim)" düğmesi gösterir; aynı sayfa görünümünde aynı kayıt yeniden açılınca bellekteki sonuç kullanılır.
+  "ilgilenmiyor" işaretliyse ya da çağrı kullanımı %80'e taşıyacaksa (aynı atomik eşik) otomatik çağrı yapılmaz,
+  panel "Google bilgilerini göster" düğmesi gösterir; aynı kayıt 30 dakika içinde yeniden açılınca bellekteki sonuç
+  kullanılır.
 - **Tarama sonuçlarını inceleme** (`/tarama/inceleme`): taramayla gelen kayıtlar `leads.inceleme = 'incelenmedi'`
-  gelir. Kullanıcı sonuçları 20'şer görür (Google bilgisi yine "Göster" ile, maliyet önceden yazılarak) ve
+  gelir. Kullanıcı sonuçları 20'şer görür (Google bilgisi "Göster" ile) ve
   "İlgilen" / "İlgilenme" der. "İlgilenme" kaydı silmez (sonraki taramada geri gelmesin); listede varsayılan olarak
   gizler ve kayıt hiçbir kampanyaya / WhatsApp listesine girmez (alıcı kuralı "ilgilenmiyor").
-- **WhatsApp günlük liste:** sıradaki kayıt Google kaydıysa ve kendi adı yoksa ad "Göster (3 birim)" ile istenebilir.
+- **WhatsApp günlük liste:** sıradaki kayıt Google kaydıysa ve kendi adı yoksa ad "Göster" ile istenebilir.
   "WhatsApp'ta aç" telefonu zaten bir Place Details Enterprise çağrısıyla çözer; aynı çağrının alan maskesinde
   `displayName` (Pro) vardır ve istek en yüksek SKU'dan faturalandığı için ek ücret doğurmaz (Google "Usage and
   billing": *billed at the highest SKU applicable to your request*; "Place Data Fields": displayName → Place Details
@@ -243,37 +258,53 @@ Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır En
   (`POST /api/whatsapp/ac/[id]`), dönen ad yalnızca o sayfa görünümünün belleğinde gösterilir.
 - Kayıt seçmek veya kayıt üzerinde işlem yapmak (durum, not, ret, e-posta) Places'a gitmez.
   (`tests/places-maske.test.ts` liste maskesine Enterprise alanı eklenmesini engeller; `tests/liste-maliyeti.test.ts`
-  listenin Places'a gitmediğini ve istenince doğru birimin düştüğünü doğrular.)
+  listenin Places'a gitmediğini ve istenince doğru birimin düştüğünü, `tests/gorunurluk.test.ts` otomatik gösterim
+  eşiğini, kullanım kalemlerini, bellek önbelleğinin süresini ve arayüzde "birim" geçmediğini doğrular.)
 
-**Tahmini aylık tüketim** — varsayım: ayda **1.000 liste sayfası görüntüleme** + **300 detay açılışı** (tek çalışma
-alanı); yeni akış için ek varsayım: kullanıcı liste sayfalarının **%20**'sinde Google bilgilerini ister, ayda
-**20 tarama × 40 sonuç** incelenir.
+**Tahmini aylık tüketim** (tek çalışma alanı; birimler aşağıdaki tabloya göre):
 
-| Kalem | Önce (birim) | Sonra (birim) |
-| --- | --- | --- |
-| Liste görüntüleme | 1.000 × 20 × 3 = 60.000 | 0 |
-| İstenince gösterilen liste sayfaları | — | 200 × 20 × 3 = 12.000 |
-| Tarama sonuçlarını inceleme | — | 20 × 40 × 3 = 2.400 |
-| Detay paneli (Enterprise) | 300 × 4 = 1.200 | 1.200 |
-| **Toplam** | **61.200** | **15.600 (≈ %75 az)** |
+*Önceki akış* (liste yalnızca istenince; ayda 1.000 liste sayfası görüntüleme, sayfaların %20'sinde "Göster",
+300 detay açılışı, 20 tarama × 40 sonuç): liste 200 × 20 × 3 = 12.000 + inceleme 2.400 + detay 1.200 =
+**15.600 birim**.
 
-Kullanıcılar sayfaların %30'unda bilgi isterse toplam 21.600 birim olur (≈ %65 az). Dolar karşılığı: önce ≈ 20.000
-Place Details Pro isteği (5.000'i ücretsiz) ≈ **$255/ay**; sonra ≈ 5.000 Pro isteği (ücretsiz kota içinde) ≈ **$0** +
-taramalar.
+*Yeni akış* (otomatik gösterim %80'e kadar + 30 dakikalık bellek önbelleği). Önbellek yüzünden maliyeti sayfa
+görüntüleme sayısı değil, **her oturumda görüntülenen farklı, adı girilmemiş Google kaydı** belirler (aynı kayıt
+30 dakika içinde yeniden görülünce Google'a gidilmez). Varsayım: ayda 22 iş günü, günde 2 oturum (aralarında 30
+dakikadan fazla) = **44 önbellek dönemi**; detay açılışlarının %20'si aynı kaydın 30 dakika içinde yeniden açılması.
 
+| Kalem | Oturum başına 40 farklı kayıt | 60 farklı kayıt | 100 farklı kayıt |
+| --- | --- | --- | --- |
+| Kayıt listesi (otomatik) | 44 × 40 × 3 = 5.280 | 44 × 60 × 3 = 7.920 | 44 × 100 × 3 = 13.200 |
+| Bölge tara sonuçları (otomatik; her sonuç bir kez) | 20 × 40 × 3 = 2.400 | 2.400 | 2.400 |
+| Detay paneli (Enterprise; %20'si bellekten) | 240 × 4 = 960 | 960 | 960 |
+| **Toplam** | **8.640** | **11.280** | **16.560** |
+
+Önbelleksiz otomatik gösterimde aynı ay (1.000 sayfa görüntüleme, satırların yarısı adı girilmemiş Google kaydı)
+≈ 33.600 birim olurdu; önbellek bunu yaklaşık üçte bire indirir.
+
+- **Kota eşiğiyle:** varsayılan kota 6.000 birim; otomatik gösterim 4.800 birimde durur. 60 farklı kayıt / oturumda
+  bu, yaklaşık 9–10. iş gününe (günde ≈ 510 birim) denk gelir; sonrasında liste "Göster" ile çalışır. Ay boyu
+  otomatik görmek için kota en az toplam / 0,8 olmalı: 40 → 10.800, 60 → 14.100, 100 → 20.700 birim. Kota bir üst sınır olduğu için çalışma
+  alanı başına harcama hiçbir durumda kotayı aşmaz. (Fiyat / paket kararı pilottan sonra.)
+- **Dolar karşılığı** (Ekim 2026 liste fiyatı; Place Details Pro $17 / 1.000 ve ayda 5.000 ücretsiz; Enterprise
+  $20 / 1.000 ve ayda 1.000 ücretsiz): 60 farklı kayıt / oturumda 2.640 + 800 = 3.440 Pro ve 240 Enterprise isteği →
+  ilk çalışma alanı için **≈ $0** (ücretsiz kotalar içinde); 100 farklı kayıtta 5.200 Pro → ≈ $3,40.
+- **Ücretsiz kotalar Google faturalama hesabı başınadır**, çalışma alanı başına değil: aynı hesabı paylaşan ikinci ve
+  sonraki çalışma alanlarında 60 farklı kayıt / oturumda ≈ 3.440 × $0,017 + 240 × $0,020 ≈ **$63 / ay**.
 - Detay kotayı aşarsa (ayda 1.000'den fazla görüntüleme) her biri ~$0,02 ekler.
 - **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
   (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
 - Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
-- Panelde ve Ayarlar'da "Bu ayki Places kullanımı" çubuğu bu işlemlerin birimlerini kotayla birlikte gösterir.
+- Arayüzde kullanım yalnızca yüzde olarak görünür: menüdeki "Bu ayki kullanım %N" göstergesi (`GET /api/kullanim`,
+  yalnızca yüzde ve seviye döner) ve Ayarlar > Kullanım ve paket (yüzde, kalemlere göre pay: işletme bilgileri,
+  telefon ve web sitesi, taramalar; `usage_counters` kalem sütunları, migration 0015).
 
 ## Aylık Places kotası (kiracı başına)
 
 Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Places kotası vardır
 (`tenants.aylik_places_kotasi`). Kota **maliyet ağırlıklı birim** cinsindendir.
 
-**Birimler** — tek kaynak `src/lib/places-birimleri.ts` (Ayarlar'daki "Hangi işlem kaç birim?" tablosu da buradan
-okur). En ucuz ücretli SKU (Place Details Essentials, $5/1000) = 1 birim; diğerleri fiyatına oranla, tam sayıya
+**Birimler** — tek kaynak `src/lib/places-birimleri.ts` (birimler arayüzde gösterilmez; tablo yalnızca burada). En ucuz ücretli SKU (Place Details Essentials, $5/1000) = 1 birim; diğerleri fiyatına oranla, tam sayıya
 yuvarlanır; ücretsiz SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki fiyatlar güncellenir.
 
 | İşlem | SKU | $/1000 | Birim |
@@ -284,8 +315,8 @@ yuvarlanır; ücretsiz SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki 
 | Kayıt detayı (telefon, web, puan) | Place Details Enterprise | 20 | 4 |
 
 Ücretsiz istekler kotadan düşmez (kota doluyken de yapılabilir) ama `SCAN_MAX_REQUESTS` tarama sınırına sayılmaya
-devam eder. Yukarıdaki varsayımla tüketim ≈ **15.600 birim/ay** (önceki tasarımda 61.200); varsayılan 6.000 birim
-bunun yaklaşık %40'ıdır (≈ 100 "bu sayfanın Google bilgilerini göster" isteği).
+devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **8.640–16.560 birim/ay**; varsayılan 6.000 birimin %80'i
+(4.800) otomatik gösterimin üst sınırıdır.
 
 - **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **6.000 birim**) başlar.
   Birime geçiş migration'ı (`0003_places_birim_kotasi`) mevcut kotaları ve sayaçları 3 ile çarptı (liste satırı 3
@@ -302,8 +333,9 @@ bunun yaklaşık %40'ıdır (≈ 100 "bu sayfanın Google bilgilerini göster" i
   - **Liste ve detay:** Places çağrısı yapılmaz; kullanıcının kendi verisi (durum, ileti izni, etiketler, notlar,
     iletişim bilgileri, etkinlikler) görünmeye devam eder ve "Bu ayki veri kotanız doldu" uyarısı çıkar.
   - **Adres araması:** 429 ve aynı uyarı.
-- **Uyarı:** Panel ve Ayarlar'daki kullanım çubuğu %80'de sarı uyarı, %100'de kırmızı "kota doldu" gösterir.
-  Kayıtlar sayfası da uyarı eşiği aşıldığında çubuğu gösterir.
+- **Uyarı:** menüdeki gösterge %80'de sarı, %100'de kırmızıdır. Kayıtlar ve Ayarlar > Kullanım %80'de "Bu ay
+  otomatik gösterim sınırına ulaşıldı; bilgileri istediğinizde gösterilir.", %100'de "Bu ayki kullanımınız doldu…"
+  yazar (sayı yazmadan).
 - **Atomiklik:** Kontrol ve artırma tek bir SQL ifadesidir
   (`INSERT … ON CONFLICT DO UPDATE … WHERE kullanilan + adet <= kota … RETURNING`). SQLite her ifadeyi atomik
   yürüttüğü için aynı süreçteki eşzamanlı istekler ve ayrı süreçler kotayı aşamaz (`tests/kota.test.ts` 4 ayrı
@@ -894,16 +926,34 @@ tests/                           Vitest
 
 ## Alınan kararlar
 
-- **Liste Places'a kendiliğinden gitmez:** liste yalnızca kullanıcının verisini gösterir; Google adı/adresi satır ya
-  da sayfa için, maliyeti önceden yazılarak istenince gelir ve yalnızca o sayfa görünümünün belleğinde tutulur.
-  Detay paneli açılışta Enterprise çağrısını yapar; "ilgilenmiyor" kayıtta ve kota %80+ iken yapmaz (düğme).
+- **Otomatik gösterim %80'e kadar (1 Kasım 2026; önceki "liste Places'a kendiliğinden gitmez" kararını değiştirir):**
+  Kayıtlar listesinde adı girilmemiş Google kayıtlarının ve Bölge tara sonuçlarının adı / adresi, aylık kullanım
+  %80'e ulaşana kadar kendiliğinden gelir; sonra satır "Göster" düğmesine döner. Eşik sunucuda, kota ayırmanın
+  atomik ifadesinde uygulanır. Listeyi çizen sunucu sayfası yine Places'a gitmez. Detay paneli açılışta Enterprise
+  çağrısını yapar; "ilgilenmiyor" kayıtta ve çağrı kullanımı %80'e taşıyacaksa yapmaz (düğme).
+- **Arayüzde birim yok:** düğmelerde ve metinlerde birim ya da işlem başı maliyet yazmaz; kullanım yalnızca menüdeki
+  yüzde göstergesinde ve Ayarlar > Kullanım ve paket'te (yüzde ve kalemlere göre pay) görünür. Birim sistemi ve kota
+  sunucuda aynen sürer; birim tablosu yalnızca bu README'dedir. Kampanya özetindeki tahmini **Meta** ücreti ($) gerçek
+  mesaj ücreti olduğu için kalır (yalnızca yöneticiye).
+- **Google bilgileri için 30 dakikalık bellek önbelleği — Places politikası yorumu, canlıya almadan önce gözden
+  geçirilmeli:** Google'dan gelen ad, adres, konum ve detay panelinin iletişim bilgileri istemcide yalnızca bellekte
+  (modül düzeyinde Map), kayıt kimliğine göre en fazla 30 dakika tutulur ve aynı oturumda yeniden kullanılır.
+  localStorage, sessionStorage, IndexedDB, Cache API ve sunucu kullanılmaz. Sayfa yenilenince, çıkış ya da giriş
+  yapılınca, çalışma alanı değişince ve 30 dakika dolunca silinir; süre ilk alınıştan sayılır, okumak uzatmaz.
+  *Gerekçe:* otomatik gösterimde aynı kayıtlar (sekme, sayfa ya da süzgeç değişip geri dönülünce) tekrar tekrar
+  istenir; önbellek tüketimi yaklaşık üçte bire indirir (yukarıdaki tahmin). Bunu, Google Maps Platform
+  koşullarındaki önbelleğe alma kısıtının dışında, görüntülemenin kısa süreli bir parçası olarak yorumluyoruz; bu yorum
+  bir hukuk ya da Google incelemesinden geçmedi. Canlıya almadan önce güncel Google Maps Platform Hizmet Koşulları ve
+  Places politikalarıyla karşılaştırılmalı; gerekirse süre kısaltılır ya da önbellek kapatılır
+  (`GOOGLE_ONBELLEK_SURESI_MS`). Tarayıcı depolaması yasağı `tests/liste-maliyeti.test.ts` ve
+  `tests/gorunurluk.test.ts` ile denetlenir.
 - **Tarama sonuçlarının incelenmesi:** `leads.inceleme` (incelenmedi / ilgileniyor / ilgilenmiyor; migration 0013,
   mevcut kayıtlar "ilgileniyor"). "İlgilenme" silmez; gizler ve gönderimlerden çıkarır.
 - **Google adı kullanıcının kaydına aktarılmaz:** ad girme alanı her zaman boş gelir; ipucu yalnızca "İşletmeyle
   görüştüğünüzde adını buraya yazın". Alanın yanında Google'daki ad gösterilmez (incelemede "İlgilen" denince o
   satırın Google bilgisi gizlenir); Places içeriğini kayda taşımayı kolaylaştıran ipucu, kopyala düğmesi, otomatik
   doldurma ya da sürükle-bırak yoktur. Kampanya özeti ve alıcı listesi Google kayıtlarını "Google kaydı · ad
-  girilmemiş" olarak gösterir; ad istenince (3 birim) yalnızca ekranda görünür, mesaja yazılmaz.
+  girilmemiş" olarak gösterir; ad istenince yalnızca ekranda görünür, mesaja yazılmaz.
 - **CSV'ler Türkçe Excel'e göre:** dışa aktarma ve "Sorunlu satırlar" UTF-8 BOM + noktalı virgül kullanır; dışa aktarmada
   başlıklar ve kod değerleri (durum, izinler, alıcı türü, kaynak, inceleme) Türkçe etiketlerle yazılır.
 - **Kayıt geçmişi:** bilgi değişiklikleri "Bilgi güncellendi" (`bilgi` olay türü), ileti izni değişiklikleri "İzin

@@ -219,7 +219,7 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
           )}
           <p className="text-sm tabular-nums">
             {siradaki.telefon ?? (
-              <span className="text-xs text-soluk">Numara kayıtta yok; &quot;WhatsApp&apos;ta aç&quot;ta Google&apos;dan alınır (4 birim, saklanmaz).</span>
+              <span className="text-xs text-soluk">Numara kayıtta yok; &quot;WhatsApp&apos;ta aç&quot;ta Google&apos;dan alınır, saklanmaz.</span>
             )}
           </p>
           <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-white p-2 text-sm">{siradaki.mesaj}</p>

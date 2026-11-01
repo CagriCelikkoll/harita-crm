@@ -3,17 +3,24 @@ import { AyarBolumu, Kart } from "@/components/arayuz/kart";
 import { IlerlemeCubugu } from "@/components/arayuz/gosterge";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { kotaDonemiMetni, kullanimOzeti } from "@/lib/arayuz";
-import { OTOMATIK_GOSTERIM_SINIRI_METNI, SINIR_ARTIRMA_METNI } from "@/lib/sabitler";
+import { KULLANIM_DOLDU_METNI, OTOMATIK_GOSTERIM_SINIRI_METNI, SINIR_ARTIRMA_METNI } from "@/lib/sabitler";
 import { ayAnahtari } from "@/lib/zaman";
-import { kotaDurumu } from "@/server/repo/kullanim";
+import { kotaDurumu, kullanimDokumu, type KullanimKalemi } from "@/server/repo/kullanim";
 import { ayarBolumuBaglami } from "../erisim";
 
 export const metadata: Metadata = { title: "Kullanım ve paket · Ayarlar" };
 
-// Kullanım yalnızca yüzde olarak gösterilir (birim ya da işlem başı maliyet yok).
+// Kullanım yalnızca yüzde olarak gösterilir (birim ya da işlem başı maliyet yok). Kalem kutuları, bu ayki
+// kullanımın kalemlere göre payını gösterir.
+const KALEMLER: { anahtar: KullanimKalemi; ad: string; aciklama: string }[] = [
+  { anahtar: "isletmeBilgisi", ad: "İşletme bilgileri", aciklama: "Listede ve tarama sonuçlarında ad ve adres" },
+  { anahtar: "iletisimBilgisi", ad: "Telefon ve web sitesi", aciklama: "Kayıt ayrıntısı, arama, WhatsApp ve SMS numarası" },
+  { anahtar: "tarama", ad: "Taramalar", aciklama: "Bölge sınırındaki aramalar ve adres araması" },
+];
 export default async function KullanimSayfasi() {
   const { ctx } = await ayarBolumuBaglami("kullanim");
   const ozet = kullanimOzeti(kotaDurumu(ctx));
+  const dokum = kullanimDokumu(ctx);
   const renk = ozet.seviye === "doldu" ? "bg-tehlike" : ozet.seviye === "uyari" ? "bg-amber-500" : "bg-ana";
 
   return (
@@ -27,10 +34,20 @@ export default async function KullanimSayfasi() {
           <p className="text-[13px] text-soluk">{kotaDonemiMetni(ayAnahtari())}</p>
         </div>
         <IlerlemeCubugu yuzde={ozet.yuzde} etiket="Bu ayki kullanım" kalin renk={renk} />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 pt-1">
+          {KALEMLER.map((k) => (
+            <div key={k.anahtar} className="flex flex-col gap-1 rounded-[10px] bg-ic-kutu p-4">
+              <p className="flex justify-between gap-2 font-semibold">
+                {k.ad} <span className="tabular-nums">%{dokum[k.anahtar]}</span>
+              </p>
+              <p className="mb-1.5 text-[13px] text-soluk">{k.aciklama}</p>
+              <IlerlemeCubugu yuzde={dokum[k.anahtar]} etiket={`${k.ad}: bu ayki kullanımın payı`} zemin="bg-kenar" />
+            </div>
+          ))}
+        </div>
         {ozet.seviye === "doldu" ? (
           <BilgiNotu ton="tehlike" uyariRolu>
-            Bu ayki kullanımınız doldu. İşletme bilgileri ve yeni taramalar ay sonuna kadar durduruldu; kendi
-            verileriniz görünmeye devam eder.
+            {KULLANIM_DOLDU_METNI}
           </BilgiNotu>
         ) : ozet.seviye === "uyari" ? (
           <BilgiNotu ton="uyari">{OTOMATIK_GOSTERIM_SINIRI_METNI}</BilgiNotu>

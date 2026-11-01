@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ALICI_TURLERI, RET_ONAYI_GEREKLI } from "@/lib/mesajlasma";
-import { ILETI_IZINLERI, KAYIT_DURUMLARI } from "@/lib/sabitler";
+import { ILETI_IZINLERI, KAYIT_DURUMLARI, KOTA_UYARI_ORANI } from "@/lib/sabitler";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { KayitKuraliHatasi } from "@/server/repo/baglam";
@@ -37,7 +37,13 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
     canliAtlandi = kayit.inceleme === "ilgilenmiyor" ? "ilgilenmiyor" : kota.uyari || kota.doldu ? "kota" : undefined;
   }
   if (kayit.placeId && (istenen === "1" || (istenen === "oto" && !canliAtlandi))) {
-    canli = (await canliBilgiGetir(ctx, [kayit.placeId], "detay")).get(kayit.placeId);
+    // Otomatik açılış da eşiği atomik olarak uygular: eşzamanlı istekler kullanımı %80'in üstüne taşıyamaz.
+    const otomatik = istenen === "oto";
+    canli = (await canliBilgiGetir(ctx, [kayit.placeId], "detay", otomatik ? { esik: KOTA_UYARI_ORANI } : {})).get(kayit.placeId);
+    if (otomatik && canli?.durum === "kota") {
+      canli = undefined;
+      canliAtlandi = "kota";
+    }
   }
   return NextResponse.json(
     {

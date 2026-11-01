@@ -278,8 +278,8 @@ export function TaramaPaneli({
             </label>
 
             <p className="text-xs text-soluk">
-              Tarama başına en fazla {butce} Places isteği. Daire içindeki hücreler ücretsiz &quot;IDs Only&quot; aramasıyla,
-              sınır hücreleri konumla (ücretli) aranır. İşletme bilgileri saklanmaz; kayıtları görüntülerken canlı çekilir.
+              Tarama birkaç dakika sürebilir; bulunan işletmeler incelemeniz için listelenir. İşletme bilgileri
+              saklanmaz; görüntülerken Google Haritalar&apos;dan anlık gösterilir.
               {mock && <strong className="mt-1 block text-amber-700">PLACES_MOCK açık: örnek veri kullanılıyor.</strong>}
             </p>
 

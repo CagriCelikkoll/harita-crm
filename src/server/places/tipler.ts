@@ -1,3 +1,4 @@
+import type { KullanimKalemi } from "../repo/kullanim";
 export type LatLng = { lat: number; lng: number };
 
 /** Enlem/boylam sınırları (derece). */
@@ -58,16 +59,16 @@ export class KotaDolduHatasi extends Error {
  * Her ücretli Places isteğinden önce ayir(birim) çağrılır: kota yetiyorsa birimler ayrılır ve istek
  * yapılamazsa çağrılacak iade fonksiyonu döner; yetmiyorsa null (istek yapılmaz).
  */
-export type KotaKapisi = { ayir: (birim: number) => { iade: () => void } | null };
+export type KotaKapisi = { ayir: (birim: number, kalem: KullanimKalemi) => { iade: () => void } | null };
 
 /**
  * İstek öncesi kota kapısı. Ücretsiz SKU (0 birim) kotadan düşmez ve kota dolu olsa da yapılabilir.
  * Kota ayrılamazsa KotaDolduHatasi (istek yapılmaz). Dönen fonksiyon, istek başarısız olursa
  * ayrılan birimleri geri verir.
  */
-export function kotaKontrol(kota: KotaKapisi | undefined, birim: number): () => void {
+export function kotaKontrol(kota: KotaKapisi | undefined, birim: number, kalem: KullanimKalemi): () => void {
   if (!kota || birim <= 0) return () => {};
-  const ayrilan = kota.ayir(birim);
+  const ayrilan = kota.ayir(birim, kalem);
   if (!ayrilan) throw new KotaDolduHatasi();
   return ayrilan.iade;
 }

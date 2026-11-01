@@ -100,7 +100,7 @@ describe("kota ayı (Europe/Istanbul)", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const ctx = kotaliKiraci(10);
     vi.setSystemTime(EKIM_SONU);
-    const ayrilan = kotaKapisi(ctx).ayir(4);
+    const ayrilan = kotaKapisi(ctx).ayir(4, "iletisimBilgisi");
     expect(ayrilan).not.toBeNull();
     vi.setSystemTime(KASIM_BASI);
     kotaAyir(ctx, 2);
