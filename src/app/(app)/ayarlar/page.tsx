@@ -26,7 +26,7 @@ export default async function AyarlarSayfasi() {
 
   return (
     <>
-      <SayfaBasligi baslik="Ayarlar" />
+      <SayfaBasligi baslik="Ayarlar" aciklama="Çalışma alanınızı, ekibinizi ve iletişim kanallarınızı buradan yönetin." />
       <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
         <section className="kart">
           <h2 className="mb-3 font-semibold">Çalışma alanı</h2>

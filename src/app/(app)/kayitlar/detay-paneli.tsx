@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { bildir, SonucMesaji } from "@/components/bildirim";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
+import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
 import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
@@ -83,6 +84,7 @@ export function DetayPaneli(props: {
         setCanli(c);
         setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
         if (c) canliOnbellegi?.set(id, c);
+        if (s.veri.canli) kullanimDegisti();
       })
       .catch(() => {})
       .finally(() => {
@@ -100,6 +102,7 @@ export function DetayPaneli(props: {
     setCanli(s.veri.canli ?? null);
     setCanliAtlandi(undefined);
     if (s.veri.canli) canliOnbellegi?.set(id, s.veri.canli);
+    kullanimDegisti();
   }
 
   /** İşlem sonrası: Places'a gitmeden kullanıcı verisini ve olayları yenile. */

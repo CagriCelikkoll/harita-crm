@@ -100,18 +100,16 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
 
   return (
     <>
-      <SayfaBasligi baslik="Kayıtlar">
-        <div className="flex flex-wrap gap-2">
-          <Link href="/kayitlar/yeni" className="dugme">
-            Kişi ekle
-          </Link>
-          <Link href="/kayitlar/ice-aktar" className="dugme">
-            İçe aktar
-          </Link>
+      <SayfaBasligi baslik="Kayıtlar" aciklama="İlgilendiğiniz işletmeler ve kişiler. Bir satıra tıklayınca ayrıntılar sağda açılır.">
         <a href={`/api/kayitlar/disa-aktar${sorgu.size ? `?${sorgu}` : ""}`} className="dugme">
           CSV dışa aktar
         </a>
-        </div>
+        <Link href="/kayitlar/ice-aktar" className="dugme">
+          İçe aktar
+        </Link>
+        <Link href="/kayitlar/yeni" className="dugme-ana">
+          Kişi ekle
+        </Link>
       </SayfaBasligi>
 
       {(kota.doldu || kota.uyari) && (

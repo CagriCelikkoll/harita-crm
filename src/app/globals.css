@@ -1,49 +1,74 @@
 @import "tailwindcss";
 
+/* Renkler, ölçüler ve yazı tipleri: docs/tasarim/ taslakları (docs/plan-yeni-duzen.md, bölüm 1). */
 @theme inline {
   --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --color-ana: #0e6655;
-  --color-ana-koyu: #0a4f42;
-  --color-ana-acik: #e3f1ee;
+  --color-ana-koyu: #0a4a3e;
+  --color-ana-acik: #e3f1ec;
   --color-menu: #17201c;
-  --color-menu-acik: #24302b;
-  --color-zemin: #f5f7f6;
-  --color-kenar: #d9e0dd;
-  --color-metin: #1b2421;
-  --color-soluk: #5d6b66;
-  --color-tehlike: #b42318;
+  --color-menu-acik: #222d28;
+  --color-menu-cizgi: #3b4a43;
+  --color-menu-metin: #c9d2cd;
+  --color-menu-soluk: #a7b3ad;
+  --color-menu-vurgu: #4fb89a;
+  --color-zemin: #f5f6f4;
+  --color-kart-alt: #fafbf9;
+  --color-ic-kutu: #f7f8f6;
+  --color-segment: #e9ece7;
+  --color-kenar: #e3e6e2;
+  --color-kenar-alan: #cfd5d0;
+  --color-cizgi: #eceeea;
+  --color-metin: #17201c;
+  --color-metin-ikincil: #3e4944;
+  --color-soluk: #5e6a64;
+  --color-pasif: #9aa59f;
+  --color-uyari: #7a3a05;
+  --color-uyari-acik: #fbeedc;
+  --color-tehlike: #a1261b;
+  --color-tehlike-acik: #fbe5e2;
+  --color-tehlike-kenar: #e7b7b1;
+  --radius-kart: 14px;
 }
 
 body {
   background: var(--color-zemin);
   color: var(--color-metin);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
-/* Tailwind 4: @utility ile tanımlanan sınıflar birbirine @apply edilebilir. */
+/* Tailwind 4: @utility ile tanımlanan sınıflar birbirine @apply edilebilir.
+   Düğme ve alan yüksekliği 44 px, köşe 8 px; kart köşesi 14 px. */
 @utility dugme {
-  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-kenar bg-white px-3 py-1.5
-    text-sm font-medium text-metin hover:bg-zemin focus-visible:outline-2 focus-visible:outline-offset-2
-    focus-visible:outline-ana disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-kenar-alan
+    bg-white px-[18px] text-sm font-medium text-metin hover:bg-zemin focus-visible:outline-2
+    focus-visible:outline-offset-2 focus-visible:outline-ana disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility dugme-ana {
-  @apply dugme border-ana bg-ana text-white hover:bg-ana-koyu;
+  @apply dugme border-ana bg-ana px-5 font-semibold text-white hover:bg-ana-koyu;
 }
 @utility dugme-tehlike {
-  @apply dugme border-tehlike/40 text-tehlike hover:bg-red-50;
+  @apply dugme border-tehlike-kenar font-semibold text-tehlike hover:bg-tehlike-acik;
+}
+/* Satır içi ve kart başlığındaki ikincil eylemler (40 px). */
+@utility dugme-kucuk {
+  @apply min-h-10 px-3.5;
 }
 @utility girdi {
-  @apply w-full rounded-md border border-kenar bg-white px-2.5 py-1.5 text-sm text-metin
+  @apply min-h-11 w-full rounded-lg border border-kenar-alan bg-white px-3.5 py-2 text-sm text-metin
     focus:border-ana focus:ring-2 focus:ring-ana/25 focus:outline-none disabled:bg-zemin disabled:text-soluk;
 }
 @utility etiket {
-  @apply flex flex-col gap-1 text-sm font-medium text-metin;
+  @apply flex flex-col gap-1.5 text-sm font-semibold text-metin;
 }
 @utility kart {
-  @apply rounded-lg border border-kenar bg-white p-4;
+  @apply rounded-kart border border-kenar bg-white p-6;
 }
 @utility rozet {
-  @apply inline-block rounded-full bg-ana-acik px-2 py-0.5 text-xs font-medium text-ana-koyu;
+  @apply inline-block rounded-full bg-ana-acik px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-ana-koyu;
 }
 @utility baslik {
-  @apply text-xl font-semibold text-metin;
+  @apply text-[28px] leading-tight font-bold tracking-[-0.01em] text-metin;
 }

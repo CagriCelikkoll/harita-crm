@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Ayarlar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F4}
+a{color:#0E6655}a:hover{color:#0A4A3E}
+button,input,select,textarea{font-family:inherit}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F5F6F4; color: #17201C; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+
+<nav aria-label="Ana menü" style="flex: 1 1 232px; max-width: 100%; background: #17201C; color: #E8ECE9; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<div style="width: 34px; height: 34px; border-radius: 9px; background: #0E6655; display: flex; align-items: center; justify-content: center">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>
+</div>
+<span style="font-weight: 700; font-size: 16px">Harita CRM</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>Panel</a>
+<a href="Tarama.dc.html" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>Bölge tara</a>
+<a href="Kayitlar.dc.html" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg>Kayıtlar</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"></path></svg>Kampanyalar</a>
+<a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Ayarlar</a>
+</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 8px">
+<div style="background: #222D28; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #C9D2CD">Bu ayki kullanım</span><span style="font-weight: 600">%42</span></div>
+<div style="height: 6px; border-radius: 3px; background: #3B4A43; overflow: hidden"><div style="height: 6px; width: 42%; background: #4FB89A; border-radius: 3px"></div></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 34px; height: 34px; border-radius: 50%; background: #3B4A43; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">AY</div>
+<div style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 600">Ayşe Yılmaz</span><span style="font-size: 12px; color: #A7B3AD">Yönetici · Örnek İşletme</span></div>
+</div>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px 72px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em">Ayarlar</h1>
+<p style="margin: 0; color: #5E6A64; font-size: 15px">Çalışma alanınızı, ekibinizi ve iletişim kanallarınızı buradan yönetin.</p>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; gap: 32px 48px; align-items: flex-start">
+
+<nav aria-label="Ayar bölümleri" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; color: #5E6A64; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 6px">Genel</span>
+<button type="button" onClick="{{ go.calisma }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.calisma }}">Çalışma alanı</button>
+<button type="button" onClick="{{ go.ekip }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.ekip }}">Ekip ve roller</button>
+<button type="button" onClick="{{ go.kullanim }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.kullanim }}">Kullanım ve paket</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; color: #5E6A64; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 6px">Gönderim</span>
+<button type="button" onClick="{{ go.ticari }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.ticari }}">Gönderen bilgileri</button>
+<button type="button" onClick="{{ go.saatler }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.saatler }}">Saatler ve sınırlar</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; color: #5E6A64; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 6px">Kanallar</span>
+<button type="button" onClick="{{ go.whatsapp }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; {{ nav.whatsapp }}"><span>WhatsApp (Meta)</span><span style="width: 8px; height: 8px; border-radius: 50%; background: #2E9E6B"></span></button>
+<button type="button" onClick="{{ go.sms }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; {{ nav.sms }}"><span>SMS</span><span style="width: 8px; height: 8px; border-radius: 50%; background: #2E9E6B"></span></button>
+<button type="button" onClick="{{ go.eposta }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; {{ nav.eposta }}"><span>E-posta</span><span style="width: 8px; height: 8px; border-radius: 50%; border: 2px solid #9AA59F; box-sizing: border-box"></span></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; color: #5E6A64; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 6px">Veri</span>
+<button type="button" onClick="{{ go.veri }}" style="height: 40px; padding: 0 12px; border: 0; border-radius: 8px; text-align: left; font-size: 14px; cursor: pointer; {{ nav.veri }}">Veri saklama</button>
+</div>
+</nav>
+
+<section style="flex: 999 1 520px; min-width: 0; max-width: 920px; display: flex; flex-direction: column; gap: 24px">
+
+<sc-if value="{{ sec.calisma }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Çalışma alanı</h2><p style="margin: 0; color: #5E6A64">Ekibinizin ve gönderilen mesajların altında görünen temel bilgiler.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px">
+<div style="flex: 1 1 220px; min-width: 0"><label for="ca-ad" style="display: block; font-weight: 600; margin-bottom: 4px">Çalışma alanı adı</label><div style="color: #5E6A64; font-size: 13px">Menüde ve davet e-postalarında görünür.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="ca-ad" type="text" value="Örnek İşletme" readonly style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF; color: #17201C"></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Giriş adresi</div><div style="color: #5E6A64; font-size: 13px">Ekibiniz bu adresten giriş yapar.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; gap: 8px; flex-wrap: wrap"><div style="flex: 1 1 220px; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #E3E6E2; border-radius: 8px; padding: 0 14px; display: flex; align-items: center; background: #F7F8F6; font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow: hidden; white-space: nowrap">ornek-isletme.[alan-adınız]</div><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">Kopyala</button></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="ca-saat" style="display: block; font-weight: 600; margin-bottom: 4px">Saat dilimi</label><div style="color: #5E6A64; font-size: 13px">Gönderim saatleri ve raporlar buna göre hesaplanır.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><select id="ca-saat" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 12px; font-size: 14px; background: #FFFFFF; color: #17201C"><option>İstanbul (UTC+3)</option></select></div>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap"><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kaydet</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.ekip }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px"><div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Ekip ve roller</h2><p style="margin: 0; color: #5E6A64">Çalışma alanınıza erişebilen kişiler.</p></div><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kişi davet et</button></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 16px; padding: 18px 28px; flex-wrap: wrap">
+<div style="width: 40px; height: 40px; border-radius: 50%; background: #E3F1EC; color: #0A4A3E; display: flex; align-items: center; justify-content: center; font-weight: 600">AY</div>
+<div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">Ayşe Yılmaz</div><div style="color: #5E6A64; font-size: 13px">ayse@[alan-adınız]</div></div>
+<span style="padding: 4px 12px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 13px; font-weight: 600">Yönetici</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 18px 28px; border-top: 1px solid #ECEEEA; flex-wrap: wrap">
+<div style="width: 40px; height: 40px; border-radius: 50%; background: #EEF0EC; color: #3E4944; display: flex; align-items: center; justify-content: center; font-weight: 600">KD</div>
+<div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">Kerem Demir</div><div style="color: #5E6A64; font-size: 13px">kerem@[alan-adınız]</div></div>
+<span style="padding: 4px 12px; border-radius: 999px; background: #EEF0EC; color: #3E4944; font-size: 13px; font-weight: 600">Üye</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 18px 28px; border-top: 1px solid #ECEEEA; flex-wrap: wrap">
+<div style="width: 40px; height: 40px; border-radius: 50%; border: 1px dashed #9AA59F; box-sizing: border-box; color: #5E6A64; display: flex; align-items: center; justify-content: center; font-weight: 600">?</div>
+<div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">zeynep@[alan-adınız]</div><div style="color: #5E6A64; font-size: 13px">Davet gönderildi · yanıt bekleniyor</div></div>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-size: 13px; cursor: pointer">Daveti yeniden gönder</button>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="flex: 1 1 260px; min-width: 0; background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; padding: 20px 24px"><div style="font-weight: 600; margin-bottom: 6px">Yönetici</div><div style="color: #5E6A64; font-size: 13px">Ayarlar, kanallar, ekip ve WhatsApp kampanyaları.</div></div>
+<div style="flex: 1 1 260px; min-width: 0; background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; padding: 20px 24px"><div style="font-weight: 600; margin-bottom: 6px">Üye</div><div style="color: #5E6A64; font-size: 13px">Tarama, kayıtlar, e-posta ve SMS kampanyaları.</div></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.kullanim }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Kullanım ve paket</h2><p style="margin: 0; color: #5E6A64">Bu ay işletme bilgilerini görüntülemek için ne kadar kullandığınız.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; padding: 28px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px"><div><div style="color: #5E6A64; font-size: 13px; margin-bottom: 4px">Bu ayki kullanım</div><div style="font-size: 36px; font-weight: 700; line-height: 1">%42</div></div><div style="color: #5E6A64; font-size: 13px">Kasım ayı · 1 Aralık'ta sıfırlanır</div></div>
+<div style="height: 12px; border-radius: 6px; background: #EEF0EC; overflow: hidden"><div style="height: 12px; width: 42%; background: #0E6655; border-radius: 6px"></div></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding-top: 4px">
+<div style="background: #F7F8F6; border-radius: 10px; padding: 16px"><div style="font-weight: 600; margin-bottom: 4px">İşletme bilgileri</div><div style="color: #5E6A64; font-size: 13px; margin-bottom: 10px">Listede ve incelemede ad ve adres</div><div style="height: 6px; border-radius: 3px; background: #E3E6E2; overflow: hidden"><div style="height: 6px; width: 64%; background: #0E6655"></div></div></div>
+<div style="background: #F7F8F6; border-radius: 10px; padding: 16px"><div style="font-weight: 600; margin-bottom: 4px">Telefon ve web sitesi</div><div style="color: #5E6A64; font-size: 13px; margin-bottom: 10px">Detay açma, arama, WhatsApp</div><div style="height: 6px; border-radius: 3px; background: #E3E6E2; overflow: hidden"><div style="height: 6px; width: 24%; background: #0E6655"></div></div></div>
+<div style="background: #F7F8F6; border-radius: 10px; padding: 16px"><div style="font-weight: 600; margin-bottom: 4px">Taramalar</div><div style="color: #5E6A64; font-size: 13px; margin-bottom: 10px">Bölge sınırındaki aramalar</div><div style="height: 6px; border-radius: 3px; background: #E3E6E2; overflow: hidden"><div style="height: 6px; width: 12%; background: #0E6655"></div></div></div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start; background: #E3F1EC; border-radius: 10px; padding: 14px 16px; color: #0A4A3E; font-size: 13px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg>
+<span>Kendi kaydınıza adını yazdığınız işletmeler kullanım harcamaz. Görüştüğünüz işletmelerin adını kaydetmek kullanımınızı azaltır.</span>
+</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; padding: 24px 28px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap">
+<div><div style="color: #5E6A64; font-size: 13px">Paketiniz</div><div style="font-size: 18px; font-weight: 700">[Paket adı]</div></div>
+<a href="#" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; display: flex; align-items: center; text-decoration: none">Paketi yükseltmek için iletişime geçin</a>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.ticari }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Gönderen bilgileri</h2><p style="margin: 0; color: #5E6A64">Kampanya mesajlarının altında görünür. Bu bilgiler olmadan yalnızca test gönderimi yapılabilir.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px">
+<div style="flex: 1 1 220px; min-width: 0"><label for="tc-unvan" style="display: block; font-weight: 600; margin-bottom: 4px">Gönderen unvanı</label><div style="color: #5E6A64; font-size: 13px">Şirketinizin resmi adı.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="tc-unvan" type="text" placeholder="Örnek İşletme Ltd. Şti." style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF; color: #17201C"></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="tc-iletisim" style="display: block; font-weight: 600; margin-bottom: 4px">İletişim bilgisi</label><div style="color: #5E6A64; font-size: 13px">Telefon veya adres; alıcılar size buradan ulaşır.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="tc-iletisim" type="text" placeholder="[Telefon veya adres]" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF; color: #17201C"></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="tc-iys" style="display: block; font-weight: 600; margin-bottom: 4px">İYS numarası</label><div style="color: #5E6A64; font-size: 13px">İleti Yönetim Sistemi'ndeki kayıt numaranız.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="tc-iys" type="text" placeholder="[İYS no]" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF; color: #17201C"></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Sorumluluk beyanı</div><div style="color: #5E6A64; font-size: 13px">Gerçek kampanya göndermek için gerekli.</div></div>
+<label style="flex: 2 1 340px; min-width: 0; display: flex; gap: 12px; align-items: flex-start; cursor: pointer"><input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #0E6655; flex-shrink: 0"><span style="line-height: 1.5">Ticari ileti gönderimlerinde İYS kaydı ve 6563 sayılı Kanun kapsamındaki yükümlülüklerin sorumluluğu çalışma alanımıza aittir.</span></label>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap"><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kaydet</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.saatler }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Saatler ve sınırlar</h2><p style="margin: 0; color: #5E6A64">Kampanyalar yalnızca bu saatlerde ve bu sınırlar içinde gönderilir.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Gönderim saatleri</div><div style="color: #5E6A64; font-size: 13px">Bu aralığın dışındaki mesajlar ertesi sabahı bekler.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap"><label style="display: flex; align-items: center; gap: 8px">Başlangıç <input type="time" value="09:00" readonly style="height: 44px; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 12px; font-size: 14px"></label><label style="display: flex; align-items: center; gap: 8px">Bitiş <input type="time" value="20:00" readonly style="height: 44px; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 12px; font-size: 14px"></label></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Günlük sınırlar</div><div style="color: #5E6A64; font-size: 13px">Paketinize göre belirlenir.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+<div style="background: #F7F8F6; border-radius: 10px; padding: 14px 16px"><div style="color: #5E6A64; font-size: 13px">E-posta</div><div style="font-size: 20px; font-weight: 700">300 / gün</div></div>
+<div style="background: #F7F8F6; border-radius: 10px; padding: 14px 16px"><div style="color: #5E6A64; font-size: 13px">SMS</div><div style="font-size: 20px; font-weight: 700">200 / gün</div></div>
+<div style="background: #F7F8F6; border-radius: 10px; padding: 14px 16px"><div style="color: #5E6A64; font-size: 13px">WhatsApp listesi</div><div style="font-size: 20px; font-weight: 700">30 / kişi</div></div>
+</div>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap"><span style="color: #5E6A64; font-size: 13px">Sınırları artırmak için destekle iletişime geçin.</span><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kaydet</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.whatsapp }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">WhatsApp (Meta Business)</h2><p style="margin: 0; color: #5E6A64">Meta Business hesabınızdaki WhatsApp numarasıyla onaylı şablon mesajları gönderin.</p></div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; padding: 24px 28px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center">
+<div style="width: 52px; height: 52px; border-radius: 14px; background: #E3F1EC; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0E6655" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.4-4.2A8 8 0 1 1 8.2 18.6z"></path><path d="M9 10c.5 2 2 3.5 4 4"></path></svg>
+</div>
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<div style="font-weight: 700; font-size: 16px">Örnek İşletme · +90 5XX XXX XX XX</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<span style="padding: 3px 10px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 12px; font-weight: 600">Bağlı</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 12px; font-weight: 600">Kalite: Yüksek</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #EEF0EC; color: #3E4944; font-size: 12px; font-weight: 600">Meta sınırı: günde 10.000 kişi</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #FBEEDC; color: #7A3A05; font-size: 12px; font-weight: 600">Test modu açık</span>
+</div>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">Bağlantıyı test et</button></div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="padding: 24px 28px 8px"><div style="font-weight: 700; font-size: 16px; margin-bottom: 4px">Kurulum adımları</div><div style="color: #5E6A64; font-size: 13px">Gerçek müşterilere göndermeden önce bu dört adımı tamamlayın.</div></div>
+<ol style="list-style: none; margin: 0; padding: 8px 28px 24px; display: flex; flex-direction: column">
+<li style="display: flex; gap: 16px; padding: 14px 0; align-items: flex-start">
+<span style="width: 28px; height: 28px; border-radius: 50%; background: #0E6655; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span>
+<div style="flex: 1; min-width: 0"><div style="font-weight: 600">Meta Business hesabını bağlayın</div><div style="color: #5E6A64; font-size: 13px">Tamamlandı · 29 Ekim</div></div>
+</li>
+<li style="display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid #ECEEEA; align-items: flex-start">
+<span style="width: 28px; height: 28px; border-radius: 50%; background: #0E6655; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span>
+<div style="flex: 1; min-width: 0"><div style="font-weight: 600">Bildirim adresini doğrulayın</div><div style="color: #5E6A64; font-size: 13px">Tamamlandı · teslim ve ret bildirimleri alınıyor</div></div>
+</li>
+<li style="display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid #ECEEEA; align-items: flex-start; flex-wrap: wrap">
+<span style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #0E6655; color: #0E6655; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0">3</span>
+<div style="flex: 1 1 240px; min-width: 0"><div style="font-weight: 600">Test numaranıza bir kampanya gönderin</div><div style="color: #5E6A64; font-size: 13px">Mesaj telefonunuza ulaştığında bu adım kendiliğinden tamamlanır.</div></div>
+<a href="#" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; display: flex; align-items: center; text-decoration: none">Test kampanyası oluştur</a>
+</li>
+<li style="display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid #ECEEEA; align-items: flex-start">
+<span style="width: 28px; height: 28px; border-radius: 50%; background: #EEF0EC; color: #5E6A64; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+<div style="flex: 1; min-width: 0"><div style="font-weight: 600; color: #5E6A64">Test modunu kapatın</div><div style="color: #5E6A64; font-size: 13px">3. adım tamamlanınca açılır.</div></div>
+</li>
+</ol>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px">
+<div style="flex: 1 1 220px; min-width: 0"><label for="wa-pay" style="display: block; font-weight: 600; margin-bottom: 4px">Bu uygulamanın payı</label><div style="color: #5E6A64; font-size: 13px">Meta'nın günlük sınırı hesabınızdaki tüm araçlarla paylaşılır.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<input id="wa-pay" type="range" min="1" max="100" value="{{ pay }}" onInput="{{ setPay }}" style="width: 100%; height: 28px; accent-color: #0E6655">
+<div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px"><span style="font-weight: 600">%{{ pay }}</span><span style="color: #5E6A64">Günde en fazla {{ payKisi }} kişi</span></div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Test numaraları</div><div style="color: #5E6A64; font-size: 13px">Test modunda mesajlar yalnızca bu numaralara gider. En fazla 5.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+<sc-for list="{{ testler }}" as="t" hint-placeholder-count="2">
+<span style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px 0 12px; border-radius: 999px; background: #F2F4F1; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{ t.no }}<button type="button" aria-label="Numarayı kaldır" onClick="{{ t.sil }}" style="width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: #5E6A64; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></span>
+</sc-for>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px dashed #9AA59F; border-radius: 999px; background: #FFFFFF; color: #17201C; font-size: 13px; cursor: pointer">+ Numara ekle</button>
+</div>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap"><div><div style="font-weight: 700; font-size: 16px">Mesaj şablonları</div><div style="color: #5E6A64; font-size: 13px">Meta'da onaylanan şablonlar. Yenileri Meta Business'tan eklenir.</div></div><button type="button" style="height: 40px; padding: 0 16px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-size: 14px; cursor: pointer">Meta'dan yenile</button></div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px 28px; border-top: 1px solid #ECEEEA; flex-wrap: wrap"><div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">kasim_kampanyasi</div><div style="color: #5E6A64; font-size: 13px">Pazarlama · Türkçe · 2 değişken</div></div><span style="padding: 4px 12px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 12px; font-weight: 600">Kullanılabilir</span></div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px 28px; border-top: 1px solid #ECEEEA; flex-wrap: wrap"><div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">randevu_hatirlatma</div><div style="color: #5E6A64; font-size: 13px">Bilgilendirme · Türkçe · 1 değişken</div></div><span style="padding: 4px 12px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 12px; font-weight: 600">Kullanılabilir</span></div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px 28px; border-top: 1px solid #ECEEEA; flex-wrap: wrap"><div style="flex: 1 1 200px; min-width: 0"><div style="font-weight: 600">yeni_urunler</div><div style="color: #5E6A64; font-size: 13px">Pazarlama · Türkçe · abonelikten çıkma düğmesi yok</div></div><span style="padding: 4px 12px; border-radius: 999px; background: #FBEEDC; color: #7A3A05; font-size: 12px; font-weight: 600">Kullanılamaz</span></div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<button type="button" onClick="{{ teknikDegistir }}" style="width: 100%; min-height: 56px; padding: 0 28px; border: 0; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 14px; color: #17201C"><span style="font-weight: 600">{{ teknikMetin }}</span><span style="color: #5E6A64; font-size: 13px">Hesap kimlikleri, erişim anahtarı, bildirim adresi</span></button>
+<sc-if value="{{ teknik }}" hint-placeholder-val="{{ false }}">
+<div style="border-top: 1px solid #ECEEEA; padding: 8px 28px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px">
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">WhatsApp hesap kimliği (WABA ID)</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">[WABA ID]</div></div>
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">Telefon numarası kimliği</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">[Phone Number ID]</div></div>
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">Erişim anahtarı</div><div>Tanımlı · <a href="#">Değiştir</a></div></div>
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">Uygulama gizli anahtarı</div><div>Tanımlı · <a href="#">Değiştir</a></div></div>
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">Bildirim adresi (webhook)</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow-wrap: anywhere">https://[alan-adınız]/api/whatsapp/webhook/[kimlik]</div></div>
+<div style="padding: 14px 0; border-bottom: 1px solid #ECEEEA"><div style="color: #5E6A64; font-size: 13px">Doğrulama anahtarı</div><div>Bir kez gösterildi · <a href="#">Yenile</a></div></div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.sms }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">SMS</h2><p style="margin: 0; color: #5E6A64">Netgsm hesabınız ve onaylı SMS başlığınızla gönderim yapılır.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="padding: 20px 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap"><span style="padding: 4px 12px; border-radius: 999px; background: #E3F1EC; color: #0A4A3E; font-size: 12px; font-weight: 600">Bağlı</span><span style="color: #5E6A64">Son test: bugün 14:20</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Hesap bilgileri</div><div style="color: #5E6A64; font-size: 13px">Netgsm kullanıcı kodu ve API şifresi.</div></div>
+<div style="flex: 2 1 340px; min-width: 0">Tanımlı · <a href="#">Değiştir</a></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="sms-baslik" style="display: block; font-weight: 600; margin-bottom: 4px">SMS başlığı</label><div style="color: #5E6A64; font-size: 13px">Alıcının telefonunda gönderen olarak görünür.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="sms-baslik" type="text" value="ORNEKISLTM" readonly style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF; color: #17201C; font-family: 'IBM Plex Mono', monospace"></div>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">Kendime test SMS'i gönder</button><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kaydet</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.eposta }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">E-posta</h2><p style="margin: 0; color: #5E6A64">Kendi alan adınızdaki e-posta hesabıyla gönderim yapılır.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="padding: 20px 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap"><span style="padding: 4px 12px; border-radius: 999px; background: #EEF0EC; color: #3E4944; font-size: 12px; font-weight: 600">Bağlı değil</span><span style="color: #5E6A64">Bağlanana kadar e-posta kampanyaları test modunda kalır.</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Sunucu</div><div style="color: #5E6A64; font-size: 13px">E-posta sağlayıcınızın verdiği bilgiler.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; gap: 12px; flex-wrap: wrap"><label style="flex: 3 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #5E6A64">Sunucu adresi<input type="text" placeholder="smtp.[alan-adınız]" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></label><label style="flex: 1 1 90px; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #5E6A64">Port<input type="text" placeholder="587" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></label></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Hesap</div><div style="color: #5E6A64; font-size: 13px">Şifre kaydedildikten sonra gösterilmez.</div></div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; gap: 12px; flex-wrap: wrap"><label style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #5E6A64">Kullanıcı adı<input type="text" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></label><label style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #5E6A64">Şifre<input type="password" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></label></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="ep-gonderen" style="display: block; font-weight: 600; margin-bottom: 4px">Gönderen adresi</label><div style="color: #5E6A64; font-size: 13px">Alıcılar bu adresi görür.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="ep-gonderen" type="email" placeholder="bilgi@[alan-adınız]" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></div>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">Kendime test e-postası gönder</button><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Bağla</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sec.veri }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 700">Veri saklama</h2><p style="margin: 0; color: #5E6A64">Kişisel verilerin ne kadar süre tutulacağı ve dışa aktarma.</p></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px">
+<div style="flex: 1 1 220px; min-width: 0"><label for="vs-sure" style="display: block; font-weight: 600; margin-bottom: 4px">Kullanılmayan kayıtları sil</label><div style="color: #5E6A64; font-size: 13px">Hiç iletişim kurulmamış kayıtlar bu süreden sonra silinir.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><select id="vs-sure" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 12px; font-size: 14px; background: #FFFFFF; color: #17201C"><option>12 ay</option><option>6 ay</option><option>24 ay</option></select></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><label for="vs-aydinlatma" style="display: block; font-weight: 600; margin-bottom: 4px">Aydınlatma metni</label><div style="color: #5E6A64; font-size: 13px">Abonelikten çıkma sayfasında bağlantı olarak görünür.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><input id="vs-aydinlatma" type="url" placeholder="https://[alan-adınız]/kvkk" style="height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; color: #17201C"></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px 40px; padding: 24px 28px; border-top: 1px solid #ECEEEA">
+<div style="flex: 1 1 220px; min-width: 0"><div style="font-weight: 600; margin-bottom: 4px">Verilerinizi dışa aktarın</div><div style="color: #5E6A64; font-size: 13px">Kendi girdiğiniz tüm kayıtlar Excel uyumlu CSV olarak.</div></div>
+<div style="flex: 2 1 340px; min-width: 0"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">CSV indir</button></div>
+</div>
+<div style="padding: 16px 28px; border-top: 1px solid #ECEEEA; background: #FAFBF9; display: flex; justify-content: flex-end"><button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kaydet</button></div>
+</div>
+<div style="border: 1px solid #E7B7B1; border-radius: 14px; padding: 24px 28px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: #FFFFFF"><div><div style="font-weight: 600; color: #A1261B; margin-bottom: 4px">Tüm verileri sil</div><div style="color: #5E6A64; font-size: 13px">Kayıtlar, kampanyalar ve geçmiş kalıcı olarak silinir.</div></div><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #E7B7B1; border-radius: 8px; background: #FFFFFF; color: #A1261B; font-weight: 600; font-size: 14px; cursor: pointer">Tüm verileri sil</button></div>
+</div>
+</sc-if>
+
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sec: 'whatsapp', teknik: false, pay: 10, testler: ['+90 500 000 00 01', '+90 500 000 00 02'] };
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var keys = ['calisma', 'ekip', 'kullanim', 'ticari', 'saatler', 'whatsapp', 'sms', 'eposta', 'veri'];
+    var nav = {}, go = {}, sec = {};
+    keys.forEach(function (k) {
+      sec[k] = s.sec === k;
+      nav[k] = s.sec === k ? 'background:#E3F1EC; color:#0A4A3E; font-weight:600;' : 'background:transparent; color:#3E4944; font-weight:500;';
+      go[k] = function () { self.setState({ sec: k }); };
+    });
+    var pay = Number(s.pay);
+    return {
+      sec: sec,
+      nav: nav,
+      go: go,
+      teknik: s.teknik,
+      teknikMetin: s.teknik ? 'Teknik ayrıntıları gizle' : 'Teknik ayrıntıları göster',
+      teknikDegistir: function () { self.setState({ teknik: !self.state.teknik }); },
+      pay: pay,
+      payKisi: (pay * 100).toLocaleString('tr-TR'),
+      setPay: function (e) { self.setState({ pay: Number(e.target.value) }); },
+      testler: s.testler.map(function (t) {
+        return { no: t, sil: function () { self.setState({ testler: self.state.testler.filter(function (x) { return x !== t; }) }); } };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

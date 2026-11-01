@@ -4,6 +4,7 @@
 // tutulur; tarayıcı depolamasına (localStorage / sessionStorage / IndexedDB) ve sunucuya yazılmaz. Sayfa, süzgeç ya
 // da sayfa numarası değişince bileşen yeniden oluşur ve bilgi kaybolur.
 import { useCallback, useState } from "react";
+import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz } from "@/lib/bicim";
 import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
@@ -34,6 +35,7 @@ export function useGoogleBilgisi() {
       else setHata(s.hata);
     }
     setYukleniyor((y) => new Set([...y].filter((id) => !idler.includes(id))));
+    kullanimDegisti();
   }, []);
 
   return { bilgi, yukleniyor, hata, goster };

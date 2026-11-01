@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { GoogleBilgisiHucresi, useGoogleBilgisi } from "@/components/google-bilgisi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { GOOGLE_ADSIZ } from "@/lib/sabitler";
+import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
 import {
   ALICI_TURLERI,
@@ -79,6 +80,7 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
     const pencere = window.open("about:blank", "_blank");
     setAcildi(ogeId);
     const s = await apiIstek<{ url?: string; googleAd?: string; geri?: string }>(`/api/whatsapp/ac/${ogeId}`, { method: "POST" });
+    kullanimDegisti();
     if (s.ok && s.veri.url) {
       if (pencere) {
         pencere.opener = null;

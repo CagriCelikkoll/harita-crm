@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Kayıtlar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F4}
+a{color:#0E6655}a:hover{color:#0A4A3E}
+button,input,select,textarea{font-family:inherit}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F5F6F4; color: #17201C; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+
+<nav aria-label="Ana menü" style="flex: 1 1 232px; max-width: 100%; background: #17201C; color: #E8ECE9; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<div style="width: 34px; height: 34px; border-radius: 9px; background: #0E6655; display: flex; align-items: center; justify-content: center">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>
+</div>
+<span style="font-weight: 700; font-size: 16px">Harita CRM</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>Panel</a>
+<a href="Tarama.dc.html" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>Bölge tara</a>
+<a href="Kayitlar.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg>Kayıtlar</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"></path></svg>Kampanyalar</a>
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px; color: #C9D2CD; text-decoration: none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Ayarlar</a>
+</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 8px">
+<div style="background: #222D28; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #C9D2CD">Bu ayki kullanım</span><span style="font-weight: 600">%42</span></div>
+<div style="height: 6px; border-radius: 3px; background: #3B4A43; overflow: hidden"><div style="height: 6px; width: 42%; background: #4FB89A; border-radius: 3px"></div></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 34px; height: 34px; border-radius: 50%; background: #3B4A43; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">AY</div>
+<div style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 600">Ayşe Yılmaz</span><span style="font-size: 12px; color: #A7B3AD">Yönetici · Örnek İşletme</span></div>
+</div>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 36px 40px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+<header style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em">Kayıtlar</h1>
+<p style="margin: 0; color: #5E6A64; font-size: 15px">İlgilendiğiniz işletmeler ve kişiler. Bir satıra tıklayınca ayrıntılar sağda açılır.</p>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-weight: 500; font-size: 14px; cursor: pointer">İçe aktar</button>
+<button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0E6655; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer">Kişi ekle</button>
+</div>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+<div style="display: flex; background: #E9ECE7; border-radius: 10px; padding: 4px; gap: 2px; flex-wrap: wrap">
+<sc-for list="{{ sekmeler }}" as="g" hint-placeholder-count="3">
+<button type="button" onClick="{{ g.sec }}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 7px; font-size: 14px; cursor: pointer; {{ g.css }}">{{ g.ad }} <span style="opacity: 0.7">{{ g.sayi }}</span></button>
+</sc-for>
+</div>
+<input type="search" aria-label="Kayıtlarda ara" placeholder="Ad, etiket veya not ara" style="flex: 1 1 240px; min-width: 0; max-width: 380px; height: 44px; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px; background: #FFFFFF">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Filtreler</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+<div style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden">
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 680px; border-collapse: collapse">
+<thead>
+<tr style="text-align: left; color: #5E6A64; font-size: 13px">
+<th style="padding: 14px 20px; font-weight: 600; border-bottom: 1px solid #ECEEEA">İşletme</th>
+<th style="padding: 14px 12px; font-weight: 600; border-bottom: 1px solid #ECEEEA">Durum</th>
+<th style="padding: 14px 12px; font-weight: 600; border-bottom: 1px solid #ECEEEA">İzin</th>
+<th style="padding: 14px 12px; font-weight: 600; border-bottom: 1px solid #ECEEEA">Son işlem</th>
+<th style="padding: 14px 20px 14px 12px; font-weight: 600; border-bottom: 1px solid #ECEEEA">Etiket</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{ satirlar }}" as="r" hint-placeholder-count="8">
+<tr style="border-bottom: 1px solid #F0F2EF; {{ r.satirCss }}">
+<td style="padding: 12px 20px">
+<button type="button" onClick="{{ r.ac }}" style="border: 0; background: transparent; padding: 4px 0; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: #17201C; font-size: 14px">
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 600">{{ r.ad }}<sc-if value="{{ r.google }}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 7px; border-radius: 4px; background: #EEF0EC; color: #5E6A64; font-size: 11px; font-weight: 600">Google</span></sc-if></span>
+<span style="color: #5E6A64; font-size: 13px">{{ r.yer }}</span>
+</button>
+</td>
+<td style="padding: 12px"><span style="{{ r.durumCss }}">{{ r.durum }}</span></td>
+<td style="padding: 12px"><span style="display: inline-flex; align-items: center; gap: 6px"><span style="{{ r.izinCss }}">{{ r.izin }}</span><sc-if value="{{ r.wa }}" hint-placeholder-val="{{ false }}"><span title="WhatsApp izni var" style="width: 22px; height: 22px; border-radius: 50%; background: #E3F1EC; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0E6655" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="WhatsApp izni var"><path d="M4 20l1.4-4.2A8 8 0 1 1 8.2 18.6z"></path></svg></span></sc-if></span></td>
+<td style="padding: 12px; color: #3E4944">{{ r.son }}</td>
+<td style="padding: 12px 20px 12px 12px; color: #3E4944">{{ r.etiket }}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<div style="padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; color: #5E6A64; font-size: 13px; background: #FAFBF9">
+<span>"Google" etiketli bilgiler Google Haritalar'dan anlık gösterilir, kaydedilmez.</span>
+<span style="display: flex; gap: 8px; align-items: center"><button type="button" aria-label="Önceki sayfa" style="width: 36px; height: 36px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; cursor: pointer">‹</button>1 / 3<button type="button" aria-label="Sonraki sayfa" style="width: 36px; height: 36px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; cursor: pointer">›</button></span>
+</div>
+</div>
+
+<sc-if value="{{ acik }}" hint-placeholder-val="{{ true }}">
+<aside aria-label="Kayıt ayrıntıları" style="flex: 1 1 380px; min-width: 0; max-width: 460px; background: #FFFFFF; border: 1px solid #E3E6E2; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column">
+<div style="padding: 24px 24px 16px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 700">{{ sec.ad }}</h2>
+<span style="color: #5E6A64; font-size: 13px">{{ sec.yer }} · Emlak ofisi</span>
+</div>
+<button type="button" aria-label="Ayrıntıları kapat" onClick="{{ kapat }}" style="width: 40px; height: 40px; border: 1px solid #E3E6E2; border-radius: 8px; background: #FFFFFF; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17201C" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div style="padding: 0 24px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<a href="#" style="height: 44px; border-radius: 8px; background: #0E6655; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600">Ara</a>
+<a href="#" style="height: 44px; border-radius: 8px; border: 1px solid #0E6655; color: #0E6655; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600">WhatsApp</a>
+<a href="#" style="height: 44px; border-radius: 8px; border: 1px solid #CFD5D0; color: #17201C; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500">E-posta</a>
+</div>
+<div role="tablist" style="display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid #ECEEEA">
+<sc-for list="{{ sekmelerDetay }}" as="t" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{ t.secili }}" onClick="{{ t.sec }}" style="height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; cursor: pointer; margin-bottom: -1px; {{ t.css }}">{{ t.ad }}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{ tab.genel }}" hint-placeholder-val="{{ true }}">
+<div style="padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-weight: 600">Durum</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<sc-for list="{{ durumlar }}" as="d" hint-placeholder-count="5">
+<button type="button" onClick="{{ d.sec }}" style="height: 34px; padding: 0 12px; border-radius: 999px; font-size: 13px; cursor: pointer; {{ d.css }}">{{ d.ad }}</button>
+</sc-for>
+</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">İşletme adı (sizin kaydınız)</span><input type="text" value="{{ sec.kendiAd }}" placeholder="İşletmeyle görüştüğünüzde adını buraya yazın" readonly style="height: 44px; box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 0 14px; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Kayıt notu</span><textarea rows="3" placeholder="Görüşme notlarınız" style="box-sizing: border-box; border: 1px solid #CFD5D0; border-radius: 8px; padding: 12px 14px; font-size: 14px; resize: vertical"></textarea></label>
+<div style="background: #F7F8F6; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 600">İletişim bilgileri</span><span style="color: #5E6A64; font-size: 12px">Google Haritalar</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; font-size: 13px">
+<div><div style="color: #5E6A64">Telefon</div><div style="font-family: 'IBM Plex Mono', monospace">0500 000 12 34</div></div>
+<div><div style="color: #5E6A64">Web sitesi</div><div><a href="#">[web sitesi]</a></div></div>
+<div style="grid-column: 1 / -1"><div style="color: #5E6A64">Adres</div><div>{{ sec.yer }}, Bursa</div></div>
+</div>
+<a href="#" style="font-size: 13px">Google Haritalar'da aç</a>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ tab.izin }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 8px 24px 24px; display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid #ECEEEA"><div><div style="font-weight: 600">E-posta ve SMS</div><div style="color: #5E6A64; font-size: 13px">Alıcı türü: Tacir/esnaf</div></div><span style="{{ sec.izinCss }}">{{ sec.izin }}</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid #ECEEEA"><div><div style="font-weight: 600">WhatsApp</div><div style="color: #5E6A64; font-size: 13px">{{ sec.waAciklama }}</div></div><span style="{{ sec.waCss }}">{{ sec.waDurum }}</span></div>
+<div style="display: flex; gap: 8px; padding-top: 20px; flex-wrap: wrap">
+<button type="button" style="height: 40px; padding: 0 14px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-size: 14px; cursor: pointer">İzni güncelle</button>
+<button type="button" style="height: 40px; padding: 0 14px; border: 1px solid #E7B7B1; border-radius: 8px; background: #FFFFFF; color: #A1261B; font-size: 14px; cursor: pointer">İleti reddi kaydet</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ tab.gecmis }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; gap: 12px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #0E6655; margin-top: 5px; flex-shrink: 0"></span><div><div>Telefonla arandı</div><div style="color: #5E6A64; font-size: 13px">Bugün 11:20 · Ayşe Yılmaz</div></div></div>
+<div style="display: flex; gap: 12px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #0E6655; margin-top: 5px; flex-shrink: 0"></span><div><div>Durum: İletişimde</div><div style="color: #5E6A64; font-size: 13px">Bugün 11:21 · Ayşe Yılmaz</div></div></div>
+<div style="display: flex; gap: 12px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #9AA59F; margin-top: 5px; flex-shrink: 0"></span><div><div>Taramadan eklendi</div><div style="color: #5E6A64; font-size: 13px">28 Ekim · Nilüfer · 3 km</div></div></div>
+<button type="button" style="align-self: flex-start; height: 40px; padding: 0 14px; border: 1px solid #CFD5D0; border-radius: 8px; background: #FFFFFF; color: #17201C; font-size: 14px; cursor: pointer">Not ekle</button>
+</div>
+</sc-if>
+</aside>
+</sc-if>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+var DURUM = {
+  'Yeni': ['#1D4F91', '#E4ECF8'],
+  'İletişimde': ['#7A3A05', '#FBEEDC'],
+  'Görüşme': ['#5B3A99', '#EEE8F8'],
+  'Kazanıldı': ['#0A5546', '#DDEFE9'],
+  'İlgilenmiyor': ['#4A524E', '#ECEEEB']
+};
+var IZIN = { 'Onaylı': ['#0A5546', '#DDEFE9'], 'Bekliyor': ['#7A3A05', '#FBEEDC'], 'Ret': ['#A1261B', '#FBE5E2'] };
+var KAYIT = [
+  { id: 1, ad: 'Uludağ Konut Danışmanlık', google: false, yer: 'Hamitler Mh., Osmangazi', durum: 'İletişimde', izin: 'Onaylı', wa: true, son: 'Bugün', etiket: 'Sıcak' },
+  { id: 2, ad: 'Yeşil Vadi Gayrimenkul', google: true, yer: 'Fethiye Mh., Nilüfer', durum: 'Yeni', izin: 'Bekliyor', wa: false, son: 'Dün', etiket: '—' },
+  { id: 3, ad: 'Mudanya Sahil Emlak', google: false, yer: 'Halitpaşa Mh., Mudanya', durum: 'Görüşme', izin: 'Onaylı', wa: true, son: '2 gün önce', etiket: 'Yazlık' },
+  { id: 4, ad: 'Görükle Kampüs Emlak', google: true, yer: 'Görükle Mh., Nilüfer', durum: 'Yeni', izin: 'Bekliyor', wa: false, son: '3 gün önce', etiket: '—' },
+  { id: 5, ad: 'Çekirge Termal Gayrimenkul', google: false, yer: 'Çekirge Mh., Osmangazi', durum: 'İletişimde', izin: 'Onaylı', wa: false, son: '3 gün önce', etiket: '—' },
+  { id: 6, ad: 'Özlüce Park Emlak', google: true, yer: 'Özlüce Mh., Nilüfer', durum: 'Yeni', izin: 'Bekliyor', wa: false, son: '4 gün önce', etiket: '—' },
+  { id: 7, ad: 'Gemlik Körfez Emlak', google: false, yer: 'Hamidiye Mh., Gemlik', durum: 'Kazanıldı', izin: 'Onaylı', wa: true, son: '1 hafta önce', etiket: 'Müşteri' },
+  { id: 8, ad: 'Ataevler Yaşam Gayrimenkul', google: true, yer: 'Ataevler Mh., Nilüfer', durum: 'Yeni', izin: 'Bekliyor', wa: false, son: '1 hafta önce', etiket: '—' }
+];
+function pill(map, k) {
+  var c = map[k] || ['#4A524E', '#ECEEEB'];
+  return 'display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; color:' + c[0] + '; background:' + c[1] + ';';
+}
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var d = {};
+    KAYIT.forEach(function (r) { d[r.id] = r.durum; });
+    this.state = { secId: 1, tab: 'genel', grup: 'ilgi', durumlar: d };
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var kayitlar = KAYIT.map(function (r) { return Object.assign({}, r, { durum: s.durumlar[r.id] }); });
+    var gorunen = kayitlar.filter(function (r) {
+      if (s.grup === 'yeni') return r.durum === 'Yeni' && r.google;
+      if (s.grup === 'ilgi') return r.durum !== 'İlgilenmiyor';
+      return true;
+    });
+    var secili = kayitlar.filter(function (r) { return r.id === s.secId; })[0] || null;
+    var grupDef = [['ilgi', 'İlgilendiklerim', '24'], ['yeni', 'İncelenmemiş', '15'], ['tum', 'Tümü', '42']];
+    var tabDef = [['genel', 'Genel'], ['izin', 'İletişim izni'], ['gecmis', 'Geçmiş']];
+    return {
+      sekmeler: grupDef.map(function (g) {
+        return { ad: g[1], sayi: g[2], css: s.grup === g[0] ? 'background:#FFFFFF; color:#17201C; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.08);' : 'background:transparent; color:#3E4944;', sec: function () { self.setState({ grup: g[0] }); } };
+      }),
+      satirlar: gorunen.map(function (r) {
+        return Object.assign({}, r, {
+          durumCss: pill(DURUM, r.durum),
+          izinCss: pill(IZIN, r.izin),
+          satirCss: secili && r.id === secili.id ? 'background:#F1F7F5;' : '',
+          ac: function () { self.setState({ secId: r.id, tab: 'genel' }); }
+        });
+      }),
+      acik: !!secili,
+      kapat: function () { self.setState({ secId: null }); },
+      sec: secili ? Object.assign({}, secili, {
+        kendiAd: secili.google ? '' : secili.ad,
+        izinCss: pill(IZIN, secili.izin),
+        waDurum: secili.wa ? 'Var' : 'Yok',
+        waCss: pill(IZIN, secili.wa ? 'Onaylı' : 'Bekliyor'),
+        waAciklama: secili.wa ? 'Kaynak: sözlü onay · 12 Ekim' : 'Kampanyalara dahil edilmez'
+      }) : {},
+      sekmelerDetay: tabDef.map(function (t) {
+        var on = s.tab === t[0];
+        return { ad: t[1], secili: on ? 'true' : 'false', css: on ? 'color:#0A4A3E; font-weight:600; border-bottom:2px solid #0E6655;' : 'color:#5E6A64; border-bottom:2px solid transparent;', sec: function () { self.setState({ tab: t[0] }); } };
+      }),
+      tab: { genel: s.tab === 'genel', izin: s.tab === 'izin', gecmis: s.tab === 'gecmis' },
+      durumlar: ['Yeni', 'İletişimde', 'Görüşme', 'Kazanıldı', 'İlgilenmiyor'].map(function (d) {
+        var on = secili && secili.durum === d;
+        return {
+          ad: d,
+          css: on ? 'border:1px solid #0E6655; background:#0E6655; color:#FFFFFF; font-weight:600;' : 'border:1px solid #CFD5D0; background:#FFFFFF; color:#17201C;',
+          sec: function () { if (!secili) return; var m = Object.assign({}, self.state.durumlar); m[secili.id] = d; self.setState({ durumlar: m }); }
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

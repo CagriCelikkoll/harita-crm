@@ -7,7 +7,7 @@ import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/tara
 import { taramaButcesi } from "@/server/servisler/tarama";
 import { TaramaPaneli } from "./tarama-paneli";
 
-export const metadata: Metadata = { title: "Bölge taraması" };
+export const metadata: Metadata = { title: "Bölge tara" };
 
 export default async function TaramaSayfasi() {
   const { ctx } = await sayfaBaglami();
@@ -34,8 +34,8 @@ export default async function TaramaSayfasi() {
   return (
     <>
       <SayfaBasligi
-        baslik="Bölge taraması"
-        aciklama="Haritada merkezi seçin (veya adres yazın), yarıçap ve kategoriyi belirleyip taramayı başlatın. Bulunan işletmeler Kayıtlar'a eklenir."
+        baslik="Bölge tara"
+        aciklama="Haritada bir nokta ve yarıçap seçin; bölgedeki işletmeleri bulup ilgilendiklerinizi kayıtlarınıza ekleyin."
       />
       <TaramaPaneli
         gecmis={gecmis}

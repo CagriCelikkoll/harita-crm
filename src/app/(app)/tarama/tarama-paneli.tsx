@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { Harita, haritaAnahtariVar, type Isaret } from "@/components/harita";
 import { TaramaDurumuRozeti } from "@/components/tarama-durumu";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
@@ -102,6 +103,7 @@ export function TaramaPaneli({
       body: JSON.stringify({ metin }),
     });
     const veri = await yanit.json();
+    kullanimDegisti();
     if (!yanit.ok) {
       setAdresMesaji(veri.hata ?? "Adres bulunamadı.");
       return;
@@ -152,6 +154,7 @@ export function TaramaPaneli({
     } else {
       setHata("Tarama isteği tamamlanamadı. Geçmişten durumunu kontrol edin.");
     }
+    kullanimDegisti();
     router.refresh();
   }
 

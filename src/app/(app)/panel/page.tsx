@@ -24,7 +24,7 @@ export default async function PanelSayfasi() {
 
   return (
     <>
-      <SayfaBasligi baslik="Panel" />
+      <SayfaBasligi baslik="Panel" aciklama="Kayıtlarınızın durumu ve son taramalarınız bir bakışta." />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label="Özet">
         <Ozet baslik="Toplam kayıt" deger={sayiYaz(toplam)} />

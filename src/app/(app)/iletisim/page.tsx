@@ -12,7 +12,7 @@ import { baglantiDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
 import { WhatsappListesi } from "./whatsapp-listesi";
 import { YeniKampanya } from "./yeni-kampanya";
 
-export const metadata: Metadata = { title: "İletişim" };
+export const metadata: Metadata = { title: "Kampanyalar" };
 
 export default async function IletisimSayfasi({ searchParams }: PageProps<"/iletisim">) {
   const p = await searchParams;
@@ -25,8 +25,8 @@ export default async function IletisimSayfasi({ searchParams }: PageProps<"/ilet
   return (
     <>
       <SayfaBasligi
-        baslik="İletişim"
-        aciklama="E-posta, SMS ve WhatsApp (API) kampanyaları, WhatsApp günlük liste. İleti reddi, engel listesi ve izinsiz bireysel kayıtlar her zaman hariç tutulur; kurallar her mesajdan hemen önce yeniden kontrol edilir."
+        baslik="Kampanyalar"
+        aciklama="E-posta, SMS ve WhatsApp kampanyaları ile WhatsApp günlük listeniz; ret ve izin kuralları her mesajdan önce yeniden kontrol edilir."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <YeniKampanya
