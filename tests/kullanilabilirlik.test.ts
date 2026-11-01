@@ -121,7 +121,7 @@ describe("engelli işareti ve kayıt geçmişi", () => {
     const panel = oku("src/app/(app)/kayitlar/detay-paneli.tsx");
     expect(panel).not.toMatch(/name="notlar"[^>]*rows=\{3\}[^>]*className="girdi" \/>\s*<\/label>\s*<MesajGoster mesaj=\{mesaj\} alan="bilgi"/);
     expect(panel).toContain("function KayitNotu");
-    expect(panel).toContain("Notlar ve geçmiş");
+    expect(panel).toContain(`{ deger: "gecmis", ad: "Geçmiş" }`); // notlar ve geçmiş: panelin Geçmiş sekmesi
     // Ret: izin kaynağı yerine "Ret · tarih · nasıl".
     expect(panel).toContain('w.izin === "ret" ? props.retMetni');
   });

@@ -166,7 +166,7 @@ export function IceAktarmaSihirbazi() {
           {sonuc.retli > 0 && <li>Ret işaretli (ret akışından geçti): {sayi(sonuc.retli)}</li>}
         </ul>
         <div className="flex gap-2 pt-2">
-          <Link href="/kayitlar?kaynak=ice_aktarma" className="dugme-ana">
+          <Link href="/kayitlar?grup=tum&kaynak=ice_aktarma" className="dugme-ana">
             İçe aktarılan kayıtlar
           </Link>
           <button type="button" className="dugme" onClick={() => location.reload()}>

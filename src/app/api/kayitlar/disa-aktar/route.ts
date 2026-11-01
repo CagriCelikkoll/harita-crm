@@ -1,16 +1,8 @@
 // CSV dışa aktarma: YALNIZCA kullanıcının kendi verisi (place_id, durum, notlar, girdiği iletişim
 // bilgileri). Places'tan gelen ad/adres/telefon dışa aktarılmaz.
 import { ALICI_TURU_ADLARI } from "@/lib/mesajlasma";
-import {
-  ILETI_IZINLERI,
-  ILETI_IZNI_ADLARI,
-  INCELEME_ADLARI,
-  INCELEME_DURUMLARI,
-  KAYIT_DURUM_ADLARI,
-  KAYIT_DURUMLARI,
-  KAYIT_KAYNAK_ADLARI,
-  KAYIT_KAYNAKLARI,
-} from "@/lib/sabitler";
+import { kayitFiltresiCoz } from "@/lib/kayit-filtresi";
+import { ILETI_IZNI_ADLARI, INCELEME_ADLARI, KAYIT_DURUM_ADLARI, KAYIT_KAYNAK_ADLARI } from "@/lib/sabitler";
 import { yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { disaAktarilacakKayitlar } from "@/server/repo/kayitlar";
@@ -44,18 +36,10 @@ export async function GET(istek: Request) {
   const ctx = await apiBaglami();
   if (!ctx) return yetkisiz();
   const p = new URL(istek.url).searchParams;
-  const durum = KAYIT_DURUMLARI.find((d) => d === p.get("durum"));
-  const iletiIzni = ILETI_IZINLERI.find((d) => d === p.get("izin"));
-  const kayitlar = disaAktarilacakKayitlar(ctx, {
-    durum,
-    iletiIzni,
-    etiket: p.get("etiket") || undefined,
-    arama: p.get("q") || undefined,
-    // Listeyle aynı: varsayılan olarak "ilgilenmiyor" işaretliler hariç.
-    inceleme: p.get("inceleme") === "hepsi" ? "hepsi" : INCELEME_DURUMLARI.find((d) => d === p.get("inceleme")),
-    adsizGoogle: p.get("ad") === "bos" || undefined,
-    kaynak: KAYIT_KAYNAKLARI.find((d) => d === p.get("kaynak")),
-  });
+  // Kayıtlar ekranıyla aynı süzgeç (sekme dahil). Sekmesiz çağrıda (Ayarlar > Veri saklama) yalnızca
+  // "ilgilenmiyor" işaretliler hariç tutulur.
+  const filtre = kayitFiltresiCoz((ad) => p.get(ad) ?? undefined); // sayfa dışa aktarmada yok sayılır
+  const kayitlar = disaAktarilacakKayitlar(ctx, filtre);
 
   const satirlar = kayitlar.map((k) =>
     [

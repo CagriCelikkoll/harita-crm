@@ -36,7 +36,7 @@ export default async function PanelSayfasi() {
           <ul className="flex flex-col gap-2.5">
             {KAYIT_DURUMLARI.map((d) => (
               <li key={d}>
-                <Link href={`/kayitlar?durum=${d}`} className="group block">
+                <Link href={`/kayitlar?grup=tum&durum=${d}`} className="group block">
                   <div className="mb-1 flex justify-between text-sm">
                     <span className="group-hover:text-ana">{KAYIT_DURUM_ADLARI[d]}</span>
                     <span className="font-medium tabular-nums">{sayiYaz(sayilar[d])}</span>

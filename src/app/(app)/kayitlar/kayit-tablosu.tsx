@@ -1,10 +1,10 @@
 "use client";
-// Kayıt tablosu. Varsayılan olarak YALNIZCA kullanıcının verisini gösterir (kendi girdiği ad, durum, izinler,
-// etiketler, son işlem, kaynak); Places'a gitmez. Google kayıtlarının adı ve adresi satır başına ya da sayfa için
-// "Göster" ile, maliyet önceden yazılarak istenir ve yalnızca bellekte tutulur (components/google-bilgisi.tsx).
-import { useState } from "react";
+// Kayıt tablosu (docs/tasarim/Kayitlar.dc.html): İşletme, Durum, İzin, Son işlem, Etiket. Satırda kullanıcının
+// verisi görünür; adı girilmemiş Google kayıtlarının adı ve adresi Google Haritalar'dan anlık gelir ("Google"
+// etiketiyle; otomatik ya da "Göster" ile) ve yalnızca bellekte tutulur (components/google-bilgisi.tsx).
 import Link from "next/link";
-import { GoogleBilgisiHucresi } from "@/components/google-bilgisi";
+import { DurumRozeti, GoogleEtiketi, type RozetTonu } from "@/components/arayuz/rozet";
+import { Simge } from "@/components/arayuz/simge";
 import { tarihYaz } from "@/lib/bicim";
 import {
   GOOGLE_ADSIZ,
@@ -38,81 +38,109 @@ export type TabloSatiri = {
   engelli: boolean;
 };
 
+/** Kayıt durumlarının rozet renkleri (taslaktaki eşleme; metin her zaman yazılı). */
+export const DURUM_TONU: Record<KayitDurumu, RozetTonu> = {
+  yeni: "mavi",
+  iletisimde: "uyari",
+  gorusme: "mor",
+  kazanildi: "ana",
+  ilgilenmiyor: "notr",
+};
+export const IZIN_TONU: Record<IletiIzni, RozetTonu> = { onayli: "ana", bekliyor: "uyari", ret: "tehlike" };
+
 /** Satırda gösterilen ad: yalnızca kullanıcının verisi. */
 export const satirAdi = (s: Pick<TabloSatiri, "isletmeAdi" | "yetkiliAdi" | "kaynak">) =>
   s.isletmeAdi ?? (s.kaynak === "google" ? GOOGLE_ADSIZ : (s.yetkiliAdi ?? "(adsız kişi)"));
+
+type GoogleDurumu = { bilgi: ReadonlyMap<string, ListeBilgisi>; yukleniyor: ReadonlySet<string>; goster: (idler: string[]) => void };
+
+/** İşletme hücresi: kendi adı; adı girilmemiş Google kaydında Google'daki ad + "Google" etiketi, adres ikinci satırda. */
+function IsletmeHucresi({ s, google }: { s: TabloSatiri; google: GoogleDurumu }) {
+  const g = s.kaynak === "google" && !s.isletmeAdi ? google.bilgi.get(s.id) : undefined;
+  const yukleniyor = google.yukleniyor.has(s.id);
+  const adGoogle = g && !("hata" in g) ? g : null;
+  const ikinciSatir =
+    adGoogle?.adres ?? (s.yetkiliAdi && s.isletmeAdi ? s.yetkiliAdi : s.kaynak !== "google" ? KAYIT_KAYNAK_ADLARI[s.kaynak] : null);
+  return (
+    <>
+      <span className="flex flex-wrap items-center gap-2">
+        {adGoogle ? (
+          <>
+            <span className="font-semibold">{adGoogle.ad}</span>
+            <GoogleEtiketi />
+          </>
+        ) : (
+          <span className={s.isletmeAdi || s.kaynak !== "google" ? "font-semibold" : "text-soluk italic"}>{satirAdi(s)}</span>
+        )}
+      </span>
+      {yukleniyor ? (
+        <span className="text-[13px] text-soluk">Yükleniyor…</span>
+      ) : g && "hata" in g ? (
+        <span className="text-[13px] text-soluk italic">{g.hata}</span>
+      ) : (
+        ikinciSatir && <span className="text-[13px] text-soluk">{ikinciSatir}</span>
+      )}
+    </>
+  );
+}
 
 export function KayitTablosu(props: {
   satirlar: TabloSatiri[];
   seciliId: string | null;
   seciliBaglantisi: (id: string) => string;
   onSec: (id: string) => void;
-  google: { bilgi: ReadonlyMap<string, ListeBilgisi>; yukleniyor: ReadonlySet<string>; hata: string | null; goster: (idler: string[]) => void };
+  google: GoogleDurumu & { hata: string | null };
 }) {
-  const [suzgec, setSuzgec] = useState("");
   const { bilgi, yukleniyor, goster } = props.google;
-  const kucuk = suzgec.trim().toLocaleLowerCase("tr");
-  const adlar = (s: TabloSatiri) => {
-    const g = bilgi.get(s.id);
-    return [satirAdi(s), s.yetkiliAdi ?? "", g && "ad" in g ? g.ad : ""].join(" ").toLocaleLowerCase("tr");
-  };
-  const gorunen = kucuk ? props.satirlar.filter((s) => adlar(s).includes(kucuk)) : props.satirlar;
-  const gosterilmemis = props.satirlar.filter((s) => s.kaynak === "google" && !bilgi.has(s.id)).map((s) => s.id);
+  const gosterilmemis = props.satirlar
+    .filter((s) => s.kaynak === "google" && !s.isletmeAdi && !bilgi.has(s.id) && !yukleniyor.has(s.id))
+    .map((s) => s.id);
 
   if (props.satirlar.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-soluk">
-        Kayıt yok. <Link href="/tarama" className="font-medium text-ana">Bölge taraması</Link> ile işletme ekleyin.
+      <p className="px-5 py-10 text-center text-sm text-soluk">
+        Bu görünümde kayıt yok. <Link href="/tarama" className="font-medium text-ana">Bölge tara</Link> ile işletme ekleyin.
       </p>
     );
   }
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <label className="etiket max-w-xs">
-          Bu sayfada ada göre süz
-          <input value={suzgec} onChange={(e) => setSuzgec(e.target.value)} className="girdi" placeholder="ör. emlak" />
-          <span className="text-xs font-normal text-soluk">Kendi girdiğiniz adlarda ve gösterilen Google adlarında arar.</span>
-        </label>
-        {gosterilmemis.length > 0 && (
-          <div className="flex flex-col items-start gap-1">
-            <button
-              type="button"
-              className="dugme"
-              disabled={gosterilmemis.some((id) => yukleniyor.has(id))}
-              onClick={() => goster(gosterilmemis)}
-            >
+      {(gosterilmemis.length > 0 || props.google.hata) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cizgi px-5 py-3">
+          {props.google.hata ? (
+            <p role="alert" className="text-sm text-tehlike">
+              {props.google.hata}
+            </p>
+          ) : (
+            <span className="text-[13px] text-soluk">Bu sayfada adı gösterilmeyen {gosterilmemis.length} Google kaydı var.</span>
+          )}
+          {gosterilmemis.length > 0 && (
+            <button type="button" className="dugme dugme-kucuk" onClick={() => goster(gosterilmemis)}>
               Bu sayfadaki Google bilgilerini göster
             </button>
-            <span className="text-xs text-soluk">Ad ve adres Google Haritalar&apos;dan anlık gösterilir, kaydedilmez.</span>
-          </div>
-        )}
-      </div>
-      {props.google.hata && (
-        <p role="alert" className="mb-2 text-sm text-tehlike">
-          {props.google.hata}
-        </p>
+          )}
+        </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="border-b border-kenar text-xs text-soluk">
+        <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+          <thead className="text-[13px] text-soluk">
             <tr>
-              <th className="py-2 pr-3 font-medium">İşletme</th>
-              <th className="py-2 pr-3 font-medium">Google adresi</th>
-              <th className="py-2 pr-3 font-medium">Durum</th>
-              <th className="py-2 pr-3 font-medium">İleti izni</th>
-              <th className="py-2 pr-3 font-medium">Etiketler</th>
-              <th className="py-2 font-medium">Son işlem</th>
+              <th className="border-b border-cizgi px-5 py-3.5 font-semibold">İşletme</th>
+              <th className="border-b border-cizgi px-3 py-3.5 font-semibold">Durum</th>
+              <th className="border-b border-cizgi px-3 py-3.5 font-semibold">İzin</th>
+              <th className="border-b border-cizgi px-3 py-3.5 font-semibold">Son işlem</th>
+              <th className="border-b border-cizgi py-3.5 pr-5 pl-3 font-semibold">Etiket</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-kenar">
-            {gorunen.map((s) => {
-              const google = s.kaynak === "google";
-              const ad = satirAdi(s);
+          <tbody>
+            {props.satirlar.map((s) => {
+              const secili = s.id === props.seciliId;
+              const google = s.kaynak === "google" && !s.isletmeAdi;
+              const gosterilebilir = google && !bilgi.has(s.id) && !yukleniyor.has(s.id);
               return (
-                <tr key={s.id} className={s.id === props.seciliId ? "bg-ana-acik/60" : "hover:bg-zemin"}>
-                  <td className="py-2 pr-3">
+                <tr key={s.id} className={`border-b border-[#f0f2ef] ${secili ? "bg-[#f1f7f5]" : "hover:bg-kart-alt"}`}>
+                  <td className="px-5 py-3">
                     <a
                       href={props.seciliBaglantisi(s.id)}
                       onClick={(e) => {
@@ -120,54 +148,56 @@ export function KayitTablosu(props: {
                         e.preventDefault();
                         props.onSec(s.id);
                       }}
-                      aria-current={s.id === props.seciliId ? "true" : undefined}
-                      className={`font-medium hover:underline ${s.isletmeAdi || !google ? "text-ana" : "text-soluk italic"}`}
+                      aria-current={secili ? "true" : undefined}
+                      className="flex flex-col gap-0.5 py-1 text-metin hover:underline"
                     >
-                      {ad}
+                      <IsletmeHucresi s={s} google={props.google} />
                     </a>
-                    {s.yetkiliAdi && ad !== s.yetkiliAdi && <p className="text-xs text-soluk">{s.yetkiliAdi}</p>}
-                    {google && bilgi.has(s.id) && (
-                      <p>
-                        <GoogleBilgisiHucresi id={s.id} alan="ad" bilgi={bilgi.get(s.id)} yukleniyor={false} onGoster={goster} />
-                      </p>
-                    )}
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[s.kaynak]}</span>}
-                      {s.inceleme !== "ilgileniyor" && <span className="rozet">{INCELEME_ADLARI[s.inceleme]}</span>}
-                      {s.engelli && s.iletiIzni !== "ret" && (
-                        <span className="rozet bg-red-100 text-tehlike" title="Adreslerinden biri engel listesinde; hiçbir kanaldan gönderilmez">
-                          Engelli
-                        </span>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {gosterilebilir && (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-ana underline-offset-2 hover:underline"
+                          onClick={() => goster([s.id])}
+                          title="Google Haritalar'dan anlık gösterilir; saklanmaz"
+                        >
+                          Göster
+                        </button>
                       )}
-                      {s.whatsappIzni === "var" && <span className="rozet">WhatsApp izni</span>}
+                      {s.inceleme === "incelenmedi" && <DurumRozeti ton="notr">{INCELEME_ADLARI[s.inceleme]}</DurumRozeti>}
+                      {s.engelli && s.iletiIzni !== "ret" && (
+                        <DurumRozeti ton="tehlike" title="Adreslerinden biri engel listesinde; hiçbir kanaldan gönderilmez">
+                          Engelli
+                        </DurumRozeti>
+                      )}
                       {s.waPencereAcik && (
-                        <span className="rozet bg-green-100 text-green-800" title="Reklamdan yazan kişi: ücretsiz giriş penceresi açık">
+                        <DurumRozeti ton="ana" title="Reklamdan yazan kişi: ücretsiz giriş penceresi açık">
                           WhatsApp penceresi açık
-                        </span>
+                        </DurumRozeti>
                       )}
                     </div>
                   </td>
-                  <td className="max-w-72 py-2 pr-3 text-soluk">
-                    {google ? (
-                      <GoogleBilgisiHucresi id={s.id} alan="adres" bilgi={bilgi.get(s.id)} yukleniyor={yukleniyor.has(s.id)} onGoster={goster} />
-                    ) : (
-                      "—"
-                    )}
+                  <td className="px-3 py-3">
+                    <DurumRozeti ton={DURUM_TONU[s.durum]}>{KAYIT_DURUM_ADLARI[s.durum]}</DurumRozeti>
                   </td>
-                  <td className="py-2 pr-3">
-                    <span className="rozet">{KAYIT_DURUM_ADLARI[s.durum]}</span>
+                  <td className="px-3 py-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      <DurumRozeti ton={IZIN_TONU[s.iletiIzni]}>{ILETI_IZNI_ADLARI[s.iletiIzni]}</DurumRozeti>
+                      {s.whatsappIzni === "var" && (
+                        <span title="WhatsApp izni var" className="inline-flex size-[22px] items-center justify-center rounded-full bg-ana-acik text-ana">
+                          <Simge ad="whatsapp" boyut={12} kalinlik={2.5} />
+                          <span className="sr-only">WhatsApp izni var</span>
+                        </span>
+                      )}
+                    </span>
                   </td>
-                  <td className={`py-2 pr-3 ${s.iletiIzni === "ret" ? "font-medium text-tehlike" : ""}`}>
-                    {ILETI_IZNI_ADLARI[s.iletiIzni]}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">{s.etiketler.join(", ")}</td>
-                  <td className="py-2 text-xs whitespace-nowrap text-soluk">{tarihYaz(s.guncellemeTarihi)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-metin-ikincil">{tarihYaz(s.guncellemeTarihi)}</td>
+                  <td className="py-3 pr-5 pl-3 text-metin-ikincil">{s.etiketler.length ? s.etiketler.join(", ") : "—"}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {gorunen.length === 0 && <p className="py-4 text-center text-sm text-soluk">Bu sayfada eşleşen kayıt yok.</p>}
       </div>
     </>
   );

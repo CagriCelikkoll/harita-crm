@@ -1,5 +1,6 @@
 // Yeni düzen (docs/plan-yeni-duzen.md) — Grup 1: sayfa iskeleti, ana menü, kullanım göstergesi ve ortak parçalar.
 // Grup 2: Ayarlar alt rotaları, role göre ayar menüsü, WhatsApp kurulum adımları, ayrı formlardan alan güncelleme.
+// Grup 4: Kayıtlar sekmeleri (İlgilendiklerim / İncelenmemiş / Tümü), süzgeç adresi, CSV ve otomatik Google bilgisi.
 // Menüde kullanım yalnızca yüzde olarak görünür; GET /api/kullanim birim, kota ya da kalan miktar döndürmez.
 import fs from "node:fs";
 import path from "node:path";
@@ -19,6 +20,10 @@ const { alanGuncelle } = await import("@/app/(app)/ayarlar/eylemler");
 const { AYAR_GRUPLARI, ayarBolumuAcikMi, ayarGruplari, ILK_AYAR_BOLUMU } = await import("@/lib/ayar-bolumleri");
 const { kotaDonemiMetni } = await import("@/lib/arayuz");
 const { kurulumAdimlari } = await import("@/lib/whatsapp-api");
+const kayitlar = await import("@/server/repo/kayitlar");
+const { taramaOlustur } = await import("@/server/repo/taramalar");
+const { etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } = await import("@/lib/kayit-filtresi");
+const disaAktarRotasi = await import("@/app/api/kayitlar/disa-aktar/route");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
 
 const KOK = path.resolve(__dirname, "..");
@@ -189,5 +194,105 @@ describe("WhatsApp (Meta) kurulum adımları", () => {
     expect(ekran).toContain("kurulumAdimlari(b)");
     expect(ekran).toContain('{ testModu: false }, "Test modu kapatıldı."');
     expect(ekran).not.toMatch(/type="checkbox"[^>]*testModu/); // eski pasif onay kutusu kalktı
+  });
+});
+
+describe("Kayıtlar: sekmeler ve süzgeç (Grup 4)", () => {
+  /** Taramadan 4 Google kaydı (incelenmedi) + elle eklenen 2 kişi (ilgileniyor). */
+  function kurulum() {
+    const { ctx } = kiraciOlustur(`K4${Math.random().toString(36).slice(2, 7)}`);
+    oturum.ctx = ctx;
+    const t = taramaOlustur(ctx, { merkezLat: 41, merkezLng: 29, yaricapM: 1000, kategori: "emlak_ofisi" });
+    kayitlar.kayitlariEkle(ctx, t.id, ["mock_cafe_40100_1", "mock_cafe_40100_2", "mock_cafe_40100_3", "mock_cafe_40100_4"]);
+    const [ilgili, gecilen, bekleyen, bekleyen2] = kayitlar.taramaKayitlari(ctx, t.id);
+    kayitlar.incelemeAyarla(ctx, [ilgili.id], "ilgileniyor");
+    kayitlar.incelemeAyarla(ctx, [gecilen.id], "ilgilenmiyor");
+    const [elle, elleIlgisiz] = kayitlar.kisileriEkle(
+      ctx,
+      [
+        { kaynak: "elle", isletmeAdi: "Elle", ekTelefon: "0532 000 00 41" },
+        { kaynak: "elle", isletmeAdi: "Elle 2", ekTelefon: "0532 000 00 42" },
+      ],
+      "t",
+    );
+    kayitlar.kayitGuncelle(ctx, elleIlgisiz.id, { durum: "ilgilenmiyor" });
+    return { ctx, ilgili, gecilen, bekleyen, bekleyen2, elle, elleIlgisiz };
+  }
+  const idler = (ctx: TenantContext, f: Parameters<typeof kayitlar.kayitlariListele>[1]) =>
+    kayitlar
+      .kayitlariListele(ctx, f)
+      .kayitlar.map((x) => x.id)
+      .sort();
+
+  it("İlgilendiklerim: inceleme 'ilgileniyor' ve durum İlgilenmiyor değil; İncelenmemiş; Tümü; sayılar", () => {
+    const { ctx, ilgili, gecilen, bekleyen, bekleyen2, elle, elleIlgisiz } = kurulum();
+    expect(idler(ctx, { grup: "ilgi" })).toEqual([ilgili.id, elle.id].sort());
+    expect(idler(ctx, { grup: "incelenmemis" })).toEqual([bekleyen.id, bekleyen2.id].sort());
+    expect(idler(ctx, { grup: "tum" })).toEqual([ilgili.id, gecilen.id, bekleyen.id, bekleyen2.id, elle.id, elleIlgisiz.id].sort());
+    expect(kayitlar.grupSayilari(ctx)).toEqual({ ilgi: 2, incelenmemis: 2, tum: 6 });
+    // Diğer süzgeçler sayılara da uygulanır.
+    expect(kayitlar.grupSayilari(ctx, { kaynak: "elle" })).toEqual({ ilgi: 1, incelenmemis: 0, tum: 2 });
+  });
+
+  it("süzgeç adresi: Kayıtlar'da varsayılan sekme İlgilendiklerim; eski 'inceleme' bağlantısı sekme koymaz; gidiş-dönüş", () => {
+    const al = (s: string) => (ad: string) => new URLSearchParams(s).get(ad) ?? undefined;
+    expect(kayitFiltresiCoz(al(""), "ilgi")).toMatchObject({ grup: "ilgi", inceleme: undefined, sayfa: 1 });
+    expect(kayitFiltresiCoz(al(""))).toMatchObject({ grup: undefined, inceleme: undefined });
+    expect(kayitFiltresiCoz(al("inceleme=hepsi"), "ilgi")).toMatchObject({ grup: undefined, inceleme: "hepsi" });
+    const f = kayitFiltresiCoz(al("grup=incelenmemis&durum=yeni&izin=ret&ad=bos&q=+fırın+&sayfa=3"), "ilgi");
+    expect(f).toMatchObject({ grup: "incelenmemis", durum: "yeni", iletiIzni: "ret", adsizGoogle: true, arama: "fırın", sayfa: 3 });
+    expect(kayitSorgusu(f).toString()).toBe("grup=incelenmemis&durum=yeni&izin=ret&q=f%C4%B1r%C4%B1n&ad=bos");
+    expect(kayitSorgusu(f, { grup: "tum" }).get("grup")).toBe("tum");
+    expect(etkinSuzgecSayisi(f)).toBe(3); // durum, izin, ad (sekme ve arama sayılmaz)
+    expect(kayitFiltresiCoz(al("grup=olmayan&durum=uydurma"), "ilgi")).toMatchObject({ grup: "ilgi", durum: undefined });
+  });
+
+  it("CSV: sekmesiz çağrı eski davranış (ilgilenilmeyenler hariç, incelenmemişler dahil); sekmeyle o sekme", async () => {
+    kurulum();
+    const satirSayisi = async (sorgu: string) => {
+      const y = await disaAktarRotasi.GET(new Request(`https://crm.ornek.test/api/kayitlar/disa-aktar${sorgu}`));
+      return (await y.text()).trim().split("\n").length - 1;
+    };
+    expect(await satirSayisi("")).toBe(5); // 6 kayıttan yalnızca inceleme "ilgilenmiyor" olan hariç
+    expect(await satirSayisi("?grup=ilgi")).toBe(2);
+    expect(await satirSayisi("?grup=incelenmemis")).toBe(2);
+    expect(await satirSayisi("?grup=tum&kaynak=elle")).toBe(2);
+  });
+
+  it("Kayıtlar ekranı adı girilmemiş Google kayıtlarını otomatik ister (yalnızca kullanım eşiğin altındayken, bir kez)", () => {
+    const sayfa = oku("src/app/(app)/kayitlar/page.tsx");
+    expect(sayfa).toContain("otomatik={!kota.uyari && !kota.doldu}");
+    expect(sayfa).toContain('kayitFiltresiCoz((ad) => tek(p[ad]), "ilgi")');
+    const ekran = oku("src/app/(app)/kayitlar/kayitlar-ekrani.tsx");
+    expect(ekran).toContain('otomatikIdler: props.otomatik ? props.satirlar.filter((s) => s.kaynak === "google" && !s.isletmeAdi)');
+    expect(ekran).toContain('{google.otomatikKapali && <BilgiNotu ton="uyari">{OTOMATIK_GOSTERIM_SINIRI_METNI}</BilgiNotu>}');
+    const kanca = oku("src/components/google-bilgisi.tsx");
+    expect(kanca).toMatch(/if \(otomatikIstendi\.current \|\| !ilkOtomatik\.length\) return;\s*otomatikIstendi\.current = true;/);
+    expect(kanca).toContain("govde: { idler: ilkOtomatik.slice(0, 20), otomatik: true }");
+    const tablo = oku("src/app/(app)/kayitlar/kayit-tablosu.tsx");
+    expect(tablo).toContain("<GoogleEtiketi />");
+    for (const b of ["İşletme", "Durum", "İzin", "Son işlem", "Etiket"]) expect(tablo).toContain(`font-semibold">${b}</th>`);
+  });
+
+  it("ayrıntı paneli: Ara / E-posta / WhatsApp ve Genel / İletişim izni / Geçmiş sekmeleri; ad alanı boş gelir", () => {
+    const panel = oku("src/app/(app)/kayitlar/detay-paneli.tsx");
+    for (const s of ['{ deger: "genel", ad: "Genel" }', '{ deger: "izin", ad: "İletişim izni" }', '{ deger: "gecmis", ad: "Geçmiş" }']) {
+      expect(panel).toContain(s);
+    }
+    expect(panel).toContain("<WhatsappButonu");
+    expect(panel).toMatch(/>\s*Ara\s*</);
+    expect(panel).toMatch(/>\s*E-posta\s*</);
+    expect(panel).toContain('aria-label="Ayrıntıları kapat"');
+    // Listedeki Google adı yalnızca başlıkta; ad girme alanı kullanıcının kaydıyla gelir.
+    expect(panel.match(/listeGoogle\?\.ad\b/g)).toHaveLength(1);
+    expect(panel).toMatch(/name="isletmeAdi"\s+defaultValue=\{kayit\.isletmeAdi \?\? ""\}/);
+    // Durum seçimi tek dokunuşla (çipler).
+    expect(panel).toContain("<SecimCipi");
+  });
+
+  it("sekmesiz eski bağlantılar Tümü sekmesine gider (ör. Panel'deki 'İlgilenmiyor' durumu)", () => {
+    expect(oku("src/app/(app)/panel/page.tsx")).toContain("href={`/kayitlar?grup=tum&durum=${d}`}");
+    expect(oku("src/app/(app)/iletisim/yeni-kampanya.tsx")).toContain('href="/kayitlar?grup=tum&ad=bos"');
+    expect(oku("src/app/(app)/kayitlar/ice-aktar/sihirbaz.tsx")).toContain('href="/kayitlar?grup=tum&kaynak=ice_aktarma"');
   });
 });

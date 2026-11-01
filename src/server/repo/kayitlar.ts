@@ -8,6 +8,7 @@ import {
   type KayitKaynagi,
   type KayitDurumu,
   type OlayTuru,
+  type KayitGrubu,
 } from "@/lib/sabitler";
 import { db } from "../db";
 import { leadEvents, leads, scans, whatsappKisileri, type Kayit } from "../db/schema";
@@ -34,6 +35,13 @@ export type KayitFiltresi = {
   adsizGoogle?: boolean;
   /** Yalnızca bu taramanın kayıtları. */
   scanId?: string;
+  /**
+   * Kayıtlar ekranının sekmesi (verilirse `inceleme` yerine geçer):
+   * - "ilgi" (İlgilendiklerim): inceleme "ilgileniyor" ve durum "İlgilenmiyor" değil;
+   * - "incelenmemis": taramadan gelip henüz incelenmemiş;
+   * - "tum": hepsi.
+   */
+  grup?: KayitGrubu;
 };
 
 function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
@@ -41,7 +49,11 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   if (f.durum) kosullar.push(eq(leads.durum, f.durum));
   if (f.iletiIzni) kosullar.push(eq(leads.iletiIzni, f.iletiIzni));
   if (f.kaynak) kosullar.push(eq(leads.kaynak, f.kaynak));
-  if (f.inceleme === undefined) kosullar.push(ne(leads.inceleme, "ilgilenmiyor"));
+  if (f.grup === "ilgi") kosullar.push(eq(leads.inceleme, "ilgileniyor"), ne(leads.durum, "ilgilenmiyor"));
+  else if (f.grup === "incelenmemis") kosullar.push(eq(leads.inceleme, "incelenmedi"));
+  else if (f.grup === "tum") {
+    // sekme: hepsi
+  } else if (f.inceleme === undefined) kosullar.push(ne(leads.inceleme, "ilgilenmiyor"));
   else if (f.inceleme !== "hepsi") kosullar.push(eq(leads.inceleme, f.inceleme));
   if (f.adsizGoogle) kosullar.push(eq(leads.kaynak, "google"), isNull(leads.isletmeAdi));
   if (f.scanId) kosullar.push(eq(leads.scanId, f.scanId));
@@ -89,6 +101,12 @@ export function kayitlariListele(ctx: TenantContext, f: KayitFiltresi = {}) {
     .offset((sayfa - 1) * SAYFA_BOYUTU)
     .all();
   return { kayitlar, toplam, sayfa, sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)) };
+}
+
+/** Sekme sayıları: diğer süzgeçler (durum, izin, arama…) uygulanmış olarak her sekmenin kayıt sayısı. */
+export function grupSayilari(ctx: TenantContext, f: Omit<KayitFiltresi, "grup" | "sayfa"> = {}): Record<KayitGrubu, number> {
+  const say = (grup: KayitGrubu) => db.select({ n: count() }).from(leads).where(filtreKosulu(ctx, { ...f, grup })).get()?.n ?? 0;
+  return { ilgi: say("ilgi"), incelenmemis: say("incelenmemis"), tum: say("tum") };
 }
 
 export function kayitGetir(ctx: TenantContext, id: string): Kayit | null {

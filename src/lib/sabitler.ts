@@ -4,6 +4,10 @@ export const ROLLER = ["yonetici", "uye"] as const;
 export const TARAMA_DURUMLARI = ["kuyrukta", "calisiyor", "tamamlandi", "hata"] as const;
 export const KAYIT_DURUMLARI = ["yeni", "iletisimde", "gorusme", "kazanildi", "ilgilenmiyor"] as const;
 export const ILETI_IZINLERI = ["bekliyor", "onayli", "ret"] as const;
+/** Kayıtlar ekranının sekmeleri (anlamları repo/kayitlar.ts, KayitFiltresi.grup). */
+export const KAYIT_GRUPLARI = ["ilgi", "incelenmemis", "tum"] as const;
+export type KayitGrubu = (typeof KAYIT_GRUPLARI)[number];
+export const KAYIT_GRUP_ADLARI: Record<KayitGrubu, string> = { ilgi: "İlgilendiklerim", incelenmemis: "İncelenmemiş", tum: "Tümü" };
 export const OLAY_TURLERI = [
   "eklendi",
   "durum",

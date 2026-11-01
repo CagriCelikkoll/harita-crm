@@ -9,6 +9,9 @@
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
 import { bildir, SonucMesaji } from "@/components/bildirim";
+import { DurumRozeti } from "@/components/arayuz/rozet";
+import { SecimCipi, Sekmeler, sekmeId, sekmePaneliId } from "@/components/arayuz/sekmeler";
+import { Simge } from "@/components/arayuz/simge";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { RetDugmesi } from "@/components/ret-onayi";
 import { kullanimDegisti } from "@/components/kullanim-gostergesi";
@@ -33,11 +36,11 @@ import {
   KAYIT_DURUMLARI,
   KAYIT_KAYNAK_ADLARI,
   OLAY_TURU_ADLARI,
-  type KayitDurumu,
 } from "@/lib/sabitler";
-import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
+import type { CanliSonuc, ListeBilgisi } from "@/server/servisler/canli-bilgi";
 import type { KayitDto, OlayDto, WhatsappKisiDto } from "@/server/servisler/kayit-dto";
 import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
+import { IZIN_TONU } from "./kayit-tablosu";
 
 type DetayVerisi = {
   kayit: KayitDto;
@@ -48,6 +51,13 @@ type DetayVerisi = {
   engelli: boolean;
 };
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
+type PanelSekmesi = "genel" | "izin" | "gecmis";
+const PANEL_SEKMELERI: { deger: PanelSekmesi; ad: string }[] = [
+  { deger: "genel", ad: "Genel" },
+  { deger: "izin", ad: "İletişim izni" },
+  { deger: "gecmis", ad: "Geçmiş" },
+];
+const PANEL = "overflow-hidden rounded-kart border border-kenar bg-white max-xl:rounded-none max-xl:border-0 max-xl:min-h-full";
 
 /** Başarılı detay sonucu bellek önbelleğine; ad, adres ve konum liste önbelleğine de (aynı kayıt listede yeniden istenmez). */
 function onbellegeYaz(id: string, c: CanliSonuc) {
@@ -59,6 +69,8 @@ function onbellegeYaz(id: string, c: CanliSonuc) {
 export function DetayPaneli(props: {
   id: string;
   kullaniciId: string;
+  /** Listede gösterilen Google bilgisi (ad, adres); ayrıntı Google'dan alınamadığında başlıkta kullanılır. */
+  googleBilgisi?: ListeBilgisi;
   onKapat: () => void;
   /** Liste satırını sayfa yenilemeden günceller (izin rozeti, engelli işareti, son işlem tarihi). */
   onKayitDegisti: (k: KayitDto, ek: { whatsappIzni: WhatsappKisiDto["izin"]; engelli: boolean }) => void;
@@ -72,6 +84,7 @@ export function DetayPaneli(props: {
   const [bulunamadi, setBulunamadi] = useState(false);
   const [mesaj, setMesaj] = useState<Mesaj>(null);
   const [mesgul, setMesgul] = useState(false);
+  const [sekme, setSekme] = useState<PanelSekmesi>("genel");
 
   // Açılış: kullanıcı verisi + (bellekte yoksa) canlı Places detayı (tek Enterprise çağrısı, istisnalar sunucuda).
   // Panel üst bileşende key={id} ile oluşturulur; kayıt değişince durum zaten sıfırdan başlar.
@@ -164,14 +177,14 @@ export function DetayPaneli(props: {
 
   if (yukleniyor) {
     return (
-      <aside className="kart text-sm text-soluk" aria-busy="true" aria-label="Kayıt detayı">
+      <aside className={`${PANEL} p-6 text-sm text-soluk`} aria-busy="true" aria-label="Kayıt ayrıntıları">
         Yükleniyor…
       </aside>
     );
   }
   if (bulunamadi || !veri) {
     return (
-      <aside className="kart flex items-start justify-between gap-3 text-sm" aria-label="Kayıt detayı">
+      <aside className={`${PANEL} flex items-start justify-between gap-3 p-6 text-sm`} aria-label="Kayıt ayrıntıları">
         <p className="text-tehlike">{bulunamadi ? "Kayıt bulunamadı." : (mesaj?.metin ?? "Kayıt yüklenemedi.")}</p>
         <button type="button" className="dugme" onClick={props.onKapat}>
           Kapat
@@ -190,197 +203,322 @@ export function DetayPaneli(props: {
   const yer = canli?.durum === "tamam" ? canli.yer : null;
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
   const surum = `${kayit.id}-${kayit.guncellemeTarihi}`; // formlar kayıt değişince yeniden oluşsun
+  const listeGoogle = props.googleBilgisi && !("hata" in props.googleBilgisi) ? props.googleBilgisi : null;
   const baslik = google
-    ? (kayit.isletmeAdi ?? yer?.ad ?? GOOGLE_ADSIZ)
+    ? (kayit.isletmeAdi ?? yer?.ad ?? listeGoogle?.ad ?? GOOGLE_ADSIZ)
     : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)");
+  const altBaslik = google ? (yer?.adres ?? listeGoogle?.adres ?? "Google Haritalar kaydı") : KAYIT_KAYNAK_ADLARI[kayit.kaynak];
 
   return (
-    <aside className="kart flex flex-col gap-4 xl:sticky xl:top-5" aria-label="Kayıt detayı" id="kayit-detayi">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold">{baslik}</h2>
-          {!google && <span className="rozet">{KAYIT_KAYNAK_ADLARI[kayit.kaynak]}</span>}
+    <aside className={`${PANEL} flex flex-col xl:sticky xl:top-5`} aria-label="Kayıt ayrıntıları" id="kayit-detayi">
+      <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className={`text-xl font-bold ${kayit.isletmeAdi || !google ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
+          <span className="text-[13px] text-soluk">{altBaslik}</span>
           {veri.engelli && kayit.iletiIzni !== "ret" && (
-            <p className="mt-1 text-sm text-tehlike">
-              <span className="rozet bg-red-100 text-tehlike">Engelli</span> Bu kişinin adreslerinden biri engel listesinde
-              (daha önce ret verilmiş); hiçbir kanaldan ileti gönderilmez.
+            <p className="mt-1 text-[13px] text-tehlike">
+              <DurumRozeti ton="tehlike">Engelli</DurumRozeti> Bu kişinin adreslerinden biri engel listesinde (daha önce
+              ret verilmiş); hiçbir kanaldan ileti gönderilmez.
             </p>
           )}
-          {yer?.adres && <p className="text-sm text-soluk">{yer.adres}</p>}
         </div>
-        <button type="button" className="dugme shrink-0" onClick={props.onKapat}>
-          Kapat
+        <button
+          type="button"
+          aria-label="Ayrıntıları kapat"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-kenar bg-white hover:bg-zemin"
+          onClick={props.onKapat}
+        >
+          <Simge ad="kapat" boyut={16} />
         </button>
       </div>
 
-      {!google ? (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-soluk">Telefon</dt>
-          <dd>{kayit.ekTelefon ?? "—"}</dd>
-          {veri.whatsapp.kullaniciAdi && (
-            <>
-              <dt className="text-soluk">WhatsApp</dt>
-              <dd>@{veri.whatsapp.kullaniciAdi}</dd>
-            </>
-          )}
-          {veri.whatsapp.reklamBasligi && (
-            <>
-              <dt className="text-soluk">Reklam</dt>
-              <dd>{veri.whatsapp.reklamBasligi}</dd>
-            </>
-          )}
-        </dl>
-      ) : yer ? (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-soluk">Telefon</dt>
-          <dd>{yer.telefon ?? "—"}</dd>
-          <dt className="text-soluk">Web sitesi</dt>
-          <dd className="truncate">
-            {yer.webSitesi ? (
-              <a href={yer.webSitesi} target="_blank" rel="noopener noreferrer" className="text-ana underline">
-                {yer.webSitesi.replace(/^https?:\/\//, "")}
-              </a>
-            ) : (
-              "—"
-            )}
-          </dd>
-          {yer.puan !== undefined && (
-            <>
-              <dt className="text-soluk">Puan</dt>
-              <dd>
-                {yer.puan} ({yer.puanSayisi ?? 0} değerlendirme)
-              </dd>
-            </>
-          )}
-          {yer.isletmeDurumu && yer.isletmeDurumu !== "OPERATIONAL" && (
-            <>
-              <dt className="text-soluk">Durum</dt>
-              <dd className="text-tehlike">
-                {yer.isletmeDurumu === "CLOSED_PERMANENTLY" ? "Kalıcı olarak kapalı" : "Geçici olarak kapalı"}
-              </dd>
-            </>
-          )}
-        </dl>
-      ) : canliAtlandi && !canli ? (
-        <div className="flex flex-col items-start gap-2 rounded-md bg-zemin p-3 text-sm">
-          <p>
-            {canliAtlandi === "ilgilenmiyor"
-              ? "Bu kayıt ilgilenilmiyor olarak işaretli; Google bilgileri kendiliğinden çekilmedi."
-              : OTOMATIK_GOSTERIM_SINIRI_METNI}
-          </p>
-          <button type="button" className="dugme" disabled={mesgul} onClick={() => void googleBilgisiGetir()}>
-            Google bilgilerini göster
+      {/* Hızlı eylemler: Ara (numara kayıttan ya da Google'dan), E-posta (kayıtta adres varsa), WhatsApp. */}
+      <div className="flex flex-col gap-2 px-6 pb-5">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="dugme-ana"
+            disabled={!telefon || mesgul}
+            title={telefon ? undefined : "Telefon bilgisi yok"}
+            onClick={async () => {
+              if (!telefon) return;
+              if (await olayEkle({ tur: "arama" }, "iletisim")) window.location.href = `tel:${telefon.replace(/[^\d+]/g, "")}`;
+            }}
+          >
+            Ara
           </button>
-        </div>
-      ) : (
-        <p role="alert" className="text-sm text-tehlike">
-          {canli?.durum === "kota"
-            ? `${KOTA_DOLDU_MESAJI} İşletme bilgileri (ad, adres, telefon) gösterilemiyor; aşağıdaki kendi verileriniz ve işlemler kullanılabilir.`
-            : canli?.durum === "bulunamadi"
-              ? "Bu işletme Google'da artık bulunmuyor."
-              : `İşletme bilgisi alınamadı${canli?.durum === "hata" ? `: ${canli.mesaj}` : "."}`}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        {yer?.googleMapsUri && (
-          <a href={yer.googleMapsUri} target="_blank" rel="noopener noreferrer" className="dugme">
-            Google Haritalar&apos;da aç
-          </a>
-        )}
-        <button
-          type="button"
-          className="dugme-ana"
-          disabled={!telefon || mesgul}
-          title={telefon ? undefined : "Telefon bilgisi yok"}
-          onClick={async () => {
-            if (!telefon) return;
-            if (await olayEkle({ tur: "arama" }, "iletisim")) window.location.href = `tel:${telefon.replace(/[^\d+]/g, "")}`;
-          }}
-        >
-          Ara
-        </button>
-        {kayit.eposta && (
           <button
             type="button"
             className="dugme"
-            disabled={mesgul}
+            disabled={!kayit.eposta || mesgul}
+            title={kayit.eposta ? undefined : "E-posta adresi yok; Genel sekmesinden ekleyebilirsiniz"}
             onClick={async () => {
-              if (await olayEkle({ tur: "eposta" }, "iletisim")) window.location.href = `mailto:${kayit.eposta}`;
+              if (kayit.eposta && (await olayEkle({ tur: "eposta" }, "iletisim"))) window.location.href = `mailto:${kayit.eposta}`;
             }}
           >
             E-posta
           </button>
-        )}
+        </div>
+        <WhatsappButonu key={`wa-${kayit.iletiIzni}-${kayit.aliciTuru}-${kayit.ekTelefon ?? ""}`} id={kayit.id} onGonderildi={yenile} />
+        <MesajGoster mesaj={mesaj} alan="iletisim" />
       </div>
-      {!kayit.eposta && (
-        <form
-          key={`eposta-${surum}`}
-          className="flex flex-col gap-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const eposta = String(new FormData(e.currentTarget).get("eposta") ?? "").trim();
-            void guncelle("eposta", { eposta }, "E-posta kaydedildi.");
-          }}
+
+      <div className="px-6">
+        <Sekmeler etiket="Kayıt ayrıntıları" onEk={`kayit-${kayit.id}`} sekmeler={PANEL_SEKMELERI} secili={sekme} onSec={setSekme} />
+      </div>
+
+      {sekme === "genel" && (
+        <div
+          role="tabpanel"
+          id={sekmePaneliId(`kayit-${kayit.id}`, "genel")}
+          aria-labelledby={sekmeId(`kayit-${kayit.id}`, "genel")}
+          className="flex flex-col gap-5 px-6 pt-5 pb-6"
         >
-          <label className="etiket">
-            E-posta adresi <span className="text-xs font-normal text-soluk">(Google Places e-posta vermez; elle girin)</span>
-            <span className="flex gap-2">
-              <input name="eposta" type="email" required maxLength={200} className="girdi" autoComplete="off" />
-              <button type="submit" className="dugme-ana" disabled={mesgul}>
-                Kaydet
-              </button>
+          <div className="flex flex-col gap-2" role="group" aria-labelledby={`durum-${kayit.id}`}>
+            <span id={`durum-${kayit.id}`} className="font-semibold">
+              Durum
             </span>
-          </label>
-          <MesajGoster mesaj={mesaj} alan="eposta" />
-        </form>
-      )}
-      <WhatsappButonu key={`wa-${kayit.iletiIzni}-${kayit.aliciTuru}-${kayit.ekTelefon ?? ""}`} id={kayit.id} onGonderildi={yenile} />
-      <MesajGoster mesaj={mesaj} alan="iletisim" />
-      {google && <GoogleAtfi />}
-      <WhatsappIzinBolumu
-        key={`wa-izin-${surum}-${veri.whatsapp.izin}`}
-        id={kayit.id}
-        ad={baslik}
-        retMetni={retMetni}
-        whatsapp={veri.whatsapp}
-        bireysel={kayit.aliciTuru === "bireysel"}
-        onDegisti={yenile}
-      />
-
-      <section className="flex flex-col gap-2 border-t border-kenar pt-4">
-        <form
-          key={`durum-${surum}`}
-          className="flex items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const durum = new FormData(e.currentTarget).get("durum") as KayitDurumu;
-            if (durum !== kayit.durum) void guncelle("durum", { durum }, "Durum güncellendi.");
-          }}
-        >
-          <label className="etiket flex-1">
-            Durum
-            <select name="durum" defaultValue={kayit.durum} className="girdi">
+            <div className="flex flex-wrap gap-1.5">
               {KAYIT_DURUMLARI.map((d) => (
-                <option key={d} value={d}>
+                <SecimCipi
+                  key={d}
+                  secili={kayit.durum === d}
+                  disabled={mesgul}
+                  onClick={() => {
+                    if (d !== kayit.durum) void guncelle("durum", { durum: d }, "Durum güncellendi.");
+                  }}
+                >
                   {KAYIT_DURUM_ADLARI[d]}
-                </option>
+                </SecimCipi>
               ))}
-            </select>
-          </label>
-          <button type="submit" className="dugme-ana" disabled={mesgul}>
-            Değiştir
-          </button>
-        </form>
-        <MesajGoster mesaj={mesaj} alan="durum" />
+            </div>
+            <MesajGoster mesaj={mesaj} alan="durum" />
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span>
-            İleti izni:{" "}
-            <strong className={kayit.iletiIzni === "ret" ? "text-tehlike" : ""}>
+          <form
+            key={`bilgi-${surum}`}
+            className="flex flex-col gap-2.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              const al = (ad: string) => String(f.get(ad) ?? "");
+              void guncelle(
+                "bilgi",
+                {
+                  isletmeAdi: al("isletmeAdi"),
+                  aliciTuru: al("aliciTuru") as AliciTuru,
+                  ...(f.has("aliciTuruAciklamasi") ? { aliciTuruAciklamasi: al("aliciTuruAciklamasi") } : {}),
+                  yetkiliAdi: al("yetkiliAdi"),
+                  eposta: al("eposta"),
+                  ekTelefon: al("ekTelefon"),
+                  etiketler: al("etiketler")
+                    .split(",")
+                    .map((s) => s.trim().toLocaleLowerCase("tr"))
+                    .filter(Boolean),
+                },
+                "Kaydedildi.",
+              );
+            }}
+          >
+            <label className="etiket">
+              İşletme adı (sizin kaydınız)
+              {/* Places içeriği bu alana aktarılmaz: alan kullanıcının yazdığıyla gelir, ipucu yalnızca genel bir cümle. */}
+              <input
+                name="isletmeAdi"
+                defaultValue={kayit.isletmeAdi ?? ""}
+                maxLength={160}
+                className="girdi"
+                placeholder={AD_GIRME_IPUCU}
+                autoComplete="off"
+              />
+              <span className="text-xs font-normal text-soluk">
+                Kampanya mesajlarındaki {"{isletme}"} yalnızca bu alandan dolar; Google&apos;dan gelen ad mesajlara
+                eklenmez.
+              </span>
+            </label>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <label className="etiket">
+                Yetkili adı
+                <input name="yetkiliAdi" defaultValue={kayit.yetkiliAdi ?? ""} maxLength={120} className="girdi" />
+              </label>
+              <label className="etiket">
+                Alıcı türü
+                <select name="aliciTuru" defaultValue={kayit.aliciTuru} className="girdi">
+                  {ALICI_TURLERI.map((t) => (
+                    <option key={t} value={t}>
+                      {ALICI_TURU_ADLARI[t]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {kayit.aliciTuru === "bireysel" && kayit.kaynak === "meta_reklam" && (
+              <label className="etiket">
+                Alıcı türü değişikliğinin açıklaması
+                <input name="aliciTuruAciklamasi" maxLength={500} className="girdi" />
+                <span className="text-xs font-normal text-soluk">
+                  Reklamdan gelen kişiyi tacir/esnaf yapmak İYS beyanı kuralını kaldırır: yalnızca yönetici, açıklamayla
+                  yapabilir.
+                </span>
+              </label>
+            )}
+            {kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli" && (
+              <p className="text-xs text-soluk">Bireysel kayıtlara yalnızca ileti izni &quot;Onaylı&quot; ise gönderim yapılır.</p>
+            )}
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <label className="etiket">
+                E-posta
+                <input name="eposta" type="email" defaultValue={kayit.eposta ?? ""} maxLength={200} className="girdi" />
+              </label>
+              <label className="etiket">
+                Ek telefon
+                <input name="ekTelefon" type="tel" defaultValue={kayit.ekTelefon ?? ""} maxLength={40} className="girdi" />
+              </label>
+            </div>
+            <label className="etiket">
+              Etiketler <span className="text-xs font-normal text-soluk">(virgülle ayırın)</span>
+              <input name="etiketler" defaultValue={kayit.etiketler.join(", ")} maxLength={500} className="girdi" />
+            </label>
+            <MesajGoster mesaj={mesaj} alan="bilgi" />
+            <button type="submit" className="dugme-ana self-start" disabled={mesgul}>
+              Kaydet
+            </button>
+          </form>
+
+          {kayit.notlar && (
+            <KayitNotu
+              key={`kayit-notu-${surum}`}
+              notlar={kayit.notlar}
+              mesgul={mesgul}
+              onKaydet={(notlar) => guncelle("kayitNotu", { notlar }, "Kayıt notu kaydedildi.")}
+            />
+          )}
+          <MesajGoster mesaj={mesaj} alan="kayitNotu" />
+
+          <div className="flex flex-col gap-2.5 rounded-[10px] bg-ic-kutu p-4 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">İletişim bilgileri</span>
+              {google && <span className="text-xs text-soluk">Google Haritalar</span>}
+            </div>
+            {!google ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <dt className="text-soluk">Telefon</dt>
+                <dd>{kayit.ekTelefon ?? "—"}</dd>
+                {veri.whatsapp.kullaniciAdi && (
+                  <>
+                    <dt className="text-soluk">WhatsApp</dt>
+                    <dd>@{veri.whatsapp.kullaniciAdi}</dd>
+                  </>
+                )}
+                {veri.whatsapp.reklamBasligi && (
+                  <>
+                    <dt className="text-soluk">Reklam</dt>
+                    <dd>{veri.whatsapp.reklamBasligi}</dd>
+                  </>
+                )}
+              </dl>
+            ) : yer ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <dt className="text-soluk">Telefon</dt>
+                <dd>{yer.telefon ?? "—"}</dd>
+                <dt className="text-soluk">Web sitesi</dt>
+                <dd className="truncate">
+                  {yer.webSitesi ? (
+                    <a href={yer.webSitesi} target="_blank" rel="noopener noreferrer" className="text-ana underline">
+                      {yer.webSitesi.replace(/^https?:\/\//, "")}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+                {yer.puan !== undefined && (
+                  <>
+                    <dt className="text-soluk">Puan</dt>
+                    <dd>
+                      {yer.puan} ({yer.puanSayisi ?? 0} değerlendirme)
+                    </dd>
+                  </>
+                )}
+                {yer.isletmeDurumu && yer.isletmeDurumu !== "OPERATIONAL" && (
+                  <>
+                    <dt className="text-soluk">Durum</dt>
+                    <dd className="text-tehlike">
+                      {yer.isletmeDurumu === "CLOSED_PERMANENTLY" ? "Kalıcı olarak kapalı" : "Geçici olarak kapalı"}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            ) : canliAtlandi && !canli ? (
+              <div className="flex flex-col items-start gap-2 rounded-md bg-zemin p-3 text-sm">
+                <p>
+                  {canliAtlandi === "ilgilenmiyor"
+                    ? "Bu kayıt ilgilenilmiyor olarak işaretli; Google bilgileri kendiliğinden çekilmedi."
+                    : OTOMATIK_GOSTERIM_SINIRI_METNI}
+                </p>
+                <button type="button" className="dugme" disabled={mesgul} onClick={() => void googleBilgisiGetir()}>
+                  Google bilgilerini göster
+                </button>
+              </div>
+            ) : (
+              <p role="alert" className="text-sm text-tehlike">
+                {canli?.durum === "kota"
+                  ? `${KOTA_DOLDU_MESAJI} İşletme bilgileri (ad, adres, telefon) gösterilemiyor; aşağıdaki kendi verileriniz ve işlemler kullanılabilir.`
+                  : canli?.durum === "bulunamadi"
+                    ? "Bu işletme Google'da artık bulunmuyor."
+                    : `İşletme bilgisi alınamadı${canli?.durum === "hata" ? `: ${canli.mesaj}` : "."}`}
+              </p>
+            )}
+            {yer?.googleMapsUri && (
+              <a href={yer.googleMapsUri} target="_blank" rel="noopener noreferrer" className="text-[13px] text-ana underline">
+                Google Haritalar&apos;da aç
+              </a>
+            )}
+            {google && <GoogleAtfi />}
+          </div>
+
+          <div className="border-t border-cizgi pt-4">
+          <button
+            type="button"
+            className="dugme-tehlike"
+            disabled={mesgul}
+            onClick={async () => {
+              if (!confirm("Bu kayıt ve tüm etkinlik geçmişi kalıcı olarak silinsin mi?")) return;
+              setMesgul(true);
+              const s = await apiIstek(`/api/kayitlar/${id}`, { method: "DELETE" });
+              setMesgul(false);
+              if (s.ok || s.durum === 404) props.onSilindi(id);
+              else setMesaj({ tur: "hata", metin: s.hata, alan: "sil" });
+            }}
+          >
+            Kaydı sil
+          </button>
+          <MesajGoster mesaj={mesaj} alan="sil" />
+          </div>
+        </div>
+      )}
+
+      {sekme === "izin" && (
+        <div
+          role="tabpanel"
+          id={sekmePaneliId(`kayit-${kayit.id}`, "izin")}
+          aria-labelledby={sekmeId(`kayit-${kayit.id}`, "izin")}
+          className="flex flex-col gap-4 px-6 pt-2 pb-6"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cizgi py-4">
+            <div>
+              <p className="font-semibold">E-posta ve SMS</p>
+              <p className="text-[13px] text-soluk">Alıcı türü: {ALICI_TURU_ADLARI[kayit.aliciTuru]}</p>
+            </div>
+            <DurumRozeti ton={IZIN_TONU[kayit.iletiIzni]}>
               {kayit.iletiIzni === "ret" ? retMetni : ILETI_IZNI_ADLARI[kayit.iletiIzni]}
-            </strong>
-          </span>
+            </DurumRozeti>
+          </div>
+          <div className="flex flex-wrap gap-2">
+          {kayit.iletiIzni === "bekliyor" && (
+            <button type="button" className="dugme" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "onayli" }, "İzin kaydedildi.")}>
+              İzin alındı
+            </button>
+          )}
           {kayit.iletiIzni !== "ret" && (
             <RetDugmesi
               ad={baslik}
@@ -389,189 +527,79 @@ export function DetayPaneli(props: {
               onOnay={() => void guncelle("izin", { iletiIzni: "ret", retOnayi: true }, "İleti reddi kaydedildi.")}
             />
           )}
-          {kayit.iletiIzni === "bekliyor" && (
-            <button type="button" className="dugme" disabled={mesgul} onClick={() => void guncelle("izin", { iletiIzni: "onayli" }, "İzin kaydedildi.")}>
-              İzin alındı
-            </button>
-          )}
-        </div>
-        <MesajGoster mesaj={mesaj} alan="izin" />
-      </section>
-
-      <section className="border-t border-kenar pt-4">
-        <h3 className="mb-2 font-semibold">Bilgiler</h3>
-        <form
-          key={`bilgi-${surum}`}
-          className="flex flex-col gap-2.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            const al = (ad: string) => String(f.get(ad) ?? "");
-            void guncelle(
-              "bilgi",
-              {
-                isletmeAdi: al("isletmeAdi"),
-                aliciTuru: al("aliciTuru") as AliciTuru,
-                ...(f.has("aliciTuruAciklamasi") ? { aliciTuruAciklamasi: al("aliciTuruAciklamasi") } : {}),
-                yetkiliAdi: al("yetkiliAdi"),
-                eposta: al("eposta"),
-                ekTelefon: al("ekTelefon"),
-                etiketler: al("etiketler")
-                  .split(",")
-                  .map((s) => s.trim().toLocaleLowerCase("tr"))
-                  .filter(Boolean),
-              },
-              "Kaydedildi.",
-            );
-          }}
-        >
-          <label className="etiket">
-            İşletme adı (sizin kaydınız)
-            {/* Places içeriği bu alana aktarılmaz: alan kullanıcının yazdığıyla gelir, ipucu yalnızca genel bir cümle. */}
-            <input
-              name="isletmeAdi"
-              defaultValue={kayit.isletmeAdi ?? ""}
-              maxLength={160}
-              className="girdi"
-              placeholder={AD_GIRME_IPUCU}
-              autoComplete="off"
-            />
-            <span className="text-xs font-normal text-soluk">
-              Kampanya mesajlarındaki {"{isletme}"} yalnızca bu alandan dolar; Google&apos;dan gelen ad mesajlara
-              eklenmez.
-            </span>
-          </label>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <label className="etiket">
-              Yetkili adı
-              <input name="yetkiliAdi" defaultValue={kayit.yetkiliAdi ?? ""} maxLength={120} className="girdi" />
-            </label>
-            <label className="etiket">
-              Alıcı türü
-              <select name="aliciTuru" defaultValue={kayit.aliciTuru} className="girdi">
-                {ALICI_TURLERI.map((t) => (
-                  <option key={t} value={t}>
-                    {ALICI_TURU_ADLARI[t]}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
-          {kayit.aliciTuru === "bireysel" && kayit.kaynak === "meta_reklam" && (
-            <label className="etiket">
-              Alıcı türü değişikliğinin açıklaması
-              <input name="aliciTuruAciklamasi" maxLength={500} className="girdi" />
-              <span className="text-xs font-normal text-soluk">
-                Reklamdan gelen kişiyi tacir/esnaf yapmak İYS beyanı kuralını kaldırır: yalnızca yönetici, açıklamayla
-                yapabilir.
-              </span>
-            </label>
-          )}
-          {kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli" && (
-            <p className="text-xs text-soluk">Bireysel kayıtlara yalnızca ileti izni &quot;Onaylı&quot; ise gönderim yapılır.</p>
-          )}
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <label className="etiket">
-              E-posta
-              <input name="eposta" type="email" defaultValue={kayit.eposta ?? ""} maxLength={200} className="girdi" />
-            </label>
-            <label className="etiket">
-              Ek telefon
-              <input name="ekTelefon" type="tel" defaultValue={kayit.ekTelefon ?? ""} maxLength={40} className="girdi" />
-            </label>
-          </div>
-          <label className="etiket">
-            Etiketler <span className="text-xs font-normal text-soluk">(virgülle ayırın)</span>
-            <input name="etiketler" defaultValue={kayit.etiketler.join(", ")} maxLength={500} className="girdi" />
-          </label>
-          <MesajGoster mesaj={mesaj} alan="bilgi" />
-          <button type="submit" className="dugme-ana self-start" disabled={mesgul}>
-            Kaydet
-          </button>
-        </form>
-      </section>
-
-      <section className="border-t border-kenar pt-4">
-        <h3 className="mb-2 font-semibold">Notlar ve geçmiş</h3>
-        {kayit.notlar && (
-          <KayitNotu
-            key={`kayit-notu-${surum}`}
-            notlar={kayit.notlar}
-            mesgul={mesgul}
-            onKaydet={(notlar) => guncelle("kayitNotu", { notlar }, "Kayıt notu kaydedildi.")}
+          <MesajGoster mesaj={mesaj} alan="izin" />
+          <WhatsappIzinBolumu
+            key={`wa-izin-${surum}-${veri.whatsapp.izin}`}
+            id={kayit.id}
+            ad={baslik}
+            retMetni={retMetni}
+            whatsapp={veri.whatsapp}
+            bireysel={kayit.aliciTuru === "bireysel"}
+            onDegisti={yenile}
           />
-        )}
-        <MesajGoster mesaj={mesaj} alan="kayitNotu" />
-        <form
-          key={`not-${olaylar.length}`}
-          className="flex flex-col gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const aciklama = String(new FormData(e.currentTarget).get("metin") ?? "").trim();
-            if (aciklama) void olayEkle({ tur: "not", aciklama }, "not", "Not eklendi.");
-          }}
-        >
-          <label className="etiket">
-            Not ekle
-            <textarea name="metin" rows={2} maxLength={2000} required className="girdi" placeholder="Görüşme özeti, hatırlatma…" />
-          </label>
-          <MesajGoster mesaj={mesaj} alan="not" />
-          <button type="submit" className="dugme self-start" disabled={mesgul}>
-            Notu ekle
-          </button>
-        </form>
-        <ol className="mt-3 flex flex-col gap-2">
-          {olaylar.map((o) => (
-            <li key={o.id} className="border-l-2 border-ana/40 pl-3 text-sm">
-              <p className="text-xs text-soluk">
-                {/* Eski kayıtlarda bilgi değişiklikleri "not" türüyle (sistem) yazılmıştı. */}
-                {tarihYaz(o.tarih)} · {OLAY_TURU_ADLARI[o.tur === "not" && o.sistem ? "bilgi" : o.tur]}
-                {o.kullaniciAdi && ` · ${o.kullaniciAdi}`}
-              </p>
-              {o.tur === "not" && !o.sistem && o.kullaniciId === props.kullaniciId && o.aciklama ? (
-                <NotSatiri
-                  olay={o}
-                  mesgul={mesgul}
-                  onDuzenle={(aciklama) =>
-                    islem("olay", async () => {
-                      const s = await apiIstek(`/api/olaylar/${o.id}`, { method: "PATCH", govde: { aciklama } });
-                      return s.ok ? { ok: true } : { ok: false, hata: s.hata };
-                    })
-                  }
-                  onSil={() =>
-                    islem("olay", async () => {
-                      const s = await apiIstek(`/api/olaylar/${o.id}`, { method: "DELETE" });
-                      return s.ok ? { ok: true } : { ok: false, hata: s.hata };
-                    })
-                  }
-                />
-              ) : (
-                o.aciklama && <p className="whitespace-pre-wrap">{o.aciklama}</p>
-              )}
-            </li>
-          ))}
-        </ol>
-        <MesajGoster mesaj={mesaj} alan="olay" />
-      </section>
+        </div>
+      )}
 
-      <section className="border-t border-kenar pt-4">
-        <button
-          type="button"
-          className="dugme-tehlike"
-          disabled={mesgul}
-          onClick={async () => {
-            if (!confirm("Bu kayıt ve tüm etkinlik geçmişi kalıcı olarak silinsin mi?")) return;
-            setMesgul(true);
-            const s = await apiIstek(`/api/kayitlar/${id}`, { method: "DELETE" });
-            setMesgul(false);
-            if (s.ok || s.durum === 404) props.onSilindi(id);
-            else setMesaj({ tur: "hata", metin: s.hata, alan: "sil" });
-          }}
+      {sekme === "gecmis" && (
+        <div
+          role="tabpanel"
+          id={sekmePaneliId(`kayit-${kayit.id}`, "gecmis")}
+          aria-labelledby={sekmeId(`kayit-${kayit.id}`, "gecmis")}
+          className="flex flex-col gap-3 px-6 pt-5 pb-6"
         >
-          Kaydı sil
-        </button>
-        <MesajGoster mesaj={mesaj} alan="sil" />
-      </section>
+          <form
+            key={`not-${olaylar.length}`}
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const aciklama = String(new FormData(e.currentTarget).get("metin") ?? "").trim();
+              if (aciklama) void olayEkle({ tur: "not", aciklama }, "not", "Not eklendi.");
+            }}
+          >
+            <label className="etiket">
+              Not ekle
+              <textarea name="metin" rows={2} maxLength={2000} required className="girdi" placeholder="Görüşme özeti, hatırlatma…" />
+            </label>
+            <MesajGoster mesaj={mesaj} alan="not" />
+            <button type="submit" className="dugme self-start" disabled={mesgul}>
+              Notu ekle
+            </button>
+          </form>
+          <ol className="mt-3 flex flex-col gap-2">
+            {olaylar.map((o) => (
+              <li key={o.id} className="border-l-2 border-ana/40 pl-3 text-sm">
+                <p className="text-xs text-soluk">
+                  {/* Eski kayıtlarda bilgi değişiklikleri "not" türüyle (sistem) yazılmıştı. */}
+                  {tarihYaz(o.tarih)} · {OLAY_TURU_ADLARI[o.tur === "not" && o.sistem ? "bilgi" : o.tur]}
+                  {o.kullaniciAdi && ` · ${o.kullaniciAdi}`}
+                </p>
+                {o.tur === "not" && !o.sistem && o.kullaniciId === props.kullaniciId && o.aciklama ? (
+                  <NotSatiri
+                    olay={o}
+                    mesgul={mesgul}
+                    onDuzenle={(aciklama) =>
+                      islem("olay", async () => {
+                        const s = await apiIstek(`/api/olaylar/${o.id}`, { method: "PATCH", govde: { aciklama } });
+                        return s.ok ? { ok: true } : { ok: false, hata: s.hata };
+                      })
+                    }
+                    onSil={() =>
+                      islem("olay", async () => {
+                        const s = await apiIstek(`/api/olaylar/${o.id}`, { method: "DELETE" });
+                        return s.ok ? { ok: true } : { ok: false, hata: s.hata };
+                      })
+                    }
+                  />
+                ) : (
+                  o.aciklama && <p className="whitespace-pre-wrap">{o.aciklama}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          <MesajGoster mesaj={mesaj} alan="olay" />
+        </div>
+      )}
     </aside>
   );
 }

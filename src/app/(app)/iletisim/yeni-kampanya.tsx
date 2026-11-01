@@ -355,7 +355,7 @@ export function YeniKampanya(props: {
                 (Google&apos;dan gelen ad mesajlara yazılmaz;{" "}
                 {bosHitap ? `{isletme} yerine "${bosHitap}" hitabı kullanılacak` : "{isletme} kaldırılacak"}).
               </span>{" "}
-              <Link href="/kayitlar?ad=bos" className="text-ana underline">
+              <Link href="/kayitlar?grup=tum&ad=bos" className="text-ana underline">
                 Adı boş olan Google kayıtlarını aç
               </Link>
             </p>
