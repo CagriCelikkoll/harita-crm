@@ -997,6 +997,13 @@ tests/                           Vitest
   üretmez); `List-Unsubscribe-Post` (RFC 8058) doğrudan işler. Sayfa gönderen unvanından başka bilgi göstermez.
 - **Sandbox** gönderimi lead_events'e "(test)" olayı yazar, kayıt durumunu değiştirmez, günlük sınırı kullanır.
 - **En fazla bir kez gönderim:** gönderim ortasında çöken işçinin mesajı "belirsiz" kapanır, yeniden denenmez.
+- **nodemailer 10.1.7, sabit sürüm (2 Kasım 2026):** `addressparser`'daki üç açık (GHSA-8c8m-p3m8-cjg8,
+  GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h; etkilenen 3.0.0 – 10.1.3) kapandı; `npm audit --omit=dev` bu uyarıları
+  artık göstermez. "Yayınlanmasının üzerinden en az iki hafta geçmiş en yeni sürüm" kuralıyla 10.1.7 (18.10.2026)
+  seçildi; audit'in önerdiği 10.3.1 29.10.2026'da yayınlandığı için henüz bu kurala uymuyor. Sürüm `package.json`'da
+  aralıksız sabitlenir. Sıkılaştırılmış `epostaNormallestir` (tırnak, yorum, `;` / `>` / `,` içeren alıcı adreslerini
+  reddeder) ikinci savunma hattı olarak korunur (`tests/mesajlasma.test.ts`). Kalan audit uyarıları (`drizzle-kit`
+  üzerinden `esbuild`, `exceljs` üzerinden `minimatch`) nodemailer'la ilgili değildir.
 - **SMTP güvenliği:** port 25/465/587/2525; her bağlantıdan önce DNS çözümü ve iç ağ reddi; bağlantı doğrulanan IP'ye.
 - **Test gönderimi** yalnızca kayıtlı gönderen adresine, kiracı başına saatte 5.
 - **WhatsApp:** yarı otomatik; numara yalnızca "WhatsApp'ta aç" sunucu yönlendirmesinde çözülür (ekran ve yenileme
@@ -1033,25 +1040,19 @@ tests/                           Vitest
     gönderse de İYS / 6563 yükümlülükleri çalışma alanındadır. WhatsApp Business kullanım şartları (toplu ve
     istenmeyen mesaj yasağı) için günlük sınır düşük tutulmuştur. Hukuki gözden geçirme önerilir.
 13. **"Gönderdim" beyana dayanır:** uygulama mesajın gerçekten gönderildiğini doğrulayamaz.
-14. **Açık bağımlılık uyarısı — nodemailer (orta):** `addressparser`'daki üç açık (GHSA-8c8m-p3m8-cjg8,
-    GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h) 10.1.4'te düzeltildi; o sürüm 18.10.2026'da yayınlandığı için
-    "en az iki haftalık sürüm" kuralına göre henüz kullanılmıyor (şu an 10.1.1). Etkisi önlendi: alıcı adresleri
-    `epostaNormallestir` ile yalnızca tırnaksız, yorumsuz, `;`/`>`/`,` içermeyen adreslere sınırlanıyor; gönderen adresi
-    Zod e-posta doğrulamasından geçiyor. **1.11.2026'dan sonra 10.1.4 veya üstüne yükseltilmeli.**
-    `drizzle-kit` üzerinden gelen `esbuild` uyarısı yalnızca geliştirme aracını etkiler (çalışma zamanında yok).
-15. **WhatsApp "kendisi yazdı" izni ve İYS:** Reklamdan yazan kişi WhatsApp izni "var" (kaynak: kendisi yazdı) ile
+14. **WhatsApp "kendisi yazdı" izni ve İYS:** Reklamdan yazan kişi WhatsApp izni "var" (kaynak: kendisi yazdı) ile
     kaydedilir; ancak varsayılan alıcı türü bireysel olduğundan İYS beyanı olmadan kampanyaya girmez. Alıcı türünü
     tacir/esnaf yapmak yalnızca yöneticiye ve açıklamayla açıktır (olay olarak loglanır). Kişinin işletmeye
     yazmasının ticari ileti onayı sayılıp sayılmayacağı hukuken değerlendirilmeli.
-16. **WhatsApp ücretsiz pencere süresi:** Meta'nın fiyat sayfası 72 saat, geliştirici changelog'u (28.09.2026) koşullu
+15. **WhatsApp ücretsiz pencere süresi:** Meta'nın fiyat sayfası 72 saat, geliştirici changelog'u (28.09.2026) koşullu
     olarak 7 güne kadar der; rozet en az süreyi (72 saat) gösterir.
-17. **WhatsApp fiyatları** (`src/lib/whatsapp-fiyatlar.ts`) Meta'nın kendi kartından doğrulanmadı; pilot öncesi
+16. **WhatsApp fiyatları** (`src/lib/whatsapp-fiyatlar.ts`) Meta'nın kendi kartından doğrulanmadı; pilot öncesi
     kontrol edilmeli. Tahmin yalnızca bilgidir.
-18. **WhatsApp limit payı** benzersiz alıcı yerine ileti sayar (aynı kişiye iki kampanya iki sayılır); Meta'nın
+17. **WhatsApp limit payı** benzersiz alıcı yerine ileti sayar (aynı kişiye iki kampanya iki sayılır); Meta'nın
     sayımından temkinlidir.
-19. **Pilot öncesi WhatsApp bağlantıları:** 0011 migration'ından önce kurulmuş bağlantılar numara sahipliği
+18. **Pilot öncesi WhatsApp bağlantıları:** 0011 migration'ından önce kurulmuş bağlantılar numara sahipliği
     doğrulanmadığı için kullanılmaz; yöneticinin bir kez "Bağlantıyı test et" demesi gerekir.
-20. **İçe aktarma satırlarının ömrü:** tamamlanmamış oturumun satırları 60 dakikadan sonra kullanılamaz, işçi saatte
+19. **İçe aktarma satırlarının ömrü:** tamamlanmamış oturumun satırları 60 dakikadan sonra kullanılamaz, işçi saatte
     bir siler (en fazla ~2 saat). Daha kısa süre isteniyorsa işçinin bakım aralığı (`SAATLIK_BAKIM_MS`) düşürülebilir.
 
 ## Bilinen sınırlar

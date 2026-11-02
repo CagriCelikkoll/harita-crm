@@ -16,7 +16,8 @@ export const cepMi = (normal: string | null): normal is string => normal !== nul
 /**
  * Yerel kısım yalnızca RFC 5322 "atext" karakterleri (tırnak, yorum parantezi, <>, ;, ,, :, \ yok); alan adı ASCII
  * etiketler (IDN için xn--). Tırnaklı/yorumlu adresler reddedilir: nodemailer'ın addressparser'ındaki bu tür
- * adreslerle ilgili açıklar (GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h) tetiklenemez.
+ * adreslerle ilgili açıklar (GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h) tetiklenemez. Açıklar
+ * nodemailer 10.1.4'te kapandı (projede 10.1.7); bu kısıt ikinci savunma hattı olarak korunur.
  */
 const EPOSTA_DESENI =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
