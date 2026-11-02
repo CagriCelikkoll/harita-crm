@@ -17,6 +17,7 @@
     "sinir": "tsx scripts/sinir.ts",
     "osm:deneme": "tsx scripts/osm-deneme.ts",
     "worker": "node --conditions=react-server --import tsx scripts/worker.ts",
+    "tunel": "cloudflared tunnel --url http://localhost:3000",
     "demo:hazirla": "node --conditions=react-server --import tsx scripts/demo-hazirla.ts",
     "demo": "node --import tsx scripts/demo.ts",
     "demo:isci": "node --conditions=react-server --import tsx scripts/demo-isci.ts",

@@ -11,7 +11,7 @@ import {
   TEST_NUMARASI_AZAMI,
   type Kalite,
 } from "@/lib/whatsapp-api";
-import { uygulamaAdresi } from "../messaging/abonelik-belirteci";
+import { genelAdres } from "../messaging/abonelik-belirteci";
 import { coz, sifrele } from "../messaging/sifreleme";
 import { yoneticiOlmali, type TenantContext } from "../repo/baglam";
 import {
@@ -46,8 +46,9 @@ const gizliCoz = (b: WhatsappBaglantisi) => coz<Gizli>(b.sifreliVeri, b.tenantId
 const gizliSifrele = (tenantId: string, g: Gizli) => sifrele(g, tenantId, KANAL);
 const yeniVerifyToken = () => randomBytes(24).toString("base64url");
 
+/** Meta'daki callback URL'si: GENEL_ADRES'ten (yoksa BETTER_AUTH_URL'den) üretilir. */
 export const webhookAdresi = (b: Pick<WhatsappBaglantisi, "webhookKimligi">) =>
-  `${uygulamaAdresi()}/api/whatsapp/webhook/${b.webhookKimligi}`;
+  `${genelAdres()}/api/whatsapp/webhook/${b.webhookKimligi}`;
 
 /**
  * Bağlantı ve çözülmüş gizli bilgiler (kampanya işçisi ve webhook için). Bağlantı yoksa ya da numara sahipliği

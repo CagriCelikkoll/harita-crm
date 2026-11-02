@@ -65,3 +65,21 @@ export function abonelikPostAdresi(belirtec: string) {
   return `${uygulamaAdresi()}/api/abonelik/${belirtec}`;
 }
 export const uygulamaAdresi = () => (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+
+/**
+ * Dış servislerin (Meta) çağırdığı webhook adreslerinin kökü: GENEL_ADRES (ör. geçici tünel adresi) tanımlı ve https
+ * ise onun kökü (yol, sorgu atılır), değilse uygulamaAdresi(). Arayüz, oturum ve e-postadaki bağlantılar
+ * BETTER_AUTH_URL'de kalır. Geçersiz değer uyarıyla yok sayılır (Meta yalnızca https callback kabul eder).
+ */
+export function genelAdres(): string {
+  const ham = process.env.GENEL_ADRES?.trim();
+  if (!ham) return uygulamaAdresi();
+  try {
+    const url = new URL(ham);
+    if (url.protocol === "https:") return url.origin;
+  } catch {
+    /* aşağıda uyarılır */
+  }
+  console.warn("GENEL_ADRES https:// ile başlayan geçerli bir adres olmalı; yok sayıldı.");
+  return uygulamaAdresi();
+}

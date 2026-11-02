@@ -52,6 +52,7 @@ denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
 | --- | --- | --- |
 | `BETTER_AUTH_SECRET` | Evet | En az 32 karakter rastgele değer: `npx auth@latest secret` veya `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Evet | Uygulamanın dış adresi (ör. `https://crm.ornek.com`). Davet bağlantıları da bununla üretilir. |
+| `GENEL_ADRES` | Hayır | Meta webhook'unun geldiği genel https kökü (ör. `npm run tunel` çıktısındaki `https://…trycloudflare.com`). Ayarlar > WhatsApp (Meta)'daki bildirim adresi bundan üretilir; boşsa `BETTER_AUTH_URL`. Geçersiz ya da https değilse uyarıyla yok sayılır. |
 | `DATABASE_PATH` | Hayır | SQLite dosyası; varsayılan `./data/app.db`. Kalıcı diskte olmalı. |
 | `GOOGLE_PLACES_API_KEY` | Gerçek veri için | Google Cloud Console → *APIs & Services* → *Credentials* → *Create API key*. **Places API (New)** etkin olmalı. Anahtarı *API restrictions* ile yalnızca "Places API (New)"a, *Application restrictions* ile sunucunuzun IP adresine kısıtlayın. Projede faturalandırma açık olmalı. |
 | `PLACES_MOCK` | Hayır | `true` = örnek veri, Places'a istek yok. Gerçek kullanımda `false`. |
@@ -116,6 +117,7 @@ npm run db:generate    # şema (src/server/db/schema.ts) değiştikten sonra yen
 npm run dev            # geliştirme
 npm run build && npm start   # üretim
 npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
+npm run tunel          # geçici https tüneli (cloudflared; yalnızca yerel WhatsApp denemesi, docs/GERCEK-KURULUM.md)
 npm test               # Vitest
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
@@ -874,20 +876,20 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   (yoksa `current_limit`) katmanı yazılır ve kalite bir sonraki gönderimden önce Meta'dan yeniden okunur. Not: güncel
   Meta belgesine göre `phone_number_quality_update` kalite puanını değil **limit / hız** değişikliğini bildirir;
   kalite puanı işçi tarafından 15 dakikada bir `GET /{phone-number-id}` ile okunur.
-- Meta App Dashboard → WhatsApp → Yapılandırma → Webhook'taki **Test** bağlantısı, kullanıcı adı / BSUID senaryolu
+- Meta App Dashboard → Configuration → Webhook'taki **Test** bağlantısı, kullanıcı adı / BSUID senaryolu
   örnek yükleri bu uca gönderebilir (imza da Meta tarafından atılır).
 
 #### Pilot: işletme sahibinin kendi Business Manager'ında system user ve kalıcı anahtar
 
-1. developers.facebook.com'da işletmenin Business Manager'ına bağlı **Business** türünde bir uygulama açın ve
-   WhatsApp ürününü ekleyin. App Secret: Uygulama ayarları → Temel.
+1. developers.facebook.com → **Create App** → **Connect with customers through WhatsApp** kullanım durumu, işletmenin
+   portföyü (eski arayüzde: **Business** türü uygulama + WhatsApp ürünü). App Secret: Uygulama ayarları → Temel.
 2. Business Settings → Kullanıcılar → **System users** → Ekle (**Employee** rolü yeterli; Admin gerekmez).
 3. "Varlık ata": yalnızca ilgili **WhatsApp hesabı** (tam kontrol) ve bu uygulama.
 4. "Token oluştur": uygulamayı seçin, süre **Hiçbir zaman**, izinler yalnızca `whatsapp_business_messaging` ve
    `whatsapp_business_management`.
 5. WABA ID ve Phone Number ID: WhatsApp Manager → Telefon numaraları (ya da uygulamanın API kurulumu sayfası).
 6. Harita CRM → Ayarlar → WhatsApp (Meta): bilgileri kaydedin; gösterilen verify token'ı ve callback URL'yi
-   uygulamanın WhatsApp → Yapılandırma → Webhook alanına girin; `messages`, `message_template_status_update`,
+   uygulamanın **Use cases → Customize → Configuration** (eski arayüzde WhatsApp → Configuration) Webhook alanına girin; `messages`, `message_template_status_update`,
    `phone_number_quality_update`, `business_capability_update` ve `user_preferences` alanlarına abone olun.
 7. "Webhook aboneliğini etkinleştir" ve "Bağlantıyı test et".
 8. Test modunda kendi numaranıza bir kampanya gönderin; teslim bildirimi gelince test modu kapatılabilir.
@@ -896,8 +898,9 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   abone** olur; mevcut aracın webhook'u ve sohbet yönetimi çalışmaya devam eder. Mesajlaşma limiti ortaktır; payı
   buna göre ayarlayın.
 - **İlk gerçek kampanya küçük ve izinli bir listeyle** yapılmalıdır (kalite puanı ve limit buna göre şekillenir).
-- Meta geliştirici uygulamasının ücretsiz test numarasıyla deneme: uygulamanın API kurulumu sayfasındaki test numarası
-  yalnızca alıcı listesine eklenmiş (en fazla 5) numaraya gönderir; listede olmayana `131030` hatası döner.
+- Meta geliştirici uygulamasının ücretsiz test numarasıyla adım adım deneme: `docs/GERCEK-KURULUM.md`. Özet: API
+  kurulumu sayfasındaki test numarası yalnızca alıcı listesine eklenmiş (en fazla 5) numaraya gönderir; listede olmayana
+  `131030` hatası döner. Yerel bilgisayarda webhook için `npm run tunel` (Cloudflare quick tunnel) ve `GENEL_ADRES`.
 
 ## Proje yapısı
 

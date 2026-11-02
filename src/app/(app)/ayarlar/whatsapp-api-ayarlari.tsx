@@ -446,12 +446,12 @@ function TeknikAyrintilar(props: {
       <details className="text-sm">
         <summary className="cursor-pointer font-semibold">Kurulum rehberi: system user ve kalıcı erişim anahtarı</summary>
         <ol className="mt-2 list-inside list-decimal space-y-1 text-soluk">
-          <li>developers.facebook.com&apos;da kendi Business Manager&apos;ınıza bağlı Business türünde bir uygulama açın, WhatsApp ürününü ekleyin. App Secret: Uygulama ayarları → Temel.</li>
+          <li>developers.facebook.com → Create App → &quot;Connect with customers through WhatsApp&quot; kullanım durumu, kendi işletme portföyünüz (eski arayüzde: Business türü uygulama + WhatsApp ürünü). App Secret: Uygulama ayarları → Temel.</li>
           <li>Business Settings → Kullanıcılar → System users → Ekle (Employee rolü yeterli).</li>
           <li>&quot;Varlık ata&quot;: yalnızca ilgili WhatsApp hesabı (tam kontrol) ve bu uygulama.</li>
           <li>&quot;Token oluştur&quot;: uygulamayı seçin, süre &quot;Hiçbir zaman&quot;, izinler yalnızca whatsapp_business_messaging ve whatsapp_business_management.</li>
           <li>WABA ID ve Phone Number ID: WhatsApp Manager → Hesap araçları → Telefon numaraları (ya da uygulamadaki API kurulumu sayfası).</li>
-          <li>Bu formu kaydedin; gösterilen doğrulama anahtarını ve bildirim adresini uygulamanızın WhatsApp → Yapılandırma → Webhook alanına girin; messages, message_template_status_update, phone_number_quality_update, business_capability_update ve user_preferences alanlarına abone olun.</li>
+          <li>Bu formu kaydedin; gösterilen doğrulama anahtarını ve bildirim adresini uygulamanızın Use cases → Customize → Configuration (eski arayüzde WhatsApp → Configuration) bölümündeki Webhook alanına girin; messages, message_template_status_update, phone_number_quality_update, business_capability_update ve user_preferences alanlarına abone olun.</li>
           <li>&quot;Aboneliği etkinleştir&quot; ve &quot;Bağlantıyı test et&quot;; ardından test modunda kendi numaranıza bir kampanya gönderin.</li>
         </ol>
         <p className="mt-2 text-[13px] text-soluk">

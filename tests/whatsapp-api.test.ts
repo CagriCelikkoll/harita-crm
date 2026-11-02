@@ -124,6 +124,31 @@ describe("bağlantı ve gizli bilgiler", () => {
     expect(mockWhatsapp.sonBaglanti).toEqual({ wabaId: "200001", phoneNumberId: "300001", erisimAnahtari: ANAHTAR });
   });
 
+  it("webhook adresi GENEL_ADRES'ten (yalnızca https kökü) üretilir; yoksa ya da geçersizse BETTER_AUTH_URL'den", async () => {
+    const { ctx } = await kur("GenelAdres");
+    const kimlik = baglantiGetir(ctx)!.webhookKimligi;
+    const adres = (genel: string | undefined) => {
+      if (genel === undefined) delete process.env.GENEL_ADRES;
+      else process.env.GENEL_ADRES = genel;
+      return svc.baglantiDurumu(ctx).webhookAdresi;
+    };
+    const uyari = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(adres(undefined)).toBe(`${U}/api/whatsapp/webhook/${kimlik}`);
+      expect(adres("https://ornek-tunel.trycloudflare.com/")).toBe(`https://ornek-tunel.trycloudflare.com/api/whatsapp/webhook/${kimlik}`);
+      expect(adres(" https://ornek-tunel.trycloudflare.com/yol?x=1 ")).toBe(`https://ornek-tunel.trycloudflare.com/api/whatsapp/webhook/${kimlik}`);
+      expect(uyari).not.toHaveBeenCalled();
+      for (const gecersiz of ["http://ornek-tunel.trycloudflare.com", "ornek-tunel.trycloudflare.com"]) {
+        expect(adres(gecersiz)).toBe(`${U}/api/whatsapp/webhook/${kimlik}`);
+      }
+      expect(uyari).toHaveBeenCalledTimes(2);
+      expect(adres("")).toBe(`${U}/api/whatsapp/webhook/${kimlik}`);
+    } finally {
+      delete process.env.GENEL_ADRES;
+      uyari.mockRestore();
+    }
+  });
+
   it("şifreli değer başka kiracının satırına kopyalanırsa çözülemez", async () => {
     const a = await kur("KopyaA");
     const b = await kur("KopyaB");
