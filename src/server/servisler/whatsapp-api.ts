@@ -13,6 +13,7 @@ import {
 } from "@/lib/whatsapp-api";
 import { genelAdres } from "../messaging/abonelik-belirteci";
 import { coz, sifrele } from "../messaging/sifreleme";
+import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { yoneticiOlmali, type TenantContext } from "../repo/baglam";
 import {
   baglantiGetir,
@@ -26,6 +27,7 @@ import {
 } from "../repo/whatsapp-baglantilari";
 import { sablonlariListele, sablonlariSenkronla, type WhatsappSablonu } from "../repo/whatsapp-sablonlari";
 import { GraphHatasi, whatsappApiIstemcisi, type WhatsappApiIstemcisi } from "../whatsapp-api";
+import { ticariIletiEksikleri } from "./ileti";
 
 const KANAL = "whatsapp_api";
 
@@ -128,6 +130,11 @@ export type BaglantiDto = {
   numaraDogrulandi: boolean;
   testModu: boolean;
   testModuKapatilabilir: boolean;
+  /**
+   * Test modu kapalıyken (ve kapatılırken) gereken gönderen bilgilerinden eksik olanlar. Test modunda, yalnızca test
+   * numaralarına giden kampanyalarda aranmaz.
+   */
+  gonderenEksikleri: string[];
   testNumaralari: string[];
   uygulamaPayi: number;
   numara: {
@@ -159,6 +166,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
       numaraDogrulandi: false,
       testModu: true,
       testModuKapatilabilir: false,
+      gonderenEksikleri: [],
       testNumaralari: [],
       uygulamaPayi: 0,
       numara: { gorunenNumara: null, dogrulanmisAd: null, kalite: null, limitKatmani: null, limit: null, sonKontrol: null, sonHata: null },
@@ -172,6 +180,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
     /* anahtar değişmiş: bilgiler yeniden girilmeli; durum "tanımlı değil" görünür */
   }
   const limit = limitKatmaniSayisi(b.limitKatmani);
+  const gonderenEksikleri = ticariIletiEksikleri(iletiAyarlariGetir(ctx), "whatsapp_api");
   return {
     tanimli: true,
     wabaId: b.wabaId,
@@ -184,7 +193,8 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
     imzaliDurumAlindi: Boolean(b.sonImzaliDurumTarihi),
     numaraDogrulandi: Boolean(b.numaraDogrulamaTarihi),
     testModu: b.testModu,
-    testModuKapatilabilir: Boolean(b.webhookDogrulamaTarihi && b.sonImzaliDurumTarihi),
+    testModuKapatilabilir: Boolean(b.webhookDogrulamaTarihi && b.sonImzaliDurumTarihi) && gonderenEksikleri.length === 0,
+    gonderenEksikleri,
     testNumaralari: gizli?.testNumaralari ?? [],
     uygulamaPayi: b.uygulamaPayi,
     numara: {
@@ -280,12 +290,28 @@ const TEST_MODU_NEDENLERI = {
   baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",
   webhook_dogrulanmadi:
     "Test modu kapatılamaz: webhook henüz doğrulanmadı. Meta uygulamanızda callback URL ve verify token'ı kaydedin.",
+  gonderen_eksik: "Test modu kapatılamaz: Ayarlar → Gönderen bilgileri eksik",
   durum_alinmadi:
     "Test modu kapatılamaz: henüz imzası doğrulanmış bir mesaj durumu (statuses) bildirimi alınmadı. Test modunda bir " +
     "test numarasına kampanya gönderip teslim bildiriminin gelmesini bekleyin.",
 } as const;
 
+/**
+ * Test modunu açar / kapatır. Kapatmak için webhook doğrulaması ve imzalı durum bildirimine (depo, atomik) ek olarak
+ * gönderen bilgileri tam olmalı: test modu kapalıyken her kampanya bunları ister (test modunda istenmez).
+ */
 export function testModuDegistir(ctx: TenantContext, acik: boolean) {
+  if (!acik) {
+    yoneticiOlmali(ctx);
+    const eksik = ticariIletiEksikleri(iletiAyarlariGetir(ctx), "whatsapp_api");
+    const bag = eksik.length ? baglantiGetir(ctx) : null;
+    if (bag) {
+      // Eksik varsa depoya hiç gidilmez (kapatma denenmez); neden kurulum sırasına göre seçilir.
+      if (!bag.webhookDogrulamaTarihi) throw new WhatsappApiHatasi(TEST_MODU_NEDENLERI.webhook_dogrulanmadi, 409);
+      if (!bag.sonImzaliDurumTarihi) throw new WhatsappApiHatasi(TEST_MODU_NEDENLERI.durum_alinmadi, 409);
+      throw new WhatsappApiHatasi(`${TEST_MODU_NEDENLERI.gonderen_eksik}: ${eksik.join(", ")}.`, 409);
+    }
+  }
   const sonuc = testModuAyarla(ctx, acik);
   if (!sonuc.tamam) throw new WhatsappApiHatasi(TEST_MODU_NEDENLERI[sonuc.neden], sonuc.neden === "baglanti_yok" ? 404 : 409);
 }

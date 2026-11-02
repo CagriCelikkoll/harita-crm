@@ -46,21 +46,22 @@ gerekmez.
 1. `npm run dev` ile uygulamayı açın, tarayıcıda **http://localhost:3000**.
 2. Giriş ekranında **Kayıt ol** sekmesi: ad soyad, e-posta, en az 10 karakterlik şifre → **Hesap oluştur**.
 3. "Çalışma alanınızı oluşturun": bir ad → **Oluştur**. Panel açılır.
-4. **Ayarlar → Gönderen bilgileri**: Gönderen unvanı, İletişim bilgisi, İYS numarası ve Sorumluluk beyanı.
-   **Bunlar olmadan WhatsApp'ta gerçek gönderim yapılamaz** (yalnızca "Test: Meta'ya gönderme" kampanyası olur ve o
-   kampanya Meta'ya gitmediği için kurulum 3. adımını tamamlamaz). Bkz. aşağıdaki "Dikkat".
+4. **Ayarlar → Gönderen bilgileri** (Gönderen unvanı, İletişim bilgisi, İYS numarası, Sorumluluk beyanı): **test için
+   şart değil.** WhatsApp bağlantısı test modundayken, yalnızca test numaralarına giden kampanyalar bunlar olmadan da
+   Meta'ya gerçekten gönderilir. **Test modunu kapatmak** ve test modu kapalıyken gönderim yapmak için ise hepsi
+   gerekir (6. bölüm).
 5. **Kayıtlar → Kişi ekle**: Ad soyad (kendiniz), Telefon (kendi cep numaranız, ör. `0532 …`), **Alıcı türü**
    "Bireysel (kişi)" → **Kaydet**.
 6. Açılan ayrıntıda **İletişim izni** sekmesi → WhatsApp izni **Düzenle** → **İzin var**, İzin kaynağı (ör. "Sözlü"),
    İzin tarihi (bugün), **"Bu izin İYS'ye kaydedildi."** kutusu → **Kaydet**. "WhatsApp izni kaydedildi." çıkar.
 
-**Ne görmelisin:** Bu akış Google'a hiç gitmez (denendi: Google tamamen kapalıyken de hatasız çalışıyor). Panelde
-"Gönderen bilgileri eksik" uyarısı 4. adımı tamamlayınca kaybolur.
+**Ne görmelisin:** Bu akış Google'a hiç gitmez (denendi: Google tamamen kapalıyken de hatasız çalışıyor). Paneldeki
+"Gönderen bilgileri eksik" uyarısı, gönderen bilgilerini girene kadar görünür; test kampanyasını engellemez.
 
 > **Dikkat: alıcı türü ve İYS.** Bireysel kişiye WhatsApp kampanyası yalnızca WhatsApp izni "var" **ve** İYS beyanı
 > işaretliyse gider. Kendinizi "Tacir/esnaf" diye eklemek kuralı aşmanın yolu değildir; deneme için beyan kutusunu
-> işaretleyin. **İYS numaranız yoksa** 4. adımı tamamlayamazsınız ve gerçek test kampanyası başlatılamaz; bu
-> uygulamanın bilinçli kuralıdır. Bu durumda bana yazın, birlikte karar verelim.
+> işaretleyin. Bu kural test modunda da geçerlidir (gönderen bilgilerinden farklı olarak alıcı izinleri hiçbir zaman
+> atlanmaz).
 
 ---
 
@@ -177,9 +178,13 @@ Kurulumdan sonra **terminali kapatıp yeniden açın**, `cloudflared --version` 
 5. **Ayarlar → WhatsApp (Meta) → Teknik ayrıntıları** altındaki **Bildirim adresi (webhook)** artık
    `https://…trycloudflare.com/api/whatsapp/webhook/…` ile başlar. (Bağlantıyı kaydetmeden bu alan görünmez; bkz. 4a.)
 
-Arayüzü **localhost:3000**'den kullanmaya devam edin; tünel adresini tarayıcıda açmanız gerekmez. Yalnızca Meta'nın
-istekleri tünelden gelir. Meta'nın bildirim isteği oturum ya da tarayıcı kaynağı (Origin) istemez; uygulama yalnızca
-adresteki çalışma alanı kimliğine ve Meta'nın imzasına (App Secret) bakar.
+Arayüzü **localhost:3000**'den kullanmaya devam edin. Yalnızca Meta'nın istekleri tünelden gelir. Meta'nın bildirim
+isteği oturum ya da tarayıcı kaynağı (Origin) istemez; uygulama yalnızca adresteki çalışma alanı kimliğine ve Meta'nın
+imzasına (App Secret) bakar.
+
+**Tünel koruması:** Tünel adresinden (`…trycloudflare.com` ya da `GENEL_ADRES`) gelen istekler **yalnızca bildirim
+adresine** (`/api/whatsapp/webhook/…`) ulaşır. Giriş, kayıt ve diğer bütün sayfalar tünelden **404 (Bulunamadı)** döner.
+Tünel adresini tarayıcıda açarsanız "Bulunamadı." görmeniz normaldir; arayüz yalnızca localhost'tan açılır.
 
 > **Tünel adresi her açılışta değişir.** `npm run tunel`'i kapatıp açtığınızda (ya da bilgisayar yeniden başladığında)
 > yeni bir adres çıkar. O zaman: `.env.local`'deki `GENEL_ADRES`'i güncelleyin → uygulamayı yeniden başlatın →
@@ -187,8 +192,10 @@ adresteki çalışma alanı kimliğine ve Meta'nın imzasına (App Secret) bakar
 > Meta bildirimleri eski, kapalı adrese gönderir; teslim ve RET bildirimleri gelmez. (Meta, ulaşamadığı bildirimleri
 > 7 güne kadar yeniden dener.)
 >
-> **Güvenlik:** Cloudflare'e göre tünel adresini bilen herkes uygulamanızın tamamına (giriş ekranı dahil) erişebilir.
-> Adresi kimseyle paylaşmayın, denemeniz bitince tüneli `Ctrl + C` ile kapatın.
+> **Güvenlik:** Cloudflare'e göre tünel adresini bilen herkes bilgisayarınızdaki uygulamaya istek gönderebilir. Tünel
+> koruması bu istekleri yalnızca bildirim adresine bırakır (o da Meta'nın imzası olmadan hiçbir şey yapmaz). Yine de
+> adresi paylaşmayın, `npm run tunel` dışında bir tünel komutu (özellikle `--http-host-header`) kullanmayın ve denemeniz
+> bitince tüneli `Ctrl + C` ile kapatın.
 
 ---
 
@@ -297,8 +304,10 @@ silip 0. adımdaki migration'ı yeniden çalıştırmak: `npm run db:migrate`; o
 
 ## 6. Test modunu kapatma (yalnızca deneme sonrası)
 
-Kurulum adımları 2 ve 3 tamamlanınca **Test modunu kapat** düğmesi açılır. Kapatınca kampanyalar test numaraları
-dışındaki **herkese** gider. Bu yüzden:
+Kurulum adımları 2 ve 3 tamamlanınca **Test modunu kapat** düğmesi görünür. **Gönderen bilgileri** (unvan, iletişim
+bilgisi, İYS numarası, sorumluluk beyanı) eksikse düğme pasif kalır ve neyin eksik olduğu yazar; Ayarlar → Gönderen
+bilgileri'ni tamamlayınca açılır. Kapatınca kampanyalar test numaraları dışındaki **herkese** gider ve her kampanya
+gönderen bilgilerini ister. Bu yüzden:
 
 - **Gerçek müşteri kaydı yokken** ve yalnızca kurulumu bitirmek için kapatın; ya da hiç kapatmayın.
 - Meta'nın test numarası zaten yalnızca alıcı listesine gönderir; gerçek müşterilere göndermek için kendi işletme
@@ -316,7 +325,9 @@ dışındaki **herkese** gider. Bu yüzden:
 | Kampanyada satır **Başarısız**, hata kodu `131030` | Numaranız Meta'daki test numarası alıcı listesinde değil | API Setup → **To** listesine numaranızı ekleyip doğrulayın (2c), kampanyayı yeniden oluşturun. |
 | Kampanya özetinde 0 alıcı, neden "Test modu: test numarası değil" | Numaranız uygulamadaki **Test numaraları**'nda yok | Ayarlar → WhatsApp (Meta) → Test numaraları'na ekleyin. |
 | Özette neden "WhatsApp izni yok" ya da "Bireysel; İYS beyanı yok" | Kaydınızda izin ya da İYS beyanı eksik | 1. bölüm, 6. adım. |
-| "Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın" | Gönderen bilgileri eksik | Ayarlar → Gönderen bilgileri (1. bölüm, 4. adım). |
+| "Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın" | Test modu kapalı ve gönderen bilgileri eksik (test modunda bu uyarı çıkmaz) | Ayarlar → Gönderen bilgileri'ni tamamlayın ya da test modunu yeniden açın. |
+| **Test modunu kapat** düğmesi pasif | Gönderen bilgileri eksik (eksikler adımın altında yazar) | Ayarlar → Gönderen bilgileri. |
+| Tünel adresini tarayıcıda açınca "Bulunamadı." | Tünel koruması: tünelden yalnızca bildirim adresi açıktır | Beklenen durum; arayüzü localhost:3000'den kullanın. |
 | Şablon kampanyada görünmüyor ya da **Kullanılamaz** | Şablon onaylı değil; Pazarlama şablonunda abonelikten çıkma butonu yok; medya başlık / dinamik URL butonu gibi desteklenmeyen parça var | Nedeni şablon satırında yazar. Yeni şablon: 5a. Meta'da değişiklik yaptıysanız **Meta'dan yenile**. |
 | Meta'da **Verify and save** "doğrulanamadı" diyor | Uygulama ya da tünel kapalı; Callback URL eski / yanlış kopyalandı; verify token yanlış; `GENEL_ADRES` değişip uygulama yeniden başlatılmadı | Uygulama ve `npm run tunel` açık olsun; adresi ve anahtarı uygulamadan **Kopyala** ile yeniden alın. Anahtarı kaybettiyseniz **Yenile** ile yenisini üretip Meta'ya girin. |
 | Bildirim adresi hâlâ `http://localhost:3000/…` | `GENEL_ADRES` boş, `https://` ile başlamıyor ya da uygulama yeniden başlatılmadı | `.env.local`'de `GENEL_ADRES=https://…trycloudflare.com`, sonra uygulamayı yeniden başlatın. Geçersiz değer terminalde uyarıyla yok sayılır. |

@@ -252,7 +252,9 @@ function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
     bugunKalan,
     sonrakiGunlereKalacak: Math.max(0, gonderilecek - bugunKalan),
     sandbox,
-    eksikAyarlar: sandbox ? [] : ticariIletiEksikleri(ayar, g.kanal),
+    // WhatsApp test modu (bağlantı var, kampanya yalnızca test numaralarına): gönderen bilgileri aranmaz, Meta'ya
+    // gerçekten gönderilir. Test modu kapalıyken her gerçek kampanya bunları ister (işçi gönderirken yeniden bakar).
+    eksikAyarlar: sandbox || (whatsapp?.baglantiVar && whatsapp.testModu) ? [] : ticariIletiEksikleri(ayar, g.kanal),
     onizleme,
     placesTelefonGerekli,
     ...telefonKullanimi(placesTelefonGerekli * cagriBirimi("telefon"), kotaDurumu(ctx)),

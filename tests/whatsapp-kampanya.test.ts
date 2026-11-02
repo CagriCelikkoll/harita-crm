@@ -339,3 +339,84 @@ describe("gönderim (işçi)", () => {
     expect(() => kampanyaBaslat(c2, girdi(id), SIMDI)).toThrow(KampanyaHatasi);
   });
 });
+
+describe("gönderen bilgileri ve İYS: test modunda aranmaz, kapalıyken aranır", () => {
+  /** Bağlantı kurulu, gönderen bilgileri (unvan, iletişim, İYS, sorumluluk onayı) boş. */
+  async function kurIysiz(ad: string) {
+    const k = await kur(ad);
+    iletiAyarlariGuncelle(k.ctx, { gonderenUnvani: "", iletisimBilgisi: "", iysNo: "", sorumlulukOnayi: false });
+    return k;
+  }
+  const kilitKosullari = (ctx: TenantContext) =>
+    db.$client
+      .prepare("update whatsapp_baglantilari set webhook_dogrulama_tarihi = ?, son_imzali_durum_tarihi = ? where tenant_id = ?")
+      .run(Date.now(), Date.now(), ctx.tenantId);
+
+  it("test modunda test numarasına gönderim İYS'siz çalışır: kampanya başlar ve Meta'ya gerçekten gider", async () => {
+    const { ctx, sablon } = await kurIysiz("IysizTest");
+    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    const [k1] = kisiler(ctx, [{ tel: "0532 000 00 01", ad: "Ben" }]);
+    const ozet = kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
+    expect(ozet).toMatchObject({ sandbox: false, gonderilecek: 1, eksikAyarlar: [] });
+    expect(ozet.whatsapp).toMatchObject({ testModu: true, baglantiVar: true });
+
+    const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
+    expect(kampanya.sandbox).toBe(false);
+    await tur();
+    expect(mockWhatsapp.gonderilenler).toHaveLength(1);
+    expect(mockWhatsapp.gonderilenler[0].alici).toEqual({ tur: "telefon", deger: "905320000001" });
+    expect(mesajlar(ctx, kampanya.id).find((x) => x.leadId === k1.id)).toMatchObject({ durum: "gonderildi" });
+  });
+
+  it("test modunda test numarası olmayan alıcı yine hariç kalır (özette ve işçide)", async () => {
+    const { ctx, sablon } = await kurIysiz("IysizHaric");
+    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    kisiler(ctx, [{ tel: "0532 000 00 01" }, { tel: "0532 000 00 02" }]);
+    const ozet = kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
+    expect(ozet.gonderilecek).toBe(1);
+    expect(ozet.haricler.test_modu).toBe(1);
+
+    const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
+    // Kampanyadan sonra test numaraları değişse de işçi test numarası olmayana göndermez.
+    wa.testNumaralariKaydet(ctx, ["0532 000 00 09"]);
+    await tur();
+    expect(mockWhatsapp.gonderilenler).toHaveLength(0);
+    expect(mesajlar(ctx, kampanya.id).map((x) => x.neden)).toEqual(["test_modu", "test_modu"]);
+  });
+
+  it("test modu kapalıyken İYS'siz gönderim reddedilir: kampanya başlamaz, kuyruktaki mesaj işçide düşer", async () => {
+    const { ctx, sablon } = await kur("IysizKapali");
+    testModunuKapat(ctx); // gönderen bilgileri tamken kapatıldı
+    kisiler(ctx, [{ tel: "0532 000 00 01" }]);
+    const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
+
+    // Sonradan gönderen bilgileri silindi: yeni kampanya reddedilir, kuyruktaki mesaj gönderilmez.
+    iletiAyarlariGuncelle(ctx, { iysNo: "", sorumlulukOnayi: false });
+    expect(kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI).eksikAyarlar).toEqual(["İYS kayıt numarası", "İYS / 6563 sorumluluk onayı"]);
+    expect(() => kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI)).toThrow(/Ticari ileti bölümünü tamamlayın: İYS kayıt numarası/);
+    await tur();
+    expect(mockWhatsapp.gonderilenler).toHaveLength(0);
+    expect(mesajlar(ctx, kampanya.id)[0]).toMatchObject({ durum: "basarisiz", neden: "ayar_eksik" });
+  });
+
+  it("İYS'siz test modu kapatılamaz (sunucu reddeder, durum değişmez); tamamlanınca kapatılabilir", async () => {
+    const { ctx } = await kurIysiz("IysizKapat");
+    // Önce kurulum sırası: webhook doğrulanmadıysa o neden.
+    expect(() => wa.testModuDegistir(ctx, false)).toThrow(/webhook henüz doğrulanmadı/);
+    kilitKosullari(ctx);
+    expect(wa.baglantiDurumu(ctx)).toMatchObject({
+      testModu: true,
+      testModuKapatilabilir: false,
+      gonderenEksikleri: ["gönderen unvanı", "iletişim bilgisi", "İYS kayıt numarası", "İYS / 6563 sorumluluk onayı"],
+    });
+    expect(() => wa.testModuDegistir(ctx, false)).toThrow(/Gönderen bilgileri eksik: gönderen unvanı, iletişim bilgisi, İYS kayıt numarası/);
+    expect(wa.baglantiDurumu(ctx).testModu).toBe(true);
+    // Test modunu açmak her zaman serbest.
+    expect(() => wa.testModuDegistir(ctx, true)).not.toThrow();
+
+    iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
+    expect(wa.baglantiDurumu(ctx)).toMatchObject({ testModuKapatilabilir: true, gonderenEksikleri: [] });
+    wa.testModuDegistir(ctx, false);
+    expect(wa.baglantiDurumu(ctx).testModu).toBe(false);
+  });
+});

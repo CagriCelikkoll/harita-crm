@@ -752,7 +752,7 @@ function WhatsappOzetKutusu({ ozet }: { ozet: KampanyaOzeti }) {
       {!ozet.sandbox && w.testModu && (
         <p className="rounded-md bg-amber-50 p-2 text-amber-800">
           Test modu açık: kampanya yalnızca Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
-          nedeniyle hariç tutuldu.
+          nedeniyle hariç tutuldu. Bu kampanyada gönderen bilgileri ve İYS numarası aranmaz.
         </p>
       )}
       {!ozet.sandbox && w.kalite && (

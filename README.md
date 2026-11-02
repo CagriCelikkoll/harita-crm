@@ -52,7 +52,7 @@ denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
 | --- | --- | --- |
 | `BETTER_AUTH_SECRET` | Evet | En az 32 karakter rastgele değer: `npx auth@latest secret` veya `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Evet | Uygulamanın dış adresi (ör. `https://crm.ornek.com`). Davet bağlantıları da bununla üretilir. |
-| `GENEL_ADRES` | Hayır | Meta webhook'unun geldiği genel https kökü (ör. `npm run tunel` çıktısındaki `https://…trycloudflare.com`). Ayarlar > WhatsApp (Meta)'daki bildirim adresi bundan üretilir; boşsa `BETTER_AUTH_URL`. Geçersiz ya da https değilse uyarıyla yok sayılır. |
+| `GENEL_ADRES` | Hayır | Meta webhook'unun geldiği genel https kökü (ör. `npm run tunel` çıktısındaki `https://…trycloudflare.com`). Ayarlar > WhatsApp (Meta)'daki bildirim adresi bundan üretilir; boşsa `BETTER_AUTH_URL`. Geçersiz ya da https değilse uyarıyla yok sayılır. Bu alandan (ve her `*.trycloudflare.com`'dan) gelen istekler yalnızca `/api/whatsapp/webhook/*`'e ulaşır, diğer yollar 404 (aşağıda "Tünel koruması"). |
 | `DATABASE_PATH` | Hayır | SQLite dosyası; varsayılan `./data/app.db`. Kalıcı diskte olmalı. |
 | `GOOGLE_PLACES_API_KEY` | Gerçek veri için | Google Cloud Console → *APIs & Services* → *Credentials* → *Create API key*. **Places API (New)** etkin olmalı. Anahtarı *API restrictions* ile yalnızca "Places API (New)"a, *Application restrictions* ile sunucunuzun IP adresine kısıtlayın. Projede faturalandırma açık olmalı. |
 | `PLACES_MOCK` | Hayır | `true` = örnek veri, Places'a istek yok. Gerçek kullanımda `false`. |
@@ -149,6 +149,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 | `tests/yeni-duzen.test.ts` | Yeni düzen: menüdeki kullanım göstergesinin yalnızca yüzde göstermesi (`GET /api/kullanim` birim, kota ya da kalan döndürmez; %80 uyarı, dolmadan %100 yok); sekmelerde klavye, baş harfler; menü ve sayfa iskeleti ölçüleri; Ayarlar bölümlerinin role göre görünmesi (üye yalnızca kendini ilgilendirenleri) ve her bölüm sayfasının rol denetimi; çalışma alanı adı ile saklama süresinin ayrı formlardan güncellenmesi; WhatsApp kurulum adımlarının test modu kilidinden türetilmesi. || `tests/yeni-duzen.test.ts` (Grup 4–5) | Kayıtlar sekmelerinin anlamı ve sayıları, süzgeç adresi, CSV'nin sekmesiz ve sekmeli davranışı, otomatik istek kuralları, panel sekmeleri; Bölge tara sonuçlarının yeniden bulunan işletmeleri de göstermesi, süzgeç ve sabit sıra, migration 0016'nın eşleşmeleri taşıması, ekran ve eski adresin yönlendirilmesi. |
 | `tests/gorunurluk.test.ts` | Kullanım kalemlerinin toplamla aynı atomik ifadede artması ve iadesi; her Places çağrısının kalemi; eşikli ayırma (sonraki toplam kota × 0,8'in altında); otomatik gösterimin yalnızca adı girilmemiş kayıtlara ve %80'in altına gitmesi, eşikte istek yapmaması ve birim düşmemesi, elle Göster'in %100'e kadar sürmesi; detay panelinin otomatik açılışında aynı eşik; 30 dakikalık bellek önbelleğinin süresi, çıkış / giriş / alan değişince temizlenmesi ve tarayıcı depolaması kullanmaması; arayüzde "birim" sözcüğünün geçmemesi. |
+| `tests/tunel.test.ts` | Tünel koruması: `*.trycloudflare.com` ya da `GENEL_ADRES` alanından (Host veya X-Forwarded-Host; büyük harf, port, sondaki nokta) gelen istek yalnızca `/api/whatsapp/webhook/<kimlik>`e geçer; giriş, kayıt, sayfalar, diğer API'ler, statik dosyalar ve yol oyunları (`/../`) 404, oturum çereziyle de; `GENEL_ADRES` https değilse ya da uygulamanın kendi alanıysa korunmaz; localhost'tan oturum yönlendirmesi ve API'ler eskisi gibi; `/iletisim` yönlendirmeleri tünel host'unda uygulanmaz. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -772,7 +773,14 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 - **Test modu** varsayılan **açık**: kampanyalar yalnızca Ayarlar'daki test numaralarına (en fazla 5, cep) gider.
   Test modu ancak (a) Meta webhook GET doğrulaması başarıyla yapılmış ve (b) **bu uygulamanın gönderdiği** (sandbox
   olmayan, kuyrukta wamid'i bulunan ve bağlantının **mevcut** `phone_number_id`'sinden gönderilmiş) bir iletinin imzası
-  doğrulanmış durum (`statuses`) bildirimi alınmışsa kapatılabilir; aksi halde sunucu reddeder ve nedeni gösterilir.
+  doğrulanmış durum (`statuses`) bildirimi alınmışsa ve (c) **gönderen bilgileri** (unvan, iletişim, İYS numarası,
+  sorumluluk onayı) tamsa kapatılabilir; aksi halde sunucu reddeder ve nedeni gösterilir (Ayarlar'da 4. adımın düğmesi
+  pasif kalır, eksikler yazar).
+  - **Test modunda gönderen bilgileri aranmaz:** bağlantı test modundayken yalnızca test numaralarına giden kampanyalar
+    gönderen bilgileri, İYS numarası ve sorumluluk beyanı olmadan da başlatılır ve **gerçekten Meta'ya gönderilir**
+    (teslim bildirimi gelir, kurulumun 3. adımı tamamlanabilir). Test numarası olmayan alıcılar yine hariçtir; işçi
+    göndermeden önce test modunu ve test numarasını yeniden denetler. Test modu kapalıyken her gerçek kampanya bu
+    bilgileri ister; sonradan silinirlerse işçi kuyruktaki iletiyi "ayar eksik" ile göndermez.
   Aynı numarayı kullanan başka bir aracın (BSP, WhatsApp Manager) bildirimleri imzalı olsa da kilidi açmaz. İşaretleme
   mevcut `phone_number_id` ile koşullu `UPDATE`'tir. Numara ya da WABA değişince doğrulama sıfırlanır ve test modu
   yeniden açılır.
@@ -802,10 +810,10 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   (uygun alıcı × kategori fiyatı; `src/lib/whatsapp-fiyatlar.ts`, Türkiye, 01.10.2026 kartı — Meta'nın kendi
   kartından doğrulanmadı). Meta yalnızca teslim edilen iletiyi ücretlendirir ve ücreti doğrudan işletmenin WhatsApp
   hesabından keser; Harita CRM fatura kesmez.
-- **Test modu** (bağlantı ayarı) açıkken yalnızca test numaraları; "Sandbox" seçilirse Meta'ya hiç gidilmez, şablon
-  metni kaydedilir.
+- **Test modu** (bağlantı ayarı) açıkken yalnızca test numaraları (gönderen bilgileri aranmaz, yukarıda); "Sandbox"
+  seçilirse Meta'ya hiç gidilmez, şablon metni kaydedilir.
 - **İşçi (her ileti için):** alıcı kuralları yeniden (kampanya sonrası gelen ret gönderimi durdurur) → şablon hâlâ
-  kullanılabilir mi → test modu → kalite (15 dakikadan eskiyse Meta'dan okunur) → gönderim saatleri → günlük sınır
+  kullanılabilir mi → test modu (kapalıysa gönderen bilgileri) → kalite (15 dakikadan eskiyse Meta'dan okunur) → gönderim saatleri → günlük sınır
   (atomik) → Meta limitinin payı (kayan 24 saat; ileti sayılır, temkinli) → hız (`WHATSAPP_SANIYE_BASI`) → gönderim.
   Telefon varsa `to`, yoksa BSUID ile `recipient`.
   - Pay ya da günlük sınır dolunca kalan alıcılar **ertesi günün gönderim başlangıcına** kalır.
@@ -898,6 +906,16 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   abone** olur; mevcut aracın webhook'u ve sohbet yönetimi çalışmaya devam eder. Mesajlaşma limiti ortaktır; payı
   buna göre ayarlayın.
 - **İlk gerçek kampanya küçük ve izinli bir listeyle** yapılmalıdır (kalite puanı ve limit buna göre şekillenir).
+- **Tünel koruması** (`src/proxy.ts`, `src/lib/tunel.ts`): Host (ya da X-Forwarded-Host) başlığı `*.trycloudflare.com`
+  veya `GENEL_ADRES`'in alanı olan istek yalnızca `/api/whatsapp/webhook/<kimlik>`e ulaşır; giriş, kayıt, sayfalar,
+  diğer API'ler ve statik dosyalar **404**. Proxy bu yüzden her istekte çalışır (matcher yok); oturum yönlendirmesi
+  yalnızca sayfa yollarında. `next.config` yönlendirmeleri proxy'den önce çalıştığı için tünel host'unda uygulanmaz
+  (`missing: host`). localhost'tan arayüz etkilenmez. **Host başlığı istemcinin yazdığı bir değerdir:** bu kontrol kimlik
+  doğrulaması değil, tünel adresini bilen birinin uygulamanın geri kalanını görmesini önleyen bir perdedir.
+  Cloudflare tünel isteğini Host'a göre yönlendirir ve cloudflared Host'u değiştirmeden iletir; `cloudflared
+  --http-host-header` ile Host localhost'a çevrilirse koruma çalışmaz (`npm run tunel` bunu kullanmaz). `GENEL_ADRES`
+  uygulamanın kendi alanıyla (`BETTER_AUTH_URL`) aynıysa koruma o alana uygulanmaz (canlıda arayüz 404 olmasın diye).
+  Asıl güvenlik her rotadadır (oturum, yetki, webhook'ta Meta imzası).
 - Meta geliştirici uygulamasının ücretsiz test numarasıyla adım adım deneme: `docs/GERCEK-KURULUM.md`. Özet: API
   kurulumu sayfasındaki test numarası yalnızca alıcı listesine eklenmiş (en fazla 5) numaraya gönderir; listede olmayana
   `131030` hatası döner. Yerel bilgisayarda webhook için `npm run tunel` (Cloudflare quick tunnel) ve `GENEL_ADRES`.
@@ -911,7 +929,7 @@ scripts/migrate.ts, cleanup.ts,  migration, günlük temizlik,
   ortam.ts                       betikler için .env yükleme
   demo-*.ts                      elle deneme ortamı (demo.db, sahte istemciler; docs/TEST-REHBERI.md)
 docs/                            elle deneme rehberi, örnek içe aktarma dosyası
-src/proxy.ts                     oturum çerezi yoksa /giris (iyimser; asıl kontrol sunucuda)
+src/proxy.ts                     tünel koruması (tünelden yalnızca webhook) + oturum çerezi yoksa /giris (iyimser)
 src/app/(auth)/                  giriş/kayıt, ilk çalışma alanı kurulumu
 src/app/davet/[token]/           davet kabulü
 src/app/abonelik/[belirtec]/     herkese açık abonelikten çıkma sayfası

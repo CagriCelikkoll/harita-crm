@@ -183,24 +183,26 @@ describe("Ayarlar: bölümler ve erişim (Grup 2)", () => {
 });
 
 describe("WhatsApp (Meta) kurulum adımları", () => {
-  const temel = { tanimli: true, numaraDogrulandi: false, webhookDogrulandi: false, imzaliDurumAlindi: false, testModu: true, testModuKapatilabilir: false };
+  const temel = { tanimli: true, numaraDogrulandi: false, webhookDogrulandi: false, imzaliDurumAlindi: false, testModu: true };
 
   it("adımlar mevcut bağlantı ve test modu kilidinden türetilir", () => {
     expect(kurulumAdimlari({ ...temel, tanimli: false })).toEqual(["etkin", "bekliyor", "bekliyor", "kilitli"]);
     expect(kurulumAdimlari(temel)).toEqual(["etkin", "bekliyor", "bekliyor", "kilitli"]);
     expect(kurulumAdimlari({ ...temel, numaraDogrulandi: true })).toEqual(["tamam", "etkin", "bekliyor", "kilitli"]);
     expect(kurulumAdimlari({ ...temel, numaraDogrulandi: true, webhookDogrulandi: true })).toEqual(["tamam", "tamam", "etkin", "kilitli"]);
-    const hazir = { ...temel, numaraDogrulandi: true, webhookDogrulandi: true, imzaliDurumAlindi: true, testModuKapatilabilir: true };
+    const hazir = { ...temel, numaraDogrulandi: true, webhookDogrulandi: true, imzaliDurumAlindi: true };
     expect(kurulumAdimlari(hazir)).toEqual(["tamam", "tamam", "tamam", "etkin"]);
     expect(kurulumAdimlari({ ...hazir, testModu: false })).toEqual(["tamam", "tamam", "tamam", "tamam"]);
   });
 
-  it("4. adım yalnızca sunucunun kilit kararına göre açılır", () => {
-    // İmzalı bildirim var ama sunucu kapatılabilir demiyorsa (ör. webhook doğrulaması sıfırlandı) kilitli kalır.
-    const a = kurulumAdimlari({ ...temel, numaraDogrulandi: true, imzaliDurumAlindi: true, testModuKapatilabilir: false });
+  it("4. adım 2. ve 3. adım bitince açılır; gönderen bilgileri eksikse düğme pasif ve nedeni yazar", () => {
+    // İmzalı bildirim var ama webhook doğrulaması yoksa (ör. sıfırlandı) kilitli kalır.
+    const a = kurulumAdimlari({ ...temel, numaraDogrulandi: true, imzaliDurumAlindi: true });
     expect(a[3]).toBe("kilitli");
     const ekran = oku("src/app/(app)/ayarlar/whatsapp-api-ayarlari.tsx");
     expect(ekran).toContain("kurulumAdimlari(b)");
+    expect(ekran).toContain("disabled={mesgul || !b.testModuKapatilabilir}");
+    expect(ekran).toContain("{b.gonderenEksikleri.join(\", \")}");
     expect(ekran).toContain('{ testModu: false }, "Test modu kapatıldı."');
     expect(ekran).not.toMatch(/type="checkbox"[^>]*testModu/); // eski pasif onay kutusu kalktı
   });
@@ -436,7 +438,8 @@ describe("Kampanyalar ve sihirbaz (Grup 6)", () => {
 
   it("eski /iletisim adresleri /kampanyalar'a geçici yönlenir; oturum yönlendirmesi yeni adresi de kapsar", async () => {
     const yapilandirma = (await import("../next.config")).default;
-    expect(await yapilandirma.redirects!()).toEqual([
+    // missing (tünel host'u): tests/tunel.test.ts.
+    expect(await yapilandirma.redirects!()).toMatchObject([
       { source: "/iletisim", destination: "/kampanyalar", permanent: false },
       { source: "/iletisim/kampanya/:id", destination: "/kampanyalar/:id", permanent: false },
     ]);

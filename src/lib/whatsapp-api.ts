@@ -265,8 +265,9 @@ export type KurulumAdimDurumu = "tamam" | "etkin" | "bekliyor" | "kilitli";
  * 1. Hesabı bağla: bilgiler kayıtlı ve numara bu WhatsApp hesabına ait.
  * 2. Bildirim adresini doğrula: Meta webhook doğrulaması (kilidin 1. koşulu).
  * 3. Test numarasına kampanya gönder: imzası doğrulanmış bir durum bildirimi alındı (kilidin 2. koşulu).
- * 4. Test modunu kapat: sunucunun "kapatılabilir" kararına bağlı; kapalıysa tamam.
- * Önceki adım bitmeden sonraki "bekliyor" görünür; 4. adım kilit koşulları sağlanana kadar "kilitli".
+ * 4. Test modunu kapat: 2. ve 3. adım tamamsa "etkin"; kapalıysa tamam. Gönderen bilgileri eksikse adım etkin kalır ama
+ *    düğme pasiftir ve nedeni gösterilir (BaglantiDto.gonderenEksikleri; sunucu ayrıca reddeder).
+ * Önceki adım bitmeden sonraki "bekliyor" görünür; 4. adım 2. ve 3. adım bitene kadar "kilitli".
  */
 export function kurulumAdimlari(b: {
   tanimli: boolean;
@@ -274,7 +275,6 @@ export function kurulumAdimlari(b: {
   webhookDogrulandi: boolean;
   imzaliDurumAlindi: boolean;
   testModu: boolean;
-  testModuKapatilabilir: boolean;
 }): [KurulumAdimDurumu, KurulumAdimDurumu, KurulumAdimDurumu, KurulumAdimDurumu] {
   const bir = b.tanimli && b.numaraDogrulandi;
   const iki = b.tanimli && b.webhookDogrulandi;
@@ -283,6 +283,6 @@ export function kurulumAdimlari(b: {
     bir ? "tamam" : "etkin",
     iki ? "tamam" : bir ? "etkin" : "bekliyor",
     uc ? "tamam" : bir && iki ? "etkin" : "bekliyor",
-    b.tanimli && !b.testModu ? "tamam" : b.tanimli && b.testModuKapatilabilir ? "etkin" : "kilitli",
+    b.tanimli && !b.testModu ? "tamam" : iki && uc ? "etkin" : "kilitli",
   ];
 }

@@ -174,11 +174,26 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                   adim4 === "tamam"
                     ? "Test modu kapalı · kampanyalar gerçek alıcılara gider"
                     : adim4 === "etkin"
-                      ? "Kapatınca kampanyalar test numaraları dışındaki alıcılara da gider."
+                      ? b.gonderenEksikleri.length ? (
+                        <>
+                          Önce{" "}
+                          <Link href="/ayarlar/gonderen" className="text-ana underline">
+                            Gönderen bilgileri
+                          </Link>
+                          &apos;ni tamamlayın: {b.gonderenEksikleri.join(", ")}. Test modu kapalıyken her kampanya bunları ister.
+                        </>
+                      ) : (
+                        "Kapatınca kampanyalar test numaraları dışındaki alıcılara da gider."
+                      )
                       : "2. ve 3. adım tamamlanınca açılır.",
                 eylem:
                   adim4 === "etkin" ? (
-                    <button type="button" className="dugme-tehlike dugme-kucuk" disabled={mesgul} onClick={testModuKapat}>
+                    <button
+                      type="button"
+                      className="dugme-tehlike dugme-kucuk"
+                      disabled={mesgul || !b.testModuKapatilabilir}
+                      onClick={testModuKapat}
+                    >
                       Test modunu kapat
                     </button>
                   ) : adim4 === "tamam" ? (

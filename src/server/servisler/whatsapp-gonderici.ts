@@ -3,7 +3,8 @@
 //  1. Alıcı kuralları YENİDEN (izin, ret, engel, İYS beyanı, WhatsApp yok) — kampanya sonrası gelen ret yakalanır.
 //  2. Şablon hâlâ kullanılabilir mi (değilse kampanya duraklar) ve değişken değerleri (boşsa hariç).
 //  3. Sandbox kampanyası: Meta'ya gidilmez, metin kaydedilir.
-//  4. Bağlantı; test modu açıksa yalnızca test numaraları.
+//  4. Bağlantı; test modu açıksa yalnızca test numaraları. Test modu kapalıyken gönderen bilgileri (unvan, iletişim, İYS,
+//     sorumluluk onayı) tam olmalı; test modunda aranmaz.
 //  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir; numara sahipliği de yeniden denetlenir, reddedilirse kampanya
 //     duraklar): RED → çalışma alanının tüm WhatsApp kampanyaları duraklar.
 //  6. Günlük sınır (atomik sayaç) ve Meta mesajlaşma limitinin bu uygulamaya ayrılan payı (kayan 24 saat);
@@ -25,7 +26,7 @@ import { mesajBirak, mesajGonderildi, whatsappSon24Saat, type KuyrukMesaji } fro
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
-import { engelSorgusuOlustur, gunlukSinir } from "./ileti";
+import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
 import { baglantiyiTestEt, whatsappBaglantisiCoz } from "./whatsapp-api";
 
 export type WhatsappSonucu = "gonderildi" | "bekletildi" | "haric" | "basarisiz" | "atlandi";
@@ -114,6 +115,13 @@ export async function whatsappMesajIsle(
   if (c.baglanti.testModu && (karar.kaynak !== "kayit" || !c.gizli.testNumaralari.includes(karar.adres))) {
     mesajBirak(ctx, mesaj.id, { durum: "haric", neden: "test_modu" });
     return "haric";
+  }
+  if (!c.baglanti.testModu) {
+    const eksik = ticariIletiEksikleri(ayar, "whatsapp_api");
+    if (eksik.length) {
+      mesajBirak(ctx, mesaj.id, { durum: "basarisiz", neden: "ayar_eksik", hata: `Ticari ileti bilgileri eksik: ${eksik.join(", ")}.` });
+      return "basarisiz";
+    }
   }
 
   // 5) Kalite.

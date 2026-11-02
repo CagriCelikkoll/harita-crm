@@ -10,6 +10,7 @@ vi.mock("@/server/oturum", () => ({ apiBaglami: async () => oturum.ctx }));
 
 const { db } = await import("@/server/db");
 const { baglantiGetir } = await import("@/server/repo/whatsapp-baglantilari");
+const { iletiAyarlariGuncelle } = await import("@/server/repo/ileti-ayarlari");
 const { sablonlariListele } = await import("@/server/repo/whatsapp-sablonlari");
 const { mockKullaniliyor, GraphHatasi } = await import("@/server/whatsapp-api");
 const { mockWhatsapp, mockWhatsappSifirla } = await import("@/server/whatsapp-api/mock");
@@ -229,8 +230,11 @@ describe("bağlantı ve gizli bilgiler", () => {
 describe("test modu kilidi", () => {
   const isaretle = (tenantId: string, alan: "webhook_dogrulama_tarihi" | "son_imzali_durum_tarihi") =>
     db.$client.prepare(`update whatsapp_baglantilari set ${alan} = ? where tenant_id = ?`).run(Date.now(), tenantId);
+  /** Test modu kapalıyken gereken gönderen bilgileri (kapatmanın üçüncü koşulu). */
+  const gonderenTamamla = (ctx: TenantContext) =>
+    iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
 
-  it("varsayılan açık; webhook doğrulaması ve imzalı durum bildirimi olmadan kapatılamaz (sunucu + neden)", async () => {
+  it("varsayılan açık; webhook doğrulaması, imzalı durum bildirimi ve gönderen bilgileri olmadan kapatılamaz (sunucu + neden)", async () => {
     const { ctx } = await kur("Kilit");
     oturum.ctx = ctx;
     const kapat = () => baglantiRotasi.PATCH(istek("/api/ayarlar/whatsapp-api", "PATCH", { testModu: false }));
@@ -248,6 +252,12 @@ describe("test modu kilidi", () => {
 
     isaretle(ctx.tenantId, "son_imzali_durum_tarihi");
     y = await kapat();
+    expect(y.status).toBe(409);
+    expect((await y.json()).hata).toMatch(/Gönderen bilgileri eksik: gönderen unvanı/);
+    expect(baglantiGetir(ctx)?.testModu).toBe(true);
+
+    gonderenTamamla(ctx);
+    y = await kapat();
     expect(y.status).toBe(200);
     expect((await y.json()).baglanti).toMatchObject({ testModu: false });
   });
@@ -255,6 +265,7 @@ describe("test modu kilidi", () => {
   it("verify token yenilenince ya da numara değişince doğrulama sıfırlanır ve test modu yeniden açılır", async () => {
     const { ctx, verifyToken } = await kur("Sifirla");
     oturum.ctx = ctx;
+    gonderenTamamla(ctx);
     isaretle(ctx.tenantId, "webhook_dogrulama_tarihi");
     isaretle(ctx.tenantId, "son_imzali_durum_tarihi");
     svc.testModuDegistir(ctx, false);
