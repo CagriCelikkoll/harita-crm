@@ -96,9 +96,20 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                 </DurumRozeti>
               )}
               <DurumRozeti ton={b.testModu ? "uyari" : "ana"}>{b.testModu ? "Test modu açık" : "Test modu kapalı"}</DurumRozeti>
+              {b.hesapKilidi && <DurumRozeti ton="tehlike">Meta hesabı kilitli</DurumRozeti>}
             </div>
           ) : (
             <p className="text-soluk">Hesap bilgilerinizi aşağıdaki &quot;Teknik ayrıntılar&quot; bölümünden girin.</p>
+          )}
+          {b.hesapKilidi && (
+            <BilgiNotu ton="tehlike" uyariRolu className="mt-1">
+              <p className="font-semibold">{b.hesapKilidi.mesaj}</p>
+              <p>
+                {tarihYaz(b.hesapKilidi.tarih)} tarihinde Meta {b.hesapKilidi.kod} hatası geldi; tüm WhatsApp kampanyaları
+                duraklatıldı ve kuyruktaki mesajlar bekletiliyor. Kilit kalkınca &quot;Bağlantıyı test et&quot;e basın; test
+                başarılı olursa duraklatılan kampanyaları kampanya ayrıntısından devam ettirebilirsiniz.
+              </p>
+            </BilgiNotu>
           )}
           {(n.sonKontrol || n.sonHata) && (
             <p className="text-[13px] text-soluk">
@@ -108,7 +119,16 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
           )}
         </div>
         {b.tanimli && (
-          <button type="button" className="dugme" disabled={mesgul} onClick={() => calistir("/api/ayarlar/whatsapp-api/test", "POST", undefined, "Bağlantı çalışıyor.")}>
+          <button type="button" className="dugme" disabled={mesgul} onClick={() =>
+              calistir(
+                "/api/ayarlar/whatsapp-api/test",
+                "POST",
+                undefined,
+                b.hesapKilidi
+                  ? "Bağlantı çalışıyor; Meta hesap kilidi kalktı. Duraklatılan kampanyaları kampanya ayrıntısından devam ettirin."
+                  : "Bağlantı çalışıyor.",
+              )
+            }>
             Bağlantıyı test et
           </button>
         )}

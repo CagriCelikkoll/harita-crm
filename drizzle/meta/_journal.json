@@ -120,6 +120,13 @@
       "when": 1793535249641,
       "tag": "0016_tarama_sonuclari",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793693352767,
+      "tag": "0017_whatsapp_hesap_kilidi",
+      "breakpoints": true
     }
   ]
 }

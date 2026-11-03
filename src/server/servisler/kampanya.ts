@@ -15,6 +15,7 @@ import { birimFiyat, WHATSAPP_FIYATLARI } from "@/lib/whatsapp-fiyatlar";
 import {
   DEGISKEN_KAYNAKLARI,
   degiskenDegerleri,
+  hesapKilidiMesaji,
   limitKatmaniSayisi,
   sablonMetni,
   type DegiskenEslemi,
@@ -106,6 +107,8 @@ export type WhatsappOzeti = {
   /** Bağlantının test modu: yalnızca test numaraları. */
   testModu: boolean;
   kalite: Kalite | null;
+  /** Meta hesap kilidinin uyarısı (131031, 368, 131042); doluyken gerçek kampanya başlatılamaz. */
+  hesapKilidi: string | null;
   /** Meta limitinin bu uygulamaya ayrılan payı (24 saatte ileti); null: sınırsız. */
   limitPayi: number | null;
   son24Saat: number;
@@ -184,6 +187,7 @@ function whatsappOzeti(
     baglantiVar: Boolean(c),
     testModu: w.testModu,
     kalite: (c?.baglanti.kalite as Kalite | null) ?? null,
+    hesapKilidi: c?.baglanti.hesapKilidiKodu != null ? hesapKilidiMesaji(c.baglanti.hesapKilidiKodu) : null,
     limitPayi: limit === null || !Number.isFinite(limit) ? null : Math.max(1, Math.floor((limit * c!.baglanti.uygulamaPayi) / 100)),
     son24Saat: c ? whatsappSon24Saat(ctx, simdi, "") : 0,
     birimFiyatUsd: fiyat,
@@ -288,6 +292,9 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
   if (ozet.whatsapp?.kalite === "RED" && !ozet.sandbox) {
     throw new KampanyaHatasi("Numaranın kalite puanı düşük (kırmızı); kalite düzelene kadar kampanya başlatılamaz.");
   }
+  if (ozet.whatsapp?.hesapKilidi && !ozet.sandbox) {
+    throw new KampanyaHatasi(`${ozet.whatsapp.hesapKilidi} Kilit kalkana kadar kampanya başlatılamaz.`);
+  }
   if (!ozet.sandbox && ozet.eksikAyarlar.length) {
     throw new KampanyaHatasi(
       `Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın: ${ozet.eksikAyarlar.join(", ")}.`,
@@ -314,8 +321,9 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
 }
 
 /**
- * Duraklatılmış WhatsApp kampanyasını devam ettirir (yalnızca yönetici). Kalite nedeniyle durduysa kalite Meta'dan
- * yeniden okunur; hâlâ kırmızıysa devam ettirilmez.
+ * Duraklatılmış WhatsApp kampanyasını devam ettirir (yalnızca yönetici). Bağlantı Meta'dan yeniden test edilir: kalite
+ * hâlâ kırmızıysa ya da Meta hesap kilidi kalkmadıysa (test başarısız; kilit yalnızca başarılı testte silinir) devam
+ * ettirilmez.
  */
 export async function kampanyayiDevamEttir(ctx: TenantContext, id: string): Promise<void> {
   yoneticiOlmali(ctx);
@@ -332,6 +340,11 @@ export async function kampanyayiDevamEttir(ctx: TenantContext, id: string): Prom
     if (!c) throw new KampanyaHatasi("WhatsApp Business bağlantısı tanımlı değil.");
     if (c.baglanti.kalite === "RED") {
       throw new KampanyaHatasi("Numaranın kalite puanı hâlâ düşük (kırmızı); kampanya devam ettirilemez.");
+    }
+    if (c.baglanti.hesapKilidiKodu != null) {
+      throw new KampanyaHatasi(
+        `${hesapKilidiMesaji(c.baglanti.hesapKilidiKodu)} Kilit kalkınca Ayarlar'da "Bağlantıyı test et", sonra devam ettirin.`,
+      );
     }
   }
   if (!kampanyaDevamEttir(ctx, id)) throw new KampanyaHatasi("Kampanya devam ettirilemedi.");

@@ -142,3 +142,51 @@ describe("yalnızca BSUID ile gelen ret", () => {
     expect(engelliOzetler(k.ctx, [tel]).has(tel)).toBe(true);
   });
 });
+
+describe("Meta hesap kilidi (statuses webhook'u)", () => {
+  const kampanyaDurumu = (k: Kurulum, id: string) =>
+    db.$client.prepare("select durum, duraklatma_nedeni from kampanyalar where id = ? and tenant_id = ?").get(id, k.ctx.tenantId) as {
+      durum: string;
+      duraklatma_nedeni: string | null;
+    };
+  const calisanKampanya = (k: Kurulum, id: string) =>
+    db.$client
+      .prepare("insert into kampanyalar (id, tenant_id, kanal, ad, sablon, filtre, sandbox, durum) values (?, ?, 'whatsapp_api', 'K', 'S', '{}', 0, 'calisiyor')")
+      .run(id, k.ctx.tenantId);
+
+  it("failed + 131031: bağlantı kilitlenir, çalışma alanının tüm çalışan WhatsApp kampanyaları duraklar; başka çalışma alanı etkilenmez", async () => {
+    const k = await kur("KilitDurum");
+    const diger = await kur("KilitDurumDiger");
+    const [kayit] = kisileriEkle(k.ctx, [{ kaynak: "elle", ekTelefon: "0532 777 00 01" }], "x");
+    kuyrukSatiri(k, kayit.id, "wamid.K1", adresOzeti(k.ctx.tenantId, "telefon", "905327770001"));
+    calisanKampanya(k, "k-calisan-1");
+    calisanKampanya(k, "k-calisan-2");
+    calisanKampanya(diger, "k-diger");
+
+    const y = await gonder(k, {
+      statuses: [{ id: "wamid.K1", status: "failed", timestamp: "1761728400", recipient_id: "905327770001", errors: [{ code: 131031 }] }],
+    });
+    expect(y.status).toBe(200);
+    for (const id of ["k-calisan-1", "k-calisan-2"]) expect(kampanyaDurumu(k, id)).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_hesap_kilitli" });
+    expect(kampanyaDurumu(k, "k-wamid.K1").durum).toBe("tamamlandi"); // bitmiş kampanyaya dokunulmaz
+    expect(wa.baglantiDurumu(k.ctx).hesapKilidi).toMatchObject({ kod: 131031, neden: "meta_hesap_kilitli" });
+    expect(kampanyaDurumu(diger, "k-diger").durum).toBe("calisiyor");
+    expect(wa.baglantiDurumu(diger.ctx).hesapKilidi).toBeNull();
+  });
+
+  it("bizim göndermediğimiz iletinin bildirimi ve value.errors da kilitler; 131042 ödeme nedeniyle; teslim edildi bildirimi kilitlemez", async () => {
+    const k = await kur("KilitBaska");
+    calisanKampanya(k, "k-b1");
+    await gonder(k, { statuses: [{ id: "wamid.BASKA", status: "delivered", errors: [{ code: 131031 }] }] });
+    expect(wa.baglantiDurumu(k.ctx).hesapKilidi).toBeNull();
+    await gonder(k, { statuses: [{ id: "wamid.BASKA", status: "failed", errors: [{ code: 131042 }] }] });
+    expect(kampanyaDurumu(k, "k-b1")).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_odeme_sorunu" });
+    expect(wa.baglantiDurumu(k.ctx).hesapKilidi?.kod).toBe(131042);
+
+    const k2 = await kur("KilitErrors");
+    calisanKampanya(k2, "k-e1");
+    await gonder(k2, { errors: [{ code: 368 }] });
+    expect(kampanyaDurumu(k2, "k-e1")).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_hesap_kilitli" });
+    expect(wa.baglantiDurumu(k2.ctx).hesapKilidi?.kod).toBe(368);
+  });
+});

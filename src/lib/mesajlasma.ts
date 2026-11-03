@@ -6,7 +6,7 @@ export const ALICI_TURLERI = ["tacir_esnaf", "bireysel"] as const;
 export const KANALLAR = ["eposta", "sms"] as const;
 /** Kampanya ve kuyruk kanalları: sağlayıcı kanalları + WhatsApp Business Platform (Cloud API, onaylı şablon). */
 export const KUYRUK_KANALLARI = [...KANALLAR, "whatsapp_api"] as const;
-/** duraklatildi: sistem durdurdu (WhatsApp kalite düşük, şablon duraklatıldı, spam sınırı, yetki); yönetici devam ettirir. */
+/** duraklatildi: sistem durdurdu (WhatsApp kalite düşük, şablon duraklatıldı, spam sınırı, yetki, Meta hesap kilidi); yönetici devam ettirir. */
 export const KAMPANYA_DURUMLARI = ["zamanlandi", "calisiyor", "duraklatildi", "tamamlandi", "iptal"] as const;
 export const MESAJ_DURUMLARI = ["kuyrukta", "gonderiliyor", "gonderildi", "basarisiz", "haric", "iptal"] as const;
 /** Alıcı kurallarının hariç tutma nedenleri (aliciDegerlendir). */
@@ -148,6 +148,10 @@ export const DURAKLATMA_NEDEN_ADLARI: Record<string, string> = {
   spam_siniri: "Meta bu numaradan gönderimi kısıtladı (spam sınırı). Kaliteyi WhatsApp Manager'da kontrol edin.",
   yetki: "Meta erişimi reddetti; Ayarlar'da erişim anahtarını kontrol edin.",
   baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",
+  meta_hesap_kilitli:
+    "Meta WhatsApp hesabınızı kilitledi. Kilit kalkınca Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
+  meta_odeme_sorunu:
+    "Meta WhatsApp hesabınızda ödeme sorunu var. Sorun giderilince Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
 };
 
 /** Yer tutucu: kaydın kullanıcı tarafından girilen işletme adı. Places içeriği ASLA kullanılmaz. */

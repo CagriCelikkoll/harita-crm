@@ -76,7 +76,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "tenant_id", "webhook_kimligi", "waba_id", "phone_number_id", "sifreli_veri", "test_modu", "uygulama_payi",
     "webhook_dogrulama_tarihi", "son_imzali_durum_tarihi", "gorunen_numara", "dogrulanmis_ad", "kalite",
     "limit_katmani", "son_kontrol", "son_hata", "sablon_senkron_tarihi", "guncelleyen", "guncelleme_tarihi",
-    "numara_dogrulama_tarihi",
+    "numara_dogrulama_tarihi", "hesap_kilidi_kodu", "hesap_kilidi_tarihi",
   ],
   // Yalnızca tekrar eleme için ileti kimliği; içerik yok, 7 gün sonra silinir.
   whatsapp_gelen_kimlikleri: ["tenant_id", "wamid", "tarih"],

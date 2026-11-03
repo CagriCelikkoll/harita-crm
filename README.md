@@ -821,6 +821,14 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
     "Devam ettir" der (kalite Meta'dan yeniden okunur, hâlâ kırmızıysa reddedilir). Kırmızıyken yeni kampanya
     başlatılamaz.
   - Şablon Meta'da duraklatılır / devre dışı kalır / silinirse (ya da 132xxx şablon hatası) kampanya duraklar.
+  - **Meta hesap kilidi** (131031, 368, 131042; gönderim yanıtında ya da `statuses` / `value.errors` webhook'unda):
+    bağlantı kilitlenir (`whatsapp_baglantilari.hesap_kilidi_kodu`), çalışma alanının tüm çalışan WhatsApp kampanyaları
+    duraklar (`meta_hesap_kilitli`; 131042'de `meta_odeme_sorunu`). Hatayı alan mesaj kuyruğa beklemeye döner (deneme
+    sayılmaz); kilit kalkana kadar hiçbir mesaj denenmez, yeni gerçek kampanya başlatılamaz. Yönetici Ayarlar →
+    WhatsApp durum kartında ve Panel → Sıradaki işler'de kırmızı uyarı görür. Kilit yalnızca **Bağlantıyı test et**
+    Meta'dan gönderime açık durumu (`health_status.can_send_message` BLOCKED değil) okuyunca kalkar; BLOCKED ise test
+    başarısız sayılır. Kampanyalar kendiliğinden başlamaz: yönetici "Devam ettir" der (devam da önce bağlantıyı test
+    eder). Webhook'ta bu uygulamanın göndermediği bir iletinin bildirimi de kilitler (hesap bilgisidir).
 - **Meta hata kodları** (https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes):
 
   | Kod | Sonuç |
@@ -829,6 +837,8 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   | 131050 (kişi pazarlama iletilerini durdurdu) | Ret akışı (WhatsApp izni ret, engel listesi) |
   | 131049 (sağlıklı ekosistem için teslim edilmedi) | Başarısız, tekrar denenmez |
   | 131048 (spam kısıtlaması) | Kampanya duraklar |
+  | 131031 (hesap kilitli), 368 (politika ihlali nedeniyle kısıtlandı) | **Hesap kilidi**: tüm WhatsApp kampanyaları duraklar, kilit kalkana kadar gönderim yok |
+  | 131042 (ödeme yöntemi; askıya alınmış / silinmiş hesap dahil) | Hesap kilidi (neden: ödeme sorunu) |
   | 4, 80007, 130429, 131056, HTTP 429 (hız) | Geçici; artan beklemeyle en fazla 3 deneme |
   | 132xxx (şablon) | Kampanya duraklar |
   | 0, 3, 10, 190, 200, 131005, HTTP 401 (yetki) | Kampanya duraklar |
@@ -851,7 +861,8 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   RET kaybolmaz). Başarıyla işlenen istek 200 döner.
 - **Teslim durumları** (`statuses`): wamid ile kuyruk satırı bulunur; durum yalnızca ileri gider
   (sent → delivered → read; failed teslim edilmiş iletinin üzerine yazılmaz); hata kodu ve `pricing`
-  (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı. Bu uygulamanın mevcut
+  (ücretlendirildi mi, kategori) yazılır. 131026 → kişi "WhatsApp yok"; 131050 → ret akışı; 131031 / 368 / 131042 →
+  hesap kilidi (yukarıda). Bu uygulamanın mevcut
   numaradan gönderdiği (sandbox olmayan) bir iletinin imzalı durum bildirimi test modu kilidinin 2. koşuludur;
   başka aracın iletilerinin bildirimleri sayılmaz. `recipient_user_id` (BSUID) kayda öğrenilir.
 - **Kişi eşleştirme:** önce BSUID'in bağlı olduğu kayıt (`user_id` / `from_user_id`), yoksa telefon (`wa_id` →

@@ -13,7 +13,10 @@ export function baglantiGetir(ctx: TenantContext): WhatsappBaglantisi | null {
   return db.select().from(whatsappBaglantilari).where(eq(whatsappBaglantilari.tenantId, ctx.tenantId)).get() ?? null;
 }
 
-/** Webhook doğrulaması ve numara bilgileri; numara/WABA değişince sıfırlanır ve test modu yeniden açılır. */
+/**
+ * Webhook doğrulaması, numara bilgileri ve Meta hesap kilidi; numara/WABA değişince sıfırlanır ve test modu yeniden
+ * açılır (yeni numara hâlâ kilitliyse ilk gönderimde kilit yeniden yazılır).
+ */
 const SIFIRLANAN = {
   testModu: true,
   webhookDogrulamaTarihi: null,
@@ -24,6 +27,8 @@ const SIFIRLANAN = {
   limitKatmani: null,
   sonKontrol: null,
   sonHata: null,
+  hesapKilidiKodu: null,
+  hesapKilidiTarihi: null,
 } as const;
 
 /**
@@ -169,6 +174,32 @@ export function baglantiSil(ctx: TenantContext): boolean {
   return Boolean(
     db
       .delete(whatsappBaglantilari)
+      .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
+      .returning({ id: whatsappBaglantilari.tenantId })
+      .get(),
+  );
+}
+
+/**
+ * Meta hesap düzeyi hatası (131031, 368, 131042) geldi: bağlantı kilitlenir; kilit zaten varsa ilk tarih korunur,
+ * kod güncellenir. İşçi ve webhook (oturumsuz) çağırır.
+ */
+export function hesapKilidiYaz(ctx: TenantContext, kod: number, simdi = new Date()): boolean {
+  const b = baglantiGetir(ctx);
+  if (!b) return false;
+  db.update(whatsappBaglantilari)
+    .set({ hesapKilidiKodu: kod, hesapKilidiTarihi: b.hesapKilidiTarihi ?? simdi })
+    .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
+    .run();
+  return true;
+}
+
+/** Kilidi kaldırır: yalnızca bağlantı testi Meta'dan gönderime açık durumu okuyunca (servis çağırır). */
+export function hesapKilidiKaldir(ctx: TenantContext): boolean {
+  return Boolean(
+    db
+      .update(whatsappBaglantilari)
+      .set({ hesapKilidiKodu: null, hesapKilidiTarihi: null })
       .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
       .returning({ id: whatsappBaglantilari.tenantId })
       .get(),

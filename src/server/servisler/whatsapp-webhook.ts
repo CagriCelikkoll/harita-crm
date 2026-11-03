@@ -9,7 +9,8 @@
 //
 // İşlenenler (gelen ileti METNİ hiçbir yerde saklanmaz):
 //  - statuses: kuyruk satırının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
-//    131050 → ret. Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
+//    131050 → ret; hesap düzeyi hata (131031, 368, 131042; value.errors'ta da) → bağlantı kilitlenir ve çalışma alanının
+//    tüm WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
 //    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
 //    kuyruk satırı; ret kelimesi / abonelikten çıkma butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi
@@ -21,15 +22,16 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { telefonNormallestir } from "@/lib/adres-normal";
-import { cikisButonuMu, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
+import { cikisButonuMu, hesapKilidiNedeni, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
 import { adresOzeti } from "../messaging/adres";
 import type { TenantContext } from "../repo/baglam";
 import { retIsle } from "../repo/engel-listesi";
 import { telefonlaKayitlar } from "../repo/kayitlar";
+import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { adreseGonderilenKayitlar, teslimDurumuIsle } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
 import { imzaliDurumAlindiIsaretle, webhookBaglantisi, webhookDogrulandiIsaretle, webhookIslemi } from "../repo/sistem/whatsapp-webhook";
-import { limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
+import { hesapKilidiYaz, limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
 import { gelenIletiKaydet } from "../repo/whatsapp-gelen";
 import { bsuidAta, bsuidDegistir, bsuidIleBul, reklamBilgisiYaz, reklamKisisiOlustur, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { sablonDurumuYaz } from "../repo/whatsapp-sablonlari";
@@ -97,6 +99,7 @@ type Deger = {
   contacts?: Kisi[];
   messages?: Gelen[];
   statuses?: Durum[];
+  errors?: { code?: number }[];
   user_preferences?: { wa_id?: string; user_id?: string; value?: string }[];
   // şablon durumu
   event?: string;
@@ -167,6 +170,9 @@ class Isleyici {
 
   degisiklik(alan: string, v: Deger) {
     if (alan === "messages") {
+      for (const h of v.errors ?? []) {
+        if (this.hesapHatasi(h.code)) this.islenen++;
+      }
       for (const d of v.statuses ?? []) this.durum(d);
       for (const m of v.messages ?? []) this.gelen(m, v.contacts ?? []);
     } else if (alan === "user_preferences") {
@@ -221,8 +227,18 @@ class Isleyici {
     }
   }
 
+  /** Hesap düzeyi hata kodu: bağlantı kilitlenir, tüm WhatsApp kampanyaları duraklar. Değilse false. */
+  private hesapHatasi(kod: number | null | undefined): boolean {
+    const neden = hesapKilidiNedeni(kod);
+    if (!neden) return false;
+    hesapKilidiYaz(this.ctx, kod!, this.simdi);
+    whatsappKampanyalariniDuraklat(this.ctx, neden);
+    return true;
+  }
+
   private durum(d: Durum) {
     const kod = d.errors?.[0]?.code ?? null;
+    const kilit = d.status === "failed" && this.hesapHatasi(kod);
     const sonuc = teslimDurumuIsle(this.ctx, d.id, {
       durum: d.status,
       hataKodu: kod,
@@ -232,7 +248,8 @@ class Isleyici {
     });
     if (!sonuc) {
       // Bizim göndermediğimiz ileti (aynı numarayı kullanan başka bir araç): test modu kilidini açmaz.
-      this.atlanan++;
+      if (kilit) this.islenen++;
+      else this.atlanan++;
       return;
     }
     this.islenen++;

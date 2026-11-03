@@ -684,6 +684,18 @@ const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
   limitKatmaniYaz: () => {
     expect(waBaglantilari.limitKatmaniYaz(A, "TIER_UNLIMITED")).toBe(false);
   },
+  hesapKilidiYaz: () => {
+    // A, B'nin bağlantısını kilitleyemez.
+    expect(waBaglantilari.hesapKilidiYaz(A, 131031)).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B)?.hesapKilidiKodu).toBeNull();
+  },
+  hesapKilidiKaldir: () => {
+    // A, B'nin kilidini kaldıramaz.
+    waBaglantilari.hesapKilidiYaz(B, 368);
+    expect(waBaglantilari.hesapKilidiKaldir(A)).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B)?.hesapKilidiKodu).toBe(368);
+    waBaglantilari.hesapKilidiKaldir(B);
+  },
 };
 
 const waSablonTestleri: Record<keyof typeof waSablonlari, () => void> = {

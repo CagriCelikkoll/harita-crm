@@ -13,8 +13,19 @@ export function siradakiIsler(d: {
   eksikAyarlar: string[];
   /** WhatsApp (Meta) bağlı ama test modu açık. */
   waTestModu: boolean;
+  /** Meta hesap kilidinin uyarısı (131031, 368, 131042); null: kilit yok. */
+  waHesapKilidi?: string | null;
 }): SiradakiIs[] {
   const isler: SiradakiIs[] = [];
+  if (d.yonetici && d.waHesapKilidi) {
+    isler.push({
+      metin: "WhatsApp kampanyaları duraklatıldı",
+      aciklama: d.waHesapKilidi,
+      href: "/ayarlar/whatsapp",
+      eylem: "WhatsApp ayarları",
+      ton: "tehlike",
+    });
+  }
   if (d.yonetici && d.isciUyari) {
     isler.push({
       metin: "Gönderim servisi çalışmıyor",

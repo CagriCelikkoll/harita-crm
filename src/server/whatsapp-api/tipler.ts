@@ -13,6 +13,11 @@ export type NumaraBilgisi = {
   kalite: string | null;
   /** whatsapp_business_manager_messaging_limit, ör. "TIER_250" */
   limitKatmani: string | null;
+  /**
+   * health_status.can_send_message (numara, WABA, işletme ve uygulamanın toplu durumu): AVAILABLE | LIMITED | BLOCKED;
+   * null: alan dönmedi. https://developers.facebook.com/documentation/business-messaging/whatsapp/support/health-status
+   */
+  gonderimDurumu?: string | null;
 };
 
 /** GET /{waba-id}/message_templates öğesi (kullandığımız alanlar). */

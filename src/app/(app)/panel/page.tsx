@@ -42,6 +42,7 @@ export default async function PanelSayfasi() {
     isciUyari: kuyrukVar && isciDurumu(isciSonNabiz(), new Date()).uyari,
     eksikAyarlar: yonetici ? mesajlasmaAyarlariDto(ctx).eksikAyarlar : [],
     waTestModu: Boolean(wa?.tanimli && wa.testModu),
+    waHesapKilidi: wa?.hesapKilidi?.mesaj ?? null,
   });
   const enBuyuk = Math.max(1, ...KAYIT_DURUMLARI.map((d) => sayilar[d]));
   const ozetler = [

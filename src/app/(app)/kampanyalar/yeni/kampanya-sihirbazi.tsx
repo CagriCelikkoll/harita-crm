@@ -444,7 +444,7 @@ export function KampanyaSihirbazi(props: {
                 ozet.gonderilecek === 0 ||
                 (zamanla && !tarih) ||
                 Boolean(gercekGonderim && ozet.eksikAyarlar.length) ||
-                Boolean(gercekGonderim && ozet.whatsapp && (!ozet.whatsapp.baglantiVar || ozet.whatsapp.kalite === "RED"))
+                Boolean(gercekGonderim && ozet.whatsapp && (!ozet.whatsapp.baglantiVar || ozet.whatsapp.kalite === "RED" || ozet.whatsapp.hesapKilidi))
               }
               onClick={() => void baslat()}
             >
@@ -753,6 +753,11 @@ function WhatsappOzetKutusu({ ozet }: { ozet: KampanyaOzeti }) {
         <p className="rounded-md bg-amber-50 p-2 text-amber-800">
           Test modu açık: kampanya yalnızca Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
           nedeniyle hariç tutuldu. Bu kampanyada gönderen bilgileri ve İYS numarası aranmaz.
+        </p>
+      )}
+      {!ozet.sandbox && w.hesapKilidi && (
+        <p role="alert" className="text-tehlike">
+          {w.hesapKilidi} Kilit kalkana kadar kampanya başlatılamaz.
         </p>
       )}
       {!ozet.sandbox && w.kalite && (

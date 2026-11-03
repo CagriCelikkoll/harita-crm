@@ -3,16 +3,18 @@
 //  1. Alıcı kuralları YENİDEN (izin, ret, engel, İYS beyanı, WhatsApp yok) — kampanya sonrası gelen ret yakalanır.
 //  2. Şablon hâlâ kullanılabilir mi (değilse kampanya duraklar) ve değişken değerleri (boşsa hariç).
 //  3. Sandbox kampanyası: Meta'ya gidilmez, metin kaydedilir.
-//  4. Bağlantı; test modu açıksa yalnızca test numaraları. Test modu kapalıyken gönderen bilgileri (unvan, iletişim, İYS,
+//  4. Bağlantı; Meta hesap kilidi varsa (131031, 368, 131042) tüm WhatsApp kampanyaları duraklar, hiçbir mesaj gitmez;
+//     test modu açıksa yalnızca test numaraları. Test modu kapalıyken gönderen bilgileri (unvan, iletişim, İYS,
 //     sorumluluk onayı) tam olmalı; test modunda aranmaz.
 //  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir; numara sahipliği de yeniden denetlenir, reddedilirse kampanya
 //     duraklar): RED → çalışma alanının tüm WhatsApp kampanyaları duraklar.
 //  6. Günlük sınır (atomik sayaç) ve Meta mesajlaşma limitinin bu uygulamaya ayrılan payı (kayan 24 saat);
 //     dolarsa ertesi günün gönderim başlangıcına kalır.
 //  7. Hız (WHATSAPP_SANIYE_BASI); gönderimden hemen önce satır kilidi ve kampanya durumu yeniden denetlenir;
-//     gönderim; Meta hata kodlarına göre sonuç.
+//     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bağlantıyı kilitler ve tüm WhatsApp
+//     kampanyalarını duraklatır; mesaj kuyrukta beklemeye döner (deneme sayılmaz, kendiliğinden tekrar denenmez).
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
-import { degiskenDegerleri, limitKatmaniSayisi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
+import { degiskenDegerleri, hesapKilidiNedeni, limitKatmaniSayisi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
 import { gunAnahtari, gunEkle, istanbulAni } from "@/lib/zaman";
 import { adresOzeti } from "../messaging/adres";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
@@ -24,6 +26,7 @@ import { whatsappKampanyalariniDuraklat, type Kampanya } from "../repo/kampanyal
 import { kayitGetir } from "../repo/kayitlar";
 import { mesajBirak, mesajGonderildi, whatsappSon24Saat, type KuyrukMesaji } from "../repo/kuyruk";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
+import { hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
 import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
@@ -112,6 +115,8 @@ export async function whatsappMesajIsle(
   // 4) Bağlantı ve test modu.
   let c = whatsappBaglantisiCoz(ctx);
   if (!c) return duraklat(ctx, mesaj, "baglanti_yok");
+  const kilit = hesapKilidiNedeni(c.baglanti.hesapKilidiKodu);
+  if (kilit) return duraklat(ctx, mesaj, kilit, true);
   if (c.baglanti.testModu && (karar.kaynak !== "kayit" || !c.gizli.testNumaralari.includes(karar.adres))) {
     mesajBirak(ctx, mesaj.id, { durum: "haric", neden: "test_modu" });
     return "haric";
@@ -206,6 +211,12 @@ function hataIsle(
   if (!e || e.http === 0 || e.http >= 500 || e.kod === 131000) return basarisiz("belirsiz");
 
   iade(); // aşağıdakilerin hepsinde iletinin gitmediği kesin
+  const kilit = hesapKilidiNedeni(e.kod);
+  if (kilit) {
+    // Hesap düzeyi (131031 kilit, 368 politika, 131042 ödeme): tüm WhatsApp kampanyaları durur.
+    hesapKilidiYaz(ctx, e.kod!, simdi);
+    return duraklat(ctx, mesaj, kilit, true);
+  }
   switch (e.kod) {
     case 131026: // teslim edilemez (alıcıda WhatsApp yok vb.)
       whatsappYokIsaretle(ctx, leadId, simdi);

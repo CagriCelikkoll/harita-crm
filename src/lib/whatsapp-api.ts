@@ -17,6 +17,31 @@ export const KALITE_ADLARI: Record<Kalite, string> = {
 };
 
 /**
+ * Hesap düzeyinde gönderimi durduran Meta hata kodları (gönderim yanıtında ya da statuses webhook'unda) → duraklatma
+ * nedeni. https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes
+ *  - 131031 "Business Account locked": WABA politika ihlali nedeniyle kısıtlandı/kapatıldı (ya da istekteki veri, ör. iki
+ *    adımlı doğrulama PIN'i, hesaptakiyle doğrulanamadı).
+ *  - 368 "Temporarily blocked for policies violations": WABA politika ihlali nedeniyle kısıtlandı/kapatıldı.
+ *  - 131042 "Business eligibility payment issue": ödeme yöntemi sorunu (kredi limiti, ödeme hesabı yok; WABA askıya
+ *    alındı ya da silindi de bu kodla gelir).
+ * Bunlardan biri gelince çalışma alanının tüm WhatsApp kampanyaları duraklar ve kilit kalkana kadar hiçbir mesaj
+ * gönderilmez (kuyruktakiler beklemede kalır, tekrar denenmez).
+ */
+export const HESAP_KILIDI_KODLARI: Record<number, "meta_hesap_kilitli" | "meta_odeme_sorunu"> = {
+  131031: "meta_hesap_kilitli",
+  368: "meta_hesap_kilitli",
+  131042: "meta_odeme_sorunu",
+};
+export const hesapKilidiNedeni = (kod: number | null | undefined) => (kod == null ? null : (HESAP_KILIDI_KODLARI[kod] ?? null));
+
+/** Ayarlar ve Panel'de yöneticiye gösterilen uyarı. */
+export function hesapKilidiMesaji(kod: number): string {
+  return hesapKilidiNedeni(kod) === "meta_odeme_sorunu"
+    ? `Meta WhatsApp hesabınızda ödeme sorunu var (Meta ${kod}). Meta Business Suite'te WhatsApp hesabınızın ödeme yöntemini ve faturalandırma ayarlarını kontrol edin.`
+    : "Meta WhatsApp hesabınız kilitlendi. Meta Business Suite > Business Support Home'dan nedenini görüp inceleme isteyin.";
+}
+
+/**
  * whatsapp_business_manager_messaging_limit değeri → 24 saatte benzersiz alıcı sayısı. Meta belgesindeki örnek
  * "TIER_250"; diğer katmanlar aynı kalıpla (TIER_2K, TIER_10K, TIER_100K, TIER_UNLIMITED) okunur. Tanınmayan değerde
  * null döner; çağıran en düşük katmanı (250) varsayar.

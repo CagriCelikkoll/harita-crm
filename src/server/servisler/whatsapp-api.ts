@@ -5,6 +5,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { cepMi, telefonNormallestir } from "@/lib/adres-normal";
 import {
+  hesapKilidiMesaji,
+  hesapKilidiNedeni,
   KALITE_DEGERLERI,
   limitKatmaniSayisi,
   sablonCozumle,
@@ -19,6 +21,7 @@ import {
   baglantiGetir,
   baglantiKaydet,
   baglantiSifreliVeriYaz,
+  hesapKilidiKaldir,
   numaraBilgisiYaz,
   numaraDogrulamaYaz,
   testModuAyarla,
@@ -137,6 +140,11 @@ export type BaglantiDto = {
   gonderenEksikleri: string[];
   testNumaralari: string[];
   uygulamaPayi: number;
+  /**
+   * Meta hesap düzeyi hata kodu (131031, 368, 131042) geldi: kilit kalkıp "Bağlantıyı test et" başarılı olana kadar hiçbir
+   * WhatsApp mesajı gönderilmez; kampanyalar duraklatılmış kalır.
+   */
+  hesapKilidi: { kod: number; neden: "meta_hesap_kilitli" | "meta_odeme_sorunu"; mesaj: string; tarih: string } | null;
   numara: {
     gorunenNumara: string | null;
     dogrulanmisAd: string | null;
@@ -149,6 +157,17 @@ export type BaglantiDto = {
   };
   sablonSenkronTarihi: string | null;
 };
+
+function hesapKilidiDto(b: WhatsappBaglantisi): BaglantiDto["hesapKilidi"] {
+  const kod = b.hesapKilidiKodu;
+  if (kod == null) return null;
+  return {
+    kod,
+    neden: hesapKilidiNedeni(kod) ?? "meta_hesap_kilitli",
+    mesaj: hesapKilidiMesaji(kod),
+    tarih: (b.hesapKilidiTarihi ?? b.guncellemeTarihi).toISOString(),
+  };
+}
 
 export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
   const b = baglantiGetir(ctx);
@@ -169,6 +188,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
       gonderenEksikleri: [],
       testNumaralari: [],
       uygulamaPayi: 0,
+      hesapKilidi: null,
       numara: { gorunenNumara: null, dogrulanmisAd: null, kalite: null, limitKatmani: null, limit: null, sonKontrol: null, sonHata: null },
       sablonSenkronTarihi: null,
     };
@@ -197,6 +217,7 @@ export function baglantiDurumu(ctx: TenantContext): BaglantiDto {
     gonderenEksikleri,
     testNumaralari: gizli?.testNumaralari ?? [],
     uygulamaPayi: b.uygulamaPayi,
+    hesapKilidi: hesapKilidiDto(b),
     numara: {
       gorunenNumara: b.gorunenNumara,
       dogrulanmisAd: b.dogrulanmisAd,
@@ -323,9 +344,17 @@ export function uygulamaPayiKaydet(ctx: TenantContext, yuzde: number) {
 
 // --- Graph API ---
 
+const GONDERIM_ENGELLI =
+  "Meta bu numaradan gönderime izin vermiyor (health_status: BLOCKED). Meta Business Suite > Business Support Home'dan " +
+  "nedenini görün; sorun giderilince yeniden test edin.";
+
 /**
  * Numara sahipliğini yeniden doğrular (doğrulanamazsa bağlantı kullanılmaz hale gelir), sonra numara bilgisi,
- * kalite ve portföy limitini okur ve saklar. Hata da saklanır (ekranda gösterilir). İşçi kaliteyi yenilerken de çağırır.
+ * kalite, portföy limitini ve gönderim durumunu (health_status) okur ve saklar. Hata da saklanır (ekranda gösterilir).
+ * İşçi kaliteyi yenilerken de çağırır.
+ * Meta hesap kilidi yalnızca burada kalkar: Meta gönderime açık dediyse (health_status BLOCKED değil) kilit silinir;
+ * BLOCKED ise kilit kalır ve test başarısız sayılır. Duraklatılmış kampanyalar kendiliğinden başlamaz; yönetici
+ * devam ettirir.
  */
 export async function baglantiyiTestEt(ctx: TenantContext, simdi = new Date()) {
   const { baglanti, istemci: i } = istemci(ctx, true);
@@ -342,18 +371,28 @@ export async function baglantiyiTestEt(ctx: TenantContext, simdi = new Date()) {
     }
     throw new WhatsappApiHatasi((hata as Error).message, 502);
   }
+  let n;
   try {
-    const n = await i.numaraBilgisi();
-    numaraBilgisiYaz(
-      ctx,
-      { gorunenNumara: n.gorunenNumara, dogrulanmisAd: n.dogrulanmisAd, kalite: n.kalite, limitKatmani: n.limitKatmani, sonHata: null },
-      simdi,
-    );
+    n = await i.numaraBilgisi();
   } catch (hata) {
     const mesaj = graphMesaji(hata);
     numaraBilgisiYaz(ctx, { sonHata: mesaj }, simdi);
     throw new WhatsappApiHatasi(mesaj, 502);
   }
+  const engelli = n.gonderimDurumu === "BLOCKED";
+  numaraBilgisiYaz(
+    ctx,
+    {
+      gorunenNumara: n.gorunenNumara,
+      dogrulanmisAd: n.dogrulanmisAd,
+      kalite: n.kalite,
+      limitKatmani: n.limitKatmani,
+      sonHata: engelli ? GONDERIM_ENGELLI : null,
+    },
+    simdi,
+  );
+  if (engelli) throw new WhatsappApiHatasi(GONDERIM_ENGELLI, 409);
+  hesapKilidiKaldir(ctx);
   return baglantiDurumu(ctx);
 }
 

@@ -93,6 +93,7 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
           dogrulanmisAd: "Deneme İşletmesi",
           kalite: "GREEN",
           limitKatmani: "TIER_10K",
+          gonderimDurumu: "AVAILABLE",
         }
       );
     },

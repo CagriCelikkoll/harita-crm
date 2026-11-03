@@ -576,6 +576,10 @@ export const whatsappBaglantilari = sqliteTable(
     limitKatmani: text("limit_katmani"),
     sonKontrol: zaman("son_kontrol"),
     sonHata: text("son_hata"),
+    // Meta hesap düzeyi hata kodu (131031, 368, 131042; lib/whatsapp-api HESAP_KILIDI_KODLARI): doluyken hiçbir mesaj
+    // gönderilmez. Yalnızca "Bağlantıyı test et" Meta'dan gönderime açık (health_status BLOCKED değil) okuyunca silinir.
+    hesapKilidiKodu: integer("hesap_kilidi_kodu"),
+    hesapKilidiTarihi: zaman("hesap_kilidi_tarihi"),
     sablonSenkronTarihi: zaman("sablon_senkron_tarihi"),
     guncelleyen: text("guncelleyen").references(() => user.id, { onDelete: "set null" }),
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
