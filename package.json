@@ -14,6 +14,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "cleanup": "tsx scripts/cleanup.ts",
     "kota": "tsx scripts/kota.ts",
+    "kullanim": "tsx scripts/kullanim.ts",
+    "hazirlik": "tsx scripts/hazirlik.ts",
     "sinir": "tsx scripts/sinir.ts",
     "osm:deneme": "tsx scripts/osm-deneme.ts",
     "places:dogrula": "tsx scripts/places-dogrula.ts",

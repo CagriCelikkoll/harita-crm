@@ -57,7 +57,7 @@ denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
 | `GOOGLE_PLACES_API_KEY` | Gerçek veri için | Google Cloud Console → *APIs & Services* → *Credentials* → *Create API key*. **Places API (New)** etkin olmalı. Anahtarı *API restrictions* ile yalnızca "Places API (New)"a, *Application restrictions* ile sunucunuzun IP adresine kısıtlayın. Projede faturalandırma açık olmalı. Doğrulamak için `npm run places:dogrula`: ücretsiz tek bir istek (Text Search Essentials IDs Only, kotadan düşmez) gönderir; hata olursa nedenini (API etkin değil, kısıtlama, faturalandırma, geçersiz anahtar) Türkçe yazar. Anahtar hiçbir çıktıya yazılmaz. |
 | `PLACES_MOCK` | Hayır | `true` = örnek veri, Places'a istek yok. Gerçek kullanımda `false`. |
 | `SCAN_MAX_REQUESTS` | Hayır | Tarama başına en fazla Places isteği (varsayılan 50). |
-| `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places kotası, **birim** cinsinden (varsayılan 6.000). Mevcut alanlar için `npm run kota`. |
+| `PLACES_AYLIK_KOTA` | Hayır | Yeni çalışma alanlarının aylık Places kotası, **birim** cinsinden (1 birim = 0,001 $; varsayılan 30.000 = 30 $). Mevcut alanlar için `npm run kota`. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Harita için | **Ayrı** bir anahtar oluşturun: yalnızca **Maps JavaScript API**'ye ve *HTTP referrers* ile alan adınıza (`https://crm.ornek.com/*`, geliştirmede `http://localhost:3000/*`) kısıtlayın. Bu anahtar tarayıcıya gider; Places anahtarı gitmez. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Hayır | Gelişmiş işaretçiler için Map ID (Cloud Console → *Map Management*). Boşsa `DEMO_MAP_ID`. |
 | `ILETI_SIFRELEME_ANAHTARI` | Mesajlaşma için | 32 bayt rastgele, base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Sağlayıcı (SMTP) kimlik bilgilerini AES-256-GCM ile şifreler. Değişirse kayıtlı sağlayıcı bilgileri yeniden girilmelidir. |
@@ -118,6 +118,8 @@ npm run dev            # geliştirme
 npm run build && npm start   # üretim
 npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderim işçisi")
 npm run tunel          # geçici https tüneli (cloudflared; yalnızca yerel WhatsApp denemesi, docs/GERCEK-KURULUM.md)
+npm run hazirlik       # ofis günü öncesi denetim (✓/✗ + çözüm; --tam: typecheck ve testler; docs/OFIS-GUNU.md)
+npm run kullanim -- <tenant-slug> [ay]   # bu ayki Places kullanımı birim ve dolar olarak (salt okunur)
 npm test               # Vitest
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
@@ -149,7 +151,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/dogruluk-demo.test.ts` | Ret'in onaysız gönderilememesi (kayıt, WhatsApp izni, günlük liste); sahte Places'in yalnızca 0500 000 xx xx üretmesi; arayüzde npm komutu olmaması; alıcı türünün varsayılanı olmaması (Kişi ekle, içe aktarma). |
 | `tests/kota-birim.test.ts` | Birim ağırlıkları (1 birim = 0,001 $: SKU liste fiyatı, ücretsiz = 0, Dynamic Maps 7); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 | `tests/yeni-duzen.test.ts` | Yeni düzen: menüdeki kullanım göstergesinin yalnızca yüzde göstermesi (`GET /api/kullanim` birim, kota ya da kalan döndürmez; %80 uyarı, dolmadan %100 yok); sekmelerde klavye, baş harfler; menü ve sayfa iskeleti ölçüleri; Ayarlar bölümlerinin role göre görünmesi (üye yalnızca kendini ilgilendirenleri) ve her bölüm sayfasının rol denetimi; çalışma alanı adı ile saklama süresinin ayrı formlardan güncellenmesi; WhatsApp kurulum adımlarının test modu kilidinden türetilmesi. || `tests/yeni-duzen.test.ts` (Grup 4–5) | Kayıtlar sekmelerinin anlamı ve sayıları, süzgeç adresi, CSV'nin sekmesiz ve sekmeli davranışı, otomatik istek kuralları, panel sekmeleri; Bölge tara sonuçlarının yeniden bulunan işletmeleri de göstermesi, süzgeç ve sabit sıra, migration 0016'nın eşleşmeleri taşıması, ekran ve eski adresin yönlendirilmesi. |
-| `tests/harita-kullanimi.test.ts` | Harita yüklemesi: `POST /api/kullanim/harita` oturumsuz 401, başka kaynaktan 403; her yüklemede "harita" kalemine ve toplama 7 birim, gövdesiz yanıt; %80 ve kota dolu iken de engellenmemesi (yüzde %100); harita kullanımının %80 otomatik gösterim sınırına ve kotaya girmesi; bileşenin harita oluşturulduktan sonra bir kez bildirmesi. **Migration 0018:** kotaların 5 ile çarpılması (6.000 → 30.000), sayaçların kalem kalem gerçek fiyata çevrilmesi (102 eski birimlik gerçek tarama → 560 + kalemsiz), yeni alanın varsayılan 30.000 kotası. |
+| `tests/harita-kullanimi.test.ts` | Harita yüklemesi: `POST /api/kullanim/harita` oturumsuz 401, başka kaynaktan 403; her yüklemede "harita" kalemine ve toplama 7 birim, gövdesiz yanıt; %80 ve kota dolu iken de engellenmemesi (yüzde %100); harita kullanımının %80 otomatik gösterim sınırına ve kotaya girmesi; bileşenin harita oluşturulduktan sonra bir kez bildirmesi; **hız sınırı:** kullanıcı başına dakikada 10 sayım, fazlası 429 ve yazılmaz, aynı alandaki başka üye etkilenmez, bir dakika sonra yeniden sayılır; 24 saatte en fazla 100 sayım (700 birim). **Migration 0018:** kotaların 5 ile çarpılması (6.000 → 30.000), sayaçların kalem kalem gerçek fiyata çevrilmesi (102 eski birimlik gerçek tarama → 560 + kalemsiz), yeni alanın varsayılan 30.000 kotası. |
+| `tests/hazirlik.test.ts` | `npm run hazirlik`: gerekli ortam değişkenleri (PLACES_MOCK=false, WHATSAPP_API_MOCK boş, anahtar uzunlukları) ve gizli değerlerin hiçbir çıktıya yazılmaması; bekleyen migration sayısı; WhatsApp bağlantısı (yok, test modu, hesap kilidi); işçi kilidi (boşta, çalışan, takılı); Places doğrulaması (anahtar yoksa istek yok); cloudflared (PATH'te, kurulu ama PATH'te değil, yok); 3000 portu. `npm run kullanim`: birim ve dolar, kalemler, kalemsiz eski birimler, salt okunur veritabanında çalışması. |
 | `tests/gorunurluk.test.ts` | Kullanım kalemlerinin toplamla aynı atomik ifadede artması ve iadesi; her Places çağrısının kalemi; eşikli ayırma (sonraki toplam kota × 0,8'in altında); otomatik gösterimin yalnızca adı girilmemiş kayıtlara ve %80'in altına gitmesi, eşikte istek yapmaması ve birim düşmemesi, elle Göster'in %100'e kadar sürmesi; detay panelinin otomatik açılışında aynı eşik; 30 dakikalık bellek önbelleğinin süresi, çıkış / giriş / alan değişince temizlenmesi ve tarayıcı depolaması kullanmaması; arayüzde "birim" sözcüğünün geçmemesi. |
 | `tests/tunel.test.ts` | Tünel koruması: `*.trycloudflare.com` ya da `GENEL_ADRES` alanından (Host veya X-Forwarded-Host; büyük harf, port, sondaki nokta) gelen istek yalnızca `/api/whatsapp/webhook/<kimlik>`e geçer; giriş, kayıt, sayfalar, diğer API'ler, statik dosyalar ve yol oyunları (`/../`) 404, oturum çereziyle de; `GENEL_ADRES` https değilse ya da uygulamanın kendi alanıysa korunmaz; localhost'tan oturum yönlendirmesi ve API'ler eskisi gibi; `/iletisim` yönlendirmeleri tünel host'unda uygulanmaz. |
 
@@ -343,6 +346,9 @@ devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **49.000–94.000
   npm run kota -- <tenant-slug> <birim>     # ör. npm run kota -- ege-satis-ekibi 75000   (75 $)
   ```
   Slug, Ayarlar sayfasındaki komut örneğinde görünür.
+- **Birim olarak görmek:** arayüz yalnızca yüzde gösterir; birim ve dolar karşılığı için (salt okunur, hiçbir şeyi
+  değiştirmez): `npm run kullanim -- <tenant-slug> [YYYY-AA]` toplamı, kalemleri (tarama, işletme bilgisi, iletişim
+  bilgisi, harita) ve kotayı yazar.
 - **Kontrol:** Her ücretli Places isteğinden **önce** o işlemin birimi ayrılır (tarama, liste, detay, adres
   araması). Kalan birim yetmezse istek hiç yapılmaz (ör. 18 birim kalmışsa detay (20) yapılmaz, liste satırı (17)
   yapılır).
@@ -354,7 +360,10 @@ devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **49.000–94.000
   - **Harita:** Tarayıcıda harita her oluşturulduğunda (`src/components/harita.tsx`) `POST /api/kullanim/harita`
     çağrılır ve 7 birim "harita" kalemine yazılır (`harita_birim`). Harita Google tarafında zaten yüklendiği için
     kota **denetlenmez**: %80'de ve kota dolunca da harita açılır, yalnızca sayılır. Harita kullanımı yüzdeye ve %80
-    otomatik gösterim sınırına girer; kotayı doldurursa Places istekleri yapılmaz.
+    otomatik gösterim sınırına girer; kotayı doldurursa Places istekleri yapılmaz. Bir üyenin döngüyle istek atıp kotayı
+    doldurmaması için bildirim kullanıcı başına sınırlıdır: dakikada 10, son 24 saatte 100 (bellek içi; sunucu yeniden
+    başlayınca sıfırlanır). Aşan bildirim sayılmaz ve 429 döner; harita yine açılır. Böylece tek bir üye döngüyle günde
+    en fazla 700 birim (0,70 $) harcatabilir.
 - **Uyarı:** menüdeki gösterge %80'de sarı, %100'de kırmızıdır. Kayıtlar ve Ayarlar > Kullanım %80'de "Bu ay
   otomatik gösterim sınırına ulaşıldı; bilgileri istediğinizde gösterilir.", %100'de "Bu ayki kullanımınız doldu…"
   yazar (sayı yazmadan).
@@ -951,6 +960,7 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
 drizzle/                         migration SQL'leri (drizzle-kit)
 scripts/migrate.ts, cleanup.ts,  migration, günlük temizlik,
   kota.ts, sinir.ts, worker.ts   kota / günlük sınır değiştirme, gönderim işçisi
+  kullanim.ts, hazirlik.ts       kullanım raporu (birim, dolar), ofis günü hazırlık denetimi (salt okunur)
   ortam.ts                       betikler için .env yükleme
   demo-*.ts                      elle deneme ortamı (demo.db, sahte istemciler; docs/TEST-REHBERI.md)
 docs/                            elle deneme rehberi, örnek içe aktarma dosyası

@@ -2,6 +2,7 @@
 // - Tarayıcıda harita her oluşturulduğunda POST /api/kullanim/harita, "harita" kalemine 7 birim (Dynamic Maps
 //   7 $/1000) yazar. Kotaya sayılır ama denetlenmez: %80'de ve kota dolunca da harita engellenmez.
 // - Harita kullanımı yüzdeye ve %80 otomatik gösterim sınırına girer; Places istekleri kotayı yine aşamaz.
+// - Hız sınırı: kullanıcı başına dakikada 10, 24 saatte 100 sayım; aşan bildirim sayılmaz, 429 döner.
 // - Migration 0018: kotalar × 5 (30 $ korunur), sayaçlar kalem kalem gerçek fiyata çevrilir.
 import fs from "node:fs";
 import os from "node:os";
@@ -19,6 +20,8 @@ const { aylikPlacesBirimi, kotaAyir, kotaDurumu, kullanimDokumu } = await import
 const { taramaOlustur } = await import("@/server/repo/taramalar");
 const { kullanimOzeti } = await import("@/lib/arayuz");
 const { PLACES_BIRIMLERI } = await import("@/lib/places-birimleri");
+const { _baglamDamgala } = await import("@/server/repo/baglam");
+const { HARITA_SAYIM_SINIRI, haritaSayimSiniri } = await import("@/server/servisler/kota");
 const haritaRotasi = await import("@/app/api/kullanim/harita/route");
 const canliRotasi = await import("@/app/api/kayitlar/canli/route");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
@@ -88,10 +91,58 @@ describe("harita yüklemesi (POST /api/kullanim/harita)", () => {
       });
     expect(await (await canliRotasi.POST(istek(true))).json()).toEqual({ sonuclar: {}, otomatikKapali: true });
     expect(aylikPlacesBirimi(ctx)).toBe(63);
+    haritaSayimSiniri.sifirla(); // dakikalık sınır (10) bu testin konusu değil
     for (let i = 0; i < 4; i++) await haritaRotasi.POST(haritaPost(U)); // 91 birim; 91 + 17 > 100
     const elle = await (await canliRotasi.POST(istek(false))).json();
     expect(elle.sonuclar[a.id]).toEqual({ hata: "İşletme bilgisi gösterilemiyor (kota doldu)" });
     expect(sayac(ctx)).toEqual({ t: 91, h: 91, i: 0 });
+  });
+
+  it("hız sınırı: kullanıcı başına dakikada 10 sayım; fazlası sayılmaz ve 429 döner", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const ctx = kiraci();
+      const durumlar = [];
+      for (let i = 0; i < 12; i++) durumlar.push((await haritaRotasi.POST(haritaPost(U))).status);
+      expect(durumlar).toEqual([...Array(10).fill(204), 429, 429]);
+      const asim = await haritaRotasi.POST(haritaPost(U));
+      expect(asim.status).toBe(429);
+      expect(asim.headers.get("retry-after")).toBe("60");
+      expect(await asim.json()).toEqual({ hata: "Çok sık harita yüklemesi bildirildi; bir süre sonra tekrar deneyin." });
+      expect(sayac(ctx)).toEqual({ t: 70, h: 70, i: 0 }); // 10 × 7; reddedilenler yazılmadı
+
+      // Aynı çalışma alanındaki başka bir üye etkilenmez.
+      oturum.ctx = _baglamDamgala({ tenantId: ctx.tenantId, userId: "baska-uye", rol: "uye" });
+      expect((await haritaRotasi.POST(haritaPost(U))).status).toBe(204);
+      expect(sayac(ctx)?.t).toBe(77);
+
+      // Bir dakika sonra yeniden sayılır.
+      oturum.ctx = ctx;
+      vi.setSystemTime(Date.now() + 60_001);
+      expect((await haritaRotasi.POST(haritaPost(U))).status).toBe(204);
+      expect(sayac(ctx)?.t).toBe(84);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hız sınırı: son 24 saatte en fazla 100 sayım (döngüyle günde en fazla 700 birim)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const ctx = kiraci();
+      const basla = Date.now();
+      let kabul = 0;
+      for (let dk = 0; dk < 15; dk++) {
+        vi.setSystemTime(basla + dk * 61_000);
+        for (let i = 0; i < 10; i++) if ((await haritaRotasi.POST(haritaPost(U))).status === 204) kabul++;
+      }
+      expect(kabul).toBe(HARITA_SAYIM_SINIRI.gunde);
+      expect(sayac(ctx)?.h).toBe(700);
+      vi.setSystemTime(basla + 24 * 60 * 60_000 + 1); // ilk dakikanın sayımları pencereden çıktı
+      expect((await haritaRotasi.POST(haritaPost(U))).status).toBe(204);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("harita bileşeni, harita oluşturulduktan sonra yüklemeyi bir kez bildirir", () => {

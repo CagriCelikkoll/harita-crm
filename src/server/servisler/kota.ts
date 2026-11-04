@@ -1,8 +1,20 @@
 import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
 import { ayAnahtari } from "@/lib/zaman";
+import { hizSiniriOlustur } from "../hiz-siniri";
 import type { KotaKapisi } from "../places/tipler";
 import type { TenantContext } from "../repo/baglam";
 import { kotaAyir, kotaIadeEt, kullanimYaz } from "../repo/kullanim";
+
+/**
+ * Harita yükleme bildirimi, kullanıcı (çalışma alanı + üye) başına: dakikada en fazla 10, son 24 saatte en fazla 100.
+ * Gerçek kullanımda bir üye haritayı bundan çok daha seyrek açar; sınır, döngüyle istek atan bir üyenin harcamasını
+ * günde 700 birimle (0,70 $) sınırlar. Aşan bildirim sayılmaz (POST /api/kullanim/harita 429).
+ */
+export const HARITA_SAYIM_SINIRI = { dakikada: 10, gunde: 100 } as const;
+export const haritaSayimSiniri = hizSiniriOlustur([
+  { azami: HARITA_SAYIM_SINIRI.dakikada, sureMs: 60_000 },
+  { azami: HARITA_SAYIM_SINIRI.gunde, sureMs: 24 * 60 * 60_000 },
+]);
 
 /**
  * Tarayıcıda bir harita oluşturuldu (Dynamic Maps yüklemesi): "harita" kalemine yazılır ve kotaya sayılır.
