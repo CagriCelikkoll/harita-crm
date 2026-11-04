@@ -15,6 +15,9 @@
 //  1. ileti_izni = 'ret' ya da WhatsApp izni 'ret'      → "ret"
 //  2. WhatsApp izni 'var' değil                           → "whatsapp_izni_yok" (Meta politikası: her alıcıda onay)
 //  3. bireysel ve İYS beyanı yok                          → "iys_beyani_yok" (tacir/esnafta WhatsApp izni yeterli)
+//     İstisna: bağlantı test modundayken kaydın telefonu Ayarlar'daki test numaralarından biriyse (`testNumaralari`;
+//     çağıran yalnızca test modunda verir). Test numaraları İYS'de kayıtlı değildir; beyan kutusunu işaretlemek yanlış
+//     beyan olurdu. WhatsApp izni 'var' şartı test numaralarında da geçerlidir.
 //  4. Son 90 günde (WHATSAPP_YOK_GUN) "WhatsApp yok" bildirilmiş  → "whatsapp_yok"
 //  5. Adres: ek_telefon (cep olmalı → "cep_degil"); telefon yoksa BSUID; ikisi de yoksa "iletisim_yok"
 //  6. Telefon ya da BSUID engel listesindeyse            → "engel"
@@ -56,11 +59,16 @@ export function aliciDegerlendir(
   kayit: AliciKaydi,
   kanal: AliciKanali,
   engelli: EngelSorgusu,
-  secenek: { placesTelefonu?: string | null; simdi?: Date } = {},
+  secenek: {
+    placesTelefonu?: string | null;
+    simdi?: Date;
+    /** Yalnızca whatsapp_api ve yalnızca bağlantı test modundayken: İYS beyanı aranmayan test numaraları (normal). */
+    testNumaralari?: ReadonlySet<string>;
+  } = {},
 ): AliciKarari {
   if (kayit.iletiIzni === "ret") return { uygun: false, neden: "ret" };
   if (kayit.inceleme === "ilgilenmiyor") return { uygun: false, neden: "ilgilenmiyor" };
-  if (kanal === "whatsapp_api") return whatsappApiDegerlendir(kayit, engelli, secenek.simdi ?? new Date());
+  if (kanal === "whatsapp_api") return whatsappApiDegerlendir(kayit, engelli, secenek.simdi ?? new Date(), secenek.testNumaralari);
   if (kayit.aliciTuru === "bireysel" && kayit.iletiIzni !== "onayli") return { uygun: false, neden: "bireysel_izinsiz" };
 
   if (kanal === "eposta") {
@@ -90,11 +98,17 @@ export function aliciDegerlendir(
   return { uygun: true, adres: telefon, kaynak };
 }
 
-function whatsappApiDegerlendir(kayit: AliciKaydi, engelli: EngelSorgusu, simdi: Date): AliciKarari {
+function whatsappApiDegerlendir(
+  kayit: AliciKaydi,
+  engelli: EngelSorgusu,
+  simdi: Date,
+  testNumaralari: ReadonlySet<string> | undefined,
+): AliciKarari {
   const wa = kayit.whatsapp ?? null;
   if (wa?.izin === "ret") return { uygun: false, neden: "ret" };
   if (wa?.izin !== "var") return { uygun: false, neden: "whatsapp_izni_yok" };
-  if (kayit.aliciTuru === "bireysel" && !wa.iysBeyanTarihi) return { uygun: false, neden: "iys_beyani_yok" };
+  const testAlicisi = Boolean(testNumaralari?.size && kayit.ekTelefon?.trim() && testNumaralari.has(telefonNormallestir(kayit.ekTelefon) ?? ""));
+  if (kayit.aliciTuru === "bireysel" && !wa.iysBeyanTarihi && !testAlicisi) return { uygun: false, neden: "iys_beyani_yok" };
   if (wa.whatsappYokTarihi && simdi.getTime() - wa.whatsappYokTarihi.getTime() < WHATSAPP_YOK_GUN * 86_400_000) {
     return { uygun: false, neden: "whatsapp_yok" };
   }

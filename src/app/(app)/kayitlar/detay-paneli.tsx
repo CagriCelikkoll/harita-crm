@@ -817,7 +817,7 @@ function WhatsappIzinBolumu(props: {
         {/* Ret verilmişse eski izin kaynağı gösterilmez. */}
         {w.izin !== "ret" && w.izinKaynagi && ` · ${WHATSAPP_IZIN_KAYNAK_ADLARI[w.izinKaynagi]}`}
         {w.izin !== "ret" && w.izinTarihi && ` · ${tarihYaz(w.izinTarihi)}`}
-        {w.izin === "var" && props.bireysel && (w.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok (kampanyaya girmez)")}
+        {w.izin === "var" && props.bireysel && (w.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok (kampanyaya yalnızca test modunda, test numarasıysa girer)")}
       </p>
       {w.izinNotu && <p className="text-soluk">{w.izinNotu}</p>}
       {w.whatsappYokTarihi && <p className="text-tehlike">Meta bu numarada WhatsApp olmadığını bildirdi.</p>}

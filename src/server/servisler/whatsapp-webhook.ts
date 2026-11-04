@@ -22,7 +22,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { telefonNormallestir } from "@/lib/adres-normal";
-import { cikisButonuMu, hesapKilidiNedeni, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
+import { cikisYanitiMi, hesapKilidiNedeni, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
 import { adresOzeti } from "../messaging/adres";
 import type { TenantContext } from "../repo/baglam";
 import { retIsle } from "../repo/engel-listesi";
@@ -311,10 +311,11 @@ class Isleyici {
     }
     if (leadId && (bsuid || kisi?.profile?.username)) bsuidAta(this.ctx, leadId, bsuid ?? null, kisi?.profile?.username ?? undefined);
 
-    const butonMetni = m.button?.payload ?? m.button?.text ?? m.interactive?.button_reply?.title;
+    // Buton yanıtında yük (payload) Meta'nın verdiği bir kimlik olabilir: yük, metin, kimlik ve başlık ayrı ayrı denenir.
+    const butonYaniti = m.type === "button" || m.type === "interactive";
     const retMi =
       (m.type === "text" && retMetniMi(m.text?.body)) ||
-      (butonMetni !== undefined && (retMetniMi(butonMetni) || cikisButonuMu({ type: "QUICK_REPLY", text: butonMetni })));
+      (butonYaniti && cikisYanitiMi([m.button?.payload, m.button?.text, m.interactive?.button_reply?.id, m.interactive?.button_reply?.title]));
     if (retMi) {
       this.ret(leadId, bsuid, waId, m.type === "text" ? "WhatsApp'ta ret yazdı" : "WhatsApp'ta abonelikten çıkma butonuna dokundu");
     }

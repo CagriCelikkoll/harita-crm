@@ -378,7 +378,7 @@ Türkçe Excel'de doğrudan sütunlara ayrılır).
 
 **Ne görmelisin:**
 
-- İletişim izni sekmesinde WhatsApp izninin yanında "İYS beyanı yok (kampanyaya girmez)".
+- İletişim izni sekmesinde WhatsApp izninin yanında "İYS beyanı yok (kampanyaya yalnızca test modunda, test numarasıysa girer)".
 - Genel sekmesinde bireysel kayıtlara yalnızca ileti izni "Onaylı" ise gönderim yapılacağını söyleyen not.
 
 **Ne yap:** Ara: `ret.ornek` (2 kayıt çıkar: "Ret Vermiş Örnek İşletme" ve 6. adımda içe aktarılan "Ret Örneği

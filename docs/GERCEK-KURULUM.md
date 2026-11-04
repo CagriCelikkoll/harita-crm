@@ -53,15 +53,18 @@ gerekmez.
 5. **Kayıtlar → Kişi ekle**: Ad soyad (kendiniz), Telefon (kendi cep numaranız, ör. `0532 …`), **Alıcı türü**
    "Bireysel (kişi)" → **Kaydet**.
 6. Açılan ayrıntıda **İletişim izni** sekmesi → WhatsApp izni **Düzenle** → **İzin var**, İzin kaynağı (ör. "Sözlü"),
-   İzin tarihi (bugün), **"Bu izin İYS'ye kaydedildi."** kutusu → **Kaydet**. "WhatsApp izni kaydedildi." çıkar.
+   İzin tarihi (bugün) → **Kaydet**. "WhatsApp izni kaydedildi." çıkar. **"Bu izin İYS'ye kaydedildi." kutusunu
+   işaretlemeyin:** numaranız İYS'de kayıtlı değil, işaretlemek yanlış beyan olur. Test modunda test numaralarına İYS
+   beyanı aranmaz (aşağıdaki not).
 
 **Ne görmelisin:** Bu akış Google'a hiç gitmez (denendi: Google tamamen kapalıyken de hatasız çalışıyor). Paneldeki
 "Gönderen bilgileri eksik" uyarısı, gönderen bilgilerini girene kadar görünür; test kampanyasını engellemez.
 
 > **Dikkat: alıcı türü ve İYS.** Bireysel kişiye WhatsApp kampanyası yalnızca WhatsApp izni "var" **ve** İYS beyanı
-> işaretliyse gider. Kendinizi "Tacir/esnaf" diye eklemek kuralı aşmanın yolu değildir; deneme için beyan kutusunu
-> işaretleyin. Bu kural test modunda da geçerlidir (gönderen bilgilerinden farklı olarak alıcı izinleri hiçbir zaman
-> atlanmaz).
+> işaretliyse gider. Tek istisna: bağlantı **test modundayken** ve numara Ayarlar → WhatsApp (Meta) → **Test
+> numaraları**'ndaysa İYS beyanı aranmaz (test numaraları İYS'de kayıtlı değildir; beyan kutusunu işaretlemek yanlış
+> beyan olur). WhatsApp izni "var" şartı ve ret kuralları test numaralarında da geçerlidir; test modu kapanınca istisna
+> da kalkar. Kendinizi "Tacir/esnaf" diye eklemek kuralı aşmanın yolu değildir.
 
 ---
 
@@ -326,7 +329,8 @@ gönderen bilgilerini ister. Bu yüzden:
 | Aynı uyarı "ödeme sorunu" diyor, hata kodu `131042` | WhatsApp hesabının ödeme yöntemi tanımlı değil, kredi limiti doldu ya da hesap askıya alındı | Meta Business Suite'te WhatsApp hesabının ödeme yöntemini kontrol edin; sonra **Bağlantıyı test et** ve **Devam ettir**. |
 | Kampanyada satır **Başarısız**, hata kodu `131030` | Numaranız Meta'daki test numarası alıcı listesinde değil | API Setup → **To** listesine numaranızı ekleyip doğrulayın (2c), kampanyayı yeniden oluşturun. |
 | Kampanya özetinde 0 alıcı, neden "Test modu: test numarası değil" | Numaranız uygulamadaki **Test numaraları**'nda yok | Ayarlar → WhatsApp (Meta) → Test numaraları'na ekleyin. |
-| Özette neden "WhatsApp izni yok" ya da "Bireysel; İYS beyanı yok" | Kaydınızda izin ya da İYS beyanı eksik | 1. bölüm, 6. adım. |
+| Özette neden "WhatsApp izni yok" | Kaydınızda WhatsApp izni yok | 1. bölüm, 6. adım. |
+| Özette neden "Bireysel; İYS beyanı yok" | Numaranız Test numaraları'nda değil, test modu kapalı ya da "Test: Meta'ya gönderme…" kutusu işaretli (bu durumlarda İYS beyanı aranır) | İYS kutusunu işaretlemeyin; numarayı Ayarlar → WhatsApp (Meta) → Test numaraları'na ekleyin (4a), test modunun açık olduğuna bakın. |
 | "Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın" | Test modu kapalı ve gönderen bilgileri eksik (test modunda bu uyarı çıkmaz) | Ayarlar → Gönderen bilgileri'ni tamamlayın ya da test modunu yeniden açın. |
 | **Test modunu kapat** düğmesi pasif | Gönderen bilgileri eksik (eksikler adımın altında yazar) | Ayarlar → Gönderen bilgileri. |
 | Tünel adresini tarayıcıda açınca "Bulunamadı." | Tünel koruması: tünelden yalnızca bildirim adresi açıktır | Beklenen durum; arayüzü localhost:3000'den kullanın. |

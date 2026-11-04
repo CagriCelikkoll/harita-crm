@@ -170,6 +170,38 @@ describe("gönderim (işçi)", () => {
     expect(kampanyaGetir(ctx, kampanya.id)?.durum).toBe("tamamlandi");
   });
 
+  it("test modunda test numarası olan bireysel kişiye İYS beyanı aranmaz; WhatsApp izni yine şart; sandbox ve test modu kapalıyken aranır", async () => {
+    const { ctx, sablon } = await kur("IysTest");
+    wa.testNumaralariKaydet(ctx, ["0532 000 00 01", "0532 000 00 02"]);
+    const [test, izinsiz, testDegil] = kisiler(ctx, [
+      { tel: "0532 000 00 01", ad: "Test kişisi", bireysel: true, iys: false }, // test numarası, İYS kutusu boş: uygun
+      { tel: "0532 000 00 02", bireysel: true, izin: false }, // test numarası ama WhatsApp izni yok
+      { tel: "0532 000 00 03", bireysel: true, iys: false }, // test numarası değil: İYS beyanı aranır
+    ]);
+    const id = sablon("kampanya_tanitim").id;
+    const ozet = kampanyaOzeti(ctx, girdi(id), SIMDI);
+    expect(ozet).toMatchObject({ toplamAday: 3, gonderilecek: 1 });
+    expect(ozet.haricler).toMatchObject({ whatsapp_izni_yok: 1, iys_beyani_yok: 1 });
+    // Sandbox ("Test: Meta'ya gönderme") test modu istisnasını kullanmaz.
+    expect(kampanyaOzeti(ctx, girdi(id, { testModu: true }), SIMDI).haricler).toMatchObject({ iys_beyani_yok: 2 });
+
+    const kampanya = kampanyaBaslat(ctx, girdi(id), SIMDI);
+    await tur();
+    expect(mockWhatsapp.gonderilenler.map((g) => g.alici.deger)).toEqual(["905320000001"]);
+    expect(mesajlar(ctx, kampanya.id).find((x) => x.leadId === test.id)).toMatchObject({ durum: "gonderildi" });
+    void izinsiz;
+    void testDegil;
+
+    // Kampanya kuyruktayken test modu kapatılırsa işçi İYS beyanını yeniden arar: gönderilmez.
+    mockWhatsappSifirla();
+    const ikinci = kampanyaBaslat(ctx, girdi(id, { ad: "İkinci" }), SIMDI);
+    testModunuKapat(ctx);
+    await tur();
+    expect(mockWhatsapp.gonderilenler).toHaveLength(0);
+    expect(mesajlar(ctx, ikinci.id).find((x) => x.leadId === test.id)).toMatchObject({ durum: "haric", neden: "iys_beyani_yok" });
+    expect(kampanyaOzeti(ctx, girdi(id), SIMDI).haricler).toMatchObject({ iys_beyani_yok: 2 });
+  });
+
   it("adlandırılmış parametreli şablon parameter_name ile gönderilir; test modu kapalıyken herkese", async () => {
     const { ctx, sablon } = await kur("Adli");
     testModunuKapat(ctx);

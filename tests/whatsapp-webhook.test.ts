@@ -226,6 +226,22 @@ describe("gelen iletiler", () => {
     expect(engelliOzetler(k.ctx, [ozet]).has(ozet)).toBe(true);
   });
 
+  it("hazır 'Marketing opt-out' butonuna dokunma ret olarak işlenir: yük Meta kimliği olsa da metin, Türkçe metin ve etkileşimli buton", async () => {
+    const k = await kur("OptOut");
+    const kisiler = kisileriEkle(
+      k.ctx,
+      Array.from({ length: 4 }, (_, i) => ({ kaynak: "elle" as const, ekTelefon: `0532 333 00 0${i}` })),
+      "x",
+    );
+    const buton = (i: number, ek: Record<string, unknown>) => gonder(k, gelen(k, { from: `90532333000${i}`, ...ek }, { wa_id: `90532333000${i}` }));
+    await buton(0, { type: "button", button: { payload: "QR_7f3a9c", text: "Stop promotions" } });
+    await buton(1, { type: "button", button: { text: "Promosyonları durdur" } });
+    await buton(2, { type: "interactive", interactive: { button_reply: { id: "opt-out", title: "Promosyonları durdur" } } });
+    await buton(3, { type: "button", button: { payload: "QR_7f3a9d", text: "Bilgi almak istiyorum" } }); // ret değil
+    expect(kisiler.map((x) => kayitGetir(k.ctx, x.id)?.iletiIzni)).toEqual(["ret", "ret", "ret", "bekliyor"]);
+    expect(olaylariListele(k.ctx, kisiler[0].id).some((o) => o.aciklama?.includes("abonelikten çıkma butonuna dokundu"))).toBe(true);
+  });
+
   it("reklamdan gelen yeni kişi: meta_reklam kaydı, izin 'kendisi yazdı', bireysel, pencere 72 saat; aynı numara ikinci kez çift kayıt açmaz; tekrar webhook tek olay", async () => {
     const k = await kur("Reklam");
     const referral = { source_type: "ad", source_id: "ad-123", headline: "Yeni projemiz", ctwa_clid: "clid-1" };

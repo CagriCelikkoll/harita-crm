@@ -81,8 +81,10 @@ export type MetaSablonBileseni = {
 export type SablonDegiskeni = { bilesen: "header" | "body"; ad: string };
 
 /**
- * Pazarlama şablonunda abonelikten çıkma butonu: Meta API'de ayrı bir tür yok; metni serbest bir QUICK_REPLY
- * butonudur (ör. WhatsApp Manager'daki "Stop promotions"). Metin bu desenle tanınır.
+ * Pazarlama şablonunda abonelikten çıkma butonu. WhatsApp Manager'ın hazır "Marketing opt-out" butonu şablon API'sinde
+ * QUICK_REPLY olarak döner (metni "Stop promotions" ya da dile göre karşılığı, ör. "Promosyonları durdur"); elle
+ * eklenen hızlı yanıt butonları da metinden tanınır. Türünde OPT_OUT geçen bir buton (Meta ileride ayrı bir tür
+ * döndürürse) metnine bakılmadan çıkış butonu sayılır.
  */
 const CIKIS_BUTONU_DESENI =
   /stop|unsubscribe|opt.?out|abonelik|aboneligi|durdur|\bdur\b|cik|iptal|istemiyorum|\bret\b|almak istemiyorum/;
@@ -97,8 +99,17 @@ const sade = (s: string) =>
     .replace(/ö/g, "o")
     .replace(/ç/g, "c");
 
+const OPT_OUT_TURU = /OPT_?OUT/;
+
 export function cikisButonuMu(buton: { type: string; text?: string }): boolean {
-  return buton.type.toUpperCase() === "QUICK_REPLY" && !!buton.text && CIKIS_BUTONU_DESENI.test(sade(buton.text));
+  const tur = buton.type.toUpperCase();
+  if (OPT_OUT_TURU.test(tur)) return true;
+  return tur === "QUICK_REPLY" && !!buton.text && CIKIS_BUTONU_DESENI.test(sade(buton.text));
+}
+
+/** Gelen buton yanıtı (şablon hızlı yanıtı ya da etkileşimli buton) abonelikten çıkma mı: yük, metin, kimlik ve başlık ayrı ayrı denenir. */
+export function cikisYanitiMi(adaylar: (string | null | undefined)[]): boolean {
+  return adaylar.some((a) => !!a && (retMetniMi(a) || cikisButonuMu({ type: "QUICK_REPLY", text: a })));
 }
 
 const DEGISKEN_DESENI = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
@@ -135,7 +146,7 @@ export function sablonCozumle(s: { kategori: string; durum: string; bilesenler: 
         const bt = buton.type.toUpperCase();
         if (cikisButonuMu(buton)) abonelikButonu = true;
         if (bt === "URL" && buton.url && DEGISKEN_VAR.test(buton.url)) nedenler.push("Dinamik URL butonu desteklenmiyor");
-        if (!["QUICK_REPLY", "URL", "PHONE_NUMBER"].includes(bt)) nedenler.push(`${bt} butonu desteklenmiyor`);
+        if (!["QUICK_REPLY", "URL", "PHONE_NUMBER"].includes(bt) && !OPT_OUT_TURU.test(bt)) nedenler.push(`${bt} butonu desteklenmiyor`);
       }
     } else if (tur !== "FOOTER") {
       nedenler.push(`${tur} bileşeni desteklenmiyor`);

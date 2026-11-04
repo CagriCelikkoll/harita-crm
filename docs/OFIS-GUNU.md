@@ -13,8 +13,26 @@ ekran açıklamaları ve sık hatalar için [GERCEK-KURULUM.md](GERCEK-KURULUM.m
 - Tokenlar, App Secret ve doğrulama anahtarı **yalnızca uygulamadaki alanlara** girilir. Not defterine, sohbete ya da
   ekran görüntüsüne konmaz.
 
+- **RET (ve abonelikten çıkma düğmesi) yalnızca benim ya da arkadaşımın numarasıyla denenir; babamın numarasıyla
+  asla.** Ret geri alınamaz: o numaraya bir daha hiçbir kanaldan ileti gönderilemez.
+
 > Meta menü adları İngilizce yazıldı; Türkçe arayüzde farklı görünebilir. **(doğrulanamadı)** yazan yerlerde ekranda
 > gördüğünüze göre ilerleyin (kaynaklar GERCEK-KURULUM.md'nin başında).
+
+---
+
+## Onay: Meta'da hiçbir şey yapılmadan önce
+
+Deneme, Bursa Ofset adına babamın açık onayıyla yapılır. Ofiste, 2. adıma (Meta) geçmeden önce:
+
+- [ ] Babama bu belgenin "Erişilen veriler" ve "Geri alma" bölümleri (12) anlatıldı.
+- [ ] Bursa Ofset portföyünde uygulama, sistem kullanıcısı ve token oluşturulmasına onay verdi.
+- [ ] Hangi numaralara mesaj gideceği konuşuldu: yalnızca test numaraları (ben, arkadaşım, babam). RET ve abonelikten
+      çıkma denemesi yalnızca benim ve arkadaşımın numarasıyla yapılacak.
+- [ ] Deneme sonrası ne olacağı konuşuldu: pilota devam (uygulama ve token kalır) ya da geri alma (11. adımdaki karar).
+- [ ] Onay yazılı olarak alındı (ör. babamın WhatsApp'tan "onaylıyorum" mesajı). Tarih: ____________
+
+Onay alınmadan Meta'da uygulama, sistem kullanıcısı ya da token oluşturulmaz.
 
 ---
 
@@ -36,7 +54,8 @@ ekran açıklamaları ve sık hatalar için [GERCEK-KURULUM.md](GERCEK-KURULUM.m
    ```
 
 3. Yanınıza: şarj aleti; kendi telefonunuz (Meta'nın doğrulama kodu WhatsApp'tan gelir); denemede kullanılacak
-   numaralar (sizin ve babanızın cep numarası). Test numarası en fazla 5 alıcıya gönderir.
+   numaralar: sizin, arkadaşınızın (RET denemesinin ikinci numarası; o gün telefonu yanında ya da ulaşılabilir olmalı)
+   ve babanızın cep numarası. Test numarası en fazla 5 alıcıya gönderir.
 
 | Olası hata | Çözüm |
 |---|---|
@@ -134,7 +153,8 @@ Geçici token birkaç saatte dolar; gün boyu sürmesi için sistem kullanıcıs
 
 ## 6. Test numaralarının eklenmesi (Meta tarafı)
 
-1. API Setup → **To** → **Manage phone number list** → sizin ve babanızın numarası (ülke koduyla, +90 5xx …).
+1. API Setup → **To** → **Manage phone number list** → sizin, arkadaşınızın ve babanızın numarası (ülke koduyla,
+   +90 5xx …).
 2. Her numaraya WhatsApp'tan gelen doğrulama kodunu girin. En fazla 5 numara **(doğrulanamadı:** sayı).
 
 | Olası hata | Çözüm |
@@ -186,6 +206,7 @@ kilidi yok ✓.
 | Bildirim adresi hâlâ `http://localhost:3000/…` | `GENEL_ADRES` boş ya da uygulama yeniden başlatılmadı. |
 | **Verify and save** "doğrulanamadı" | Uygulama ve tünel açık mı; adres ve anahtarı uygulamadan **Kopyala** ile yeniden alın. Anahtar kaybolduysa yanındaki **Yenile** ile yenisini üretip Meta'ya girin. |
 | Gün içinde tünel kapandı / bilgisayar uyudu | Adres değişir: `npm run tunel` → yeni adresi `GENEL_ADRES`'e → uygulamayı yeniden başlat → Meta'da Callback URL'yi güncelleyip **Verify and save**. |
+| **Verify and save** başarılı ama hiç bildirim gelmiyor (mesaj "Gönderildi"de kalıyor, RET işlenmiyor, Kurulum adımları 3 ilerlemiyor) | 1) Uygulama WhatsApp hesabına abone mi: Kurulum adımları → **Bildirim aboneliğini etkinleştir** ("Bildirim aboneliği etkin." çıkmalı). 2) Meta → Configuration → **Webhook fields**'ta `messages` **Subscribed** mı. 3) Tünel açık ve `GENEL_ADRES` bugünkü adres mi. Hepsi doğruysa ve hâlâ gelmiyorsa: Meta, Development modundaki uygulamaya gerçek kullanıcıların bildirimlerini göndermeyebilir. Uygulamayı **Live** moda almanın gerekip gerekmediğini değerlendirin (App Dashboard'un üstündeki **App mode** anahtarı **(doğrulanamadı)**; gizlilik adresi 4. adımda girildi). Live'a almak test modunu kapatmaz; uygulama yine yalnızca test numaralarına gönderir. Kararı babanızla birlikte verin. |
 
 ---
 
@@ -195,8 +216,10 @@ kilidi yok ✓.
    menü adları).
 2. Kategori **Marketing**, dil **Turkish**, ad küçük harf ve alt çizgiyle (ör. `bursa_ofset_deneme`).
 3. Gövde: kısa ve değişkensiz, ör. "Merhaba, Bursa Ofset'ten bir deneme mesajıdır."
-4. **Buttons** → **Marketing opt-out** ya da metni **"Durdur"** olan bir **Quick reply**. Uygulama Pazarlama
-   şablonunu bu düğme olmadan kullanmaz.
+4. **Buttons** → **Marketing opt-out** (tercih edilen; Meta'nın hazır düğmesi, Türkçe şablonda metni
+   "Promosyonları durdur" gibi görünür) ya da metni **"Durdur"** olan bir **Quick reply**. Uygulama ikisini de
+   abonelikten çıkma düğmesi sayar ve Pazarlama şablonunu bu düğme olmadan kullanmaz. Düğmeye basılması RET ile aynı
+   işlenir (9. adım).
 5. **Submit**. Onay genellikle dakikalar sürer, bazen saatler. Beklerken 10. adıma (tarama) geçin.
 6. Onay gelince uygulamada Ayarlar → WhatsApp (Meta) → **Mesaj şablonları** → **Meta'dan yenile** → "Kullanılabilir".
 
@@ -210,21 +233,39 @@ kilidi yok ✓.
 
 ## 9. Test numarasına kampanya ve RET denemesi
 
-1. **Kayıtlar → Kişi ekle**: ad, telefon (6. adımdaki numaralardan biri), Alıcı türü **Bireysel (kişi)** → **Kaydet**.
-   Açılan ayrıntıda **İletişim izni** → WhatsApp izni **Düzenle** → **İzin var**, kaynak "Sözlü", bugünün tarihi,
-   **"Bu izin İYS'ye kaydedildi."** → **Kaydet**. (Numarası kullanılan kişiden sözlü izin alın.)
+1. **Kayıtlar → Kişi ekle**, üç kişi (ben, arkadaşım, babam; 6. adımdaki numaralar): ad, telefon, Alıcı türü
+   **Bireysel (kişi)** → **Kaydet**. Her birinin ayrıntısında **İletişim izni** → WhatsApp izni **Düzenle** →
+   **İzin var**, İzin kaynağı **Sözlü**, bugünün tarihi → **Kaydet**. **"Bu izin İYS'ye kaydedildi." kutusu BOŞ
+   kalır.** (Numarası kullanılan kişiden sözlü izin alın.)
+
+   **Neden boş?** Bu numaralar İYS'de (İleti Yönetim Sistemi) kayıtlı değil; kutuyu işaretlemek yanlış beyan olur.
+   Uygulama, bağlantı test modundayken **Test numaraları** listesindeki numaralarda İYS beyanını aramaz; WhatsApp
+   izninin "var" olması yine şarttır. Test modu kapatılırsa (bugün kapatılmayacak) bu kişilere beyan olmadan hiçbir
+   ileti gitmez; kuyrukta bekleyen mesajlar da gönderilmez. Kayıt ayrıntısında "İYS beyanı yok (kampanyaya yalnızca
+   test modunda, test numarasıysa girer)" yazması normaldir.
 2. Üçüncü terminalde `npm run worker` (mesajları o gönderir).
 3. **Kampanyalar → Yeni kampanya**: **1 Kanal** WhatsApp (API) → **2 Alıcılar** → **3 Mesaj** (8. adımdaki şablon) →
-   **Gönderim özetini göster** → **4 Gönder**: "Test modu açık" ve alıcı sayısı görünmeli. "Test: Meta'ya
-   gönderme…" kutusunu **işaretlemeyin** → **Kampanyayı başlat**.
-4. Telefona mesaj gelir; kampanya ayrıntısında "Gönderildi" → "Teslim edildi". Kurulum adımları 3 "Tamamlandı" olur.
-5. **RET:** telefondan yanıt olarak yalnızca `RET` yazın. Kayıtlar'da kişi → **İletişim izni** kırmızı **Ret** olmalı.
-   Ret geri alınamaz; o numaraya bir daha hiçbir kanaldan gönderilmez. RET'i yalnızca bir numarada deneyin.
+   **Gönderim özetini göster** → **4 Gönder**: "Test modu açık" ve **3 alıcı** görünmeli. "Test: Meta'ya
+   gönderme…" kutusunu **işaretlemeyin** (işaretlenirse test numarası istisnası uygulanmaz, İYS beyanı aranır) →
+   **Kampanyayı başlat**.
+4. Üç telefona da mesaj gelir; kampanya ayrıntısında "Gönderildi" → "Teslim edildi". Kurulum adımları 3 "Tamamlandı"
+   olur.
+5. **RET ve abonelikten çıkma (yalnızca benim ve arkadaşımın numarası; babamın numarasıyla ASLA):**
+   - **Benim telefonumdan:** gelen mesaja yanıt olarak yalnızca `RET` yazın.
+   - **Arkadaşımın telefonundan:** mesajın altındaki abonelikten çıkma düğmesine (**Promosyonları durdur** /
+     **Stop promotions** / **Durdur**) basın; bir şey yazmayın.
+   - **Babamın telefonunda:** hiçbir şey yapılmaz (ne RET ne düğme).
+
+   Birkaç saniye sonra Kayıtlar'da: benim ve arkadaşımın kaydında **İletişim izni** kırmızı **Ret** olmalı (açıklama
+   "WhatsApp'ta ret yazdı" / "WhatsApp'ta abonelikten çıkma butonuna dokundu"); babamın kaydı değişmemeli. Ret geri
+   alınamaz; bu iki numaraya bir daha hiçbir kanaldan gönderilmez.
 
 | Olası hata | Çözüm |
 |---|---|
-| Özette 0 alıcı: "Test modu: test numarası değil" | Numarayı Ayarlar → WhatsApp (Meta) → Test numaraları'na ekleyin. |
-| Özette "WhatsApp izni yok" / "Bireysel; İYS beyanı yok" | 1. maddedeki izin ve beyanı tamamlayın. |
+| Özette 0 alıcı: "Test modu: test numarası değil" | Numarayı Ayarlar → WhatsApp (Meta) → Test numaraları'na ekleyin (kayıttaki telefonla aynı numara). |
+| Özette "WhatsApp izni yok" | 1. maddedeki izni (İzin var, Sözlü) girin. |
+| Özette "Bireysel; İYS beyanı yok" | Numara Test numaraları'nda değil, test modu kapalı ya da "Test: Meta'ya gönderme…" kutusu işaretli. İYS kutusunu işaretlemeyin; numarayı Test numaraları'na ekleyin ve test modunun açık olduğuna bakın. |
+| Düğmeye basıldı ama kayıt Ret olmadı | Bildirimler gelmiyor olabilir (7. adımdaki "hiç bildirim gelmiyor" satırı). Gelen mesaj kaydın olaylarında "Gelen WhatsApp mesajı (button)" olarak görünüyorsa ve Ret değilse, düğmenin metnini not edip geliştiriciye iletin. |
 | Kampanya "Kuyrukta" kalıyor | `npm run worker` açık mı; saat Ayarlar → Saatler ve sınırlar'daki pencerede mi (varsayılan 09:00–20:00). |
 | Satır Başarısız, kod `131030` | Numara Meta'nın alıcı listesinde değil (6. adım). |
 | "Teslim edildi" olmuyor, RET işlenmiyor | Tünel kapalı ya da adresi değişti (7. adım son satır). |
@@ -251,6 +292,16 @@ kilidi yok ✓.
 
 ## 11. Gün sonu
 
+**Karar noktası (babama sorulur):** Pilota devam edilecek mi?
+
+- **Evet, devam:** Meta'daki uygulama, sistem kullanıcısı ve token **kalır**; uygulamadaki bağlantı da kalır. Bugün
+  yalnızca tünel kapatılır (aşağıdaki adımlar). Bir sonraki denemede yeni tünel adresiyle 7. adımdaki tünel kısmı ve
+  Meta'daki Callback URL güncellenir. Test modu açık kalır.
+- **Hayır, devam yok:** Aşağıdaki adımlardan sonra **12. bölümdeki geri alma** uygulanır (bağlantıyı kaldırma, token
+  iptali, uygulamanın kaldırılması).
+
+Verilen kararı ve tarihi buraya yazın: ______________________________
+
 1. `npm run worker`, `npm run tunel` ve `npm run dev` terminallerinde `Ctrl + C` (bu sırayla).
 2. `.env.local` → `GENEL_ADRES=` (boş). Tünel adresi kapandı; bir sonraki açılışta yenisi alınır.
 3. `npm run kullanim -- harita-crm-test`: günün harcaması.
@@ -261,16 +312,9 @@ kilidi yok ✓.
 
 ---
 
-## 12. Onay, erişilen veriler ve geri alma
+## 12. Erişilen veriler ve geri alma
 
-### Onay
-
-Deneme, Bursa Ofset adına babamın açık onayıyla yapılır. Ofiste, başlamadan önce:
-
-- [ ] Babama bu belgenin "Erişilen veriler" ve "Geri alma" bölümleri anlatıldı.
-- [ ] Bursa Ofset portföyünde uygulama, sistem kullanıcısı ve token oluşturulmasına onay verdi.
-- [ ] Hangi numaralara mesaj gideceği (yalnızca test numaraları) ve RET denemesi konuşuldu.
-- [ ] Onay yazılı olarak alındı (ör. babamın WhatsApp'tan "onaylıyorum" mesajı). Tarih: ____________
+(Onay kontrol listesi belgenin başında: "Onay: Meta'da hiçbir şey yapılmadan önce".)
 
 ### Erişilen veriler
 
@@ -284,13 +328,17 @@ Deneme, Bursa Ofset adına babamın açık onayıyla yapılır. Ofiste, başlama
 
 ### Testten sonra geri alma
 
+Yalnızca 11. adımda "devam yok" kararı verildiyse uygulanır.
+
 1. **Uygulamada:** Ayarlar → WhatsApp (Meta) → **Bağlantıyı kaldır** → onay. Bağlantı ve kayıtlı gizli bilgiler
    (token, App Secret, doğrulama anahtarı, test numaraları) silinir.
 2. **Token iptali:** business.facebook.com → İşletme ayarları → **Users → System users** → sistem kullanıcısı →
    **Revoke tokens** **(doğrulanamadı:** düğme adı), ya da sistem kullanıcısını **Remove** ile silin. Token o anda
    geçersiz olur.
-3. **Uygulamayı silme:** App Dashboard → **App settings → Basic** → sayfanın en altı → **Delete app** **(doğrulanamadı)**.
-   Uygulamanın tüm tokenları ve webhook'u geçersiz olur; geliştirici rolüm de uygulamayla birlikte gider.
+3. **Uygulamayı kaldırma:** App Dashboard → **App settings → Advanced** → **Remove App**. Uygulamanın tüm tokenları ve
+   webhook'u geçersiz olur; geliştirici rolüm de uygulamayla birlikte gider. **Dikkat:** kaldırılan uygulamayı geri
+   getirmek itiraz (appeal) gerektirir. Pilota ileride devam etme ihtimali varsa kaldırmak yerine yalnızca 1. ve 2.
+   adımı yapın.
 4. **Şablon:** WhatsApp Manager → Message templates → deneme şablonu → **Delete** (isteğe bağlı).
 5. **Benim tarafımda:** deneme kayıtlarını Kayıtlar'dan silin. Bütün izleri silmek için uygulama kapalıyken
    `data/gercek-test.db` (ve `-wal`, `-shm`) ile `data/yedek/gercek-test-*.db` yedeklerini silin, sonra

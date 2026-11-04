@@ -130,6 +130,18 @@ describe("alıcı kuralları (tek fonksiyon)", () => {
       expect(d({ ...izinli(), aliciTuru: "bireysel" })).toEqual({ uygun: false, neden: "iys_beyani_yok" });
       expect(d({ ...izinli({ iysBeyanTarihi: SIMDI }), aliciTuru: "bireysel" })).toMatchObject({ uygun: true });
     });
+    it("test modunda verilen test numaralarında İYS beyanı aranmaz; izin ve ret kuralları yine geçerli", () => {
+      const t = (k: AliciKaydi, numaralar: string[]) =>
+        aliciDegerlendir(k, "whatsapp_api", engelYok, { simdi: SIMDI, testNumaralari: new Set(numaralar) });
+      const bireysel = { ...izinli(), aliciTuru: "bireysel" as const };
+      expect(t(bireysel, ["905321112233"])).toEqual({ uygun: true, adres: "905321112233", kaynak: "kayit" });
+      expect(t(bireysel, ["905329999999"])).toEqual({ uygun: false, neden: "iys_beyani_yok" });
+      expect(t(bireysel, [])).toEqual({ uygun: false, neden: "iys_beyani_yok" });
+      expect(t({ ...bireysel, whatsapp: { ...bireysel.whatsapp!, izin: "yok" } }, ["905321112233"])).toEqual({ uygun: false, neden: "whatsapp_izni_yok" });
+      expect(t({ ...bireysel, iletiIzni: "ret" }, ["905321112233"])).toEqual({ uygun: false, neden: "ret" });
+      // Telefonu olmayan (yalnızca BSUID) kişi test numarası olamaz.
+      expect(t({ ...bireysel, ekTelefon: null, whatsapp: { ...bireysel.whatsapp!, bsuid: "TR.1" } }, ["905321112233"])).toEqual({ uygun: false, neden: "iys_beyani_yok" });
+    });
     it("son 90 günde 'WhatsApp yok' bildirilmişse hariç", () => {
       const gun = (n: number) => new Date(SIMDI.getTime() - n * 86_400_000);
       expect(d(izinli({ whatsappYokTarihi: gun(10) }))).toEqual({ uygun: false, neden: "whatsapp_yok" });

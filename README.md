@@ -827,8 +827,8 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   (`{{1}}`, `{{ad}}` …) kaydın işletme adı, ad soyad / yetkili adı ya da sabit metinle eşlenir; kayıtta boşsa
   "yedek" metin kullanılır, o da yoksa alıcı **"şablon değişkeni boş"** nedeniyle hariç tutulur. Değerler Meta'nın
   kuralı gereği tek satıra indirgenir.
-- **Özet:** gönderilecek alıcı sayısı ve hariç tutma nedenleri (izin yok, ret, engel, bireyselde İYS beyanı yok,
-  numarada WhatsApp yok, test modu, değişken boş, cep değil, iletişim yok), ilk üç alıcı için şablon metni, numara
+- **Özet:** gönderilecek alıcı sayısı ve hariç tutma nedenleri (izin yok, ret, engel, bireyselde İYS beyanı yok — test modunda
+  test numaralarında aranmaz, sandbox'ta aranır —, numarada WhatsApp yok, test modu, değişken boş, cep değil, iletişim yok), ilk üç alıcı için şablon metni, numara
   kalitesi, Meta limitinin bu uygulamaya ayrılan payı ve son 24 saatteki kullanım, **tahmini Meta ücreti**
   (uygun alıcı × kategori fiyatı; `src/lib/whatsapp-fiyatlar.ts`, Türkiye, 01.10.2026 kartı — Meta'nın kendi
   kartından doğrulanmadı). Meta yalnızca teslim edilen iletiyi ücretlendirir ve ücreti doğrudan işletmenin WhatsApp

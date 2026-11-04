@@ -63,6 +63,13 @@ describe("sabitler ve şablon çözümleme", () => {
       sablonCozumle({ kategori: "MARKETING", durum: "APPROVED", bilesenler: [govde, { type: "BUTTONS", buttons: [{ type: "QUICK_REPLY", text: "Abonelikten çık" }] }] }).abonelikButonu,
     ).toBe(true);
     expect(sablonCozumle({ kategori: "MARKETING", durum: "APPROVED", bilesenler: [govde] }).destekNedeni).toMatch(/abonelikten çıkma/);
+    // WhatsApp Manager'ın hazır "Marketing opt-out" butonu: Türkçe şablonda yerelleştirilmiş metinli QUICK_REPLY; ayrı
+    // bir OPT_OUT türü gelirse metne bakılmadan sayılır ve "desteklenmiyor" denmez.
+    const hazir = (buton: { type: string; text?: string }) =>
+      sablonCozumle({ kategori: "MARKETING", durum: "APPROVED", bilesenler: [govde, { type: "BUTTONS", buttons: [buton] }] });
+    expect(hazir({ type: "QUICK_REPLY", text: "Promosyonları durdur" })).toMatchObject({ abonelikButonu: true, destekNedeni: null });
+    expect(hazir({ type: "MARKETING_OPT_OUT" })).toMatchObject({ abonelikButonu: true, destekNedeni: null });
+    expect(hazir({ type: "QUICK_REPLY", text: "Bilgi al" }).destekNedeni).toMatch(/abonelikten çıkma/);
     // Hizmet şablonunda buton aranmaz; adlandırılmış parametreler.
     expect(sablonCozumle({ kategori: "UTILITY", durum: "APPROVED", bilesenler: [{ type: "BODY", text: "Sayın {{ad}}" }] })).toMatchObject({
       degiskenler: [{ bilesen: "body", ad: "ad" }],

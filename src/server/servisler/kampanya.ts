@@ -161,7 +161,11 @@ function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: Kamp
   const waBilgisi = whatsappKisileriGetir(ctx, adaylar.map((k) => k.id));
   const engelli = engelSorgusuOlustur(ctx, adaylar);
   const kararlar: Karar[] = adaylar.map((kayit) => {
-    let karar = aliciDegerlendir({ ...kayit, whatsapp: waBilgisi.get(kayit.id) ?? null }, "whatsapp_api", engelli, { simdi });
+    // Test modunda test numaralarına İYS beyanı aranmaz (alici-kurallari.ts); sandbox ve test modu kapalıyken aranır.
+    let karar = aliciDegerlendir({ ...kayit, whatsapp: waBilgisi.get(kayit.id) ?? null }, "whatsapp_api", engelli, {
+      simdi,
+      testNumaralari: testModu ? testNumaralari : undefined,
+    });
     if (karar.uygun && testModu && (karar.kaynak !== "kayit" || !testNumaralari.has(karar.adres!))) {
       karar = { uygun: false, neden: "test_modu" };
     }
