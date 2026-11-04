@@ -16,6 +16,7 @@
     "kota": "tsx scripts/kota.ts",
     "sinir": "tsx scripts/sinir.ts",
     "osm:deneme": "tsx scripts/osm-deneme.ts",
+    "places:dogrula": "tsx scripts/places-dogrula.ts",
     "worker": "node --conditions=react-server --import tsx scripts/worker.ts",
     "tunel": "cloudflared tunnel --url http://localhost:3000",
     "demo:hazirla": "node --conditions=react-server --import tsx scripts/demo-hazirla.ts",

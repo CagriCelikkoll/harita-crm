@@ -87,6 +87,77 @@ export type IstemciSecenekleri = {
   istekSayaci?: (adet: number) => void;
 };
 
+/**
+ * Google'ın hata yanıtını ({ error: { code, status, message, details: [{ reason }] } }) Türkçe nedene çevirir.
+ * Mesajda anahtar geçerse gizlenir.
+ */
+export function placesHatasiniAcikla(durumKodu: number, govde: string, anahtar?: string): string {
+  let hata: { status?: string; message?: string; details?: { reason?: string }[] } = {};
+  try {
+    hata = (JSON.parse(govde) as { error?: typeof hata }).error ?? {};
+  } catch {}
+  const neden = hata.details?.find((d) => d.reason)?.reason ?? "";
+  const ham = `${durumKodu} ${hata.status ?? ""} ${neden}`.trim();
+  const googleMesaji = (hata.message ?? govde.slice(0, 200)).split(anahtar || "\u0000").join("***");
+  const ACIKLAMALAR: Record<string, string> = {
+    API_KEY_INVALID: "Anahtar geçersiz: yanlış kopyalanmış, silinmiş ya da başka bir projeye ait olabilir.",
+    SERVICE_DISABLED:
+      "Places API (New) bu projede etkin değil. Cloud Console > APIs & Services > Library'den \"Places API (New)\"u " +
+      "etkinleştirin (eski \"Places API\" yetmez). Yeni etkinleştirdiyseniz birkaç dakika bekleyin.",
+    API_KEY_SERVICE_BLOCKED:
+      "Anahtarın API kısıtlaması Places API (New)'a izin vermiyor. Credentials > anahtar > API restrictions'a " +
+      "\"Places API (New)\"u ekleyin.",
+    API_KEY_HTTP_REFERRER_BLOCKED:
+      "Anahtar HTTP referrer (web sitesi) ile kısıtlı. Places istekleri sunucudan gider ve referrer taşımaz; bu " +
+      "anahtarda Application restrictions'ı \"IP addresses\" (sunucunun IP'si) ya da geliştirmede \"None\" yapın.",
+    API_KEY_IP_ADDRESS_BLOCKED:
+      "Anahtar IP adresiyle kısıtlı ve bu makinenin IP'si listede yok. Application restrictions'taki IP listesini " +
+      "güncelleyin (ev / ofis bağlantısında IP değişebilir).",
+    API_KEY_ANDROID_APP_BLOCKED: "Anahtar Android uygulamasıyla kısıtlı; sunucu anahtarı IP ile kısıtlanmalı.",
+    API_KEY_IOS_APP_BLOCKED: "Anahtar iOS uygulamasıyla kısıtlı; sunucu anahtarı IP ile kısıtlanmalı.",
+    BILLING_DISABLED:
+      "Projede faturalandırma açık değil ya da faturalandırma hesabı projeye bağlı değil. Cloud Console > " +
+      "Billing'den projeyi hesaba bağlayın; yeni bağladıysanız birkaç dakika bekleyin.",
+    RATE_LIMIT_EXCEEDED: "İstek sınırı aşıldı (dakikalık ya da Cloud Console'da tanımlı günlük kota). Bir süre sonra tekrar deneyin.",
+    RESOURCE_EXHAUSTED: "İstek sınırı aşıldı (dakikalık ya da Cloud Console'da tanımlı günlük kota). Bir süre sonra tekrar deneyin.",
+  };
+  let aciklama = ACIKLAMALAR[neden] ?? ACIKLAMALAR[hata.status ?? ""];
+  if (!aciklama && /billing/i.test(googleMesaji)) aciklama = ACIKLAMALAR.BILLING_DISABLED;
+  if (!aciklama && /api key not valid/i.test(googleMesaji)) aciklama = ACIKLAMALAR.API_KEY_INVALID;
+  if (!aciklama && (durumKodu === 401 || durumKodu === 403))
+    aciklama = "Google isteği yetki nedeniyle reddetti; anahtarın kısıtlamalarını ve projede Places API (New)'un etkin olduğunu kontrol edin.";
+  return `${aciklama ?? "Beklenmeyen Places API hatası."} (Google: ${ham}; ${googleMesaji})`;
+}
+
+/**
+ * Anahtarı ÜCRETSİZ bir istekle doğrular: tek sayfa Text Search, yalnızca places.id (Text Search Essentials
+ * IDs Only, faturalanmaz ve kotadan düşmez). Sonuç saklanmaz; yalnızca kaç kimlik döndüğü bildirilir.
+ */
+export async function anahtariDogrula(
+  anahtar = process.env.GOOGLE_PLACES_API_KEY,
+): Promise<{ tamam: true; kimlikSayisi: number } | { tamam: false; neden: string }> {
+  if (!anahtar) return { tamam: false, neden: "GOOGLE_PLACES_API_KEY tanımlı değil (.env.local)." };
+  let yanit: Response;
+  try {
+    yanit = await fetch(`${TABAN}/places:searchText`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": anahtar,
+        "X-Goog-FieldMask": ALAN_MASKELERI.taramaYalnizcaId,
+      },
+      body: JSON.stringify({ textQuery: "emlak ofisi Bursa", pageSize: 1, languageCode: "tr", regionCode: "TR" }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (hata) {
+    return { tamam: false, neden: `Places API'ye ulaşılamadı (ağ / DNS / vekil sunucu): ${(hata as Error).message}` };
+  }
+  if (!yanit.ok) return { tamam: false, neden: placesHatasiniAcikla(yanit.status, await yanit.text(), anahtar) };
+  const veri = (await yanit.json()) as { places?: { id?: string }[] };
+  return { tamam: true, kimlikSayisi: veri.places?.length ?? 0 };
+}
+
 export function placesIstemcisiOlustur(secenekler: IstemciSecenekleri = {}): PlacesIstemcisi {
   if (process.env.PLACES_MOCK === "true") return mockPlacesIstemcisi(secenekler);
   return gercekPlacesIstemcisi(secenekler);
@@ -119,8 +190,7 @@ function gercekPlacesIstemcisi({ kota, istekSayaci }: IstemciSecenekleri): Place
     if (yanit.status === 404) return null;
     if (!yanit.ok) {
       iade(); // başarısız istek faturalanmaz
-      const metin = (await yanit.text()).slice(0, 300);
-      throw new PlacesHatasi(`Places API hatası (${yanit.status}): ${metin}`, yanit.status);
+      throw new PlacesHatasi(placesHatasiniAcikla(yanit.status, await yanit.text(), anahtar), yanit.status);
     }
     return (await yanit.json()) as T;
   }
