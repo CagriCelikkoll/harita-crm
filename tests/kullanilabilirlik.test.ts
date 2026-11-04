@@ -40,7 +40,7 @@ const oku = (d: string) => fs.readFileSync(path.join(KOK, d), "utf8");
 
 function kiraci() {
   const { ctx } = kiraciOlustur(`C${Math.random().toString(36).slice(2, 7)}`);
-  db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(ctx.tenantId);
+  db.$client.prepare("update tenants set aylik_places_kotasi = 30000 where id = ?").run(ctx.tenantId);
   oturum.ctx = ctx;
   return ctx;
 }
@@ -189,7 +189,7 @@ describe("WhatsApp günlük liste: Google adı", () => {
     const a = await ac(adsiz.id);
     expect(a.url).toMatch(/^https:\/\/wa\.me\/90500000/);
     expect(a.googleAd).toEqual(expect.stringContaining("Kafe"));
-    expect(aylikPlacesBirimi(ctx)).toBe(4); // tek Enterprise çağrısı; ad için ayrı Pro çağrısı yok
+    expect(aylikPlacesBirimi(ctx)).toBe(20); // tek Enterprise çağrısı; ad için ayrı Pro çağrısı yok
     const b = await ac(adli.id);
     expect(b.googleAd).toBeUndefined(); // kaydın kendi adı varken Google adı dönmez
     expect(JSON.stringify(db.$client.prepare("select * from leads where tenant_id = ?").all(ctx.tenantId))).not.toContain(a.googleAd);

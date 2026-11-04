@@ -16,6 +16,7 @@ const KALEMLER: { anahtar: KullanimKalemi; ad: string; aciklama: string }[] = [
   { anahtar: "isletmeBilgisi", ad: "İşletme bilgileri", aciklama: "Listede ve tarama sonuçlarında ad ve adres" },
   { anahtar: "iletisimBilgisi", ad: "Telefon ve web sitesi", aciklama: "Kayıt ayrıntısı, arama, WhatsApp ve SMS numarası" },
   { anahtar: "tarama", ad: "Taramalar", aciklama: "Bölge sınırındaki aramalar ve adres araması" },
+  { anahtar: "harita", ad: "Harita", aciklama: "Bölge tara ekranında haritanın her açılışı" },
 ];
 export default async function KullanimSayfasi() {
   const { ctx } = await ayarBolumuBaglami("kullanim");
@@ -24,7 +25,7 @@ export default async function KullanimSayfasi() {
   const renk = ozet.seviye === "doldu" ? "bg-tehlike" : ozet.seviye === "uyari" ? "bg-amber-500" : "bg-ana";
 
   return (
-    <AyarBolumu baslik="Kullanım ve paket" aciklama="Bu ay işletme bilgilerini görüntülemek ve bölge taramak için ne kadar kullandığınız.">
+    <AyarBolumu baslik="Kullanım ve paket" aciklama="Bu ay işletme bilgilerini görüntülemek, bölge taramak ve haritayı açmak için ne kadar kullandığınız.">
       <Kart className="flex flex-col gap-5 p-7">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>

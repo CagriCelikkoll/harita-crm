@@ -317,9 +317,17 @@ const kullanimTestleri: Record<keyof typeof kullanim, () => void> = {
   kotaDurumu: () => {
     // A'nın kotası B'nin kullanımını görmez; kota A'nın kendi satırından okunur.
     db.$client.prepare("update tenants set aylik_places_kotasi = 9 where id = ?").run(B.tenantId);
-    expect(kullanim.kotaDurumu(A)).toMatchObject({ kullanilan: 0, kota: 6000, doldu: false });
+    expect(kullanim.kotaDurumu(A)).toMatchObject({ kullanilan: 0, kota: 30_000, doldu: false });
     expect(kullanim.kotaDurumu(B)).toMatchObject({ kullanilan: 7, kota: 9, kalan: 2 });
-    db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(B.tenantId);
+    db.$client.prepare("update tenants set aylik_places_kotasi = 30000 where id = ?").run(B.tenantId);
+  },
+  kullanimYaz: () => {
+    // A'nın harita yüklemesi yalnızca A'nın sayacına ve kalemine yazılır.
+    const once = { toplam: kullanim.aylikPlacesBirimi(B), dokum: kullanim.kullanimDokumu(B) };
+    kullanim.kullanimYaz(A, 7, "harita");
+    expect(kullanim.kullanimDokumu(A).harita).toBe(100);
+    expect({ toplam: kullanim.aylikPlacesBirimi(B), dokum: kullanim.kullanimDokumu(B) }).toEqual(once);
+    kullanim.kotaIadeEt(A, 7, { kalem: "harita" });
   },
   kullanimDokumu: () => {
     // A'nın kalemli kullanımı B'nin dökümüne karışmaz.

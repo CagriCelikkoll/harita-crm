@@ -31,14 +31,14 @@ afterEach(() => {
 });
 
 describe("kota: temel kurallar", () => {
-  it("yeni çalışma alanı varsayılan 6.000 birim kota ile başlar; PLACES_AYLIK_KOTA ile değiştirilebilir", () => {
-    expect(kotaDurumu(kiraciOlustur("Varsayilan").ctx).kota).toBe(6000);
+  it("yeni çalışma alanı varsayılan 30.000 birim (30 $) kota ile başlar; PLACES_AYLIK_KOTA ile değiştirilebilir", () => {
+    expect(kotaDurumu(kiraciOlustur("Varsayilan").ctx).kota).toBe(30_000);
     vi.stubEnv("PLACES_AYLIK_KOTA", "750");
     expect(varsayilanKota()).toBe(750);
     const k = kullaniciOlustur("Ortam");
     expect(kotaDurumu(calismaAlaniKur(k.id, "Ortam Alanı")).kota).toBe(750);
     vi.stubEnv("PLACES_AYLIK_KOTA", "gecersiz");
-    expect(varsayilanKota()).toBe(6000);
+    expect(varsayilanKota()).toBe(30_000);
   });
 
   it("kotaya kadar ayırır, sonra reddeder ve sayacı aşmaz", () => {
@@ -82,15 +82,15 @@ describe("kota: temel kurallar", () => {
 
 describe("kota: eşzamanlılık (atomiklik)", () => {
   it("aynı süreçte eşzamanlı canlı bilgi istekleri kotayı aşmaz", async () => {
-    const ctx = kotaliKiraci(75);
-    // 4 paralel liste yüklemesi × 10 yer = 40 istek denemesi × 3 birim; kota 75 birim = 25 satır.
+    const ctx = kotaliKiraci(425);
+    // 4 paralel liste yüklemesi × 10 yer = 40 istek denemesi × 17 birim; kota 425 birim = 25 satır.
     const sonuclar = await Promise.all(
       [0, 1, 2, 3].map((i) => canliBilgiGetir(ctx, mockIdleri(40).slice(i * 10, i * 10 + 10), "liste")),
     );
     const hepsi = sonuclar.flatMap((m) => [...m.values()]);
     expect(hepsi.filter((s) => s.durum === "tamam")).toHaveLength(25);
     expect(hepsi.filter((s) => s.durum === "kota")).toHaveLength(15);
-    expect(aylikPlacesBirimi(ctx)).toBe(75);
+    expect(aylikPlacesBirimi(ctx)).toBe(425);
   });
 
   it("ayrı süreçler aynı veritabanında aynı anda ayırsa da toplam tam olarak kota kadardır", async () => {
@@ -128,15 +128,15 @@ describe("kota: eşzamanlılık (atomiklik)", () => {
 
 describe("kota: Places çağrıları", () => {
   it("tarama sırasında kota dolarsa tarama kısmi olarak tamamlanır ve Places'a fazladan gidilmez", async () => {
-    // Sınır hücreleri Text Search Pro'dur (6 birim): kota 18 birim = 3 ücretli istek.
-    const ctx = kotaliKiraci(18);
+    // Sınır hücreleri Text Search Pro'dur (32 birim): kota 96 birim = 3 ücretli istek.
+    const ctx = kotaliKiraci(96);
     const t = taramaOlustur(ctx, { merkezLat: 40.99, merkezLng: 29.03, yaricapM: 8000, kategori: "emlak_ofisi" });
     const sonuc = await taramaCalistir(ctx, t.id);
     expect(sonuc).toMatchObject({ durum: "tamamlandi", kapsamTamam: false });
     expect(sonuc?.hataMesaji).toContain(KOTA_DOLDU_MESAJI);
     expect(sonuc!.bulunanSayisi).toBeGreaterThan(0); // o ana kadar bulunanlar kaydedildi
     expect(sonuc!.istekSayisi).toBeGreaterThanOrEqual(3); // ücretsiz istekler de tarama sınırına sayılır
-    expect(aylikPlacesBirimi(ctx)).toBe(18);
+    expect(aylikPlacesBirimi(ctx)).toBe(96);
   });
 
   it("kota doluyken liste/detay çağrısı yapılmaz, sonuç 'kota' olur", async () => {
@@ -161,7 +161,7 @@ describe("kota: Places çağrıları", () => {
   it("gerçek istemci: Google isteği reddederse ayrılan kota iade edilir, başarılıysa sayılır", async () => {
     vi.stubEnv("PLACES_MOCK", "false");
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-anahtari");
-    const ctx = kotaliKiraci(10);
+    const ctx = kotaliKiraci(50);
     const istemci = placesIstemcisiOlustur({ kota: kotaKapisi(ctx) });
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response("hata", { status: 500 })));
@@ -174,6 +174,6 @@ describe("kota: Places çağrıları", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "ChIJabc", displayName: { text: "Deneme" } })));
     expect((await istemci.yerDetayi("ChIJabc", "liste"))?.ad).toBe("Deneme");
-    expect(aylikPlacesBirimi(ctx)).toBe(3); // liste satırı: Place Details Pro = 3 birim
+    expect(aylikPlacesBirimi(ctx)).toBe(17); // liste satırı: Place Details Pro = 17 birim
   });
 });

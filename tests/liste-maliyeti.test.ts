@@ -1,5 +1,5 @@
 // Grup B — liste maliyeti: kayıt listesi Places'a kendiliğinden gitmez; Google ad/adresi yalnızca istenince
-// (/api/kayitlar/canli, kayıt başı 3 birim) gelir ve yalnızca bellekte tutulur; detay paneli istisnalarla otomatik
+// (/api/kayitlar/canli, kayıt başı 17 birim) gelir ve yalnızca bellekte tutulur; detay paneli istisnalarla otomatik
 // (ilgilenilmeyen kayıt ve kota %80+ → çağrı yok); tarama sonuçlarının incelenmesi (leads.inceleme, migration 0013);
 // "ilgilenmiyor" kayıtlar listede gizli ve hiçbir kampanyaya / WhatsApp listesine girmez.
 import fs from "node:fs";
@@ -35,7 +35,7 @@ const OGLE = new Date("2026-10-12T09:00:00Z");
 const post = (url: string, govde: unknown) =>
   new Request(`${U}${url}`, { method: "POST", body: JSON.stringify(govde), headers: { "content-type": "application/json" } });
 
-function kiraci(kota = 6000) {
+function kiraci(kota = 30_000) {
   const { ctx } = kiraciOlustur(`L${Math.random().toString(36).slice(2, 7)}`);
   db.$client.prepare("update tenants set aylik_places_kotasi = ? where id = ?").run(kota, ctx.tenantId);
   oturum.ctx = ctx;
@@ -59,7 +59,7 @@ describe("kayıt listesi Places'a kendiliğinden gitmez", () => {
     expect(aylikPlacesBirimi(ctx)).toBe(0);
   });
 
-  it("istenince: yalnızca kiracının Google kayıtları, kayıt başı 3 birim, no-store; başka kiracının ve Google dışı kimlik yok sayılır", async () => {
+  it("istenince: yalnızca kiracının Google kayıtları, kayıt başı 17 birim, no-store; başka kiracının ve Google dışı kimlik yok sayılır", async () => {
     const baska = kiraci();
     const baskaninKaydi = googleKayitlari(baska, 1).kayitlar[0];
     const ctx = kiraci();
@@ -72,7 +72,7 @@ describe("kayıt listesi Places'a kendiliğinden gitmez", () => {
     const { sonuclar } = await y.json();
     expect(Object.keys(sonuclar).sort()).toEqual(g.map((k) => k.id).sort());
     for (const k of g) expect(sonuclar[k.id]).toMatchObject({ ad: expect.any(String), adres: expect.stringContaining("örnek veri") });
-    expect(aylikPlacesBirimi(ctx)).toBe(9);
+    expect(aylikPlacesBirimi(ctx)).toBe(51);
     expect(aylikPlacesBirimi(baska)).toBe(0);
 
     // Places içeriği hiçbir tabloya yazılmaz.
@@ -112,32 +112,32 @@ describe("detay paneli: otomatik Enterprise çağrısı istisnalarla", () => {
   const detay = (id: string, canli: string) =>
     kayitRotasi.GET(new Request(`${U}/api/kayitlar/${id}?canli=${canli}`), { params: Promise.resolve({ id }) });
 
-  it("normalde açılışta çekilir (4 birim); ilgilenilmeyen kayıtta çekilmez, ?canli=1 ile istenince çekilir", async () => {
+  it("normalde açılışta çekilir (20 birim); ilgilenilmeyen kayıtta çekilmez, ?canli=1 ile istenince çekilir", async () => {
     const ctx = kiraci();
     const [a, b] = googleKayitlari(ctx, 2).kayitlar;
     const normal = await (await detay(a.id, "oto")).json();
     expect(normal.canli?.durum).toBe("tamam");
     expect(normal.canliAtlandi).toBeUndefined();
-    expect(aylikPlacesBirimi(ctx)).toBe(4);
+    expect(aylikPlacesBirimi(ctx)).toBe(20);
 
     kayitlar.incelemeAyarla(ctx, [b.id], "ilgilenmiyor");
     const atlandi = await (await detay(b.id, "oto")).json();
     expect(atlandi).toMatchObject({ canliAtlandi: "ilgilenmiyor" });
     expect(atlandi.canli).toBeUndefined();
-    expect(aylikPlacesBirimi(ctx)).toBe(4);
+    expect(aylikPlacesBirimi(ctx)).toBe(20);
 
     expect((await (await detay(b.id, "1")).json()).canli?.durum).toBe("tamam");
-    expect(aylikPlacesBirimi(ctx)).toBe(8);
+    expect(aylikPlacesBirimi(ctx)).toBe(40);
   });
 
   it("kota %80'i geçtiyse açılışta çekilmez", async () => {
-    const ctx = kiraci(10);
+    const ctx = kiraci(50);
     const [a, b] = googleKayitlari(ctx, 2).kayitlar;
-    await detay(a.id, "1"); // 4 birim: %40
-    await detay(a.id, "1"); // 8 birim: %80
+    await detay(a.id, "1"); // 20 birim: %40
+    await detay(a.id, "1"); // 40 birim: %80
     const atlandi = await (await detay(b.id, "oto")).json();
     expect(atlandi).toMatchObject({ canliAtlandi: "kota" });
-    expect(aylikPlacesBirimi(ctx)).toBe(8);
+    expect(aylikPlacesBirimi(ctx)).toBe(40);
   });
 
   it("detay paneli aynı kaydı bellek önbelleğinden açar (Places'a gitmez); ad alanı boş ve yalnızca genel ipucu", () => {

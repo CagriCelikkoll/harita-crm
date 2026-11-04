@@ -52,14 +52,14 @@ describe("kullanım göstergesi", () => {
     expect((await kullanimRotasi.GET()).status).toBe(401);
 
     const { ctx } = kiraciOlustur(`K${Math.random().toString(36).slice(2, 7)}`);
-    db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(ctx.tenantId);
+    db.$client.prepare("update tenants set aylik_places_kotasi = 30000 where id = ?").run(ctx.tenantId);
     oturum.ctx = ctx;
     const ilk = await (await kullanimRotasi.GET()).json();
     expect(ilk).toEqual({ yuzde: 0, seviye: "normal" });
 
-    expect(kotaAyir(ctx, 4800)).toBe(true);
+    expect(kotaAyir(ctx, 24_000)).toBe(true);
     expect(await (await kullanimRotasi.GET()).json()).toEqual({ yuzde: 80, seviye: "uyari" });
-    expect(kotaAyir(ctx, 1200)).toBe(true);
+    expect(kotaAyir(ctx, 6000)).toBe(true);
     const son = await (await kullanimRotasi.GET()).json();
     expect(son).toEqual({ yuzde: 100, seviye: "doldu" });
     expect(Object.keys(son).sort()).toEqual(["seviye", "yuzde"]); // birim / kota / kalan yok

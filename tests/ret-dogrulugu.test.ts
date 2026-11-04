@@ -32,7 +32,7 @@ const U = "https://crm.ornek.test";
 
 function kiraci() {
   const { ctx } = kiraciOlustur(`Ret${Math.random().toString(36).slice(2, 7)}`);
-  db.$client.prepare("update tenants set aylik_places_kotasi = 6000 where id = ?").run(ctx.tenantId);
+  db.$client.prepare("update tenants set aylik_places_kotasi = 30000 where id = ?").run(ctx.tenantId);
   iletiAyarlariGuncelle(ctx, {
     gonderenUnvani: "Ege Emlak",
     iletisimBilgisi: "İzmir",

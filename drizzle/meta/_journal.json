@@ -127,6 +127,13 @@
       "when": 1793693352767,
       "tag": "0017_whatsapp_hesap_kilidi",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793775421627,
+      "tag": "0018_birim_dolar_harita",
+      "breakpoints": true
     }
   ]
 }

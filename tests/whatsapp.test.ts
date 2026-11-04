@@ -28,7 +28,7 @@ const { kayitOlustur } = await import("./yardimci/mesaj-fabrika");
 const SIMDI = new Date("2026-10-12T09:00:00Z"); // 12:00 İstanbul
 const SABLON = "Merhaba {isletme}, yeni ilanlarımız var.";
 
-function kiraci(kota = 6000, sinir: number | null = null) {
+function kiraci(kota = 30_000, sinir: number | null = null) {
   const { ctx } = kiraciOlustur(`Wa${Math.random().toString(36).slice(2, 7)}`);
   db.$client.prepare("update tenants set aylik_places_kotasi = ? where id = ?").run(kota, ctx.tenantId);
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak", whatsappSablonu: SABLON, whatsappGunlukSinir: sinir });
@@ -95,7 +95,7 @@ describe("liste hazırlama", () => {
   });
 
   it("kullanıcının kalan günlük sınırı kadar kayıt alınır (varsayılan 30; çalışma alanı en fazla 50)", () => {
-    const ctx = kiraci(6000, 3);
+    const ctx = kiraci(30_000, 3);
     for (let i = 0; i < 5; i++) kayitOlustur(ctx, { ekTelefon: `0532 100 00 0${i}` });
     expect(wa.listeHazirla(ctx, {}, SIMDI)).toMatchObject({ eklenen: 3, kapasite: 3 });
     expect(wa.listeHazirla(ctx, {}, SIMDI)).toMatchObject({ eklenen: 0, kapasite: 0 }); // sırada bekleyenler de sayılır
@@ -158,7 +158,7 @@ describe("ekran Places'a gitmez; numara yalnızca 'WhatsApp'ta aç'ta çözülü
     expect(aylikPlacesBirimi(ctx)).toBe(0);
   });
 
-  it("ek_telefon yoksa açış Places'tan alır (4 birim), numarayı yazmaz; yalnızca özet tutulur", async () => {
+  it("ek_telefon yoksa açış Places'tan alır (20 birim), numarayı yazmaz; yalnızca özet tutulur", async () => {
     const ctx = kiraci();
     const { cep } = await mockYerler();
     const k = kayitOlustur(ctx, {}, cep[2].id);
@@ -166,7 +166,7 @@ describe("ekran Places'a gitmez; numara yalnızca 'WhatsApp'ta aç'ta çözülü
     const ogeId = wa.listeDurumu(ctx, SIMDI).siradaki!.ogeId;
     const s = await wa.whatsappAc(ctx, ogeId, SIMDI);
     expect(s.tur === "yonlendir" && s.url.startsWith(`https://wa.me/${cep[2].tel}?text=`)).toBe(true);
-    expect(aylikPlacesBirimi(ctx)).toBe(4);
+    expect(aylikPlacesBirimi(ctx)).toBe(20);
     for (const tablo of ["leads", "lead_events", "whatsapp_listesi", "engel_listesi"]) {
       const dokum = JSON.stringify(db.$client.prepare(`select * from ${tablo} where tenant_id = ?`).all(ctx.tenantId));
       expect(dokum, tablo).not.toContain(cep[2].tel.slice(2));
@@ -198,7 +198,7 @@ describe("ekran Places'a gitmez; numara yalnızca 'WhatsApp'ta aç'ta çözülü
 
 describe("sonuçlar ve günlük sayaç", () => {
   it("'Gönderdim': olay + yeni → iletisimde + kullanıcının sayacı; sınırda 429; ertesi gün sıfırlanır", () => {
-    const ctx = kiraci(6000, 2);
+    const ctx = kiraci(30_000, 2);
     const k1 = kayitOlustur(ctx, { ekTelefon: "0532 500 00 01" });
     kayitOlustur(ctx, { ekTelefon: "0532 500 00 02" });
     wa.listeHazirla(ctx, {}, SIMDI);

@@ -1,4 +1,4 @@
-// Places kullanım sayacı ve aylık kota (birim cinsinden; ağırlıklar src/lib/places-birimleri.ts).
+// Google kullanım sayacı ve aylık kota (birim cinsinden; 1 birim = 0,001 $, ağırlıklar src/lib/places-birimleri.ts).
 //
 // Her ücretli Places isteğinden ÖNCE kotaAyir() çağrılır. Kontrol ve artırma TEK bir SQL ifadesindedir
 // (INSERT … ON CONFLICT DO UPDATE … WHERE … RETURNING): SQLite her ifadeyi atomik yürüttüğü için
@@ -14,13 +14,14 @@ import type { TenantContext } from "./baglam";
 export { ayAnahtari };
 
 /** Kullanım kalemleri (Ayarlar > Kullanım dökümü); toplam her zaman places_istek_sayisi'dır. */
-export type KullanimKalemi = "isletmeBilgisi" | "iletisimBilgisi" | "tarama";
+export type KullanimKalemi = "isletmeBilgisi" | "iletisimBilgisi" | "tarama" | "harita";
 
 // Sabit beyaz liste: SQL'e yalnızca bu sütun adları yazılır.
 const KALEM_SUTUNLARI: Record<KullanimKalemi, string> = {
   isletmeBilgisi: "isletme_bilgisi_birim",
   iletisimBilgisi: "iletisim_bilgisi_birim",
   tarama: "tarama_birim",
+  harita: "harita_birim",
 };
 
 export type KotaAyirSecenekleri = {
@@ -65,6 +66,20 @@ export function kotaIadeEt(ctx: TenantContext, birim = 1, secenek: Omit<KotaAyir
       where tenant_id = ${ctx.tenantId} and ay = ${ay}`);
 }
 
+/**
+ * Kota denetimi OLMADAN kullanım yazar (harita yüklemesi: Google haritayı zaten yükledi; kota dolu ya da %80'in
+ * üstünde olsa da harita engellenmez, yalnızca sayılır). Toplam ve kalem aynı SQL ifadesinde artar.
+ */
+export function kullanimYaz(ctx: TenantContext, birim: number, kalem: KullanimKalemi, ay = ayAnahtari()) {
+  if (birim <= 0) return;
+  const k = sql.raw(KALEM_SUTUNLARI[kalem]);
+  db.run(sql`
+    insert into ${usageCounters} (tenant_id, ay, places_istek_sayisi, ${k}) values (${ctx.tenantId}, ${ay}, ${birim}, ${birim})
+    on conflict (tenant_id, ay) do update
+      set places_istek_sayisi = ${usageCounters}.places_istek_sayisi + excluded.places_istek_sayisi,
+          ${k} = ${usageCounters}.${k} + excluded.${k}`);
+}
+
 export function aylikPlacesBirimi(ctx: TenantContext, ay = ayAnahtari()): number {
   return (
     db
@@ -107,10 +122,16 @@ export function kullanimDokumu(ctx: TenantContext, ay = ayAnahtari()): Record<Ku
       isletmeBilgisi: usageCounters.isletmeBilgisiBirim,
       iletisimBilgisi: usageCounters.iletisimBilgisiBirim,
       tarama: usageCounters.taramaBirim,
+      harita: usageCounters.haritaBirim,
     })
     .from(usageCounters)
     .where(and(eq(usageCounters.tenantId, ctx.tenantId), eq(usageCounters.ay, ay)))
     .get();
   const pay = (n: number) => (s && s.toplam > 0 ? Math.round((n / s.toplam) * 100) : 0);
-  return { isletmeBilgisi: pay(s?.isletmeBilgisi ?? 0), iletisimBilgisi: pay(s?.iletisimBilgisi ?? 0), tarama: pay(s?.tarama ?? 0) };
+  return {
+    isletmeBilgisi: pay(s?.isletmeBilgisi ?? 0),
+    iletisimBilgisi: pay(s?.iletisimBilgisi ?? 0),
+    tarama: pay(s?.tarama ?? 0),
+    harita: pay(s?.harita ?? 0),
+  };
 }

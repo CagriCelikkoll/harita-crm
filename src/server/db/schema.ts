@@ -58,7 +58,7 @@ export const tenants = sqliteTable("tenants", {
   // Kullanıcı verisinin (kayıtlar ve olaylar) saklama süresi; null = süresiz.
   veriSaklamaGun: integer("veri_saklama_gun"),
   // Aylık Places kotası, BİRİM cinsinden (maliyet koruması; src/lib/places-birimleri.ts). Yeni alanlar
-  // PLACES_AYLIK_KOTA ortam değişkeninden (yoksa 6.000) başlar; değiştirmek için: npm run kota -- <slug> <birim>
+  // PLACES_AYLIK_KOTA ortam değişkeninden (yoksa 30.000 = 30 $) başlar; değiştirmek için: npm run kota -- <slug> <birim>
   aylikPlacesKotasi: integer("aylik_places_kotasi").notNull().default(VARSAYILAN_AYLIK_PLACES_KOTASI),
   olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
 });
@@ -298,7 +298,7 @@ export const usageCounters = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     ay: text("ay").notNull(), // "YYYY-MM" (Europe/Istanbul)
-    // Tarihsel ad: değer, ayın kullanılan Places BİRİMİdir (src/lib/places-birimleri.ts).
+    // Tarihsel ad: değer, ayın kullanılan BİRİMİdir (1 birim = 0,001 $; src/lib/places-birimleri.ts), harita dahil.
     placesIstekSayisi: integer("places_istek_sayisi").notNull().default(0),
     // Kalemlere göre döküm (Ayarlar > Kullanım); toplam her zaman places_istek_sayisi'dır ve kota onunla denetlenir.
     // İşletme bilgileri: liste / incelemede ad ve adres (Place Details Pro).
@@ -307,6 +307,8 @@ export const usageCounters = sqliteTable(
     iletisimBilgisiBirim: integer("iletisim_bilgisi_birim").notNull().default(0),
     // Taramalar: sınır hücreleri ve adres araması (Text Search Pro).
     taramaBirim: integer("tarama_birim").notNull().default(0),
+    // Harita: tarayıcıda her harita oluşturuluşu (Dynamic Maps). Yalnızca sayılır; kota dolsa da harita engellenmez.
+    haritaBirim: integer("harita_birim").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.ay] })],
 );

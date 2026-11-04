@@ -1,11 +1,15 @@
-// Places kota birimleri — ağırlıkların TEK kaynağı (sunucu ve Ayarlar ekranı buradan okur).
+// Google kullanım birimleri: ağırlıkların TEK kaynağı (sunucu ve Ayarlar ekranı buradan okur).
 //
-// Kota maliyete göre ağırlıklıdır: en ucuz ücretli SKU = 1 birim, diğerleri fiyatına oranla
-// (tam sayıya yuvarlanmış), ücretsiz SKU'lar 0 birim. Fiyatlar Google Maps Platform fiyat listesinin
-// ilk kademesidir (1.000 istek başına USD). Fiyat değişirse yalnızca FIYATLAR güncellenir.
+// 1 birim = 0,001 $: bir isteğin birimi, SKU'nun 1.000 istek başına liste fiyatıdır (Text Search Pro $32 → 32 birim);
+// ücretsiz SKU'lar 0 birim. Fiyatlar Google Maps Platform fiyat listesinin ilk kademesidir (1.000 istek başına USD).
+// Aylık ücretsiz kullanım payları birime yansıtılmaz (fatura hesabı başına, tüm çalışma alanları ortak kullanır).
+// Fiyat değişirse yalnızca FIYATLAR güncellenir.
 // Kaynak: https://developers.google.com/maps/billing-and-pricing/pricing
 
-export const PLACES_FIYAT_TARIHI = "Ekim 2026";
+export const PLACES_FIYAT_TARIHI = "Kasım 2026";
+
+/** Bir birimin dolar karşılığı. */
+export const BIRIM_DOLAR = 0.001;
 
 export const PLACES_SKULARI = {
   textSearchIdsOnly: { ad: "Text Search Essentials (IDs Only)", fiyat: 0 },
@@ -13,20 +17,16 @@ export const PLACES_SKULARI = {
   placeDetailsPro: { ad: "Place Details Pro", fiyat: 17 },
   placeDetailsEnterprise: { ad: "Place Details Enterprise", fiyat: 20 },
   textSearchPro: { ad: "Text Search Pro", fiyat: 32 },
+  // Places değil, Maps JavaScript API: tarayıcıda her harita oluşturuluşu bir yükleme olarak faturalanır.
+  dynamicMaps: { ad: "Dynamic Maps", fiyat: 7 },
 } as const;
 
 export type PlacesSku = keyof typeof PLACES_SKULARI;
 
-const ucretliFiyatlar = Object.values(PLACES_SKULARI)
-  .map((s) => s.fiyat)
-  .filter((f) => f > 0);
-
-/** Birim tabanı: en ucuz ücretli SKU'nun fiyatı. */
-export const TABAN_FIYAT = Math.min(...ucretliFiyatlar);
-
+/** 1.000 istek başına dolar fiyatı → istek başına birim (1 birim = 0,001 $). Ücretli bir SKU hiçbir zaman 0 olmaz. */
 export function birimHesapla(fiyat: number): number {
   if (fiyat <= 0) return 0;
-  return Math.max(1, Math.round(fiyat / TABAN_FIYAT));
+  return Math.max(1, Math.round(fiyat / 1000 / BIRIM_DOLAR));
 }
 
 export const PLACES_BIRIMLERI = Object.fromEntries(
@@ -41,4 +41,5 @@ export const PLACES_ISLEMLERI: { islem: string; sku: PlacesSku }[] = [
   { islem: "Kayıt listesinde / incelemede istenince gösterilen bir satır (ad + adres)", sku: "placeDetailsPro" },
   { islem: "Kayıt detayı (telefon, web sitesi, puan)", sku: "placeDetailsEnterprise" },
   { islem: "SMS / WhatsApp: kayıtta telefon yoksa gönderim anında telefon", sku: "placeDetailsEnterprise" },
+  { islem: "Bölge tara ekranında haritanın her açılışı", sku: "dynamicMaps" },
 ];

@@ -32,7 +32,7 @@ const girdi = (g: Partial<KampanyaGirdisi> = {}): KampanyaGirdisi => ({
 });
 const tur = (s: SahteSaglayici, simdi = OGLE) => isciTuru({ simdi: () => simdi, parti: 50, saglayiciSec: () => s });
 
-function kiraci(kota = 6000) {
+function kiraci(kota = 30_000) {
   const { ctx } = kiraciOlustur(`Sms${Math.random().toString(36).slice(2, 7)}`);
   db.$client.prepare("update tenants set aylik_places_kotasi = ? where id = ?").run(kota, ctx.tenantId);
   iletiAyarlariGuncelle(ctx, {
@@ -164,8 +164,8 @@ describe("SMS kampanyası: alıcılar ve Places telefonu", () => {
     const b = kayitOlustur(ctx, {}, sabit[0]);
 
     const ozet = kampanyaOzeti(ctx, girdi(), OGLE);
-    expect(ozet).toMatchObject({ gonderilecek: 2, placesTelefonGerekli: 2, tahminiKotaBirimi: 8 });
-    // Arayüzde birim yerine kullanım yüzdesi: 8 / 6.000 → yukarı yuvarlanmış %1.
+    expect(ozet).toMatchObject({ gonderilecek: 2, placesTelefonGerekli: 2, tahminiKotaBirimi: 40 });
+    // Arayüzde birim yerine kullanım yüzdesi: 40 / 30.000 → yukarı yuvarlanmış %1.
     expect(ozet).toMatchObject({ tahminiKullanimYuzdesi: 1, kotaYetmez: false });
     expect(ozet.smsParca).toBe(1);
 
@@ -174,7 +174,7 @@ describe("SMS kampanyası: alıcılar ve Places telefonu", () => {
     await tur(s);
     const rakam = cep[0].tel.replace(/\D/g, "");
     expect(s.gonderilen.map((i) => i.alici)).toEqual([rakam]);
-    expect(aylikPlacesBirimi(ctx)).toBe(8); // iki telefon çağrısı × 4 birim
+    expect(aylikPlacesBirimi(ctx)).toBe(40); // iki telefon çağrısı × 20 birim
     const m = kampanyaMesajlari(ctx, k.id).mesajlar;
     expect(m.find((x) => x.leadId === b.id)).toMatchObject({ durum: "haric", neden: "cep_degil" });
     expect(m.find((x) => x.leadId === a.id)?.durum).toBe("gonderildi");

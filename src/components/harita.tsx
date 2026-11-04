@@ -38,6 +38,14 @@ function mapsYukle(): Promise<void> {
 
 export const haritaAnahtariVar = Boolean(ANAHTAR);
 
+/**
+ * Her harita oluşturuluşu Google'da bir Dynamic Maps yüklemesidir: kullanıma "harita" kalemiyle yazılsın diye
+ * sunucuya bildirilir. Bildirim başarısız olsa da harita çalışmaya devam eder.
+ */
+export function haritaYuklemesiniBildir() {
+  void fetch("/api/kullanim/harita", { method: "POST", keepalive: true }).catch(() => {});
+}
+
 export type Isaret = { kayitId: string; durum: KayitDurumu; lat: number; lng: number };
 
 const DURUM_RENGI: Record<KayitDurumu, string> = {
@@ -94,6 +102,7 @@ export function Harita(props: {
           clickable: false,
         });
         harita.current = m;
+        haritaYuklemesiniBildir();
         setHazir(true);
       })
       .catch((e: Error) => setHata(e.message));

@@ -598,7 +598,7 @@ Demoda Meta bağlantısı olmadığı için 4. adım **hiç açılmaz**. Beklene
 
 Uygulama Google'dan aldığı bilgiler için aylık bir kullanım hakkı tutar ve bunu **yalnızca yüzde olarak**
 gösterir: menünün altındaki göstergede ve **Ayarlar → Kullanım ve paket**'te (kategorilere göre: İşletme bilgileri,
-Telefon ve web sitesi, Taramalar). Kullanım **%80**'e ulaşınca Google bilgileri artık kendiliğinden gösterilmez;
+Telefon ve web sitesi, Taramalar, Harita). Kullanım **%80**'e ulaşınca Google bilgileri artık kendiliğinden gösterilmez;
 istediğinizde **Göster** ile gösterilir.
 
 **Ne yap:** Kullanımı doldurun. Üçüncü bir terminalde (ya da işçi terminalinde, işçiyi durdurduktan sonra) şunu
@@ -625,7 +625,7 @@ Ardından sayfaları yenileyin.
 **Ne yap:** Kullanımı geri açın:
 
 ```
-npm run demo:kota -- 1000
+npm run demo:kota -- 5000
 ```
 
 > Normal `npm run kota` komutu **gerçek** veritabanına yazar; demo için yalnızca `npm run demo:kota` kullanın.

@@ -1,6 +1,6 @@
-// Maliyet ağırlıklı kota birimleri ve İstanbul saatine göre kota ayı.
+// Maliyet ağırlıklı kota birimleri (1 birim = 0,001 $) ve İstanbul saatine göre kota ayı.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { birimHesapla, PLACES_BIRIMLERI, PLACES_SKULARI, TABAN_FIYAT } from "@/lib/places-birimleri";
+import { BIRIM_DOLAR, birimHesapla, PLACES_BIRIMLERI } from "@/lib/places-birimleri";
 import { ayAnahtari, gunAnahtari, gunIciDakika } from "@/lib/zaman";
 import { db } from "@/server/db";
 import { cagriBirimi, placesIstemcisiOlustur } from "@/server/places/istemci";
@@ -22,25 +22,27 @@ afterEach(() => {
 });
 
 describe("kota birimleri", () => {
-  it("en ucuz ücretli SKU 1 birim, ücretsiz SKU 0, diğerleri fiyata oranla yuvarlanır", () => {
-    expect(TABAN_FIYAT).toBe(PLACES_SKULARI.placeDetailsEssentials.fiyat);
+  it("1 birim = 0,001 $: istek birimi, SKU'nun 1.000 istek başına liste fiyatıdır; ücretsiz SKU 0", () => {
+    expect(BIRIM_DOLAR).toBe(0.001);
     expect(PLACES_BIRIMLERI).toEqual({
       textSearchIdsOnly: 0,
-      placeDetailsEssentials: 1,
-      placeDetailsPro: 3, // 17 / 5 = 3,4
-      placeDetailsEnterprise: 4, // 20 / 5
-      textSearchPro: 6, // 32 / 5 = 6,4
+      placeDetailsEssentials: 5,
+      placeDetailsPro: 17,
+      placeDetailsEnterprise: 20,
+      textSearchPro: 32,
+      dynamicMaps: 7, // Maps JavaScript API harita yüklemesi
     });
     expect(birimHesapla(0)).toBe(0);
-    expect(birimHesapla(1)).toBe(1); // ücretli bir SKU hiçbir zaman 0 birim olmaz
+    expect(birimHesapla(0.2)).toBe(1); // ücretli bir SKU hiçbir zaman 0 birim olmaz
   });
 
   it("her Places çağrısı faturalandığı SKU'nun birimini kullanır", () => {
     expect(cagriBirimi("taramaYalnizcaId")).toBe(0);
-    expect(cagriBirimi("taramaKonumlu")).toBe(6);
-    expect(cagriBirimi("adres")).toBe(6);
-    expect(cagriBirimi("liste")).toBe(3);
-    expect(cagriBirimi("detay")).toBe(4);
+    expect(cagriBirimi("taramaKonumlu")).toBe(32);
+    expect(cagriBirimi("adres")).toBe(32);
+    expect(cagriBirimi("liste")).toBe(17);
+    expect(cagriBirimi("detay")).toBe(20);
+    expect(cagriBirimi("telefon")).toBe(20);
   });
 
   it("ücretsiz istek kota doluyken de yapılır ve kotadan düşmez; ücretli istek yapılmaz", async () => {
@@ -55,14 +57,14 @@ describe("kota birimleri", () => {
     expect(aylikPlacesBirimi(ctx)).toBe(0);
   });
 
-  it("detay 4 birim düşer; kalan birim yetmeyen istek yapılmaz, yetenler yapılır", async () => {
-    const ctx = kotaliKiraci(7);
+  it("detay 20 birim düşer; kalan birim yetmeyen istek yapılmaz, yetenler yapılır", async () => {
+    const ctx = kotaliKiraci(37);
     const istemci = placesIstemcisiOlustur({ kota: kotaKapisi(ctx) });
     expect(await istemci.yerDetayi(MOCK_YER, "detay")).not.toBeNull();
-    expect(aylikPlacesBirimi(ctx)).toBe(4);
+    expect(aylikPlacesBirimi(ctx)).toBe(20);
     await expect(istemci.yerDetayi(MOCK_YER, "detay")).rejects.toBeInstanceOf(KotaDolduHatasi);
-    expect(await istemci.yerDetayi(MOCK_YER, "liste")).not.toBeNull(); // 3 birim hâlâ sığar
-    expect(aylikPlacesBirimi(ctx)).toBe(7);
+    expect(await istemci.yerDetayi(MOCK_YER, "liste")).not.toBeNull(); // 17 birim hâlâ sığar
+    expect(aylikPlacesBirimi(ctx)).toBe(37);
   });
 });
 

@@ -98,9 +98,9 @@ async function calistir() {
   });
 
   // Sınırlar elle denenebilsin diye düşük: günde en fazla 5 e-posta ve 5 SMS (fazlası ertesi güne kalır). Places
-  // kotası 1.000 birim (istenince gösterilen Google bilgileri ve detay birim harcar); doldurmak için: npm run demo:kota -- 0.
-  // Gerçek varsayılanlar: 6.000 birim, 300 e-posta, 200 SMS.
-  db.update(tenants).set({ aylikPlacesKotasi: 1000 }).where(eq(tenants.id, ctx.tenantId)).run();
+  // kotası 5.000 birim = 5 $ (istenince gösterilen Google bilgileri ve detay birim harcar); doldurmak için: npm run demo:kota -- 0.
+  // Gerçek varsayılanlar: 30.000 birim (30 $), 300 e-posta, 200 SMS.
+  db.update(tenants).set({ aylikPlacesKotasi: 5000 }).where(eq(tenants.id, ctx.tenantId)).run();
   db.update(iletiAyarlari).set({ gunlukEpostaSiniri: 5, gunlukSmsSiniri: 5 }).where(eq(iletiAyarlari.tenantId, ctx.tenantId)).run();
 
   // --- Google kaynaklı kayıtlar: sahte Places istemcisiyle örnek tarama (Kadıköy, emlak ofisi) ---
@@ -234,7 +234,7 @@ Demo ortamı hazır: ${DEMO_VERITABANI}
   Ret verilmiş  : "Ret Vermiş Örnek İşletme" (0500 000 00 09, ret.ornek@demo.test engel listesinde)
   Sabit hat     : ${DEMO_SABIT_HATLAR.length} Google kaydının telefonu 0 (212) 000 … (SMS'te "cep telefonu değil")
   WhatsApp      : sahte bağlantı (test modunda), ${sablonSayisi} şablon, test numarası ${TEST_NUMARASI}
-  Sınırlar      : günde 5 e-posta, 5 SMS (demo için düşük); Places kotası 1.000 birim/ay (npm run demo:kota -- <birim>)
+  Sınırlar      : günde 5 e-posta, 5 SMS (demo için düşük); Places kotası 5.000 birim/ay (npm run demo:kota -- <birim>)
 
 Giriş bilgileri (${DEMO_ADRESI}/giris):
   Yönetici : ${HESAPLAR.yonetici.eposta}   parola: ${HESAPLAR.yonetici.parola}

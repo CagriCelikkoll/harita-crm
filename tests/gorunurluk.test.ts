@@ -35,7 +35,7 @@ const yorumsuz = (k: string) =>
 const post = (url: string, govde: unknown) =>
   new Request(`${U}${url}`, { method: "POST", body: JSON.stringify(govde), headers: { "content-type": "application/json" } });
 
-function kiraci(kota = 6000) {
+function kiraci(kota = 30_000) {
   const { ctx } = kiraciOlustur(`G${Math.random().toString(36).slice(2, 7)}`);
   db.$client.prepare("update tenants set aylik_places_kotasi = ? where id = ?").run(kota, ctx.tenantId);
   oturum.ctx = ctx;
@@ -62,7 +62,7 @@ describe("kullanım kalemleri", () => {
     kotaIadeEt(ctx, 4, { kalem: "iletisimBilgisi" });
     expect(kalemler(ctx)).toEqual({ t: 11, i: 3, l: 0, r: 6 });
     // Döküm: kalemin bu ayki toplam içindeki payı (kalemsiz 2 birim payda yer almaz).
-    expect(kullanimDokumu(ctx)).toEqual({ isletmeBilgisi: 27, iletisimBilgisi: 0, tarama: 55 });
+    expect(kullanimDokumu(ctx)).toEqual({ isletmeBilgisi: 27, iletisimBilgisi: 0, tarama: 55, harita: 0 });
     // Kota yetmezse ne toplam ne kalem değişir.
     expect(kotaAyir(ctx, 90, { kalem: "tarama" })).toBe(false);
     expect(kalemler(ctx)).toEqual({ t: 11, i: 3, l: 0, r: 6 });
@@ -99,20 +99,20 @@ describe("otomatik gösterim (/api/kayitlar/canli, otomatik: true)", () => {
     expect(Object.keys(y.sonuclar).sort()).toEqual([a.id, b.id].sort());
     expect(y.sonuclar[a.id]).toMatchObject({ ad: expect.any(String), konum: { lat: expect.any(Number), lng: expect.any(Number) } });
     expect(y.otomatikKapali).toBe(false);
-    expect(kalemler(ctx)).toEqual({ t: 6, i: 6, l: 0, r: 0 }); // 2 × 3, işletme bilgisi kalemi
+    expect(kalemler(ctx)).toEqual({ t: 34, i: 34, l: 0, r: 0 }); // 2 × 17 (Place Details Pro), işletme bilgisi kalemi
   });
 
   it("kullanım %80'e ulaşacaksa otomatik istek yapılmaz, birim düşmez; elle 'Göster' çalışmaya devam eder", async () => {
-    const ctx = kiraci(100);
+    const ctx = kiraci(1000);
     const [a] = googleKayitlari(ctx, 1);
-    expect(kotaAyir(ctx, 77)).toBe(true);
+    expect(kotaAyir(ctx, 785)).toBe(true); // %78,5; 785 + 17 = 802 eşiğe ulaşır
     const oto = await (await canliRotasi.POST(post("/api/kayitlar/canli", { idler: [a.id], otomatik: true }))).json();
     expect(oto).toEqual({ sonuclar: {}, otomatikKapali: true });
-    expect(aylikPlacesBirimi(ctx)).toBe(77);
+    expect(aylikPlacesBirimi(ctx)).toBe(785);
     const elle = await (await canliRotasi.POST(post("/api/kayitlar/canli", { idler: [a.id] }))).json();
     expect(elle.sonuclar[a.id]).toMatchObject({ ad: expect.any(String) });
     expect(elle.otomatikKapali).toBeUndefined();
-    expect(aylikPlacesBirimi(ctx)).toBe(80);
+    expect(aylikPlacesBirimi(ctx)).toBe(802);
   });
 
   it("kota doluyken elle 'Göster' de çalışmaz (kota mesajı), otomatik kapalı döner", async () => {
@@ -127,16 +127,16 @@ describe("otomatik gösterim (/api/kayitlar/canli, otomatik: true)", () => {
   });
 
   it("detay panelinin otomatik açılışı da eşiği atomik uygular (kullanımı %80'in üstüne taşımaz)", async () => {
-    const ctx = kiraci(100);
+    const ctx = kiraci(1000);
     const [a] = googleKayitlari(ctx, 1);
-    expect(kotaAyir(ctx, 77)).toBe(true); // %77: ön denetim geçer, ama 77 + 4 = 81 eşiği aşar
+    expect(kotaAyir(ctx, 785)).toBe(true); // %78,5: ön denetim geçer, ama 785 + 20 = 805 eşiği aşar
     const y = await (await kayitRotasi.GET(new Request(`${U}/api/kayitlar/${a.id}?canli=oto`), { params: Promise.resolve({ id: a.id }) })).json();
     expect(y.canli).toBeUndefined();
     expect(y.canliAtlandi).toBe("kota");
-    expect(aylikPlacesBirimi(ctx)).toBe(77);
+    expect(aylikPlacesBirimi(ctx)).toBe(785);
     const elle = await (await kayitRotasi.GET(new Request(`${U}/api/kayitlar/${a.id}?canli=1`), { params: Promise.resolve({ id: a.id }) })).json();
     expect(elle.canli).toMatchObject({ durum: "tamam" });
-    expect(kalemler(ctx)).toMatchObject({ t: 81, l: 4 });
+    expect(kalemler(ctx)).toMatchObject({ t: 805, l: 20 });
   });
 });
 

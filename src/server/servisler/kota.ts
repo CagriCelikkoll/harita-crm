@@ -1,7 +1,16 @@
+import { PLACES_BIRIMLERI } from "@/lib/places-birimleri";
 import { ayAnahtari } from "@/lib/zaman";
 import type { KotaKapisi } from "../places/tipler";
 import type { TenantContext } from "../repo/baglam";
-import { kotaAyir, kotaIadeEt } from "../repo/kullanim";
+import { kotaAyir, kotaIadeEt, kullanimYaz } from "../repo/kullanim";
+
+/**
+ * Tarayıcıda bir harita oluşturuldu (Dynamic Maps yüklemesi): "harita" kalemine yazılır ve kotaya sayılır.
+ * Kota denetimi yapılmaz; harita %80'de de, kota dolunca da engellenmez.
+ */
+export function haritaYuklemesiKaydet(ctx: TenantContext) {
+  kullanimYaz(ctx, PLACES_BIRIMLERI.dynamicMaps, "harita");
+}
 
 /**
  * Kiracının aylık Places kotasına bağlı kapı: her ücretli istekten önce SKU'nun birimi, çağrının kalemiyle

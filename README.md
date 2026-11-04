@@ -36,7 +36,7 @@ Hazır sahte verilerle tarayıcıda denemek için (adım adım Türkçe kontrol 
 npm run demo:hazirla   # ./data/demo.db'yi sıfırdan kurar, giriş bilgilerini yazar (her çalıştırmada sıfırlanır)
 npm run demo           # uygulamayı demo.db, PLACES_MOCK=true, WHATSAPP_API_MOCK=1 ile başlatır (http://localhost:3000)
 npm run demo:isci      # ikinci terminalde: gönderim işçisi (demo.db)
-npm run demo:kota -- 0 # demo çalışma alanının Places kotası (kota dolu durumunu denemek için; geri: -- 1000)
+npm run demo:kota -- 0 # demo çalışma alanının Places kotası (kota dolu durumunu denemek için; geri: -- 5000)
 ```
 
 Demo betikleri (`scripts/demo-ortam.ts`) veritabanı yolunu, sahte istemcileri ve demo'ya özel sabit anahtarları
@@ -133,22 +133,23 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/mesajlasma.test.ts` | `{isletme}` şablonu (yalnızca kullanıcının girdiği ad; boşsa hitap ya da çevresiyle kaldırma), telefon/e-posta normalleştirme, **alıcı kuralları** fonksiyonunun her nedeni (ret, bireysel + izinsiz, iletişim yok, engel, cep değil, Places'tan alınacak telefon), sandbox sağlayıcı. |
 | `tests/kampanya.test.ts` | Kampanya oluşturmada ve **gönderim anında** ret / engel listesi / bireysel + izinsiz kayıtların hariç tutulması (kampanyadan sonra gelen ret dahil); elle ret sonrası kayıt silinip aynı adresle yeniden eklense de gönderilmemesi; ticari ileti bilgileri olmadan sandbox dışı kampanyanın başlatılamaması; gerçek gönderimde olay + `yeni → iletisimde`, sandbox'ta durum değişmemesi; **günlük sınır** (ertesi günün 09:00'ına kalma) ve **gönderim saati** (İstanbul); iptal; **idempotans:** tekrar çalıştırma, aynı süreçte eşzamanlı turlar ve **3 ayrı süreçte 40 mesajın her birinin tam bir kez** gönderilmesi; geçici hatada en fazla 3 deneme ve sınır iadesi; çöken işçinin mesajının "belirsiz" kapanıp yeniden denenmemesi; İYS reddinin ret akışına girmesi; zamanlanmış kampanya. |
 | `tests/saglayici-guvenlik.test.ts` | Kimlik bilgilerinin veritabanında düz metin olmaması; başka kiracının / kanalın AAD'siyle ya da başka anahtarla çözülememesi; **ayarlar, sağlayıcı, test gönderimi ve kampanya API yanıtlarının hiçbirinde** sunucu, kullanıcı adı ve şifrenin geçmemesi; üyenin sağlayıcı kaydedememesi; test e-postasının yalnızca kayıtlı gönderen adresine gitmesi ve saatte 5 sınırı; **SMTP SSRF:** iç ağ / loopback / link-local / metadata / IPv4-eşlemeli IPv6 adreslerinin ve izinsiz portların reddi, çözülen adreslerden biri bile iç ağdaysa ret, bağlantının doğrulanan IP'ye yapılması ve her gönderimde yeniden doğrulama (DNS yeniden bağlama). |
-| `tests/sms.test.ts` | SMS uzunluğu (160/153, Türkçe 155/149, UCS-2 70/67); **Netgsm isteği** (uç nokta, Basic Auth, msgheader, messages, encoding, iysfilter 11/12) ve hata kodu sınıflaması; ek_telefon cep / sabit hat; **Places telefonu** gönderim anında alınıp 4 birim düşmesi ve numaranın hiçbir tabloya yazılmaması; Places numarasının engel listesine takılması; kota dolunca ay başını bekleme; ret numarası olmadan gerçek SMS kampanyası başlatılamaması; **RET webhook'u** (anahtar yalnızca özet, yenileme, ek_telefon ve adres özetiyle eşleşme, RET olmayan mesajın yok sayılması, kiracılar arası etki olmaması, geçersiz anahtar 404); test SMS'inin yalnızca yetkili telefona `iysfilter=0` ile gitmesi ve saatte 5 sınırı. |
-| `tests/whatsapp.test.ts` | wa.me bağlantısı (yalnızca rakam, 90 ile başlayan numara; `encodeURIComponent`); mesaj şablonu ve altbilgi; liste hazırlamada ret / engel / izinsiz bireysel dışlama, günlük sınır kapasitesi (en fazla 50), aynı kaydın iki kullanıcıya verilmemesi; **liste ekranını açmak ve 5 kez yenilemek kota birimi düşürmez**, Places numarası ekranda görünmez; ek_telefon cep değilse Places'sız otomatik atlama; "WhatsApp'ta aç": ek_telefon ile 0 birim, Places ile 4 birim ve numaranın hiçbir tabloya yazılmaması, cep değilse `otomatik_atlandi`, kota doluysa bekleme; "Gönderdim" (olay, `yeni → iletisimde`, sayaç, sınırda 429, detay panelinin aynı sayacı kullanması, İstanbul gününe göre sıfırlanma); "Ret istedi" (Places numarasının özeti engel listesine) ve "Atla"; detay panelinde pasif durumlar; **yönlendirme rotaları:** oturumsuz → giriş, `Sec-Fetch-Site: cross-site` → işlem yok, uygunsa 302 wa.me, başka kiracının öğesi / kaydı bulunamadı, cep değilse nedenle listeye dönüş. |
+| `tests/sms.test.ts` | SMS uzunluğu (160/153, Türkçe 155/149, UCS-2 70/67); **Netgsm isteği** (uç nokta, Basic Auth, msgheader, messages, encoding, iysfilter 11/12) ve hata kodu sınıflaması; ek_telefon cep / sabit hat; **Places telefonu** gönderim anında alınıp 20 birim düşmesi ve numaranın hiçbir tabloya yazılmaması; Places numarasının engel listesine takılması; kota dolunca ay başını bekleme; ret numarası olmadan gerçek SMS kampanyası başlatılamaması; **RET webhook'u** (anahtar yalnızca özet, yenileme, ek_telefon ve adres özetiyle eşleşme, RET olmayan mesajın yok sayılması, kiracılar arası etki olmaması, geçersiz anahtar 404); test SMS'inin yalnızca yetkili telefona `iysfilter=0` ile gitmesi ve saatte 5 sınırı. |
+| `tests/whatsapp.test.ts` | wa.me bağlantısı (yalnızca rakam, 90 ile başlayan numara; `encodeURIComponent`); mesaj şablonu ve altbilgi; liste hazırlamada ret / engel / izinsiz bireysel dışlama, günlük sınır kapasitesi (en fazla 50), aynı kaydın iki kullanıcıya verilmemesi; **liste ekranını açmak ve 5 kez yenilemek kota birimi düşürmez**, Places numarası ekranda görünmez; ek_telefon cep değilse Places'sız otomatik atlama; "WhatsApp'ta aç": ek_telefon ile 0 birim, Places ile 20 birim ve numaranın hiçbir tabloya yazılmaması, cep değilse `otomatik_atlandi`, kota doluysa bekleme; "Gönderdim" (olay, `yeni → iletisimde`, sayaç, sınırda 429, detay panelinin aynı sayacı kullanması, İstanbul gününe göre sıfırlanma); "Ret istedi" (Places numarasının özeti engel listesine) ve "Atla"; detay panelinde pasif durumlar; **yönlendirme rotaları:** oturumsuz → giriş, `Sec-Fetch-Site: cross-site` → işlem yok, uygunsa 302 wa.me, başka kiracının öğesi / kaydı bulunamadı, cep değilse nedenle listeye dönüş. |
 | `tests/abonelik.test.ts` | Belirtecin tek bir baytı bile değiştirilince, kısaltılınca ya da kiracı/kayıt alanı başka kiracınınkiyle değiştirilince reddedilmesi; A'nın geçerli belirtecinin B'nin kaydını ve engel listesini etkilememesi; tek tıkla çıkışta `ret` + engel listesi + olay (tekrar tıklamada çift olay yok); kayıt silinmiş olsa da engel listesine yazma; sayfanın yalnızca gönderen unvanını döndürmesi; e-posta altbilgisi ve ham iletideki `List-Unsubscribe` / `List-Unsubscribe-Post` başlıkları. |
 | `tests/yarim-kalan-tarama.test.ts` | 10 dakikadan uzun "calisiyor" veya "kuyrukta" kalan taramaların "hata" + "Tarama yarıda kaldı, yeniden başlatın." olması; kiracı bazında (liste yüklenirken) ve tüm kiracılarda (uygulama başlangıcı); 10 dakika sınırı; kuyruktaki/bitmiş/taze taramalara dokunulmaması. |
 | `tests/temizlik.test.ts` | Kaynağı ne olursa olsun tarama merkezlerinin 30 gün sonra silinip adres metni, yarıçap ve kaynağın kalması; merkezi silinmiş taramanın Places'a gitmeden açık mesajla hata vermesi; 30 günden eski Places konumlarının silinmesi. |
 | `tests/migrasyon.test.ts` | Regresyon: tabloyu yeniden oluşturan migration'ın (`0001`) `leads.scan_id` bağlantılarını ve verileri koruması. |
 | `tests/places-dogrula.test.ts` | `npm run places:dogrula`: yalnızca `places.id,nextPageToken` isteyen tek sayfalık (pageSize 1) ücretsiz Text Search; anahtar yoksa istek yapılmaması; Google hata nedenlerinin (geçersiz anahtar, API etkin değil, API / referrer / IP kısıtlaması, faturalandırma, istek sınırı) Türkçe açıklanması ve anahtarın mesajlarda gizlenmesi; gerçek istemcinin reddedilen istekte aynı açıklamayı taşıması. |
 | `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
-| `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (3 birim) kota 75 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
+| `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (17 birim) kota 425 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
 | `tests/yedek-saklama.test.ts` | Yedek saklama kuralı: 30 günden eskilerden yalnızca en son 10'u kalır, son 30 gündekilerin hepsi kalır, 10 ve altında hiçbiri silinmez; başka veritabanının yedekleri ve klasördeki diğer dosyalar silinmez; işçinin günlük bakımının günde bir çalışması; `npm run db:migrate`'in yedek alıp sonunda eski yedekleri silmesi. |
 | `tests/demo-ortami.test.ts` | `npm run demo:hazirla` yalnızca `data/demo.db`'yi kurar (aynı klasördeki başka veritabanı ve testin veritabanı bayt bayt aynı kalır), her çalıştırmada sıfırdan kurar; yazdırdığı giriş bilgileri Better Auth parola özetiyle eşleşir; kaynak / durum / izin çeşitliliği, ret ve engel listesi, test modunda WhatsApp bağlantısı ve şablonlar; elle girilen bütün adreslerin sahte biçimde olması. `docs/ornek-ice-aktarma.csv`'nin rehberde yazan önizleme sonucunu vermesi. |
 | `tests/kullanilabilirlik.test.ts` | Gönderim servisinin son nabzı (kilit alma/bırakma, işçi turu, kampanya API'si) ve 5 dakika uyarısı; engelli işareti; WhatsApp izni değişince güncelleme tarihi; "bilgi" / "izin" olay türleri; dışa aktarmada BOM, noktalı virgül ve Türkçe etiketler; şablon metni parçaları, numara biçimi, limit katmanı adı; "WhatsApp'ta aç"ın tek Enterprise çağrısıyla adı döndürmesi (ek birim yok, kaydın kendi adı varsa dönmez, hiçbir tabloya yazılmaz); giriş formunun hidrasyondan önce gönderilememesi ve geliştirme simgesinin yeri. |
-| `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 3 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
+| `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 17 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
 | `tests/dogruluk-demo.test.ts` | Ret'in onaysız gönderilememesi (kayıt, WhatsApp izni, günlük liste); sahte Places'in yalnızca 0500 000 xx xx üretmesi; arayüzde npm komutu olmaması; alıcı türünün varsayılanı olmaması (Kişi ekle, içe aktarma). |
-| `tests/kota-birim.test.ts` | Birim ağırlıkları (Essentials = 1, ücretsiz = 0, oranla yuvarlama); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
+| `tests/kota-birim.test.ts` | Birim ağırlıkları (1 birim = 0,001 $: SKU liste fiyatı, ücretsiz = 0, Dynamic Maps 7); her çağrının SKU birimi; ücretsiz isteğin kota doluyken yapılıp kotadan düşmemesi; kalan birime göre detay/liste ayrımı; **İstanbul ay sınırı** (31 Ekim 23:30 → 1 Kasım 00:30) ve geçiş sonrası iadenin doğru aya yapılması. |
 | `tests/yeni-duzen.test.ts` | Yeni düzen: menüdeki kullanım göstergesinin yalnızca yüzde göstermesi (`GET /api/kullanim` birim, kota ya da kalan döndürmez; %80 uyarı, dolmadan %100 yok); sekmelerde klavye, baş harfler; menü ve sayfa iskeleti ölçüleri; Ayarlar bölümlerinin role göre görünmesi (üye yalnızca kendini ilgilendirenleri) ve her bölüm sayfasının rol denetimi; çalışma alanı adı ile saklama süresinin ayrı formlardan güncellenmesi; WhatsApp kurulum adımlarının test modu kilidinden türetilmesi. || `tests/yeni-duzen.test.ts` (Grup 4–5) | Kayıtlar sekmelerinin anlamı ve sayıları, süzgeç adresi, CSV'nin sekmesiz ve sekmeli davranışı, otomatik istek kuralları, panel sekmeleri; Bölge tara sonuçlarının yeniden bulunan işletmeleri de göstermesi, süzgeç ve sabit sıra, migration 0016'nın eşleşmeleri taşıması, ekran ve eski adresin yönlendirilmesi. |
+| `tests/harita-kullanimi.test.ts` | Harita yüklemesi: `POST /api/kullanim/harita` oturumsuz 401, başka kaynaktan 403; her yüklemede "harita" kalemine ve toplama 7 birim, gövdesiz yanıt; %80 ve kota dolu iken de engellenmemesi (yüzde %100); harita kullanımının %80 otomatik gösterim sınırına ve kotaya girmesi; bileşenin harita oluşturulduktan sonra bir kez bildirmesi. **Migration 0018:** kotaların 5 ile çarpılması (6.000 → 30.000), sayaçların kalem kalem gerçek fiyata çevrilmesi (102 eski birimlik gerçek tarama → 560 + kalemsiz), yeni alanın varsayılan 30.000 kotası. |
 | `tests/gorunurluk.test.ts` | Kullanım kalemlerinin toplamla aynı atomik ifadede artması ve iadesi; her Places çağrısının kalemi; eşikli ayırma (sonraki toplam kota × 0,8'in altında); otomatik gösterimin yalnızca adı girilmemiş kayıtlara ve %80'in altına gitmesi, eşikte istek yapmaması ve birim düşmemesi, elle Göster'in %100'e kadar sürmesi; detay panelinin otomatik açılışında aynı eşik; 30 dakikalık bellek önbelleğinin süresi, çıkış / giriş / alan değişince temizlenmesi ve tarayıcı depolaması kullanmaması; arayüzde "birim" sözcüğünün geçmemesi. |
 | `tests/tunel.test.ts` | Tünel koruması: `*.trycloudflare.com` ya da `GENEL_ADRES` alanından (Host veya X-Forwarded-Host; büyük harf, port, sondaki nokta) gelen istek yalnızca `/api/whatsapp/webhook/<kimlik>`e geçer; giriş, kayıt, sayfalar, diğer API'ler, statik dosyalar ve yol oyunları (`/../`) 404, oturum çereziyle de; `GENEL_ADRES` https değilse ya da uygulamanın kendi alanıysa korunmaz; localhost'tan oturum yönlendirmesi ve API'ler eskisi gibi; `/iletisim` yönlendirmeleri tünel host'unda uygulanmaz. |
 
@@ -200,7 +201,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 
 ## Tarama mantığı, SKU seçimi ve tahmini maliyet
 
-Fiyatlar Google'ın Ekim 2026 global fiyat listesinden alınmıştır (1.000 olay başına, ilk kademe):
+Fiyatlar Google'ın 2 Kasım 2026 tarihli global fiyat listesinden alınmıştır (1.000 olay başına, ilk kademe):
 
 | Kullanım | Uç nokta ve alan maskesi | SKU | Aylık ücretsiz | Sonrası |
 | --- | --- | --- | --- | --- |
@@ -270,78 +271,90 @@ Telefon ve web sitesi Enterprise alanlarıdır; listede istenseydi her satır En
   listenin Places'a gitmediğini ve istenince doğru birimin düştüğünü, `tests/gorunurluk.test.ts` otomatik gösterim
   eşiğini, kullanım kalemlerini, bellek önbelleğinin süresini ve arayüzde "birim" geçmediğini doğrular.)
 
-**Tahmini aylık tüketim** (tek çalışma alanı; birimler aşağıdaki tabloya göre):
+**Tahmini aylık tüketim** (tek çalışma alanı; 1 birim = 0,001 $, birimler aşağıdaki tabloya göre):
 
 *Önceki akış* (liste yalnızca istenince; ayda 1.000 liste sayfası görüntüleme, sayfaların %20'sinde "Göster",
-300 detay açılışı, 20 tarama × 40 sonuç): liste 200 × 20 × 3 = 12.000 + inceleme 2.400 + detay 1.200 =
-**15.600 birim**.
+300 detay açılışı, 20 tarama × 40 sonuç): liste 200 × 20 × 17 = 68.000 + inceleme 800 × 17 = 13.600 + detay
+300 × 20 = 6.000 = **87.600 birim (≈ 88 $)**.
 
 *Yeni akış* (otomatik gösterim %80'e kadar + 30 dakikalık bellek önbelleği). Önbellek yüzünden maliyeti sayfa
 görüntüleme sayısı değil, **her oturumda görüntülenen farklı, adı girilmemiş Google kaydı** belirler (aynı kayıt
 30 dakika içinde yeniden görülünce Google'a gidilmez). Varsayım: ayda 22 iş günü, günde 2 oturum (aralarında 30
-dakikadan fazla) = **44 önbellek dönemi**; detay açılışlarının %20'si aynı kaydın 30 dakika içinde yeniden açılması.
+dakikadan fazla) = **44 önbellek dönemi**; detay açılışlarının %20'si aynı kaydın 30 dakika içinde yeniden açılması;
+ayda 100 harita açılışı.
 
 | Kalem | Oturum başına 40 farklı kayıt | 60 farklı kayıt | 100 farklı kayıt |
 | --- | --- | --- | --- |
-| Kayıt listesi (otomatik) | 44 × 40 × 3 = 5.280 | 44 × 60 × 3 = 7.920 | 44 × 100 × 3 = 13.200 |
-| Bölge tara sonuçları (otomatik; her sonuç bir kez) | 20 × 40 × 3 = 2.400 | 2.400 | 2.400 |
-| Detay paneli (Enterprise; %20'si bellekten) | 240 × 4 = 960 | 960 | 960 |
-| **Toplam** | **8.640** | **11.280** | **16.560** |
+| Kayıt listesi (otomatik) | 44 × 40 × 17 = 29.920 | 44 × 60 × 17 = 44.880 | 44 × 100 × 17 = 74.800 |
+| Bölge tara sonuçları (otomatik; her sonuç bir kez) | 20 × 40 × 17 = 13.600 | 13.600 | 13.600 |
+| Detay paneli (Enterprise; %20'si bellekten) | 240 × 20 = 4.800 | 4.800 | 4.800 |
+| Harita açılışı (Dynamic Maps) | 100 × 7 = 700 | 700 | 700 |
+| **Toplam** | **49.020 (≈ 49 $)** | **63.980 (≈ 64 $)** | **93.900 (≈ 94 $)** |
 
 Önbelleksiz otomatik gösterimde aynı ay (1.000 sayfa görüntüleme, satırların yarısı adı girilmemiş Google kaydı)
-≈ 33.600 birim olurdu; önbellek bunu yaklaşık üçte bire indirir.
+≈ 189.600 birim olurdu; önbellek bunu yaklaşık üçte bire indirir.
 
-- **Kota eşiğiyle:** varsayılan kota 6.000 birim; otomatik gösterim 4.800 birimde durur. 60 farklı kayıt / oturumda
-  bu, yaklaşık 9–10. iş gününe (günde ≈ 510 birim) denk gelir; sonrasında liste "Göster" ile çalışır. Ay boyu
-  otomatik görmek için kota en az toplam / 0,8 olmalı: 40 → 10.800, 60 → 14.100, 100 → 20.700 birim. Kota bir üst sınır olduğu için çalışma
-  alanı başına harcama hiçbir durumda kotayı aşmaz. (Fiyat / paket kararı pilottan sonra.)
-- **Dolar karşılığı** (Ekim 2026 liste fiyatı; Place Details Pro $17 / 1.000 ve ayda 5.000 ücretsiz; Enterprise
-  $20 / 1.000 ve ayda 1.000 ücretsiz): 60 farklı kayıt / oturumda 2.640 + 800 = 3.440 Pro ve 240 Enterprise isteği →
-  ilk çalışma alanı için **≈ $0** (ücretsiz kotalar içinde); 100 farklı kayıtta 5.200 Pro → ≈ $3,40.
-- **Ücretsiz kotalar Google faturalama hesabı başınadır**, çalışma alanı başına değil: aynı hesabı paylaşan ikinci ve
-  sonraki çalışma alanlarında 60 farklı kayıt / oturumda ≈ 3.440 × $0,017 + 240 × $0,020 ≈ **$63 / ay**.
-- Detay kotayı aşarsa (ayda 1.000'den fazla görüntüleme) her biri ~$0,02 ekler.
-- **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ $1,60**
-  (iç hücreler ücretsiz). Text Search Pro'nun ayda 5.000 ücretsiz isteği vardır (≈100 tam bütçeli tarama).
-- Adres araması: arama başına 1 Text Search Pro isteği (aynı 5.000 ücretsiz kota).
+- **Kota eşiğiyle:** varsayılan kota 30.000 birim (30 $); otomatik gösterim 24.000 birimde durur. 60 farklı kayıt /
+  oturumda bu, yaklaşık 8–9. iş gününe (günde ≈ 2.900 birim) denk gelir; sonrasında liste "Göster" ile çalışır. Ay
+  boyu otomatik görmek için kota en az toplam / 0,8 olmalı: 40 → 61.300, 60 → 80.000, 100 → 117.400 birim. Kota bir
+  üst sınır olduğu için çalışma alanı başına Places harcaması hiçbir durumda kotayı aşmaz (harita yüklemeleri
+  sayılır ama engellenmez; aşağıda). (Fiyat / paket kararı pilottan sonra.)
+- **Birim = liste fiyatı:** birimler ücretsiz kullanım paylarını hesaba katmaz. Ücretsiz paylar (Place Details Pro ve
+  Text Search Pro ayda 5.000, Enterprise 1.000, Dynamic Maps 10.000 istek) **Google faturalama hesabı başınadır**,
+  çalışma alanı başına değil: ilk çalışma alanı 60 farklı kayıt / oturumda (3.440 Pro, 240 Enterprise, 100 harita)
+  **≈ 0 $** öder; aynı hesabı paylaşan ikinci ve sonraki çalışma alanları birimlerin dolar karşılığını (**≈ 64 $ / ay**)
+  öder.
+- **Taramalar** buna eklenir: tarama başına en fazla 50 istek, en kötü durumda tamamı Text Search Pro → **≤ 1.600
+  birim (1,60 $)** (iç hücreler ücretsiz). 1 km'lik taramada hücrelerin hepsi sınırı keser: gerçek denemede 5 istek =
+  160 birim.
+- Adres araması: arama başına 1 Text Search Pro isteği (32 birim).
 - Arayüzde kullanım yalnızca yüzde olarak görünür: menüdeki "Bu ayki kullanım %N" göstergesi (`GET /api/kullanim`,
   yalnızca yüzde ve seviye döner) ve Ayarlar > Kullanım ve paket (yüzde, kalemlere göre pay: işletme bilgileri,
-  telefon ve web sitesi, taramalar; `usage_counters` kalem sütunları, migration 0015).
+  telefon ve web sitesi, taramalar, harita; `usage_counters` kalem sütunları, migration 0015 ve 0018).
 
 ## Aylık Places kotası (kiracı başına)
 
 Maliyetin kontrolden çıkmaması için her çalışma alanının aylık bir Places kotası vardır
-(`tenants.aylik_places_kotasi`). Kota **maliyet ağırlıklı birim** cinsindendir.
+(`tenants.aylik_places_kotasi`). Kota **birim** cinsindendir: **1 birim = 0,001 $**.
 
-**Birimler** — tek kaynak `src/lib/places-birimleri.ts` (birimler arayüzde gösterilmez; tablo yalnızca burada). En ucuz ücretli SKU (Place Details Essentials, $5/1000) = 1 birim; diğerleri fiyatına oranla, tam sayıya
-yuvarlanır; ücretsiz SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki fiyatlar güncellenir.
+**Birimler** — tek kaynak `src/lib/places-birimleri.ts` (birimler arayüzde gösterilmez; tablo yalnızca burada). Bir
+isteğin birimi, SKU'nun Google liste fiyatıdır (1.000 istek başına $, ilk kademe; 2 Kasım 2026 fiyat listesi); ücretsiz
+SKU 0 birimdir. Fiyat değişirse yalnızca bu dosyadaki fiyatlar güncellenir.
 
 | İşlem | SKU | $/1000 | Birim |
 | --- | --- | --- | --- |
 | Tarama, dairenin içi | Text Search Essentials (IDs Only) | 0 | 0 |
-| Tarama, dairenin sınırı; adres araması | Text Search Pro | 32 | 6 |
-| Kayıt listesinde / incelemede istenince gösterilen satır (ad + adres) | Place Details Pro | 17 | 3 |
-| Kayıt detayı (telefon, web, puan) | Place Details Enterprise | 20 | 4 |
+| Tarama, dairenin sınırı; adres araması | Text Search Pro | 32 | 32 |
+| Kayıt listesinde / incelemede istenince gösterilen satır (ad + adres) | Place Details Pro | 17 | 17 |
+| Kayıt detayı (telefon, web, puan); SMS / WhatsApp için telefon | Place Details Enterprise | 20 | 20 |
+| Bölge tara ekranında haritanın her açılışı | Dynamic Maps | 7 | 7 |
 
 Ücretsiz istekler kotadan düşmez (kota doluyken de yapılabilir) ama `SCAN_MAX_REQUESTS` tarama sınırına sayılmaya
-devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **8.640–16.560 birim/ay**; varsayılan 6.000 birimin %80'i
-(4.800) otomatik gösterimin üst sınırıdır.
+devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **49.000–94.000 birim/ay**; varsayılan 30.000 birimin %80'i
+(24.000) otomatik gösterimin üst sınırıdır.
 
-- **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **6.000 birim**) başlar.
-  Birime geçiş migration'ı (`0003_places_birim_kotasi`) mevcut kotaları ve sayaçları 3 ile çarptı (liste satırı 3
-  birim olduğu için kullanım oranı korunur; 2.000 istek → 6.000 birim).
+- **Varsayılan:** Yeni çalışma alanları `PLACES_AYLIK_KOTA` ortam değişkeniyle (yoksa **30.000 birim = 30 $**)
+  başlar. Birim geçmişi: `0003_places_birim_kotasi` istek sayısından birime geçti (× 3); `0018_birim_dolar_harita`
+  birimi 0,005 $'dan (Place Details Essentials = 1) 0,001 $'a indirdi: kotalar 5 ile çarpıldı (dolar karşılığı korunur,
+  6.000 → 30.000), sayaçlar kalem kalem gerçek fiyata çevrildi (tarama × 32/6, işletme bilgisi × 17/3, iletişim bilgisi
+  × 5; kalemsiz eski birimler × 5). Yeni değer, eski birimin yuvarlama yüzünden eksik saydığı farkı da içerir.
 - **Değiştirmek:** Şimdilik yönetici arayüzü yok; sunucuda:
   ```bash
-  npm run kota -- <tenant-slug> <birim>     # ör. npm run kota -- ege-satis-ekibi 15000
+  npm run kota -- <tenant-slug> <birim>     # ör. npm run kota -- ege-satis-ekibi 75000   (75 $)
   ```
   Slug, Ayarlar sayfasındaki komut örneğinde görünür.
 - **Kontrol:** Her ücretli Places isteğinden **önce** o işlemin birimi ayrılır (tarama, liste, detay, adres
-  araması). Kalan birim yetmezse istek hiç yapılmaz (ör. 3 birim kalmışsa detay yapılmaz, liste satırı yapılır).
+  araması). Kalan birim yetmezse istek hiç yapılmaz (ör. 18 birim kalmışsa detay (20) yapılmaz, liste satırı (17)
+  yapılır).
   - **Tarama:** Kota dolduğunda tarama, bütçe bittiğindeki "kısmi tarama" mantığıyla durur. O ana kadar bulunanlar
     kaydedilir; tarama "tamamlandı (kısmi)" olur ve "Bu ayki veri kotanız doldu." mesajı gösterilir.
   - **Liste ve detay:** Places çağrısı yapılmaz; kullanıcının kendi verisi (durum, ileti izni, etiketler, notlar,
     iletişim bilgileri, etkinlikler) görünmeye devam eder ve "Bu ayki veri kotanız doldu" uyarısı çıkar.
   - **Adres araması:** 429 ve aynı uyarı.
+  - **Harita:** Tarayıcıda harita her oluşturulduğunda (`src/components/harita.tsx`) `POST /api/kullanim/harita`
+    çağrılır ve 7 birim "harita" kalemine yazılır (`harita_birim`). Harita Google tarafında zaten yüklendiği için
+    kota **denetlenmez**: %80'de ve kota dolunca da harita açılır, yalnızca sayılır. Harita kullanımı yüzdeye ve %80
+    otomatik gösterim sınırına girer; kotayı doldurursa Places istekleri yapılmaz.
 - **Uyarı:** menüdeki gösterge %80'de sarı, %100'de kırmızıdır. Kayıtlar ve Ayarlar > Kullanım %80'de "Bu ay
   otomatik gösterim sınırına ulaşıldı; bilgileri istediğinizde gösterilir.", %100'de "Bu ayki kullanımınız doldu…"
   yazar (sayı yazmadan).
@@ -642,11 +655,11 @@ Hata sınıflaması: 80, 85, 100, 101 ve bağlantının hiç kurulamaması **ge�
 - Numara önce kullanıcının girdiği `ek_telefon`'dan alınır; girilmiş ama cep değilse kayıt "cep telefonu değil"
   nedeniyle hariç tutulur.
 - `ek_telefon` yoksa numara **gönderim anında** Places'tan canlı alınır (yalnızca telefon alanı, Place Details
-  Enterprise, **4 birim**) ve hiçbir yere yazılmaz. Kuyrukta yalnızca gönderildiği adresin anahtarlı özeti kalır;
+  Enterprise, **20 birim**) ve hiçbir yere yazılmaz. Kuyrukta yalnızca gönderildiği adresin anahtarlı özeti kalır;
   gelen RET yanıtını kayda bağlamak için kullanılır.
 - Places çağrısı günlük sınır ayrıldıktan sonra yapılır. Böylece sınıra takılacak mesaj için kota harcanmaz.
 - Kota doluysa mesaj "Places kotası bekleniyor" nedeniyle ayın 1'ine (İstanbul, gönderim başlangıç saati) kalır.
-- Kampanya özeti "Google'dan alınacak: N kayıt ≈ N×4 birim" ve bu ay kalan kotayı gösterir.
+- Kampanya özeti "Google'dan alınacak: N kayıt ≈ N×20 birim" ve bu ay kalan kotayı gösterir.
 
 **Ret yolu:**
 
@@ -722,7 +735,7 @@ ve kota birimi düşmez** (`tests/whatsapp.test.ts` bunu sınar).
 - Rota şunları yapar:
   1. Oturumu, kiracıyı ve kullanıcı sahipliğini, şablonu, günlük sınırı ve alıcı kurallarını kontrol eder.
   2. Numarayı `ek_telefon`'dan, yoksa Places'tan canlı alır (yalnızca telefon + ad maskesi, Place Details
-     Enterprise, **4 birim**). Numara hiçbir yere yazılmaz. Liste öğesine yalnızca anahtarlı özeti yazılır; bu özet
+     Enterprise, **20 birim**). Numara hiçbir yere yazılmaz. Liste öğesine yalnızca anahtarlı özeti yazılır; bu özet
      "Ret istedi"de numarayı engel listesine eklemek için kullanılır.
   3. Cep numarasıysa `https://wa.me/90XXXXXXXXXX?text=<encodeURIComponent(mesaj)>` adresine **302** ile yönlendirir.
   4. Cep değilse ya da numara yoksa öğe `otomatik_atlandi` olur ve kullanıcı nedeni gösteren bir mesajla listeye
@@ -1020,7 +1033,7 @@ tests/                           Vitest
   (canlıda Litestream önerilir).
 - **Yarıda kalan taramalar:** 10 dakika kuralı hem "calisiyor" hem "kuyrukta" için (yukarıda).
 - **Aylık Places kotası:** kiracı başına, atomik; yönetici arayüzü yok, `npm run kota` (yukarıda).
-- **Kota birimi:** maliyet ağırlıklı (Essentials tabanı), varsayılan 6.000 birim; kota ayı İstanbul saatine göre.
+- **Kota birimi:** 1 birim = 0,001 $ (SKU'nun liste fiyatı), varsayılan 30.000 birim (30 $); harita yüklemeleri de sayılır; kota ayı İstanbul saatine göre.
 - **Next.js önbelleği:** `cacheComponents`/`partialPrefetching` kapalı; tüm sayfalar oturuma bağlı ve canlı Places
   verisi gösterdiği için klasik dinamik render.
 - **lead_events.sistem** sütunu ve `(tenant_id, lead_id)` bileşik yabancı anahtarı.
@@ -1042,7 +1055,7 @@ tests/                           Vitest
 - **WhatsApp:** yarı otomatik; numara yalnızca "WhatsApp'ta aç" sunucu yönlendirmesinde çözülür (ekran ve yenileme
   Places çağrısı yapmaz); yönlendirme rotaları Origin yerine oturum + SameSite + Sec-Fetch-Site'a dayanır.
 - **SMS sağlayıcısı Netgsm** (resmî SDK ile doğrulanan REST v2 alanları); ret yolu "RET yazıp <ret numarası>" metni +
-  kiracıya özgü gizli webhook. Places'tan alınan telefon saklanmaz; gönderim anında 4 birim.
+  kiracıya özgü gizli webhook. Places'tan alınan telefon saklanmaz; gönderim anında 20 birim.
 
 ## Açık kararlar
 

@@ -1,5 +1,5 @@
 // Demo çalışma alanının aylık Places kotasını değiştirir (yalnızca ./data/demo.db; gerçek veritabanı için npm run kota).
-// Kullanım: npm run demo:kota -- <birim>      ör. npm run demo:kota -- 0   (kota dolu)   ·   npm run demo:kota -- 1000
+// Kullanım: npm run demo:kota -- <birim>      ör. npm run demo:kota -- 0   (kota dolu)   ·   npm run demo:kota -- 5000
 import { DEMO_ALAN_ADI } from "./demo-ortam";
 import { kotaAyarla } from "../src/server/repo/sistem/kota";
 import { slugUret } from "../src/server/repo/sistem/uyelik";

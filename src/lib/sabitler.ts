@@ -116,9 +116,9 @@ export const YARIM_KALDI_MESAJI = "Tarama yarıda kaldı, yeniden başlatın.";
 
 /**
  * Yeni çalışma alanlarının aylık Places kotası, BİRİM cinsinden (PLACES_AYLIK_KOTA ile değiştirilebilir).
- * Birim ağırlıkları: src/lib/places-birimleri.ts.
+ * 1 birim = 0,001 $ (ağırlıklar: src/lib/places-birimleri.ts); 30.000 birim = 30 $ liste fiyatı.
  */
-export const VARSAYILAN_AYLIK_PLACES_KOTASI = 6000;
+export const VARSAYILAN_AYLIK_PLACES_KOTASI = 30_000;
 /** Kullanım bu orana ulaşınca uyarı gösterilir. */
 export const KOTA_UYARI_ORANI = 0.8;
 /** Kota %80'e ulaşınca Google bilgilerinin otomatik gösterimi durur (Kayıtlar, detay, Ayarlar > Kullanım). */
