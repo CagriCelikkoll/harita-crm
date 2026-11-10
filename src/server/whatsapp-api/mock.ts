@@ -67,6 +67,10 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.wabaNumaralari = null;
 }
 
+// Demo işçisi her açılışta sayacı sıfırdan başlatır ama demo.db kalıcıdır: önek olmasa yeni mesaj eski mesajın kimliğini
+// alır ve teslim bildirimi eski satıra işlenir.
+const SUREC_ONEKI = process.env.VITEST === "true" ? "" : `${Date.now().toString(36).toUpperCase()}_`;
+
 export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi {
   const cagri = () => {
     mockWhatsapp.sonBaglanti = b;
@@ -80,7 +84,7 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
       cagri();
       const h = mockWhatsapp.aliciHatalari.get(g.alici.deger);
       if (h) throw h;
-      const wamid = `wamid.MOCK${String(mockWhatsapp.gonderilenler.length + 1).padStart(6, "0")}`;
+      const wamid = `wamid.MOCK${SUREC_ONEKI}${String(mockWhatsapp.gonderilenler.length + 1).padStart(6, "0")}`;
       mockWhatsapp.gonderilenler.push({ ...structuredClone(g), wamid });
       return { wamid, durum: mockWhatsapp.gonderimDurumu };
     },

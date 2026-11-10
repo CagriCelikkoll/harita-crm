@@ -581,7 +581,8 @@ ayarlanmış bir bağlantıyla herkese mesaj gönderilmesini önler.
 - Şablonlarda "butonsuz_pazarlama" yanında **Kullanılamaz**.
 - Kimlikler ve bildirim adresi **Teknik ayrıntıları göster** altında katlıdır.
 
-Demoda Meta bağlantısı olmadığı için 4. adım **hiç açılmaz**. Beklenen davranış budur.
+Demoda Meta bağlantısı olmadığı için 4. adım kendiliğinden **açılmaz**. Beklenen davranış budur. (`npm run demo:webhook`
+ile bildirimler taklit edilirse açılır; bkz. [PROVA.md](PROVA.md).)
 
 **Ne yap:** **Bağlantıyı test et**'e basın.
 
@@ -704,7 +705,7 @@ basın (düğme, liste bilgisi gelene kadar birkaç saniye pasif kalabilir).
 | Giriş düğmesi "Yükleniyor…" yazıyor | Sayfa henüz yükleniyor; birkaç saniye bekleyin. |
 | Harita görünmüyor | Tarayıcı harita anahtarı tanımlı değil. Merkezi adresle girerek devam edin. |
 | Listede Google adları yok, satırlarda "Göster" var | Bu ayki kullanım %80'e ulaşmış: Google bilgileri artık kendiliğinden gelmez, **Göster** ile istenir. |
-| WhatsApp mesajı "Teslim edildi" olmuyor | Demoda Meta yok; teslim bildirimi gelmez. Beklenen durum. |
+| WhatsApp mesajı "Teslim edildi" olmuyor | Demoda Meta yok; teslim bildirimi kendiliğinden gelmez. Beklenen durum. Taklit etmek için `npm run demo:webhook` (bkz. [PROVA.md](PROVA.md)). |
 
 ---
 

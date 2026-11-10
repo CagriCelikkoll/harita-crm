@@ -24,7 +24,8 @@
     "demo:hazirla": "node --conditions=react-server --import tsx scripts/demo-hazirla.ts",
     "demo": "node --import tsx scripts/demo.ts",
     "demo:isci": "node --conditions=react-server --import tsx scripts/demo-isci.ts",
-    "demo:kota": "tsx scripts/demo-kota.ts"
+    "demo:kota": "tsx scripts/demo-kota.ts",
+    "demo:webhook": "node --conditions=react-server --import tsx scripts/demo-webhook.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
