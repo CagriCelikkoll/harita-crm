@@ -57,6 +57,38 @@ export function calismaAlaniKur(userId: string, ad: string): TenantContext {
   });
 }
 
+// --- Kayıt kipi (Better Auth kullanıcı oluşturma kancası, src/server/auth.ts) ---
+// KAYIT_KIPI=acik (varsayılan; geliştirme ve testler): herkes kayıt olup kendi çalışma alanını kurabilir.
+// KAYIT_KIPI=davetle (canlı): yalnızca (a) hiç kullanıcı yokken ILK_YONETICI_EPOSTASI ile, ya da (b) geçerli
+// (kabul edilmemiş, süresi dolmamış) bir daveti olan e-postayla kayıt olunur. İnternete açık alan adında yabancıların
+// hesap açıp çalışma alanı kurmasını (ve Places kotası harcamasını) önler. İlk yönetici adresi tanımlı değilse ilk
+// kayıt da reddedilir: kurulum ile ilk girişin arasındaki boşlukta başkası yönetici olamaz.
+
+type Ortam = Readonly<Record<string, string | undefined>>;
+export type KayitKipi = "acik" | "davetle";
+export const kayitKipi = (ortam: Ortam = process.env): KayitKipi =>
+  ortam.KAYIT_KIPI?.trim().toLowerCase() === "davetle" ? "davetle" : "acik";
+
+export type KayitKarari = { izinli: true } | { izinli: false; mesaj: string };
+
+export function kayitIzni(eposta: string, ortam: Ortam = process.env, simdi = new Date()): KayitKarari {
+  if (kayitKipi(ortam) === "acik") return { izinli: true };
+  const e = eposta.trim().toLowerCase();
+  const kullaniciVar = Boolean(db.select({ id: user.id }).from(user).limit(1).get());
+  if (!kullaniciVar) {
+    const ilk = ortam.ILK_YONETICI_EPOSTASI?.trim().toLowerCase();
+    if (!ilk) return { izinli: false, mesaj: "Kayıt kapalı: sunucuda ILK_YONETICI_EPOSTASI tanımlı değil." };
+    return e === ilk ? { izinli: true } : { izinli: false, mesaj: "Kayıt yalnızca davetle yapılabilir." };
+  }
+  const davet = db
+    .select({ id: invitations.id })
+    .from(invitations)
+    .where(and(eq(invitations.eposta, e), isNull(invitations.kabulTarihi), gt(invitations.sonGecerlilik, simdi)))
+    .limit(1)
+    .get();
+  return davet ? { izinli: true } : { izinli: false, mesaj: "Kayıt yalnızca davetle yapılabilir. Yöneticinizden davet isteyin." };
+}
+
 export function davetBilgisi(token: string) {
   return (
     db

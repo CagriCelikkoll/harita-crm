@@ -70,3 +70,44 @@ export function tunelHostDeseni(ortam: { genelAdres?: string; uygulamaAdresi?: s
 
 /** Tünelden gelen istek bu yola ulaşabilir mi (yalnızca WhatsApp webhook'u). */
 export const tuneldenIzinliMi = (yol: string) => WEBHOOK_YOLU.test(yol);
+
+const YEREL_ALANLAR = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+export type UretimOrtami = { uretim: boolean; uygulamaAlanlari?: string; uygulamaAdresi?: string };
+
+/** Üretimde izinli alanlar: UYGULAMA_ALANLARI (virgüllü), boşsa BETTER_AUTH_URL'in alanı. Yerel adresler her zaman. */
+export function uygulamaAlanlari(ortam: UretimOrtami): Set<string> {
+  const liste = (ortam.uygulamaAlanlari ?? "")
+    .split(",")
+    .map((a) => alanAdi(a))
+    .filter((a): a is string => a !== null);
+  if (!liste.length) {
+    const uygulama = adresAlani(ortam.uygulamaAdresi, false);
+    if (uygulama) liste.push(uygulama);
+  }
+  return new Set([...YEREL_ALANLAR, ...liste]);
+}
+
+/**
+ * Canlı sunucu koruması (yalnızca NODE_ENV=production): Host ya da X-Forwarded-Host'taki değerlerden biri izinli
+ * alanlar dışındaysa (ör. sunucunun IP adresi, başka bir alan adı) true → proxy 404 döner. Caddy zaten yalnızca alan
+ * adına hizmet verir; bu, yanlış ters vekil ayarına karşı ikinci kattır. Geliştirmede (uretim=false) hiçbir şey engellenmez.
+ * Tünel koruması bundan önce çalışır; *.trycloudflare.com üretimde de yalnızca webhook'a ulaşır.
+ */
+export function izinsizHostMu(
+  basliklar: Headers,
+  ortam: UretimOrtami = {
+    uretim: process.env.NODE_ENV === "production",
+    uygulamaAlanlari: process.env.UYGULAMA_ALANLARI,
+    uygulamaAdresi: process.env.BETTER_AUTH_URL,
+  },
+): boolean {
+  if (!ortam.uretim) return false;
+  const izinli = uygulamaAlanlari(ortam);
+  const degerler = [basliklar.get("host"), ...(basliklar.get("x-forwarded-host")?.split(",") ?? [])]
+    .map((h) => alanAdi(h))
+    .filter((a): a is string => a !== null);
+  // Host'suz istek (HTTP/1.0) üretimde kabul edilmez.
+  if (!degerler.length) return true;
+  return degerler.some((a) => !izinli.has(a));
+}

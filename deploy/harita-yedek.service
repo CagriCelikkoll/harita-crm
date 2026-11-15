@@ -1,0 +1,17 @@
+# Günlük veritabanı yedeği (npm run yedek ile aynı). harita-yedek.timer tetikler; elle: sudo systemctl start harita-yedek
+# Hedef: YEDEK_KLASORU (.env.production.local; /var/backups/harita-crm), 14 gün saklanır.
+[Unit]
+Description=Harita CRM günlük veritabanı yedeği
+
+[Service]
+Type=oneshot
+User=harita
+Group=harita
+WorkingDirectory=/opt/harita-crm
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --import tsx scripts/yedek-al.ts
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0077

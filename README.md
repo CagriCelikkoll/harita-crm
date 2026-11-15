@@ -74,8 +74,14 @@ denemek için örnek dosya: `docs/ornek-ice-aktarma.csv`.
 | `WORKER_ARALIK_SN`, `WORKER_PARTI` | Hayır | Gönderim işçisinin tur aralığı (varsayılan 30 sn) ve tur başına en fazla mesaj (20). |
 | `ISCI_KILIT_SN` | Hayır | Tek işçi kilidinin süresi (varsayılan 120 sn; tur boyunca nabızla uzatılır, çöken işçinin kilidi bu süre sonunda düşer). |
 | `AUTH_INSECURE_COOKIES` | Hayır | Çerezler her zaman `Secure`'dur; tarayıcılar `http://localhost`'ta bunu kabul eder. Yalnızca localhost dışında düz HTTP ile geliştirme yapıyorsanız `true`. |
+| `KAYIT_KIPI` | Canlıda | `davetle`: yalnızca hiç kullanıcı yokken `ILK_YONETICI_EPOSTASI` ve geçerli daveti olan e-postalar kayıt olur (internete açık sunucuda yabancının hesap ve çalışma alanı açmasını önler). Varsayılan `acik` (geliştirme, testler). |
+| `ILK_YONETICI_EPOSTASI` | `davetle` ile | İlk yönetici hesabının e-postası; tanımlı değilse `davetle` kipinde ilk kayıt da reddedilir. |
+| `UYGULAMA_ALANLARI` | Hayır | Üretimde (`NODE_ENV=production`) izinli Host'lar, virgüllü; boşsa `BETTER_AUTH_URL`'in alanı. Diğer Host'lara (ör. sunucunun IP'si) 404. Yerel adresler her zaman izinli. |
+| `YEDEK_KLASORU` | Canlıda | Günlük yedeklerin klasörü (`npm run yedek`; canlıda `/var/backups/harita-crm`). Yoksa veritabanı klasöründeki `gunluk-yedek/`. Sağlık ucu yedeğin yaşını yalnızca bu tanımlıysa denetler. |
 
-Komut satırı betikleri (`db:migrate`, `cleanup`, `kota`, `sinir`, `worker`) de Next.js ile aynı `.env`,
+Canlı sunucu için hazır şablon: `.env.production.example` (kurulum: `docs/SUNUCU-KURULUM.md`).
+
+Komut satırı betikleri (`db:migrate`, `cleanup`, `kota`, `sinir`, `worker`, `yedek`) de Next.js ile aynı `.env`,
 `.env.production` ve `.env.local` dosyalarını yükler (`scripts/ortam.ts`); süreçte zaten tanımlı değişkenler ezilmez.
 
 ## Veritabanı ve migration'lar
@@ -121,6 +127,9 @@ npm run worker         # gönderim işçisi (ayrı süreç; aşağıda "Gönderi
 npm run tunel          # geçici https tüneli (cloudflared; yalnızca yerel WhatsApp denemesi, docs/GERCEK-KURULUM.md)
 npm run hazirlik       # ofis günü öncesi denetim (✓/✗ + çözüm; --tam: typecheck ve testler; docs/OFIS-GUNU.md)
 npm run kullanim -- <tenant-slug> [ay]   # bu ayki Places kullanımı birim ve dolar olarak (salt okunur)
+npm run yedek          # günlük veritabanı yedeği (.db.gz, bütünlük denetimli, 14 gün; docs/SUNUCU-KURULUM.md)
+npm run yedek:geri-yukle -- <yedek> --evet   # yedekten geri yükleme (canlıda deploy/geri-yukle.sh ile)
+npm run anahtar:uret -- <env dosyası>      # eksik gizli anahtarları üretip dosyaya yazar (değerleri ekrana yazmaz)
 npm test               # Vitest
 npm run lint           # ESLint (veritabanı erişim kuralı dahil)
 npm run typecheck
@@ -156,7 +165,11 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/harita-kullanimi.test.ts` | Harita yüklemesi: `POST /api/kullanim/harita` oturumsuz 401, başka kaynaktan 403; her yüklemede "harita" kalemine ve toplama 7 birim, gövdesiz yanıt; %80 ve kota dolu iken de engellenmemesi (yüzde %100); harita kullanımının %80 otomatik gösterim sınırına ve kotaya girmesi; bileşenin harita oluşturulduktan sonra bir kez bildirmesi; **hız sınırı:** kullanıcı başına dakikada 10 sayım, fazlası 429 ve yazılmaz, aynı alandaki başka üye etkilenmez, bir dakika sonra yeniden sayılır; 24 saatte en fazla 100 sayım (700 birim). **Migration 0018:** kotaların 5 ile çarpılması (6.000 → 30.000), sayaçların kalem kalem gerçek fiyata çevrilmesi (102 eski birimlik gerçek tarama → 560 + kalemsiz), yeni alanın varsayılan 30.000 kotası. |
 | `tests/hazirlik.test.ts` | `npm run hazirlik`: gerekli ortam değişkenleri (PLACES_MOCK=false, WHATSAPP_API_MOCK boş, anahtar uzunlukları) ve gizli değerlerin hiçbir çıktıya yazılmaması; bekleyen migration sayısı; WhatsApp bağlantısı (yok, test modu, hesap kilidi); işçi kilidi (boşta, çalışan, takılı); Places doğrulaması (anahtar yoksa istek yok); cloudflared (PATH'te, kurulu ama PATH'te değil, yok); 3000 portu. `npm run kullanim`: birim ve dolar, kalemler, kalemsiz eski birimler, salt okunur veritabanında çalışması. |
 | `tests/gorunurluk.test.ts` | Kullanım kalemlerinin toplamla aynı atomik ifadede artması ve iadesi; her Places çağrısının kalemi; eşikli ayırma (sonraki toplam kota × 0,8'in altında); otomatik gösterimin yalnızca adı girilmemiş kayıtlara ve %80'in altına gitmesi, eşikte istek yapmaması ve birim düşmemesi, elle Göster'in %100'e kadar sürmesi; detay panelinin otomatik açılışında aynı eşik; 30 dakikalık bellek önbelleğinin süresi, çıkış / giriş / alan değişince temizlenmesi ve tarayıcı depolaması kullanmaması; arayüzde "birim" sözcüğünün geçmemesi. |
-| `tests/tunel.test.ts` | Tünel koruması: `*.trycloudflare.com` ya da `GENEL_ADRES` alanından (Host veya X-Forwarded-Host; büyük harf, port, sondaki nokta) gelen istek yalnızca `/api/whatsapp/webhook/<kimlik>`e geçer; giriş, kayıt, sayfalar, diğer API'ler, statik dosyalar ve yol oyunları (`/../`) 404, oturum çereziyle de; `GENEL_ADRES` https değilse ya da uygulamanın kendi alanıysa korunmaz; localhost'tan oturum yönlendirmesi ve API'ler eskisi gibi; `/iletisim` yönlendirmeleri tünel host'unda uygulanmaz. |
+| `tests/tunel.test.ts` | Tünel koruması: `*.trycloudflare.com` ya da `GENEL_ADRES` alanından (Host veya X-Forwarded-Host; büyük harf, port, sondaki nokta) gelen istek yalnızca `/api/whatsapp/webhook/<kimlik>`e geçer; giriş, kayıt, sayfalar, diğer API'ler, statik dosyalar ve yol oyunları (`/../`) 404, oturum çereziyle de; `GENEL_ADRES` https değilse ya da uygulamanın kendi alanıysa korunmaz; localhost'tan oturum yönlendirmesi ve API'ler eskisi gibi; `/iletisim` yönlendirmeleri tünel host'unda uygulanmaz. **Canlı alan adı:** üretimde alan adı ve yerel adresler geçer; IP, başka alan, sahte X-Forwarded-Host ve Host'suz istek 404; geliştirmede engel yok. |
+| `tests/saglik.test.ts` | `GET /api/saglik`: veritabanı, işçi nabzı (5 dk), son günlük yedek (26 sa; klasör tanımlı değilse atlanır), disk (%5 ve 1 GB); dışarıya yalnızca `{ durum }` ve 200/503, ayrıntı yalnızca Host'u yerel ve X-Forwarded-For'suz isteğe; yanıtta yol ya da gizli değer olmaması. |
+| `tests/gunluk-yedek.test.ts` | Günlük yedek: WAL'daki işlemler dahil `.db.gz`, 0600, geçici dosya kalmaması, uygulamanın veritabanı değilse yedek bırakılmaması; 14 gün saklama (en yeni her zaman kalır, başka veritabanının yedeklerine dokunulmaz). Geri yükleme: önce mevcut veritabanının yedeği; bozuk, yarım ya da yabancı yedekte ve işçi kilidi doluyken hiçbir şeyin değişmemesi; bozuk mevcut dosyanın yalnızca `--zorla` ile kenara taşınması. |
+| `tests/anahtar-uret.test.ts` | `npm run anahtar:uret`: boş anahtarlar doldurulur, dolu (tırnaklı, export'lu, yorumlu) değerlere dokunulmaz, CRLF korunur; script üretilen değerleri çıktıya yazmaz, dosyayı 0600 yapar, ikinci çalıştırmada hiçbir şeyi değiştirmez, dosya yoksa oluşturmaz. |
+| `tests/kayit-kipi.test.ts` | `KAYIT_KIPI=davetle`: hiç kullanıcı yokken yalnızca `ILK_YONETICI_EPOSTASI` (tanımlı değilse kimse), sonra yalnızca geçerli daveti olan e-posta kayıt olur; süresi dolmuş, kabul edilmiş davet ve davetsiz e-posta kayıt ucundan reddedilir, kullanıcı oluşmaz; varsayılan açık kip eskisi gibi. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -434,6 +447,10 @@ Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarl
   ayrıca siler.
 
 ## Barındırma
+
+**Ubuntu 24.04 VPS'e adım adım kurulum** (systemd servisleri, Caddy ile otomatik HTTPS, ufw, günlük yedek ve geri
+yükleme, sağlık ucu `/api/saglik`, tek komutla güncelleme `sudo bash deploy/guncelle.sh`): `docs/SUNUCU-KURULUM.md`.
+Sunucu dosyaları `deploy/` klasöründedir.
 
 - **Kalıcı diskli bir sunucu gerekir:** VPS (Hetzner, DigitalOcean vb.) veya kalıcı volume'lu bir servis
   (Fly.io volume, Railway volume, Render disk). SQLite dosyası yerel diske yazılır.

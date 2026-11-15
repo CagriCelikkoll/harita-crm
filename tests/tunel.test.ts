@@ -1,9 +1,9 @@
 // Tünel koruması (src/proxy.ts + src/lib/tunel.ts): Host'u *.trycloudflare.com ya da GENEL_ADRES'in alanı olan istek
 // yalnızca /api/whatsapp/webhook/<kimlik>'e ulaşır, diğer her yol 404; localhost'tan arayüz ve oturum yönlendirmesi
 // eskisi gibi. next.config yönlendirmeleri (proxy'den önce çalışır) tünel isteğine uygulanmaz.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { alanAdi, tunelHostDeseni, tunelIstegiMi, tuneldenIzinliMi } from "@/lib/tunel";
+import { alanAdi, izinsizHostMu, tunelHostDeseni, tunelIstegiMi, tuneldenIzinliMi, uygulamaAlanlari } from "@/lib/tunel";
 import { oturumYoluMu, proxy } from "@/proxy";
 
 const TUNEL = "rastgele-dort-kelime.trycloudflare.com";
@@ -132,5 +132,68 @@ describe("next.config yönlendirmeleri", () => {
     const y = await yapilandirma.redirects!();
     expect(y).toHaveLength(2);
     for (const r of y) expect(r.missing).toEqual([{ type: "host", value: tunelHostDeseni({ uygulamaAdresi: process.env.BETTER_AUTH_URL }) }]);
+  });
+});
+
+// Canlı sunucu (deneme.bursalidagitim.com): GENEL_ADRES ve BETTER_AUTH_URL aynı alan → arayüz açık; bunun dışındaki
+// Host'lar (sunucunun IP'si, başka alan) üretimde 404. Tünel koruması üretimde de geçerli.
+describe("canlı alan adı koruması", () => {
+  const CANLI = "https://deneme.bursalidagitim.com";
+  const canli = (yol: string, basliklar: Record<string, string>) => proxy(istek(`https://deneme.bursalidagitim.com${yol}`, basliklar));
+  const uretim = { uretim: true, uygulamaAdresi: CANLI };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("izinli alanlar: UYGULAMA_ALANLARI ya da BETTER_AUTH_URL'in alanı ve yerel adresler", () => {
+    expect([...uygulamaAlanlari(uretim)].sort()).toEqual(["127.0.0.1", "[::1]", "deneme.bursalidagitim.com", "localhost"]);
+    expect(uygulamaAlanlari({ uretim: true, uygulamaAlanlari: " A.ornek.test , b.ornek.test:443 ", uygulamaAdresi: CANLI }).has("deneme.bursalidagitim.com")).toBe(false);
+    expect(uygulamaAlanlari({ uretim: true, uygulamaAlanlari: " A.ornek.test , b.ornek.test:443 " }).has("b.ornek.test")).toBe(true);
+  });
+
+  it("üretimde alan adı ve yerel adres geçer; IP, başka alan, sahte X-Forwarded-Host ve Host'suz istek engellenir", () => {
+    const h = (host: string | null, xfh?: string) => {
+      const b = new Headers();
+      if (host !== null) b.set("host", host);
+      if (xfh) b.set("x-forwarded-host", xfh);
+      return b;
+    };
+    expect(izinsizHostMu(h("deneme.bursalidagitim.com"), uretim)).toBe(false);
+    expect(izinsizHostMu(h("DENEME.bursalidagitim.com.:443"), uretim)).toBe(false);
+    expect(izinsizHostMu(h("127.0.0.1:3000"), uretim)).toBe(false);
+    expect(izinsizHostMu(h("localhost:3000"), uretim)).toBe(false);
+    expect(izinsizHostMu(h("203.0.113.7"), uretim)).toBe(true);
+    expect(izinsizHostMu(h("baska.ornek.test"), uretim)).toBe(true);
+    expect(izinsizHostMu(h("deneme.bursalidagitim.com.saldirgan.test"), uretim)).toBe(true);
+    expect(izinsizHostMu(h("deneme.bursalidagitim.com", "saldirgan.test"), uretim)).toBe(true);
+    expect(izinsizHostMu(h(null), uretim)).toBe(true);
+    // Geliştirmede hiçbir şey engellenmez.
+    expect(izinsizHostMu(h("203.0.113.7"), { ...uretim, uretim: false })).toBe(false);
+  });
+
+  it("proxy: üretimde canlı alan adından arayüz ve webhook açık, IP'den 404; trycloudflare yalnızca webhook", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("BETTER_AUTH_URL", CANLI);
+    vi.stubEnv("GENEL_ADRES", CANLI);
+    const y = canli("/panel", { host: "deneme.bursalidagitim.com" });
+    expect(y.status).toBe(307); // oturumsuz → giriş
+    expect(gecti(canli("/giris", { host: "deneme.bursalidagitim.com" }))).toBe(true);
+    expect(gecti(canli("/api/auth/sign-in/email", { host: "deneme.bursalidagitim.com" }))).toBe(true);
+    expect(gecti(canli(`/api/whatsapp/webhook/${KIMLIK}`, { host: "deneme.bursalidagitim.com" }))).toBe(true);
+    expect(gecti(canli("/api/saglik", { host: "127.0.0.1:3000" }))).toBe(true);
+
+    for (const yol of ["/giris", "/api/saglik", `/api/whatsapp/webhook/${KIMLIK}`, "/_next/static/chunks/main.js"]) {
+      const ip = proxy(istek(`http://203.0.113.7${yol}`, { host: "203.0.113.7" }));
+      expect(ip.status, yol).toBe(404);
+      expect(await ip.text()).toBe("Bulunamadı.");
+    }
+    expect(gecti(proxy(tuneldenIstek(`/api/whatsapp/webhook/${KIMLIK}`)))).toBe(true);
+    expect(proxy(tuneldenIstek("/giris")).status).toBe(404);
+  });
+
+  it("geliştirmede (NODE_ENV production değil) IP ile erişim eskisi gibi", () => {
+    vi.stubEnv("BETTER_AUTH_URL", CANLI);
+    expect(gecti(proxy(istek("http://192.168.1.20:3000/giris", { host: "192.168.1.20:3000" })))).toBe(true);
   });
 });

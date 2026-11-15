@@ -1,0 +1,27 @@
+# Harita CRM gönderim işçisi (kampanya kuyruğu, saatlik ve günlük bakım). Kurulum: docs/SUNUCU-KURULUM.md
+# Kopyala: sudo cp deploy/harita-worker.service /etc/systemd/system/ && sudo systemctl daemon-reload
+# Durdurulunca (SIGTERM) eldeki turu bitirip çıkar; tur en fazla işçi kilidi süresi (120 sn) kadar sürer.
+[Unit]
+Description=Harita CRM gönderim işçisi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=harita
+Group=harita
+WorkingDirectory=/opt/harita-crm
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --conditions=react-server --import tsx scripts/worker.ts
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=150
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

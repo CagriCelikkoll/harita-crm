@@ -1,0 +1,12 @@
+# Her gün 03:30 (İstanbul) harita-yedek.service. Persistent: sunucu o saatte kapalıysa açılınca alınır.
+# Etkinleştir: sudo systemctl enable --now harita-yedek.timer   Kontrol: systemctl list-timers harita-yedek.timer
+[Unit]
+Description=Harita CRM günlük yedek zamanlayıcısı
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

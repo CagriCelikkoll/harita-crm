@@ -1,0 +1,36 @@
+# Caddy: deneme.bursalidagitim.com için otomatik HTTPS (Let's Encrypt) ve uygulamaya ters vekil.
+# Kopyala: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# Alan adı değişirse yalnızca aşağıdaki satırı ve .env.production.local'deki BETTER_AUTH_URL / GENEL_ADRES'i değiştirin.
+# Caddy Host başlığını değiştirmeden iletir ve X-Forwarded-For ekler (sağlık ucunun ayrıntıyı yalnızca sunucuya
+# vermesi buna dayanır).
+# Sertifika uyarı e-postası için (isteğe bağlı) dosyanın en üstüne şu blok eklenebilir:
+#   {
+#   	email ornek@alanadi.com
+#   }
+
+deneme.bursalidagitim.com {
+	encode zstd gzip
+
+	# İçe aktarma dosyası en fazla 10 MB, webhook 1 MB; pay bırakılır.
+	request_body {
+		max_size 25MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:3000
+
+	log {
+		output file /var/log/caddy/harita-crm.log {
+			roll_size 20MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+	}
+}

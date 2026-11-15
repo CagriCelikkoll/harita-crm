@@ -1,0 +1,28 @@
+# Harita CRM web sunucusu (Next.js). Kurulum: docs/SUNUCU-KURULUM.md
+# Kopyala: sudo cp deploy/harita-web.service /etc/systemd/system/ && sudo systemctl daemon-reload
+# Ortam değişkenleri /opt/harita-crm/.env.production.local dosyasından okunur (Next.js ve scriptler aynı dosyayı okur).
+# Uygulama yalnızca 127.0.0.1:3000'i dinler; dışarıya Caddy açılır.
+[Unit]
+Description=Harita CRM web (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=harita
+Group=harita
+WorkingDirectory=/opt/harita-crm
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+# Sertleştirme: /usr, /boot, /etc salt okunur; /home görünmez; ayrı /tmp; yeni dosyalar yalnızca sahibine açık.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
