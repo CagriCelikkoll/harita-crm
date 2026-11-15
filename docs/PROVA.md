@@ -47,12 +47,14 @@ demoda karşılığı yok; demo bağlantısı hazır gelir.
 
 **Bağlantı bilgileri**
 
-📍 Ofiste: **Ayarlar → WhatsApp (Meta)** → Teknik ayrıntılar'a WABA ID, Phone Number ID, token ve App Secret girip
-**Kaydet**'e basarsınız. **Doğrulama anahtarı yalnızca o anda gösterilir;** kopyalayın.
+📍 Ofiste: **Ayarlar → WhatsApp (Meta)** → (ilk numara) Teknik ayrıntılar'a numaranın adını (ör. Merkez), WABA ID,
+Phone Number ID, token ve App Secret girip **Kaydet**'e basarsınız. **Doğrulama anahtarı yalnızca o anda gösterilir;**
+kopyalayın. Diğer numaralar sonra üstteki **+ Numara ekle** sekmesinden eklenir; her numaranın kurulumu ayrıdır.
 
 **Demoda:** Bağlantı hazırdır, form doldurulmaz. **Ayarlar → WhatsApp (Meta)** sayfasını açın:
 
-- Üstte **Bağlı**, **Kalite: Yüksek (yeşil)**, **Test modu açık**.
+- En üstte numara sekmeleri: **Merkez** (seçili) ve **+ Numara ekle**.
+- Kartta **Bağlı**, **Kalite: Yüksek (yeşil)**, **Test modu açık**.
 - Kurulum adımları: 1 tamamlandı, 2 "sıradaki adım", 3 bekliyor, 4 kilitli.
 - **Teknik ayrıntıları göster**: bildirim adresi demoda `http://localhost:3000/api/whatsapp/webhook/…` ile başlar
   (ofiste `https://…trycloudflare.com/…` olmalı).

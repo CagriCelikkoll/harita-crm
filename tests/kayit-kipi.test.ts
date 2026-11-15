@@ -19,7 +19,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("kayıt kipi", () => {
+// Kayıt ucu parola özetini (scrypt) hesaplar: tam paket koşarken 5 sn varsayılan süreyi aşabiliyor.
+describe("kayıt kipi", { timeout: 30_000 }, () => {
   it("varsayılan açık; yalnızca 'davetle' değeri kayıt kapatır", () => {
     expect(kayitKipi({})).toBe("acik");
     expect(kayitKipi({ KAYIT_KIPI: " DAVETLE " })).toBe("davetle");

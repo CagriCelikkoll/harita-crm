@@ -14,6 +14,7 @@ import * as wa from "@/server/servisler/whatsapp-api";
 import { GraphHatasi } from "@/server/whatsapp-api";
 import { mockWhatsapp, mockWhatsappSifirla } from "@/server/whatsapp-api/mock";
 import { kiraciOlustur } from "./yardimci/fabrika";
+import { tekNumara } from "./yardimci/numara";
 import { kayitOlustur, SahteSaglayici } from "./yardimci/mesaj-fabrika";
 
 const OGLE = new Date("2026-10-12T09:00:00Z"); // 12:00 İstanbul
@@ -124,12 +125,12 @@ describe("tur sırasında iptal / duraklatma", () => {
 
   it("WhatsApp: kalite yenilenirken numara sahipliği reddedilirse gönderilmez, kampanya duraklar", async () => {
     const ctx = kiraci();
-    await wa.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "510002", erisimAnahtari: "a", appSecret: "s" });
-    await wa.sablonlariSenkronizeEt(ctx);
+    await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", wabaId: "200001", phoneNumberId: "510002", erisimAnahtari: "a", appSecret: "s" });
+    await wa.sablonlariSenkronizeEt(ctx, tekNumara(ctx));
     db.$client
       .prepare("update whatsapp_baglantilari set webhook_dogrulama_tarihi = ?, son_imzali_durum_tarihi = ? where tenant_id = ?")
       .run(Date.now(), Date.now(), ctx.tenantId);
-    wa.testModuDegistir(ctx, false);
+    wa.testModuDegistir(ctx, tekNumara(ctx), false);
     const [kisi] = kisileriEkle(ctx, [{ kaynak: "elle", ekTelefon: "0532 700 00 09", etiketler: ["wa"] }], "x");
     whatsappIzniAyarla(ctx, kisi.id, { izin: "var", kaynak: "form" });
     const sablon = sablonlariListele(ctx).find((x) => x.ad === "randevu_hatirlatma")!;
@@ -137,6 +138,7 @@ describe("tur sırasında iptal / duraklatma", () => {
       ctx,
       {
         kanal: "whatsapp_api",
+        baglantiId: tekNumara(ctx),
         ad: "W",
         filtre: { etiket: "wa" },
         testModu: false,
@@ -154,12 +156,12 @@ describe("tur sırasında iptal / duraklatma", () => {
 
   it("WhatsApp: 131048 kampanyayı duraklatınca aynı partideki kalan mesajlar Meta'ya gitmez, kuyrukta kalır", async () => {
     const ctx = kiraci();
-    await wa.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "510001", erisimAnahtari: "a", appSecret: "s" });
-    await wa.sablonlariSenkronizeEt(ctx);
+    await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", wabaId: "200001", phoneNumberId: "510001", erisimAnahtari: "a", appSecret: "s" });
+    await wa.sablonlariSenkronizeEt(ctx, tekNumara(ctx));
     db.$client
       .prepare("update whatsapp_baglantilari set webhook_dogrulama_tarihi = ?, son_imzali_durum_tarihi = ? where tenant_id = ?")
       .run(Date.now(), Date.now(), ctx.tenantId);
-    wa.testModuDegistir(ctx, false);
+    wa.testModuDegistir(ctx, tekNumara(ctx), false);
     const kisiler = kisileriEkle(
       ctx,
       ["0532 700 00 01", "0532 700 00 02", "0532 700 00 03"].map((t) => ({ kaynak: "elle" as const, ekTelefon: t, etiketler: ["wa"] })),
@@ -177,6 +179,7 @@ describe("tur sırasında iptal / duraklatma", () => {
       ctx,
       {
         kanal: "whatsapp_api",
+        baglantiId: tekNumara(ctx),
         ad: "W",
         filtre: { etiket: "wa" },
         testModu: false,

@@ -118,7 +118,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
 
   return (
     <>
-      <SayfaBasligi baslik={k.ad} aciklama={`${KANAL_ADLARI[k.kanal]} kampanyası · ${tarihYaz(k.olusturmaTarihi)}`}>
+      <SayfaBasligi baslik={k.ad} aciklama={`${KANAL_ADLARI[k.kanal]} kampanyası${k.numara ? ` · Gönderen: ${k.numara}` : ""} · ${tarihYaz(k.olusturmaTarihi)}`}>
         <Link href="/kampanyalar" className="dugme">
           Kampanyalara dön
         </Link>

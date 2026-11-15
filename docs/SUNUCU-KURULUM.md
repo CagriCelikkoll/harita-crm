@@ -372,8 +372,12 @@ Canlıya **tek numarayla** çıkılır; diğer iki numara sonra taşınır.
 - Test modu, test numaraları ve "Bağlantıyı test et" adımları ofis rehberindeki gibidir. Test modu webhook
   doğrulanmadan ve imzalı bir teslim bildirimi gelmeden kapanmaz.
 - Canlıda `WHATSAPP_API_MOCK` **tanımlı olmamalı** (`.env.production.example`'da yok).
-- Diğer numaralar çoklu numara desteği (plan, A grubu) geldikten sonra **Ayarlar → WhatsApp → Numara ekle** ile
-  eklenecek; bu rehber o zaman güncellenecek.
+- Diğer numaralar sonra **Ayarlar → WhatsApp → + Numara ekle** ile eklenir. Her numaranın kendi test modu, test
+  numaraları, uygulama payı ve kurulum adımları vardır; şablonlar numaranın WhatsApp hesabına (WABA) aittir.
+- **Tek Meta uygulaması = tek bildirim adresi.** Meta'da callback adresi uygulama düzeyindedir. Üç numara aynı
+  uygulamadaysa Meta'ya **ilk numaranın** adresini girmeniz yeterli: diğer numaraların bildirimleri de oraya gelir ve
+  uygulama doğru numaraya işler. Diğer numaraların "Bildirim adresi" adımı, o numaradan gönderilen ilk test mesajının
+  imzalı teslim bildirimiyle tamamlanır. Meta'da numara başına ayrı adres (override) girmek de çalışır.
 
 ## 16. Güncelleme (her yeni sürümde)
 

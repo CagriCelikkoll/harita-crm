@@ -53,7 +53,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   kampanyalar: [
     "id", "tenant_id", "olusturan", "kanal", "ad", "konu", "sablon", "bos_isim_hitabi", "filtre", "sandbox", "durum",
     "planlanan_tarih", "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
-    "sablon_id", "degisken_eslem", "duraklatma_nedeni", // WhatsApp (Cloud API)
+    "sablon_id", "degisken_eslem", "duraklatma_nedeni", "baglanti_id", // WhatsApp (Cloud API); baglanti_id: gönderen numara
   ],
   message_queue: [
     "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",
@@ -75,6 +75,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ],
   // Çalışma alanının kendi WhatsApp numarası; erişim anahtarı / App Secret / verify token / test numaraları şifreli.
   whatsapp_baglantilari: [
+    "id", "ad", "sira", // çoklu numara (0019): kimlik, ekrandaki ad ve sıra
     "tenant_id", "webhook_kimligi", "waba_id", "phone_number_id", "sifreli_veri", "test_modu", "uygulama_payi",
     "webhook_dogrulama_tarihi", "son_imzali_durum_tarihi", "gorunen_numara", "dogrulanmis_ad", "kalite",
     "limit_katmani", "son_kontrol", "son_hata", "sablon_senkron_tarihi", "guncelleyen", "guncelleme_tarihi",
@@ -85,7 +86,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   // Gönderim işçisi kilidi (kiracı verisi yok).
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [
-    "id", "tenant_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
+    "id", "tenant_id", "waba_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
     "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi",
   ],
   // satirlar: içe aktarılan dosyanın satırları (kullanıcı verisi), geçici; tamamlanınca/süresi dolunca silinir.

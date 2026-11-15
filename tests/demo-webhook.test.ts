@@ -21,6 +21,7 @@ import { mockWhatsappSifirla } from "@/server/whatsapp-api/mock";
 import { POST } from "@/app/api/whatsapp/webhook/[kimlik]/route";
 import { butonYuku, durumYuku, imzala, komutCozumle, retYuku, TESLIM_ADIMLARI } from "../scripts/demo-webhook-yuk";
 import { kiraciOlustur } from "./yardimci/fabrika";
+import { tekNumara } from "./yardimci/numara";
 
 const KOK = path.resolve(__dirname, "..");
 const SIMDI = new Date("2026-10-29T09:00:00Z");
@@ -33,12 +34,12 @@ async function kur() {
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Ltd.", iletisimBilgisi: "İzmir", iysNo: "1", sorumlulukOnayi: true });
   const hesap = { wabaId: String(700000 + sayac), phoneNumberId: String(710000 + sayac) };
   const secret = `prova-secret-${sayac}`;
-  await wa.whatsappBaglantisiKaydet(ctx, { ...hesap, erisimAnahtari: "x", appSecret: secret });
-  await wa.sablonlariSenkronizeEt(ctx);
-  wa.testNumaralariKaydet(ctx, [TEL]);
+  await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", ...hesap, erisimAnahtari: "x", appSecret: secret });
+  await wa.sablonlariSenkronizeEt(ctx, tekNumara(ctx));
+  wa.testNumaralariKaydet(ctx, tekNumara(ctx), [TEL]);
   const [kayit] = kisileriEkle(ctx, [{ kaynak: "elle", ekTelefon: TEL, aliciTuru: "bireysel", etiketler: ["prova"] }], "x");
   whatsappIzniAyarla(ctx, kayit.id, { izin: "var", kaynak: "sozlu" });
-  const kimlik = baglantiGetir(ctx)!.webhookKimligi;
+  const kimlik = baglantiGetir(ctx, tekNumara(ctx))!.webhookKimligi;
   const gonder = (yuk: unknown, anahtar = secret) => {
     const govde = JSON.stringify(yuk);
     return POST(
@@ -82,19 +83,19 @@ describe("sahte bildirimler gerçek webhook kodunda", () => {
     const sablon = sablonlariListele(k.ctx).find((s) => s.ad === "randevu_hatirlatma")!;
     kampanyaBaslat(
       k.ctx,
-      { kanal: "whatsapp_api", ad: "P", filtre: { etiket: "prova" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } },
+      { kanal: "whatsapp_api", baglantiId: tekNumara(k.ctx), ad: "P", filtre: { etiket: "prova" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } },
       SIMDI,
     );
     await isciTuru({ simdi: () => SIMDI, whatsappAralikMs: 0 });
     const teslim = () =>
       db.$client.prepare("select saglayici_kimligi s, teslim_durumu d from message_queue where lead_id = ?").get(k.kayit.id) as { s: string; d: string | null };
     const { s: wamid } = teslim();
-    expect(baglantiGetir(k.ctx)?.sonImzaliDurumTarihi).toBeNull();
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))?.sonImzaliDurumTarihi).toBeNull();
     for (const adim of TESLIM_ADIMLARI) {
       expect((await k.gonder(durumYuku(k.hesap, wamid, adim, WA_ID, SIMDI))).status).toBe(200);
       expect(teslim().d).toBe(adim);
     }
-    expect(baglantiGetir(k.ctx)?.sonImzaliDurumTarihi).toBeInstanceOf(Date);
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))?.sonImzaliDurumTarihi).toBeInstanceOf(Date);
   });
 
   it('ret: "RET" metni kaydı Ret yapar', async () => {

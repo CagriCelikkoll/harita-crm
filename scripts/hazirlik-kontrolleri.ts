@@ -115,6 +115,8 @@ export function migrasyonKontrolu(sqlite: Database, klasor?: string): Sonuc {
 type BaglantiSatiri = {
   ad: string;
   slug: string;
+  /** Numaranın adı (0019 sonrası; migration uygulanmamış eski veritabanında null). */
+  numara: string | null;
   baglanti: number | null;
   test_modu: number | null;
   numara_dogrulama_tarihi: number | null;
@@ -122,14 +124,18 @@ type BaglantiSatiri = {
   hesap_kilidi_kodu: number | null;
 };
 
-/** Çalışma alanlarının (ya da yalnızca `slug`'ın) WhatsApp bağlantısı: var mı, test modu açık mı, hesap kilidi var mı. */
+/**
+ * Çalışma alanlarının (ya da yalnızca `slug`'ın) WhatsApp numaraları: var mı, numara doğrulandı mı, test modu açık mı,
+ * hesap kilidi var mı. Birden çok numara varsa her numara için ayrı satır.
+ */
 export function whatsappKontrolleri(sqlite: Database, slug?: string): Sonuc[] {
+  const adVar = (sqlite.prepare("pragma table_info(whatsapp_baglantilari)").all() as { name: string }[]).some((c) => c.name === "ad");
   const satirlar = sqlite
     .prepare(
-      `select t.ad, t.slug, w.tenant_id is not null baglanti, w.test_modu, w.numara_dogrulama_tarihi, w.webhook_dogrulama_tarihi,
-              w.hesap_kilidi_kodu
+      `select t.ad, t.slug, ${adVar ? "w.ad" : "null"} numara, w.tenant_id is not null baglanti, w.test_modu, w.numara_dogrulama_tarihi,
+              w.webhook_dogrulama_tarihi, w.hesap_kilidi_kodu
          from tenants t left join whatsapp_baglantilari w on w.tenant_id = t.id
-        where ? is null or t.slug = ? order by t.olusturma_tarihi`,
+        where ? is null or t.slug = ? order by t.olusturma_tarihi${adVar ? ", w.sira, w.ad" : ""}`,
     )
     .all(slug ?? null, slug ?? null) as BaglantiSatiri[];
   if (!satirlar.length) {
@@ -140,7 +146,9 @@ export function whatsappKontrolleri(sqlite: Database, slug?: string): Sonuc[] {
     ];
   }
   return satirlar.flatMap((s): Sonuc[] => {
-    const on = satirlar.length > 1 ? `${s.ad} (${s.slug}): ` : "";
+    const alanlar = new Set(satirlar.map((x) => x.slug)).size;
+    const numaralar = satirlar.filter((x) => x.slug === s.slug).length;
+    const on = `${alanlar > 1 ? `${s.ad} (${s.slug})` : ""}${alanlar > 1 && numaralar > 1 ? " · " : ""}${numaralar > 1 ? (s.numara ?? "") : ""}${alanlar > 1 || numaralar > 1 ? ": " : ""}`;
     if (!s.baglanti) {
       return [
         hata(

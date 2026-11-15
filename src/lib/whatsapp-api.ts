@@ -5,6 +5,18 @@
 export const VARSAYILAN_UYGULAMA_PAYI = 10;
 /** Test modunda kampanyaların gidebileceği numara sayısı (Meta test numarasının alıcı listesiyle uyumlu). */
 export const TEST_NUMARASI_AZAMI = 5;
+/** Bir çalışma alanına bağlanabilecek WhatsApp numarası sayısı. */
+export const BAGLANTI_AZAMI = 10;
+
+/**
+ * Ekranlarda numaranın kısa gösterimi: "Merkez · …4567" (görünen numaranın son 4 hanesi; numara bilgisi henüz
+ * okunmadıysa yalnızca ad). Silinmiş numaraya bağlı kampanya için "Silinmiş numara".
+ */
+export function numaraEtiketi(b: { ad: string; gorunenNumara: string | null } | null | undefined): string {
+  if (!b) return "Silinmiş numara";
+  const rakam = (b.gorunenNumara ?? "").replace(/\D/g, "");
+  return rakam.length >= 4 ? `${b.ad} · …${rakam.slice(-4)}` : b.ad;
+}
 
 /** Numaranın kalite puanı (GET /{phone-number-id} quality_rating). */
 export const KALITE_DEGERLERI = ["GREEN", "YELLOW", "RED", "NA"] as const;

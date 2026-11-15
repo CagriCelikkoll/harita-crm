@@ -134,6 +134,13 @@
       "when": 1793775421627,
       "tag": "0018_birim_dolar_harita",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794742287216,
+      "tag": "0019_coklu_whatsapp_baglantisi",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ import { isciSonNabiz } from "@/server/repo/sistem/isci";
 import { kampanyaDto, mesajDto } from "@/server/servisler/kampanya-dto";
 import { YetkiHatasi } from "@/server/repo/baglam";
 import { KampanyaHatasi, kampanyayiDevamEttir } from "@/server/servisler/kampanya";
+import { kampanyaNumarasi } from "@/server/servisler/whatsapp-api";
 
 export async function GET(istek: Request, { params }: RouteContext<"/api/kampanyalar/[id]">) {
   const ctx = await apiBaglami();
@@ -22,7 +23,7 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kampany
   const sayfa = kampanyaMesajlari(ctx, id, { sayfa: Number(p.get("sayfa") ?? 1) || 1, durum });
   return NextResponse.json(
     {
-      kampanya: kampanyaDto(kampanya),
+      kampanya: kampanyaDto(kampanya, kampanyaNumarasi(ctx, kampanya)),
       ...sayfa,
       mesajlar: sayfa.mesajlar.map(mesajDto),
       // Gönderim servisinin son çalışması (kampanya detayındaki durum satırı; 10 sn'de bir yenilenir).

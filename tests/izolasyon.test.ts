@@ -105,9 +105,9 @@ beforeAll(() => {
   bKisi = kayitlar.kayitGetir(B, bKisi.id)!;
   bWaKisi = whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)!;
   bIceAktarma = iceAktarmalar.iceAktarmaOlustur(B, { dosyaAdi: "b.csv", satirlar: [["Telefon"], ["0533 111 11 11"]] });
-  bWaBaglanti = waBaglantilari.baglantiKaydet(B, { wabaId: "900001", phoneNumberId: "900002", sifreliVeri: "v1:B-wa", numaraDogrulamaTarihi: new Date() });
-  waSablonlari.sablonlariSenkronla(B, [B_SABLON]);
-  bWaBaglanti = waBaglantilari.baglantiGetir(B)!;
+  bWaBaglanti = waBaglantilari.baglantiEkle(B, { ad: "B Merkez", wabaId: "900001", phoneNumberId: "900002", sifreliVeri: "v1:B-wa", numaraDogrulamaTarihi: new Date() });
+  waSablonlari.sablonlariSenkronla(B, "900001", [B_SABLON]);
+  bWaBaglanti = waBaglantilari.baglantiGetir(B, bWaBaglanti.id)!;
   bWaSablon = waSablonlari.sablonlariListele(B)[0];
   waGelen.gelenIletiKaydet(B, "wamid.B-gelen");
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
@@ -135,7 +135,8 @@ function bDegismedi() {
   expect(kayitlar.kayitGetir(B, bKisi.id)).toEqual(bKisi);
   expect(whatsappKisileri.whatsappKisisiGetir(B, bKisi.id)).toEqual(bWaKisi);
   expect(iceAktarmalar.iceAktarmaGetir(B, bIceAktarma.id)).toEqual(bIceAktarma);
-  expect(waBaglantilari.baglantiGetir(B)).toEqual(bWaBaglanti);
+  expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)).toEqual(bWaBaglanti);
+  expect(waBaglantilari.baglantilariListele(B)).toEqual([bWaBaglanti]);
   expect(waSablonlari.sablonGetir(B, bWaSablon.id)).toEqual(bWaSablon);
   if (bKampanya) bMesajlasmaDegismedi();
 }
@@ -508,8 +509,12 @@ const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
     expect(kampanyalar.kampanyaIptal(A, bKampanya.id)).toBe(false);
   },
   whatsappKampanyalariniDuraklat: () => {
-    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk", bKampanya.id)).toBe(0);
-    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk")).toBe(0);
+    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk", { kampanyaId: bKampanya.id })).toBe(0);
+    // B'nin numarasının kimliğiyle de A, B'nin kampanyalarını duraklatamaz.
+    db.$client.prepare("update kampanyalar set baglanti_id = ? where id = ?").run(bWaBaglanti.id, bKampanya.id);
+    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk", { baglantiIdler: [bWaBaglanti.id] })).toBe(0);
+    expect(kampanyalar.whatsappKampanyalariniDuraklat(A, "kalite_dusuk", { baglantiIdler: [] })).toBe(0);
+    db.$client.prepare("update kampanyalar set baglanti_id = null where id = ?").run(bKampanya.id);
   },
   kampanyaDevamEttir: () => {
     db.$client.prepare("update kampanyalar set durum = 'duraklatildi' where id = ?").run(bKampanya.id);
@@ -656,71 +661,92 @@ const iceAktarmaTestleri: Record<keyof typeof iceAktarmalar, () => void> = {
 };
 
 const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
-  baglantiGetir: () => {
-    expect(waBaglantilari.baglantiGetir(A)).toBeNull();
+  baglantilariListele: () => {
+    expect(waBaglantilari.baglantilariListele(A)).toEqual([]);
   },
-  baglantiKaydet: () => {
-    // A kendi bağlantısını kurar; B'ninkine dokunmaz. B'nin numarasını alamaz (tekillik).
-    const a = waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "910002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() });
+  baglantiGetir: () => {
+    // B'nin numarasının kimliğiyle de A bulamaz.
+    expect(waBaglantilari.baglantiGetir(A, bWaBaglanti.id)).toBeNull();
+  },
+  numaraAdiDuzelt: () => {
+    expect(waBaglantilari.numaraAdiDuzelt("  Şube   2 ")).toBe("Şube 2");
+    expect(() => waBaglantilari.numaraAdiDuzelt(" ")).toThrow(/ad verin/);
+  },
+  baglantiEkle: () => {
+    // A kendi numarasını ekler; B'ninkine dokunmaz. B'nin numarasını alamaz (tekillik). Aynı ad başka alanda serbest.
+    const a = waBaglantilari.baglantiEkle(A, { ad: "B Merkez", wabaId: "910001", phoneNumberId: "910002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() });
     expect(a.tenantId).toBe(A.tenantId);
     expect(a.webhookKimligi).not.toBe(bWaBaglanti.webhookKimligi);
     expect(() =>
-      waBaglantilari.baglantiKaydet(A, { wabaId: "910001", phoneNumberId: "900002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() }),
+      waBaglantilari.baglantiEkle(A, { ad: "A Şube", wabaId: "910001", phoneNumberId: "900002", sifreliVeri: "v1:A", numaraDogrulamaTarihi: new Date() }),
     ).toThrow(/UNIQUE/);
-    waBaglantilari.baglantiSil(A);
+    waBaglantilari.baglantiSil(A, a.id);
+  },
+  baglantiGuncelle: () => {
+    expect(
+      waBaglantilari.baglantiGuncelle(A, bWaBaglanti.id, { wabaId: "1", phoneNumberId: "2", sifreliVeri: "v1:saldiri", numaraDogrulamaTarihi: new Date() }),
+    ).toBeNull();
+  },
+  baglantiAdiYaz: () => {
+    expect(waBaglantilari.baglantiAdiYaz(A, bWaBaglanti.id, "Ele geçirildi")).toBe(false);
   },
   baglantiSifreliVeriYaz: () => {
-    expect(waBaglantilari.baglantiSifreliVeriYaz(A, "v1:saldiri", true)).toBe(false);
+    expect(waBaglantilari.baglantiSifreliVeriYaz(A, bWaBaglanti.id, "v1:saldiri", true)).toBe(false);
   },
   testModuAyarla: () => {
-    expect(waBaglantilari.testModuAyarla(A, false)).toEqual({ tamam: false, neden: "baglanti_yok" });
+    expect(waBaglantilari.testModuAyarla(A, bWaBaglanti.id, false)).toEqual({ tamam: false, neden: "baglanti_yok" });
   },
   uygulamaPayiAyarla: () => {
-    expect(waBaglantilari.uygulamaPayiAyarla(A, 100)).toBe(false);
+    expect(waBaglantilari.uygulamaPayiAyarla(A, bWaBaglanti.id, 100)).toBe(false);
   },
   numaraBilgisiYaz: () => {
-    expect(waBaglantilari.numaraBilgisiYaz(A, { kalite: "RED", sonHata: "x" })).toBe(false);
+    expect(waBaglantilari.numaraBilgisiYaz(A, bWaBaglanti.id, { kalite: "RED", sonHata: "x" })).toBe(false);
   },
   numaraDogrulamaYaz: () => {
     // A, B'nin numarasının doğrulamasını kaldıramaz.
-    expect(waBaglantilari.numaraDogrulamaYaz(A, "900002", null)).toBe(false);
-    expect(waBaglantilari.baglantiGetir(B)?.numaraDogrulamaTarihi).toBeInstanceOf(Date);
+    expect(waBaglantilari.numaraDogrulamaYaz(A, bWaBaglanti.id, "900002", null)).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)?.numaraDogrulamaTarihi).toBeInstanceOf(Date);
   },
   baglantiSil: () => {
-    expect(waBaglantilari.baglantiSil(A)).toBe(false);
+    expect(waBaglantilari.baglantiSil(A, bWaBaglanti.id)).toBe(false);
+  },
+  ayniWabaBaglantilari: () => {
+    expect(waBaglantilari.ayniWabaBaglantilari(A, bWaBaglanti.id)).toEqual([]);
   },
   limitKatmaniYaz: () => {
-    expect(waBaglantilari.limitKatmaniYaz(A, "TIER_UNLIMITED")).toBe(false);
+    // B'nin WABA kimliğiyle de A yazamaz.
+    expect(waBaglantilari.limitKatmaniYaz(A, "900001", "TIER_UNLIMITED")).toBe(0);
   },
   hesapKilidiYaz: () => {
-    // A, B'nin bağlantısını kilitleyemez.
-    expect(waBaglantilari.hesapKilidiYaz(A, 131031)).toBe(false);
-    expect(waBaglantilari.baglantiGetir(B)?.hesapKilidiKodu).toBeNull();
+    // A, B'nin numarasını kilitleyemez.
+    expect(waBaglantilari.hesapKilidiYaz(A, bWaBaglanti.id, 131031)).toEqual([]);
+    expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)?.hesapKilidiKodu).toBeNull();
   },
   hesapKilidiKaldir: () => {
     // A, B'nin kilidini kaldıramaz.
-    waBaglantilari.hesapKilidiYaz(B, 368);
-    expect(waBaglantilari.hesapKilidiKaldir(A)).toBe(false);
-    expect(waBaglantilari.baglantiGetir(B)?.hesapKilidiKodu).toBe(368);
-    waBaglantilari.hesapKilidiKaldir(B);
+    waBaglantilari.hesapKilidiYaz(B, bWaBaglanti.id, 368);
+    expect(waBaglantilari.hesapKilidiKaldir(A, bWaBaglanti.id)).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)?.hesapKilidiKodu).toBe(368);
+    waBaglantilari.hesapKilidiKaldir(B, bWaBaglanti.id);
   },
 };
 
 const waSablonTestleri: Record<keyof typeof waSablonlari, () => void> = {
   sablonlariListele: () => {
     expect(waSablonlari.sablonlariListele(A)).toEqual([]);
+    expect(waSablonlari.sablonlariListele(A, "900001")).toEqual([]);
   },
   sablonGetir: () => {
     expect(waSablonlari.sablonGetir(A, bWaSablon.id)).toBeNull();
   },
   sablonDurumuYaz: () => {
-    expect(waSablonlari.sablonDurumuYaz(A, { metaId: "b-1", ad: "b_sablon", dil: "tr", durum: "DISABLED" })).toBe(false);
+    expect(waSablonlari.sablonDurumuYaz(A, "900001", { metaId: "b-1", ad: "b_sablon", dil: "tr", durum: "DISABLED" })).toBe(false);
   },
   sablonlariSenkronla: () => {
     // A'nın boş senkronu B'nin şablonlarını "silindi" yapmaz; aynı ad A'da ayrı satırdır.
-    expect(waSablonlari.sablonlariSenkronla(A, [])).toEqual({ eklenen: 0, guncellenen: 0, silinen: 0 });
-    expect(waSablonlari.sablonlariSenkronla(A, [{ ...B_SABLON, metaId: "a-1" }])).toMatchObject({ eklenen: 1 });
-    waSablonlari.sablonlariSenkronla(A, []);
+    expect(waSablonlari.sablonlariSenkronla(A, "900001", [])).toEqual({ eklenen: 0, guncellenen: 0, silinen: 0 });
+    expect(waSablonlari.sablonlariSenkronla(A, "900001", [{ ...B_SABLON, metaId: "a-1" }])).toMatchObject({ eklenen: 1 });
+    waSablonlari.sablonlariSenkronla(A, "900001", []);
   },
 };
 

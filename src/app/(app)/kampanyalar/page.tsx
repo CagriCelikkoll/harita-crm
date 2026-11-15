@@ -9,6 +9,7 @@ import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI, whatsappDonusMetni, type KampanyaD
 import { sayfaBaglami } from "@/server/oturum";
 import { kampanyalariListele } from "@/server/repo/kampanyalar";
 import { etiketleriListele } from "@/server/repo/kayitlar";
+import { numaraEtiketleri } from "@/server/servisler/whatsapp-api";
 import { WhatsappListesi } from "./whatsapp-listesi";
 
 export const metadata: Metadata = { title: "Kampanyalar" };
@@ -29,6 +30,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
   const { ctx } = await sayfaBaglami();
   const sekme = tek(p.sekme) === "whatsapp" ? "whatsapp" : "kampanyalar";
   const kampanyalar = sekme === "kampanyalar" ? kampanyalariListele(ctx) : [];
+  const numaralar = numaraEtiketleri(ctx);
 
   return (
     <>
@@ -94,6 +96,9 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
                       <td className="px-3 py-3">
                         <span className="flex flex-wrap gap-1.5">
                           <DurumRozeti ton="notr">{KANAL_ADLARI[k.kanal]}</DurumRozeti>
+                          {k.kanal === "whatsapp_api" && (
+                            <DurumRozeti ton="notr">{(k.baglantiId && numaralar.get(k.baglantiId)) || "Silinmiş numara"}</DurumRozeti>
+                          )}
                           {k.sandbox && <DurumRozeti ton="uyari">Test</DurumRozeti>}
                         </span>
                       </td>

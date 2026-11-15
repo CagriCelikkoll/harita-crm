@@ -24,6 +24,8 @@ export type KampanyaDto = {
   teslim: { durum: string | null; kod: number | null; n: number }[];
   /** WhatsApp: Meta’nın ücretlendirdiği iletiler (kategori bazında). */
   ucretli: { kategori: string | null; n: number }[];
+  /** WhatsApp: gönderen numaranın etiketi ("Merkez · …4567"; silinmişse "Silinmiş numara"). Diğer kanallarda null. */
+  numara: string | null;
 };
 
 type KampanyaSatiri = Omit<NonNullable<ReturnType<typeof kampanyaGetir>>, "nedenler" | "teslim" | "ucretli"> & {
@@ -32,7 +34,7 @@ type KampanyaSatiri = Omit<NonNullable<ReturnType<typeof kampanyaGetir>>, "neden
   ucretli?: KampanyaDto["ucretli"];
 };
 
-export const kampanyaDto = (k: KampanyaSatiri): KampanyaDto => ({
+export const kampanyaDto = (k: KampanyaSatiri, numara: string | null = null): KampanyaDto => ({
   id: k.id,
   ad: k.ad,
   kanal: k.kanal,
@@ -51,6 +53,7 @@ export const kampanyaDto = (k: KampanyaSatiri): KampanyaDto => ({
   duraklatmaNedeni: k.duraklatmaNedeni,
   teslim: k.teslim ?? [],
   ucretli: k.ucretli ?? [],
+  numara,
 });
 
 type MesajSatiri = ReturnType<typeof kampanyaMesajlari>["mesajlar"][number];

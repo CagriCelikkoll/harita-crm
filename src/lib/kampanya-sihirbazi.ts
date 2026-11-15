@@ -17,7 +17,8 @@ export type SihirbazTaslagi = {
   ad: string;
   konu: string;
   sablon: string;
-  /** WhatsApp: seçili şablon ve sabit metinli değişkenlerin değerleri. */
+  /** WhatsApp: gönderen numara (1. adımda seçilir), seçili şablon ve sabit metinli değişkenlerin değerleri. */
+  baglantiId?: string;
   sablonId: string;
   sabitDegerler: string[];
   /** Alıcılar adımındaki canlı sayım (WhatsApp'ta ve sayım gelmeden null). */
@@ -28,7 +29,11 @@ export type SihirbazTaslagi = {
 
 /** Bu adımdan ilerlemeyi engelleyen eksik (yoksa null). */
 export function adimEngeli(adim: AdimNo, t: SihirbazTaslagi): string | null {
-  if (adim === 1) return t.kanal ? null : "Bir kanal seçin.";
+  if (adim === 1) {
+    if (!t.kanal) return "Bir kanal seçin.";
+    if (t.kanal === "whatsapp_api" && !t.baglantiId) return "Gönderen WhatsApp numarasını seçin.";
+    return null;
+  }
   if (adim === 2) {
     if (!t.ad.trim()) return "Kampanya adı gerekli.";
     if (t.aliciSayisi === 0) return "Bu seçimle gönderilecek alıcı yok; alıcı grubunu değiştirin.";

@@ -114,8 +114,8 @@ describe("veritabanı", () => {
     expect(isaretler(whatsappKontrolleri(s, slug))).toEqual(["✗ WhatsApp bağlantısı yok"]);
 
     s.prepare(
-      `insert into whatsapp_baglantilari (tenant_id, webhook_kimligi, waba_id, phone_number_id, sifreli_veri, numara_dogrulama_tarihi)
-       values (?, 'wh-hazirlik', '1', '2', 'gizli-sifreli-veri', ?)`,
+      `insert into whatsapp_baglantilari (id, ad, tenant_id, webhook_kimligi, waba_id, phone_number_id, sifreli_veri, numara_dogrulama_tarihi)
+       values ('wh-hazirlik-id', 'Merkez', ?, 'wh-hazirlik', '1', '2', 'gizli-sifreli-veri', ?)`,
     ).run(ctx.tenantId, Date.now());
     expect(isaretler(whatsappKontrolleri(s, slug))).toEqual([
       "✓ WhatsApp bağlantısı var (numara doğrulandı, webhook henüz doğrulanmadı)",
@@ -136,6 +136,21 @@ describe("veritabanı", () => {
     expect(sonuclar[1].cozum).toContain("Test modunu yeniden aç");
     expect(sonuclar[2].cozum).toContain("Business Support Home");
     expect(metin(sonuclar)).not.toContain("gizli-sifreli-veri");
+
+    // Çoklu numara: her numara kendi adıyla ayrı denetlenir (test modu ve kilit numara başına).
+    s.prepare(
+      `insert into whatsapp_baglantilari (id, ad, sira, tenant_id, webhook_kimligi, waba_id, phone_number_id, sifreli_veri)
+       values ('wh-hazirlik-id-2', 'Şube', 1, ?, 'wh-hazirlik-2', '1', '3', 'gizli-sifreli-veri')`,
+    ).run(ctx.tenantId);
+    expect(isaretler(whatsappKontrolleri(s, slug))).toEqual([
+      "✓ Merkez: WhatsApp bağlantısı var (numara doğrulandı, webhook doğrulandı)",
+      "✗ Merkez: Test modu KAPALI",
+      "✗ Merkez: Meta hesap kilidi var (kod 131031); WhatsApp gönderimi durdu",
+      "✗ Şube: WhatsApp bağlantısı var ama numara doğrulanmamış",
+      "✓ Şube: Test modu açık (yalnızca test numaralarına gönderilir)",
+      "✓ Şube: Meta hesap kilidi yok",
+    ]);
+    s.prepare("delete from whatsapp_baglantilari where id = 'wh-hazirlik-id-2'").run();
   });
 
   it("WhatsApp: birden çok çalışma alanında satırlar adıyla; bilinmeyen slug ✗", () => {

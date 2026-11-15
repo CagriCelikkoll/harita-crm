@@ -3,14 +3,14 @@ import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { ayarGruplari } from "@/lib/ayar-bolumleri";
 import { sayfaBaglami } from "@/server/oturum";
 import { saglayiciDurumlari } from "@/server/repo/saglayicilar";
-import { baglantiDurumu } from "@/server/servisler/whatsapp-api";
+import { numaraOzetleri } from "@/server/servisler/whatsapp-api";
 import { AyarMenusu } from "./ayar-menusu";
 
 export default async function AyarlarDuzeni({ children }: LayoutProps<"/ayarlar">) {
   const { ctx } = await sayfaBaglami();
   const yonetici = ctx.rol === "yonetici";
   const saglayicilar = yonetici ? saglayiciDurumlari(ctx) : null;
-  const wa = yonetici ? baglantiDurumu(ctx) : null;
+  const numaralar = yonetici ? numaraOzetleri(ctx) : [];
   return (
     <>
       <SayfaBasligi baslik="Ayarlar" aciklama="Çalışma alanınızı, ekibinizi ve iletişim kanallarınızı buradan yönetin." />
@@ -18,7 +18,7 @@ export default async function AyarlarDuzeni({ children }: LayoutProps<"/ayarlar"
         <AyarMenusu
           gruplar={ayarGruplari(ctx.rol)}
           kanalBagli={{
-            whatsapp: Boolean(wa?.tanimli && wa.numaraDogrulandi),
+            whatsapp: numaralar.some((n) => n.numaraDogrulandi),
             sms: Boolean(saglayicilar?.sms.tanimli),
             eposta: Boolean(saglayicilar?.eposta.tanimli),
           }}

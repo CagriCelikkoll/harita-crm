@@ -17,7 +17,7 @@ import { isciSonNabiz } from "@/server/repo/sistem/isci";
 import { taramalariListele, yarimKalanTaramalariKapat } from "@/server/repo/taramalar";
 import { gunlukListe } from "@/server/repo/whatsapp-listesi";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
-import { baglantiDurumu } from "@/server/servisler/whatsapp-api";
+import { baglantilarDurumu } from "@/server/servisler/whatsapp-api";
 
 export const metadata: Metadata = { title: "Panel" };
 
@@ -33,7 +33,8 @@ export default async function PanelSayfasi() {
   const kampanyalar = kampanyalariListele(ctx, 50);
   const gonderimde = kampanyalar.filter((k) => k.durum === "calisiyor" || k.durum === "zamanlandi");
   const kuyrukVar = gonderimde.some((k) => k.sayilar.kuyrukta > 0);
-  const wa = yonetici ? baglantiDurumu(ctx) : null;
+  const numaralar = yonetici ? baglantilarDurumu(ctx) : [];
+  const kilitli = numaralar.find((n) => n.hesapKilidi);
   const isler = siradakiIsler({
     yonetici,
     incelenmemis: grupSayilari(ctx).incelenmemis,
@@ -41,8 +42,9 @@ export default async function PanelSayfasi() {
     gonderimdekiKampanya: gonderimde.length,
     isciUyari: kuyrukVar && isciDurumu(isciSonNabiz(), new Date()).uyari,
     eksikAyarlar: yonetici ? mesajlasmaAyarlariDto(ctx).eksikAyarlar : [],
-    waTestModu: Boolean(wa?.tanimli && wa.testModu),
-    waHesapKilidi: wa?.hesapKilidi?.mesaj ?? null,
+    waTestModu: numaralar.some((n) => n.testModu),
+    waTestModuNumaralari: numaralar.filter((n) => n.testModu).map((n) => n.etiket),
+    waHesapKilidi: kilitli?.hesapKilidi ? `${kilitli.etiket}: ${kilitli.hesapKilidi.mesaj}` : null,
   });
   const enBuyuk = Math.max(1, ...KAYIT_DURUMLARI.map((d) => sayilar[d]));
   const ozetler = [

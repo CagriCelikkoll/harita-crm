@@ -53,6 +53,8 @@ export type YeniKampanya = Pick<Kampanya, "kanal" | "ad" | "konu" | "sablon" | "
   /** Yalnızca WhatsApp (Cloud API). */
   sablonId?: string | null;
   degiskenEslem?: Kampanya["degiskenEslem"];
+  /** Yalnızca WhatsApp: gönderen numara (bu çalışma alanının bağlantısı; servis denetler). */
+  baglantiId?: string | null;
 };
 export type KuyrukGirdisi = { leadId: string; haric?: HaricNedeni };
 
@@ -243,18 +245,22 @@ export function kampanyaIptal(ctx: TenantContext, id: string): boolean {
  * Sistem duraklatması (WhatsApp): çalışan WhatsApp kampanyalarını durdurur — kampanyaId verilirse yalnızca onu,
  * verilmezse çalışma alanının tümünü (ör. numaranın kalitesi düştü). Bekleyen mesajlar kuyrukta kalır.
  */
-export function whatsappKampanyalariniDuraklat(ctx: TenantContext, neden: string, kampanyaId?: string): number {
+/**
+ * Çalışan WhatsApp kampanyalarını duraklatır. kapsam: tek kampanya, ya da bu numaralardan gönderen bütün kampanyalar
+ * (Meta hesap kilidi: aynı WABA'daki numaralar; kalite kırmızı: yalnızca o numara). Diğer numaraların kampanyaları
+ * sürer.
+ */
+export function whatsappKampanyalariniDuraklat(
+  ctx: TenantContext,
+  neden: string,
+  kapsam: { kampanyaId: string } | { baglantiIdler: string[] },
+): number {
+  const hedef = "kampanyaId" in kapsam ? eq(kampanyalar.id, kapsam.kampanyaId) : kapsam.baglantiIdler.length ? inArray(kampanyalar.baglantiId, kapsam.baglantiIdler) : null;
+  if (!hedef) return 0;
   return db
     .update(kampanyalar)
     .set({ durum: "duraklatildi", duraklatmaNedeni: neden })
-    .where(
-      and(
-        eq(kampanyalar.tenantId, ctx.tenantId),
-        eq(kampanyalar.kanal, "whatsapp_api"),
-        eq(kampanyalar.durum, "calisiyor"),
-        kampanyaId ? eq(kampanyalar.id, kampanyaId) : undefined,
-      ),
-    )
+    .where(and(eq(kampanyalar.tenantId, ctx.tenantId), eq(kampanyalar.kanal, "whatsapp_api"), eq(kampanyalar.durum, "calisiyor"), hedef))
     .returning({ id: kampanyalar.id })
     .all().length;
 }

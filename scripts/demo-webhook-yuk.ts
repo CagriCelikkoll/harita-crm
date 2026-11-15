@@ -8,11 +8,15 @@ export type TeslimAdimi = (typeof TESLIM_ADIMLARI)[number];
 
 export type Hesap = { wabaId: string; phoneNumberId: string };
 
-export type Komut =
+export type Komut = (
   | { komut: "dogrula" }
   /** hedef: "son", "kampanya" ya da wamid. */
   | { komut: "durum"; hedef: string; kadar: TeslimAdimi }
-  | { komut: "ret" | "buton"; telefon: string };
+  | { komut: "ret" | "buton"; telefon: string }
+) & {
+  /** --numara <ad>: demo çalışma alanında birden çok numara varsa hangisi (yoksa ilk numara). */
+  numara?: string;
+};
 
 export const KULLANIM = `Kullanım (npm run demo açıkken):
   npm run demo:webhook -- dogrula
@@ -23,10 +27,24 @@ export const KULLANIM = `Kullanım (npm run demo açıkken):
   npm run demo:webhook -- ret <telefon>
       O numaradan "RET" metinli gelen mesaj.
   npm run demo:webhook -- buton <telefon>
-      O numaradan abonelikten çıkma hızlı yanıt düğmesine basılmış gibi.`;
+      O numaradan abonelikten çıkma hızlı yanıt düğmesine basılmış gibi.
+  Her komuta eklenebilir: --numara <ad>  (birden çok numara varsa; yoksa ilk numara, ör. --numara Merkez)`;
 
 /** Komut satırı (npm run demo:webhook -- …). Hatalıysa ekrana yazılacak metin döner. */
 export function komutCozumle(argumanlar: string[]): Komut | { hata: string } {
+  const liste = [...argumanlar];
+  const n = liste.indexOf("--numara");
+  let numara: string | undefined;
+  if (n >= 0) {
+    numara = liste[n + 1]?.trim();
+    if (!numara || numara.startsWith("--")) return { hata: "--numara için numaranın adını yazın (ör. --numara Merkez)." };
+    liste.splice(n, 2);
+  }
+  const k = komutAyristir(liste);
+  return "hata" in k || numara === undefined ? k : { ...k, numara };
+}
+
+function komutAyristir(argumanlar: string[]): Komut | { hata: string } {
   const [komut, ...kalan] = argumanlar;
   if (komut === "dogrula" && kalan.length === 0) return { komut };
   if (komut === "durum") {

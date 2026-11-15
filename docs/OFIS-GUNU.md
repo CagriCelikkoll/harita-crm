@@ -244,7 +244,7 @@ kilidi yok ✓.
    ileti gitmez; kuyrukta bekleyen mesajlar da gönderilmez. Kayıt ayrıntısında "İYS beyanı yok (kampanyaya yalnızca
    test modunda, test numarasıysa girer)" yazması normaldir.
 2. Üçüncü terminalde `npm run worker` (mesajları o gönderir).
-3. **Kampanyalar → Yeni kampanya**: **1 Kanal** WhatsApp (API) → **2 Alıcılar** → **3 Mesaj** (8. adımdaki şablon) →
+3. **Kampanyalar → Yeni kampanya**: **1 Kanal** WhatsApp (API) (gönderen numara tek numara varken kendiliğinden seçili gelir) → **2 Alıcılar** → **3 Mesaj** (8. adımdaki şablon) →
    **Gönderim özetini göster** → **4 Gönder**: "Test modu açık" ve **3 alıcı** görünmeli. "Test: Meta'ya
    gönderme…" kutusunu **işaretlemeyin** (işaretlenirse test numarası istisnası uygulanmaz, İYS beyanı aranır) →
    **Kampanyayı başlat**.
@@ -330,8 +330,9 @@ Verilen kararı ve tarihi buraya yazın: ______________________________
 
 Yalnızca 11. adımda "devam yok" kararı verildiyse uygulanır.
 
-1. **Uygulamada:** Ayarlar → WhatsApp (Meta) → **Bağlantıyı kaldır** → onay. Bağlantı ve kayıtlı gizli bilgiler
-   (token, App Secret, doğrulama anahtarı, test numaraları) silinir.
+1. **Uygulamada:** Ayarlar → WhatsApp (Meta) → numaranın sekmesi → Teknik ayrıntılar → **Numarayı kaldır** → onay.
+   Numaranın bağlantısı ve kayıtlı gizli bilgileri (token, App Secret, doğrulama anahtarı, test numaraları) silinir;
+   bu numaradan gönderen çalışan kampanyalar duraklar.
 2. **Token iptali:** business.facebook.com → İşletme ayarları → **Users → System users** → sistem kullanıcısı →
    **Revoke tokens** **(doğrulanamadı:** düğme adı), ya da sistem kullanıcısını **Remove** ile silin. Token o anda
    geçersiz olur.

@@ -17,6 +17,7 @@ import {
   degiskenDegerleri,
   hesapKilidiMesaji,
   limitKatmaniSayisi,
+  numaraEtiketi,
   sablonMetni,
   type DegiskenEslemi,
   type Kalite,
@@ -39,6 +40,7 @@ import {
   type KampanyaAdayi,
 } from "../repo/kampanyalar";
 import { whatsappSon24Saat } from "../repo/kuyruk";
+import { baglantiGetir } from "../repo/whatsapp-baglantilari";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { whatsappKisileriGetir } from "../repo/whatsapp-kisileri";
 import type { AliciKarari } from "../messaging/alici-kurallari";
@@ -61,7 +63,8 @@ export const KampanyaGirdisi = z
     konu: z.string().trim().max(200).optional(),
     /** E-posta / SMS metni. WhatsApp'ta kullanılmaz (onaylı şablon). */
     sablon: z.string().trim().max(5000, "Mesaj en fazla 5.000 karakter olabilir.").optional(),
-    /** Yalnızca WhatsApp: senkronize şablonun kimliği ve değişken eşlemesi. */
+    /** Yalnızca WhatsApp: gönderen numara (bu çalışma alanının bağlantısı), senkronize şablonun kimliği ve değişken eşlemesi. */
+    baglantiId: z.string().max(100).optional(),
     sablonId: z.string().max(100).optional(),
     degiskenEslem: z
       .record(
@@ -91,6 +94,7 @@ export const KampanyaGirdisi = z
   .superRefine((k, c) => {
     if (k.kanal === "eposta" && !k.konu) c.addIssue({ code: "custom", message: "E-posta konusu gerekli.", path: ["konu"] });
     if (k.kanal !== "whatsapp_api" && !k.sablon) c.addIssue({ code: "custom", message: "Mesaj metni gerekli.", path: ["sablon"] });
+    if (k.kanal === "whatsapp_api" && !k.baglantiId) c.addIssue({ code: "custom", message: "Gönderen WhatsApp numarasını seçin.", path: ["baglantiId"] });
     if (k.kanal === "whatsapp_api" && !k.sablonId) c.addIssue({ code: "custom", message: "WhatsApp şablonu seçin.", path: ["sablonId"] });
     if (k.kanal === "sms" && (k.sablon ?? "").length > 900) {
       c.addIssue({ code: "custom", message: "SMS metni en fazla 900 karakter olabilir.", path: ["sablon"] });
@@ -100,6 +104,8 @@ export type KampanyaGirdisi = z.infer<typeof KampanyaGirdisi>;
 
 /** WhatsApp (Cloud API) kampanyasına özel özet. */
 export type WhatsappOzeti = {
+  /** Gönderen numara ("Merkez · …4567"). */
+  numara: { id: string; etiket: string };
   sablonAdi: string;
   dil: string;
   kategori: string;
@@ -151,11 +157,15 @@ type Karar = { kayit: KampanyaAdayi; karar: AliciKarari };
 
 /** WhatsApp: alıcı kuralları + test modu + değişken değerleri; şablon ve bağlantı bilgisi. */
 function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: KampanyaAdayi[], simdi: Date) {
+  const numara = g.baglantiId ? baglantiGetir(ctx, g.baglantiId) : null;
+  if (!numara) throw new KampanyaHatasi("Gönderen WhatsApp numarası bulunamadı (Ayarlar → WhatsApp).");
   const sablon = g.sablonId ? sablonGetir(ctx, g.sablonId) : null;
   if (!sablon) throw new KampanyaHatasi("Şablon bulunamadı; Ayarlar'dan şablonları senkronize edin.");
+  // Şablon WABA'ya aittir: başka WABA'daki numara bu şablonla gönderemez.
+  if (sablon.wabaId !== numara.wabaId) throw new KampanyaHatasi(`Bu şablon ${numaraEtiketi(numara)} numarasının WhatsApp hesabında yok.`);
   if (sablon.destekNedeni) throw new KampanyaHatasi(`Bu şablon kampanyada kullanılamaz: ${sablon.destekNedeni}`);
   const eslem: DegiskenEslemi = g.degiskenEslem ?? {};
-  const c = whatsappBaglantisiCoz(ctx);
+  const c = whatsappBaglantisiCoz(ctx, numara.id);
   const testModu = !g.testModu && (c?.baglanti.testModu ?? true);
   const testNumaralari = new Set(c?.gizli.testNumaralari ?? []);
   const waBilgisi = whatsappKisileriGetir(ctx, adaylar.map((k) => k.id));
@@ -172,7 +182,7 @@ function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: Kamp
     if (karar.uygun && !degiskenDegerleri(sablon.degiskenler, eslem, kayit)) karar = { uygun: false, neden: "degisken_bos" };
     return { kayit, karar };
   });
-  return { sablon, eslem, c, testModu, kararlar };
+  return { numara, sablon, eslem, c, testModu, kararlar };
 }
 
 function whatsappOzeti(
@@ -181,10 +191,11 @@ function whatsappOzeti(
   gonderilecek: number,
   simdi: Date,
 ): WhatsappOzeti {
-  const { sablon, eslem, c } = w;
+  const { numara, sablon, eslem, c } = w;
   const limit = c ? (limitKatmaniSayisi(c.baglanti.limitKatmani) ?? 250) : null;
   const fiyat = birimFiyat(sablon.kategori);
   return {
+    numara: { id: numara.id, etiket: numaraEtiketi(numara) },
     sablonAdi: sablon.ad,
     dil: sablon.dil,
     kategori: sablon.kategori,
@@ -291,7 +302,7 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
   if (g.kanal === "whatsapp_api") yoneticiOlmali(ctx); // Meta ücreti var (K12)
   const { ozet, kararlar, sablon } = hazirla(ctx, g, simdi);
   if (ozet.whatsapp && !ozet.sandbox && !ozet.whatsapp.baglantiVar) {
-    throw new KampanyaHatasi("WhatsApp Business bağlantısı tanımlı değil (Ayarlar → WhatsApp Business (API)).");
+    throw new KampanyaHatasi("Seçilen numaranın sahipliği doğrulanmadı (Ayarlar → WhatsApp → Bağlantıyı test et).");
   }
   if (ozet.whatsapp?.kalite === "RED" && !ozet.sandbox) {
     throw new KampanyaHatasi("Numaranın kalite puanı düşük (kırmızı); kalite düzelene kadar kampanya başlatılamaz.");
@@ -315,6 +326,7 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
       bosIsimHitabi: g.bosIsimHitabi || null,
       sablonId: sablon?.id ?? null,
       degiskenEslem: sablon ? (g.degiskenEslem ?? {}) : null,
+      baglantiId: ozet.whatsapp?.numara.id ?? null,
       filtre: g.filtre,
       sandbox: ozet.sandbox,
       planlananTarih: g.planlananTarih ? new Date(g.planlananTarih) : null,
@@ -335,13 +347,15 @@ export async function kampanyayiDevamEttir(ctx: TenantContext, id: string): Prom
   if (!k) throw new KampanyaHatasi("Kampanya bulunamadı.");
   if (k.durum !== "duraklatildi") throw new KampanyaHatasi("Kampanya duraklatılmış değil.");
   if (k.kanal === "whatsapp_api" && !k.sandbox) {
+    const c0 = k.baglantiId ? whatsappBaglantisiCoz(ctx, k.baglantiId) : null;
+    if (!k.baglantiId || !c0) throw new KampanyaHatasi("Kampanyanın gönderen numarası artık bağlı değil; kampanya devam ettirilemez.");
     try {
-      await baglantiyiTestEt(ctx);
+      await baglantiyiTestEt(ctx, k.baglantiId);
     } catch {
       /* Meta'ya ulaşılamadıysa son bilinen kalite kullanılır */
     }
-    const c = whatsappBaglantisiCoz(ctx);
-    if (!c) throw new KampanyaHatasi("WhatsApp Business bağlantısı tanımlı değil.");
+    const c = whatsappBaglantisiCoz(ctx, k.baglantiId);
+    if (!c) throw new KampanyaHatasi("Kampanyanın gönderen numarası artık doğrulanmış değil (Ayarlar → WhatsApp → Bağlantıyı test et).");
     if (c.baglanti.kalite === "RED") {
       throw new KampanyaHatasi("Numaranın kalite puanı hâlâ düşük (kırmızı); kampanya devam ettirilemez.");
     }

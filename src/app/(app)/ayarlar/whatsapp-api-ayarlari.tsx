@@ -1,5 +1,5 @@
 "use client";
-// Ayarlar → WhatsApp (Meta Business). Yalnızca yönetici görür. Gizli bilgiler sunucudan hiç gelmez; yalnızca
+// Ayarlar → WhatsApp (Meta Business): TEK numaranın kurulumu (numara listesi: whatsapp-numaralari.tsx). Yalnızca yönetici görür. Gizli bilgiler sunucudan hiç gelmez; yalnızca
 // "tanımlı / tanımlı değil". Doğrulama anahtarı (verify token) yalnızca üretildiği yanıtta bir kez gösterilir.
 // Düzen: durum kartı, 4 kurulum adımı (test modu kilidinin durumu buradan görünür), uygulama payı ve test
 // numaraları, şablonlar, katlanır "Teknik ayrıntılar" (kimlikler, anahtarlar, bildirim adresi).
@@ -22,17 +22,35 @@ import {
   TEST_NUMARASI_AZAMI,
   type Kalite,
 } from "@/lib/whatsapp-api";
-import type { BaglantiDto, SablonDto } from "@/server/servisler/whatsapp-api";
+import type { BaglantiDto } from "@/lib/whatsapp-baglanti";
+import type { SablonDto } from "@/server/servisler/whatsapp-api";
 import { KopyalaDugmesi } from "./formlar";
 
 type Mesaj = { tur: "hata" | "tamam"; metin: string } | null;
 
 const KALITE_TONU: Record<Kalite, RozetTonu> = { GREEN: "ana", YELLOW: "uyari", RED: "tehlike", NA: "notr" };
 
-export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: SablonDto[] }) {
+type Calistir = (
+  url: string,
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  govde?: unknown,
+  tamamMetni?: string,
+) => Promise<unknown>;
+
+export function WhatsappApiAyarlari(props: {
+  /** id null: kaydedilmemiş yeni numara formu. */
+  ilk: BaglantiDto;
+  ilkSablonlar: SablonDto[];
+  /** Yeni eklenen numaranın tek seferlik doğrulama anahtarı (sekme değişince kaybolmasın diye üstten gelir). */
+  ilkVerifyToken: string | null;
+  /** Numara listesi değişti (ekleme, silme, ad, kilidin aynı WABA'dan kalkması); gecilecek: seçilecek numara. */
+  onListe: (liste: BaglantiDto[], gecilecek?: string | null, verifyToken?: string | null) => void;
+  onSablonlar: (baglantiId: string, sablonlar: SablonDto[]) => void;
+}) {
   const [b, setB] = useState(props.ilk);
   const [sablonlar, setSablonlar] = useState(props.ilkSablonlar);
-  const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const [verifyToken, setVerifyToken] = useState<string | null>(props.ilkVerifyToken);
+  const temel = b.id ? `/api/ayarlar/whatsapp-api/${b.id}` : null;
   const [mesaj, setMesaj] = useState<Mesaj>(null);
   const [mesgul, setMesgul] = useState(false);
 
@@ -50,9 +68,10 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
       setMesaj({ tur: "hata", metin: s.hata });
       return null;
     }
-    const v = s.veri as { baglanti?: BaglantiDto; verifyToken?: string | null };
+    const v = s.veri as { baglanti?: BaglantiDto; baglantilar?: BaglantiDto[]; verifyToken?: string | null };
     if (v.baglanti) setB(v.baglanti);
     if (v.verifyToken) setVerifyToken(v.verifyToken);
+    if (v.baglantilar) props.onListe(v.baglantilar, v.baglanti?.id ?? null, v.verifyToken ?? null);
     if (tamamMetni) setMesaj({ tur: "tamam", metin: tamamMetni });
     return s.veri;
   }
@@ -61,7 +80,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
   const [adim1, adim2, adim3, adim4] = kurulumAdimlari(b);
   const testModuKapat = () => {
     if (confirm("Test modu kapatılınca kampanyalar gerçek alıcılara gider. Devam edilsin mi?")) {
-      void calistir("/api/ayarlar/whatsapp-api", "PATCH", { testModu: false }, "Test modu kapatıldı.");
+      void calistir(temel!, "PATCH", { testModu: false }, "Test modu kapatıldı.");
     }
   };
 
@@ -75,10 +94,10 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1.5">
           <p className="text-base font-bold">
             {!b.tanimli
-              ? "WhatsApp hesabı bağlı değil"
+              ? "Yeni WhatsApp numarası"
               : n.gorunenNumara
-                ? `${n.dogrulanmisAd ?? "WhatsApp numarası"} · ${n.gorunenNumara}`
-                : "Numara bilgisi için bağlantıyı test edin"}
+                ? `${b.ad} · ${n.dogrulanmisAd ?? "WhatsApp numarası"} · ${n.gorunenNumara}`
+                : `${b.ad} · numara bilgisi için bağlantıyı test edin`}
           </p>
           {b.tanimli ? (
             <div className="flex flex-wrap gap-2">
@@ -99,14 +118,14 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
               {b.hesapKilidi && <DurumRozeti ton="tehlike">Meta hesabı kilitli</DurumRozeti>}
             </div>
           ) : (
-            <p className="text-soluk">Hesap bilgilerinizi aşağıdaki &quot;Teknik ayrıntılar&quot; bölümünden girin.</p>
+            <p className="text-soluk">Numaraya bir ad verin ve hesap bilgilerini aşağıdaki &quot;Teknik ayrıntılar&quot; bölümünden girin.</p>
           )}
           {b.hesapKilidi && (
             <BilgiNotu ton="tehlike" uyariRolu className="mt-1">
               <p className="font-semibold">{b.hesapKilidi.mesaj}</p>
               <p>
-                {tarihYaz(b.hesapKilidi.tarih)} tarihinde Meta {b.hesapKilidi.kod} hatası geldi; tüm WhatsApp kampanyaları
-                duraklatıldı ve kuyruktaki mesajlar bekletiliyor. Kilit kalkınca &quot;Bağlantıyı test et&quot;e basın; test
+                {tarihYaz(b.hesapKilidi.tarih)} tarihinde Meta {b.hesapKilidi.kod} hatası geldi; bu numaranın ve aynı WhatsApp
+                hesabındaki numaraların kampanyaları duraklatıldı, kuyruktaki mesajlar bekletiliyor. Kilit kalkınca &quot;Bağlantıyı test et&quot;e basın; test
                 başarılı olursa duraklatılan kampanyaları kampanya ayrıntısından devam ettirebilirsiniz.
               </p>
             </BilgiNotu>
@@ -121,7 +140,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         {b.tanimli && (
           <button type="button" className="dugme" disabled={mesgul} onClick={() =>
               calistir(
-                "/api/ayarlar/whatsapp-api/test",
+                `${temel}/test`,
                 "POST",
                 undefined,
                 b.hesapKilidi
@@ -165,10 +184,10 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                 aciklama:
                   adim2 === "tamam"
                     ? "Tamamlandı · teslim ve ret bildirimleri alınabiliyor"
-                    : "Bildirim adresini ve doğrulama anahtarını Meta uygulamanızın Webhook ayarına girin; Meta adresi doğrulayınca bu adım tamamlanır.",
+                    : "Bildirim adresini ve doğrulama anahtarını Meta uygulamanızın Webhook ayarına girin; Meta adresi doğrulayınca bu adım tamamlanır. Bu numara başka bir numarayla aynı Meta uygulamasındaysa (tek bildirim adresi), bu numaradan gelen ilk imzalı teslim bildirimiyle de tamamlanır.",
                 eylem:
                   adim2 === "etkin" ? (
-                    <button type="button" className="dugme dugme-kucuk" disabled={mesgul} onClick={() => calistir("/api/ayarlar/whatsapp-api/abonelik", "POST", undefined, "Bildirim aboneliği etkin.")}>
+                    <button type="button" className="dugme dugme-kucuk" disabled={mesgul} onClick={() => calistir(`${temel}/abonelik`, "POST", undefined, "Bildirim aboneliği etkin.")}>
                       Bildirim aboneliğini etkinleştir
                     </button>
                   ) : undefined,
@@ -182,7 +201,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                     : "Mesaj telefonunuza ulaştığında ve Meta teslim bildirimini gönderdiğinde bu adım kendiliğinden tamamlanır.",
                 eylem:
                   adim3 === "etkin" ? (
-                    <Link href="/kampanyalar/yeni?kanal=whatsapp_api" className="dugme-ana dugme-kucuk">
+                    <Link href={`/kampanyalar/yeni?kanal=whatsapp_api&numara=${b.id}`} className="dugme-ana dugme-kucuk">
                       Test kampanyası oluştur
                     </Link>
                   ) : undefined,
@@ -221,7 +240,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
                       type="button"
                       className="dugme dugme-kucuk"
                       disabled={mesgul}
-                      onClick={() => calistir("/api/ayarlar/whatsapp-api", "PATCH", { testModu: true }, "Test modu açıldı.")}
+                      onClick={() => calistir(temel!, "PATCH", { testModu: true }, "Test modu açıldı.")}
                     >
                       Test modunu yeniden aç
                     </button>
@@ -232,24 +251,28 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
         </div>
       </Kart>
 
-      {b.tanimli && <PayVeTestNumaralari b={b} mesgul={mesgul} kaydet={(govde) => calistir("/api/ayarlar/whatsapp-api", "PATCH", govde, "Kaydedildi.")} />}
+      {b.tanimli && <PayVeTestNumaralari b={b} mesgul={mesgul} kaydet={(govde) => calistir(temel!, "PATCH", govde, "Kaydedildi.")} />}
 
       {b.tanimli && (
         <Kart>
           <KartBaslik
             baslik="Mesaj şablonları"
-            aciklama={`Meta'da onaylanan şablonlar; yenileri Meta WhatsApp Manager'da eklenir.${b.sablonSenkronTarihi ? ` Son yenileme: ${tarihYaz(b.sablonSenkronTarihi)}.` : ""}`}
+            aciklama={`Bu numaranın WhatsApp hesabında (WABA) Meta'nın onayladığı şablonlar; aynı hesaptaki numaralar ortak kullanır. Yenileri Meta WhatsApp Manager'da eklenir.${b.sablonSenkronTarihi ? ` Son yenileme: ${tarihYaz(b.sablonSenkronTarihi)}.` : ""}`}
           >
             <button
               type="button"
               className="dugme dugme-kucuk"
               disabled={mesgul}
               onClick={async () => {
-                const v = await calistir<{ sablonlar: SablonDto[] }>("/api/whatsapp/sablonlar", "POST", undefined, "Şablonlar yenilendi.");
+                const v = await calistir<{ sablonlar: SablonDto[] }>(
+                  `/api/whatsapp/sablonlar?baglanti=${encodeURIComponent(b.id!)}`,
+                  "POST",
+                  undefined,
+                  "Şablonlar yenilendi.",
+                );
                 if (v) {
                   setSablonlar(v.sablonlar);
-                  const d = await apiIstek<{ baglanti: BaglantiDto }>("/api/ayarlar/whatsapp-api");
-                  if (d.ok) setB(d.veri.baglanti);
+                  props.onSablonlar(b.id!, v.sablonlar);
                 }
               }}
             >
@@ -278,7 +301,7 @@ export function WhatsappApiAyarlari(props: { ilk: BaglantiDto; ilkSablonlar: Sab
       )}
 
       <Katlanir baslik="Teknik ayrıntıları" ozet="Hesap kimlikleri, erişim anahtarı, bildirim adresi" acik={!b.tanimli}>
-        <TeknikAyrintilar b={b} mesgul={mesgul} calistir={calistir} />
+        <TeknikAyrintilar b={b} temel={temel} mesgul={mesgul} calistir={calistir} />
       </Katlanir>
     </>
   );
@@ -363,12 +386,8 @@ function PayVeTestNumaralari(props: { b: BaglantiDto; mesgul: boolean; kaydet: (
   );
 }
 
-function TeknikAyrintilar(props: {
-  b: BaglantiDto;
-  mesgul: boolean;
-  calistir: (url: string, method: "POST" | "PUT" | "PATCH" | "DELETE", govde?: unknown, tamamMetni?: string) => Promise<unknown>;
-}) {
-  const { b, mesgul, calistir } = props;
+function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul: boolean; calistir: Calistir }) {
+  const { b, temel, mesgul, calistir } = props;
   const etiket = "flex min-w-0 flex-col gap-1.5 text-sm font-semibold";
   const aciklama = "text-[13px] font-normal text-soluk";
   return (
@@ -380,17 +399,28 @@ function TeknikAyrintilar(props: {
           const form = e.currentTarget;
           const f = new FormData(form);
           const d = (a: string) => String(f.get(a) ?? "").trim();
-          void calistir(
-            "/api/ayarlar/whatsapp-api",
-            "PUT",
-            { wabaId: d("wabaId"), phoneNumberId: d("phoneNumberId"), erisimAnahtari: d("erisimAnahtari") || null, appSecret: d("appSecret") || null },
-            "Bağlantı kaydedildi.",
-          ).then((v) => {
+          const kimlikler = { wabaId: d("wabaId"), phoneNumberId: d("phoneNumberId"), erisimAnahtari: d("erisimAnahtari") || null, appSecret: d("appSecret") || null };
+          const ad = d("ad");
+          // Yeni numara: tek istekle eklenir. Mevcut numara: kimlikler, sonra (değiştiyse) ad.
+          const kaydet = temel
+            ? calistir(temel, "PUT", kimlikler, "Bağlantı kaydedildi.").then((v) =>
+                v && ad !== b.ad ? calistir(temel, "PATCH", { ad }, "Bağlantı kaydedildi.") : v,
+              )
+            : calistir("/api/ayarlar/whatsapp-api", "POST", { ad, ...kimlikler }, "Numara eklendi.");
+          void kaydet.then((v) => {
             // Gizli alanları formda tutma.
-            if (v) for (const ad of ["erisimAnahtari", "appSecret"]) (form.elements.namedItem(ad) as HTMLInputElement).value = "";
+            if (v) for (const a of ["erisimAnahtari", "appSecret"]) {
+              const alan = form.elements.namedItem(a) as HTMLInputElement | null;
+              if (alan) alan.value = "";
+            }
           });
         }}
       >
+        <label className={`${etiket} sm:col-span-2`}>
+          Numaranın adı
+          <input name="ad" required maxLength={40} defaultValue={b.ad} placeholder="Ör. Merkez" className="girdi max-w-sm" />
+          <span className={aciklama}>Kampanyalarda ve listelerde bu adla görünür (ör. Merkez, Şube 2).</span>
+        </label>
         <label className={etiket}>
           WhatsApp hesap kimliği (WABA ID)
           <input name="wabaId" required inputMode="numeric" defaultValue={b.wabaId ?? ""} className="girdi font-mono" />
@@ -421,12 +451,12 @@ function TeknikAyrintilar(props: {
               className="dugme-tehlike"
               disabled={mesgul}
               onClick={() => {
-                if (confirm("WhatsApp Business bağlantısı ve kayıtlı gizli bilgiler silinecek.")) {
-                  void calistir("/api/ayarlar/whatsapp-api", "DELETE", undefined, "Bağlantı kaldırıldı.");
+                if (confirm(`${b.etiket} numarasının bağlantısı ve kayıtlı gizli bilgileri silinecek. Bu numaradan gönderen çalışan kampanyalar duraklatılır.`)) {
+                  void calistir(temel!, "DELETE", undefined, "Numara kaldırıldı.");
                 }
               }}
             >
-              Bağlantıyı kaldır
+              Numarayı kaldır
             </button>
           )}
         </div>
@@ -454,7 +484,7 @@ function TeknikAyrintilar(props: {
                 disabled={mesgul}
                 onClick={() => {
                   if (confirm("Yeni doğrulama anahtarı üretilecek; Meta'daki değeri de güncellemeniz gerekir. Test modu yeniden açılır.")) {
-                    void calistir("/api/ayarlar/whatsapp-api/verify-token", "POST");
+                    void calistir(`${temel}/verify-token`, "POST");
                   }
                 }}
               >
@@ -469,7 +499,7 @@ function TeknikAyrintilar(props: {
                 type="button"
                 className="text-ana underline"
                 disabled={mesgul}
-                onClick={() => calistir("/api/ayarlar/whatsapp-api/abonelik", "POST", undefined, "Bildirim aboneliği etkin.")}
+                onClick={() => calistir(`${temel}/abonelik`, "POST", undefined, "Bildirim aboneliği etkin.")}
               >
                 Aboneliği etkinleştir
               </button>

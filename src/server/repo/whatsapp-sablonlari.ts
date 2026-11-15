@@ -1,4 +1,5 @@
-// WABA şablonları: Meta'dan senkronize edilen kopya. Uygulamada şablon oluşturulmaz.
+// WABA şablonları: Meta'dan senkronize edilen kopya. Uygulamada şablon oluşturulmaz. Şablon WABA'ya aittir: aynı
+// WABA'daki numaralar aynı şablonları kullanır; başka WABA'daki numara bu şablonla gönderemez (servis denetler).
 import { and, asc, eq, ne, notInArray } from "drizzle-orm";
 import { sablonCozumle } from "@/lib/whatsapp-api";
 import { db } from "../db";
@@ -7,11 +8,12 @@ import { yoneticiOlmali, type TenantContext } from "./baglam";
 
 export type { WhatsappSablonu };
 
-export function sablonlariListele(ctx: TenantContext): WhatsappSablonu[] {
+/** Çalışma alanının şablonları; wabaId verilirse yalnızca o WABA'nınkiler. */
+export function sablonlariListele(ctx: TenantContext, wabaId?: string): WhatsappSablonu[] {
   return db
     .select()
     .from(whatsappSablonlari)
-    .where(eq(whatsappSablonlari.tenantId, ctx.tenantId))
+    .where(and(eq(whatsappSablonlari.tenantId, ctx.tenantId), wabaId !== undefined ? eq(whatsappSablonlari.wabaId, wabaId) : undefined))
     .orderBy(asc(whatsappSablonlari.ad), asc(whatsappSablonlari.dil))
     .all();
 }
@@ -26,14 +28,16 @@ export function sablonGetir(ctx: TenantContext, id: string): WhatsappSablonu | n
   );
 }
 
-export type SenkronSablonu = Omit<WhatsappSablonu, "id" | "tenantId" | "senkronTarihi">;
+export type SenkronSablonu = Omit<WhatsappSablonu, "id" | "tenantId" | "wabaId" | "senkronTarihi">;
 
 /**
- * Meta'dan gelen listeyi uygular: (ad, dil) ile ekle/güncelle; listede olmayanlar "SILINDI" olur (kampanya
- * geçmişi bozulmasın diye satır silinmez). Senkron tarihi bağlantıya yazılır.
+ * Bir WABA için Meta'dan gelen listeyi uygular: (ad, dil) ile ekle/güncelle; listede olmayanlar "SILINDI" olur
+ * (kampanya geçmişi bozulmasın diye satır silinmez). Başka WABA'nın şablonlarına dokunulmaz. Senkron tarihi bu
+ * WABA'daki tüm numaralara yazılır.
  */
-export function sablonlariSenkronla(ctx: TenantContext, sablonlar: SenkronSablonu[], simdi = new Date()) {
+export function sablonlariSenkronla(ctx: TenantContext, wabaId: string, sablonlar: SenkronSablonu[], simdi = new Date()) {
   yoneticiOlmali(ctx);
+  const buWaba = and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.wabaId, wabaId));
   return db.transaction((tx) => {
     let eklenen = 0;
     let guncellenen = 0;
@@ -42,7 +46,7 @@ export function sablonlariSenkronla(ctx: TenantContext, sablonlar: SenkronSablon
       const eski = tx
         .select({ id: whatsappSablonlari.id })
         .from(whatsappSablonlari)
-        .where(and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.ad, s.ad), eq(whatsappSablonlari.dil, s.dil)))
+        .where(and(buWaba, eq(whatsappSablonlari.ad, s.ad), eq(whatsappSablonlari.dil, s.dil)))
         .get();
       if (eski) {
         tx.update(whatsappSablonlari).set({ ...s, senkronTarihi: simdi }).where(eq(whatsappSablonlari.id, eski.id)).run();
@@ -50,14 +54,12 @@ export function sablonlariSenkronla(ctx: TenantContext, sablonlar: SenkronSablon
         guncellenen++;
       } else {
         const id = crypto.randomUUID();
-        tx.insert(whatsappSablonlari).values({ id, tenantId: ctx.tenantId, ...s, senkronTarihi: simdi }).run();
+        tx.insert(whatsappSablonlari).values({ id, tenantId: ctx.tenantId, wabaId, ...s, senkronTarihi: simdi }).run();
         idler.push(id);
         eklenen++;
       }
     }
-    const kosul = idler.length
-      ? and(eq(whatsappSablonlari.tenantId, ctx.tenantId), notInArray(whatsappSablonlari.id, idler))
-      : eq(whatsappSablonlari.tenantId, ctx.tenantId);
+    const kosul = idler.length ? and(buWaba, notInArray(whatsappSablonlari.id, idler)) : buWaba;
     const silinen = tx
       .update(whatsappSablonlari)
       .set({ durum: "SILINDI", destekNedeni: "Şablon Meta'da yok (silinmiş)", senkronTarihi: simdi })
@@ -66,17 +68,25 @@ export function sablonlariSenkronla(ctx: TenantContext, sablonlar: SenkronSablon
       .all().length;
     tx.update(whatsappBaglantilari)
       .set({ sablonSenkronTarihi: simdi })
-      .where(eq(whatsappBaglantilari.tenantId, ctx.tenantId))
+      .where(and(eq(whatsappBaglantilari.tenantId, ctx.tenantId), eq(whatsappBaglantilari.wabaId, wabaId)))
       .run();
     return { eklenen, guncellenen, silinen };
   });
 }
 
-/** Şablon durum bildirimi (webhook): durum değişir, kampanyada kullanılabilirlik yeniden hesaplanır. */
-export function sablonDurumuYaz(ctx: TenantContext, s: { metaId: string | null; ad: string; dil: string; durum: string }): boolean {
+/**
+ * Şablon durum bildirimi (webhook): durum değişir, kampanyada kullanılabilirlik yeniden hesaplanır. Yalnızca
+ * bildirimin geldiği WABA'nın şablonu.
+ */
+export function sablonDurumuYaz(
+  ctx: TenantContext,
+  wabaId: string,
+  s: { metaId: string | null; ad: string; dil: string; durum: string },
+): boolean {
+  const buWaba = and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.wabaId, wabaId));
   const kosul = s.metaId
-    ? and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.metaId, s.metaId))
-    : and(eq(whatsappSablonlari.tenantId, ctx.tenantId), eq(whatsappSablonlari.ad, s.ad), eq(whatsappSablonlari.dil, s.dil));
+    ? and(buWaba, eq(whatsappSablonlari.metaId, s.metaId))
+    : and(buWaba, eq(whatsappSablonlari.ad, s.ad), eq(whatsappSablonlari.dil, s.dil));
   const eski = db.select().from(whatsappSablonlari).where(kosul).get();
   if (!eski) return false;
   const c = sablonCozumle({ kategori: eski.kategori, durum: s.durum, bilesenler: eski.bilesenler });

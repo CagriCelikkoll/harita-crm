@@ -212,17 +212,20 @@ async function calistir() {
   kayitGuncelle(ctx, retli.id, { iletiIzni: "ret", notlar: "Demo: \"bir daha yazmayın\" dedi (sahte)." });
 
   // --- Sahte WhatsApp Business bağlantısı ve şablonlar (WHATSAPP_API_MOCK=1: ağa çıkılmaz) ---
-  await api.whatsappBaglantisiKaydet(ctx, {
+  // Canlıdaki gibi önce tek numara ("Merkez"); diğer numaralar Ayarlar → WhatsApp → Numara ekle ile eklenir.
+  const { baglanti } = await api.whatsappBaglantisiEkle(ctx, {
+    ad: "Merkez",
     wabaId: "100000000000001",
     phoneNumberId: "100000000000002",
     erisimAnahtari: "demo-sahte-erisim-anahtari",
     appSecret: "demo-sahte-app-secret",
   });
-  await api.baglantiyiTestEt(ctx);
-  await api.sablonlariSenkronizeEt(ctx);
-  api.testNumaralariKaydet(ctx, [TEST_NUMARASI]);
+  const numara = baglanti.id!;
+  await api.baglantiyiTestEt(ctx, numara);
+  await api.sablonlariSenkronizeEt(ctx, numara);
+  api.testNumaralariKaydet(ctx, numara, [TEST_NUMARASI]);
 
-  const sablonSayisi = api.sablonlar(ctx).length;
+  const sablonSayisi = api.sablonlar(ctx, numara).length;
   const toplam = (db.$client.prepare("select count(*) as n from leads").get() as { n: number }).n;
   db.$client.pragma("wal_checkpoint(TRUNCATE)");
   db.$client.close();
@@ -233,7 +236,7 @@ Demo ortamı hazır: ${DEMO_VERITABANI}
   Kayıt         : ${toplam} (${google.length} Google kaynaklı örnek taramadan, ${toplam - google.length} elle / içe aktarma / reklam)
   Ret verilmiş  : "Ret Vermiş Örnek İşletme" (0500 000 00 09, ret.ornek@demo.test engel listesinde)
   Sabit hat     : ${DEMO_SABIT_HATLAR.length} Google kaydının telefonu 0 (212) 000 … (SMS'te "cep telefonu değil")
-  WhatsApp      : sahte bağlantı (test modunda), ${sablonSayisi} şablon, test numarası ${TEST_NUMARASI}
+  WhatsApp      : sahte numara "Merkez" (test modunda), ${sablonSayisi} şablon, test numarası ${TEST_NUMARASI}
   Sınırlar      : günde 5 e-posta, 5 SMS (demo için düşük); Places kotası 5.000 birim/ay (npm run demo:kota -- <birim>)
 
 Giriş bilgileri (${DEMO_ADRESI}/giris):

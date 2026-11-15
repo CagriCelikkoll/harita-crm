@@ -40,7 +40,7 @@ import { sablonDoldur } from "@/lib/sablon";
 import { smsUzunlugu, type SmsKodlama } from "@/lib/sms-uzunluk";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import type { KampanyaOzeti } from "@/server/servisler/kampanya";
-import type { SablonDto } from "@/server/servisler/whatsapp-api";
+import type { NumaraOzeti, SablonDto } from "@/server/servisler/whatsapp-api";
 
 /** Yalnızca WhatsApp kanalında anlamlı olan hariç tutma nedenleri. */
 const WHATSAPP_NEDENLERI = new Set(["whatsapp_izni_yok", "iys_beyani_yok", "whatsapp_yok", "test_modu", "degisken_bos"]);
@@ -67,11 +67,19 @@ export function KampanyaSihirbazi(props: {
   eksikAyarlar: string[];
   /** Her SMS'e eklenen gönderen + ret yolu (sunucuda hesaplanır). */
   smsAltbilgisi: string;
-  /** WhatsApp (API): yalnızca yönetici başlatır; kullanılabilir (onaylı, destekli) şablonlar. */
-  whatsapp: { yonetici: boolean; bagli: boolean; sablonlar: SablonDto[] };
+  /**
+   * WhatsApp (API): yalnızca yönetici başlatır. Gönderen numaralar ve her numaranın (WABA'sının) kullanılabilir
+   * (onaylı, destekli) şablonları.
+   */
+  whatsapp: { yonetici: boolean; ilkNumara?: string | null; numaralar: (NumaraOzeti & { sablonlar: SablonDto[] })[] };
 }) {
   const router = useRouter();
   const [kanal, setKanal] = useState<KuyrukKanali | null>(props.ilkKanal);
+  // ?numara= (Ayarlar > WhatsApp "Test kampanyası oluştur") ya da tek numara varsa kendiliğinden seçilir (yine de görünür).
+  const [baglantiId, setBaglantiId] = useState(
+    props.whatsapp.numaralar.find((n) => n.id === props.whatsapp.ilkNumara)?.id ??
+      (props.whatsapp.numaralar.length === 1 ? props.whatsapp.numaralar[0].id : ""),
+  );
   const [sablonId, setSablonId] = useState("");
   const [eslem, setEslem] = useState<DegiskenEslemi>({});
   const [ad, setAd] = useState("");
@@ -90,7 +98,10 @@ export function KampanyaSihirbazi(props: {
   const [mesgul, setMesgul] = useState(false);
 
   const wa = kanal === "whatsapp_api";
-  const saglayiciTanimli = (k: KuyrukKanali) => (k === "whatsapp_api" ? props.whatsapp.bagli : props.saglayicilar[k].tanimli);
+  const saglayiciTanimli = (k: KuyrukKanali) =>
+    k === "whatsapp_api" ? props.whatsapp.numaralar.some((n) => n.numaraDogrulandi) : props.saglayicilar[k].tanimli;
+  const secilenNumara = props.whatsapp.numaralar.find((n) => n.id === baglantiId) ?? null;
+  const numaraSablonlari = secilenNumara?.sablonlar ?? [];
   const degisti = <T,>(ayarla: (v: T) => void) => (v: T) => {
     ayarla(v);
     setOzet(null); // taslak değişince özet geçersiz
@@ -101,9 +112,10 @@ export function KampanyaSihirbazi(props: {
     ...(aliciTuru ? { aliciTuru } : {}),
   };
 
-  const secilenSablon = props.whatsapp.sablonlar.find((x) => x.id === sablonId) ?? null;
+  const secilenSablon = numaraSablonlari.find((x) => x.id === sablonId) ?? null;
   const taslak: SihirbazTaslagi = {
     kanal,
+    baglantiId,
     ad,
     konu,
     sablon,
@@ -128,7 +140,7 @@ export function KampanyaSihirbazi(props: {
     konu: kanal === "eposta" ? konu : undefined,
     sablon: wa ? undefined : sablon,
     bosIsimHitabi: !wa && bosHitap ? bosHitap : undefined,
-    ...(wa ? { sablonId, degiskenEslem: eslem } : {}),
+    ...(wa ? { baglantiId, sablonId, degiskenEslem: eslem } : {}),
     filtre,
     testModu,
     planlananTarih: zamanla && tarih ? new Date(tarih).toISOString() : null,
@@ -236,6 +248,39 @@ export function KampanyaSihirbazi(props: {
                   </button>
                 );
               })}
+              {wa && props.whatsapp.numaralar.length > 0 && (
+                <div className="flex flex-col gap-2 sm:col-span-3" role="radiogroup" aria-label="Gönderen numara">
+                  <span className="text-sm font-semibold">Gönderen numara</span>
+                  <div className="flex flex-wrap gap-2">
+                    {props.whatsapp.numaralar.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={baglantiId === n.id}
+                        onClick={() => {
+                          setOzet(null);
+                          setBaglantiId(n.id);
+                          // Şablonlar numaranın WhatsApp hesabına bağlı: numara değişince seçim sıfırlanır.
+                          setSablonId("");
+                          setEslem({});
+                        }}
+                        className={`flex flex-col items-start gap-1 rounded-kart border px-4 py-3 text-left ${
+                          baglantiId === n.id ? "border-2 border-ana bg-ana-acik/40" : "border-kenar hover:bg-kart-alt"
+                        }`}
+                      >
+                        <span className="font-semibold">{n.etiket}</span>
+                        <span className="flex flex-wrap gap-1.5">
+                          {!n.numaraDogrulandi && <DurumRozeti ton="tehlike">Doğrulanmadı</DurumRozeti>}
+                          {n.testModu && <DurumRozeti ton="uyari">Test modu</DurumRozeti>}
+                          {n.hesapKilidi && <DurumRozeti ton="tehlike">Hesap kilitli</DurumRozeti>}
+                          {n.kalite === "RED" && <DurumRozeti ton="tehlike">Kalite düşük</DurumRozeti>}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {kanal && !saglayiciTanimli(kanal) && (
                 <p className="text-[13px] text-soluk sm:col-span-3">
                   <Link href={KANAL_AYARI[kanal]} className="text-ana underline">
@@ -320,14 +365,15 @@ export function KampanyaSihirbazi(props: {
             <>
               {wa && (
                 <WhatsappSablonSecimi
-                  sablonlar={props.whatsapp.sablonlar}
+                  numara={secilenNumara?.etiket ?? ""}
+                  sablonlar={numaraSablonlari}
                   sablonId={sablonId}
                   eslem={eslem}
                   onSablon={(id) => {
                     setOzet(null);
                     setSablonId(id);
                     // Varsayılan: her değişken kaydın işletme adıyla dolar.
-                    const yeni = props.whatsapp.sablonlar.find((x) => x.id === id);
+                    const yeni = numaraSablonlari.find((x) => x.id === id);
                     setEslem(Object.fromEntries((yeni?.degiskenler ?? []).map((dg) => [degiskenAnahtari(dg), { kaynak: "isletme_adi" as const }])));
                   }}
                   onEslem={(e) => {
@@ -608,6 +654,8 @@ function SmsSayaci({ metin, altbilgi }: { metin: string; altbilgi: string }) {
 }
 
 function WhatsappSablonSecimi(props: {
+  /** Gönderen numaranın etiketi (şablonlar onun WhatsApp hesabından). */
+  numara: string;
   sablonlar: SablonDto[];
   sablonId: string;
   eslem: DegiskenEslemi;
@@ -622,11 +670,11 @@ function WhatsappSablonSecimi(props: {
     });
   return (
     <fieldset className="flex flex-col gap-3 rounded-md border border-kenar p-3">
-      <legend className="px-1 text-sm font-medium">WhatsApp şablonu</legend>
+      <legend className="px-1 text-sm font-medium">WhatsApp şablonu · {props.numara}</legend>
       {props.sablonlar.length === 0 ? (
         <p className="text-sm text-soluk">
-          Kullanılabilir onaylı şablon yok. Şablonlar Meta WhatsApp Manager&apos;da oluşturulur; Ayarlar → WhatsApp Business
-          (API) bölümünden senkronize edin.
+          Bu numaranın WhatsApp hesabında kullanılabilir onaylı şablon yok. Şablonlar Meta WhatsApp Manager&apos;da
+          oluşturulur; Ayarlar → WhatsApp bölümünde bu numaranın şablonlarını Meta&apos;dan yenileyin.
         </p>
       ) : (
         <label className="etiket">
@@ -742,16 +790,19 @@ function WhatsappOzetKutusu({ ozet }: { ozet: KampanyaOzeti }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-kenar p-3 text-sm">
       <p>
+        Gönderen: <strong>{w.numara.etiket}</strong>
+      </p>
+      <p>
         Şablon: <strong>{w.sablonAdi}</strong> ({w.dil}, {SABLON_KATEGORI_ADLARI[w.kategori] ?? w.kategori})
       </p>
       {!ozet.sandbox && !w.baglantiVar && (
         <p role="alert" className="text-tehlike">
-          WhatsApp Business bağlantısı tanımlı değil; Ayarlar → WhatsApp Business (API).
+          Bu numaranın sahipliği doğrulanmadı; Ayarlar → WhatsApp → Bağlantıyı test et.
         </p>
       )}
       {!ozet.sandbox && w.testModu && (
         <p className="rounded-md bg-amber-50 p-2 text-amber-800">
-          Test modu açık: kampanya yalnızca Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
+          Bu numaranın test modu açık: kampanya yalnızca bu numaranın Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
           nedeniyle hariç tutuldu. Bu kampanyada gönderen bilgileri ve İYS numarası aranmaz.
         </p>
       )}

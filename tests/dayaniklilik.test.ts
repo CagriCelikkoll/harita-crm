@@ -27,6 +27,7 @@ const waRotasi = await import("@/app/api/whatsapp/webhook/[kimlik]/route");
 const smsRotasi = await import("@/app/api/webhook/sms/[anahtar]/route");
 const yuklemeRotasi = await import("@/app/api/ice-aktarma/route");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
+const { tekNumara } = await import("./yardimci/numara");
 
 const U = "https://crm.ornek.test";
 const MB = 1024 * 1024;
@@ -114,8 +115,8 @@ describe("oturumsuz webhook'lar: önce kimlik, sonra sınırlı akış okuma", (
     expect(yok.sayac.okunan).toBeLessThanOrEqual(64 * 1024); // akışın ilk parçası en fazla (hiç okunmamalı)
 
     const { ctx } = kiraciOlustur("GovdeWa");
-    await wa.whatsappBaglantisiKaydet(ctx, { wabaId: "200001", phoneNumberId: "620001", erisimAnahtari: "a", appSecret: "s" });
-    const kimlik = baglantiGetir(ctx)!.webhookKimligi;
+    await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", wabaId: "200001", phoneNumberId: "620001", erisimAnahtari: "a", appSecret: "s" });
+    const kimlik = baglantiGetir(ctx, tekNumara(ctx))!.webhookKimligi;
     const buyuk = sonsuzGovde();
     const y2 = await waRotasi.POST(akisIstegi(`${U}/api/whatsapp/webhook/${kimlik}`, buyuk.akis), { params: Promise.resolve({ kimlik }) });
     expect(y2.status).toBe(413);

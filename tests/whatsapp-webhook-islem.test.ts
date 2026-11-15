@@ -31,6 +31,7 @@ const wa = await import("@/server/servisler/whatsapp-api");
 const { mockWhatsappSifirla } = await import("@/server/whatsapp-api/mock");
 const { POST } = await import("@/app/api/whatsapp/webhook/[kimlik]/route");
 const { kiraciOlustur } = await import("./yardimci/fabrika");
+const { tekNumara } = await import("./yardimci/numara");
 
 const U = "https://crm.ornek.test";
 let sayac = 0;
@@ -40,8 +41,8 @@ async function kur(ad: string) {
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Ltd.", iletisimBilgisi: "İzmir", iysNo: "1", sorumlulukOnayi: true });
   const phoneId = String(700000 + ++sayac);
   const secret = `secret-${ad}`;
-  await wa.whatsappBaglantisiKaydet(ctx, { wabaId: String(600000 + sayac), phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
-  return { ctx, kimlik: baglantiGetir(ctx)!.webhookKimligi, secret, phoneId };
+  await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", wabaId: String(600000 + sayac), phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
+  return { ctx, kimlik: baglantiGetir(ctx, tekNumara(ctx))!.webhookKimligi, secret, phoneId };
 }
 type Kurulum = Awaited<ReturnType<typeof kur>>;
 
@@ -151,10 +152,12 @@ describe("Meta hesap kilidi (statuses webhook'u)", () => {
     };
   const calisanKampanya = (k: Kurulum, id: string) =>
     db.$client
-      .prepare("insert into kampanyalar (id, tenant_id, kanal, ad, sablon, filtre, sandbox, durum) values (?, ?, 'whatsapp_api', 'K', 'S', '{}', 0, 'calisiyor')")
-      .run(id, k.ctx.tenantId);
+      .prepare(
+        "insert into kampanyalar (id, tenant_id, kanal, ad, sablon, filtre, sandbox, durum, baglanti_id) values (?, ?, 'whatsapp_api', 'K', 'S', '{}', 0, 'calisiyor', ?)",
+      )
+      .run(id, k.ctx.tenantId, tekNumara(k.ctx));
 
-  it("failed + 131031: bağlantı kilitlenir, çalışma alanının tüm çalışan WhatsApp kampanyaları duraklar; başka çalışma alanı etkilenmez", async () => {
+  it("failed + 131031: numara (WABA) kilitlenir, onun çalışan WhatsApp kampanyaları duraklar; başka çalışma alanı etkilenmez", async () => {
     const k = await kur("KilitDurum");
     const diger = await kur("KilitDurumDiger");
     const [kayit] = kisileriEkle(k.ctx, [{ kaynak: "elle", ekTelefon: "0532 777 00 01" }], "x");
@@ -169,24 +172,24 @@ describe("Meta hesap kilidi (statuses webhook'u)", () => {
     expect(y.status).toBe(200);
     for (const id of ["k-calisan-1", "k-calisan-2"]) expect(kampanyaDurumu(k, id)).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_hesap_kilitli" });
     expect(kampanyaDurumu(k, "k-wamid.K1").durum).toBe("tamamlandi"); // bitmiş kampanyaya dokunulmaz
-    expect(wa.baglantiDurumu(k.ctx).hesapKilidi).toMatchObject({ kod: 131031, neden: "meta_hesap_kilitli" });
+    expect(wa.baglantiDurumu(k.ctx, tekNumara(k.ctx)).hesapKilidi).toMatchObject({ kod: 131031, neden: "meta_hesap_kilitli" });
     expect(kampanyaDurumu(diger, "k-diger").durum).toBe("calisiyor");
-    expect(wa.baglantiDurumu(diger.ctx).hesapKilidi).toBeNull();
+    expect(wa.baglantiDurumu(diger.ctx, tekNumara(diger.ctx)).hesapKilidi).toBeNull();
   });
 
   it("bizim göndermediğimiz iletinin bildirimi ve value.errors da kilitler; 131042 ödeme nedeniyle; teslim edildi bildirimi kilitlemez", async () => {
     const k = await kur("KilitBaska");
     calisanKampanya(k, "k-b1");
     await gonder(k, { statuses: [{ id: "wamid.BASKA", status: "delivered", errors: [{ code: 131031 }] }] });
-    expect(wa.baglantiDurumu(k.ctx).hesapKilidi).toBeNull();
+    expect(wa.baglantiDurumu(k.ctx, tekNumara(k.ctx)).hesapKilidi).toBeNull();
     await gonder(k, { statuses: [{ id: "wamid.BASKA", status: "failed", errors: [{ code: 131042 }] }] });
     expect(kampanyaDurumu(k, "k-b1")).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_odeme_sorunu" });
-    expect(wa.baglantiDurumu(k.ctx).hesapKilidi?.kod).toBe(131042);
+    expect(wa.baglantiDurumu(k.ctx, tekNumara(k.ctx)).hesapKilidi?.kod).toBe(131042);
 
     const k2 = await kur("KilitErrors");
     calisanKampanya(k2, "k-e1");
     await gonder(k2, { errors: [{ code: 368 }] });
     expect(kampanyaDurumu(k2, "k-e1")).toEqual({ durum: "duraklatildi", duraklatma_nedeni: "meta_hesap_kilitli" });
-    expect(wa.baglantiDurumu(k2.ctx).hesapKilidi?.kod).toBe(368);
+    expect(wa.baglantiDurumu(k2.ctx, tekNumara(k2.ctx)).hesapKilidi?.kod).toBe(368);
   });
 });

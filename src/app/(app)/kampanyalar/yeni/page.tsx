@@ -5,7 +5,7 @@ import { smsAltbilgisi } from "@/lib/sablon";
 import { sayfaBaglami } from "@/server/oturum";
 import { etiketleriListele } from "@/server/repo/kayitlar";
 import { mesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
-import { baglantiDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
+import { numaraOzetleri, sablonlar } from "@/server/servisler/whatsapp-api";
 import { KampanyaSihirbazi } from "./kampanya-sihirbazi";
 
 export const metadata: Metadata = { title: "Yeni kampanya" };
@@ -33,8 +33,11 @@ export default async function YeniKampanyaSayfasi({ searchParams }: PageProps<"/
         smsAltbilgisi={smsAltbilgisi(ayarlar)}
         whatsapp={{
           yonetici,
-          bagli: baglantiDurumu(ctx).tanimli,
-          sablonlar: yonetici ? sablonlar(ctx).filter((x) => x.kullanilabilir) : [],
+          ilkNumara: tek(p.numara) ?? null,
+          // Gönderen numara seçimi; şablonlar numaranın WABA'sına göre (aynı WABA'daki numaralar ortak).
+          numaralar: yonetici
+            ? numaraOzetleri(ctx).map((n) => ({ ...n, sablonlar: sablonlar(ctx, n.id).filter((x) => x.kullanilabilir) }))
+            : [],
         }}
       />
     </>

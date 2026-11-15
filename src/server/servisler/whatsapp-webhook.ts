@@ -4,13 +4,19 @@
 //      karşılaştırılır; eşleşirse hub.challenge döner ve "webhook doğrulandı" işaretlenir.
 // Bir bildirimin tüm işlenmesi tek transaction'dır (hata → hiçbir şey kalıcı olmaz, Meta tekrar dener).
 // POST: X-Hub-Signature-256 (HMAC-SHA256, App Secret, HAM gövde) doğrulanmadan gövde AYRIŞTIRILMAZ ve hiçbir işlem
-//      yapılmaz. Sonra her değişiklikte numara (metadata.phone_number_id) ya da WABA (entry.id) bu bağlantınınkiyle
-//      eşleşmeli; eşleşmeyen (başka çalışma alanının numarası) atlanır.
+//      yapılmaz. Çoklu numara: Meta'da callback adresi uygulama düzeyindedir, aynı uygulamaya bağlı numaraların
+//      bildirimleri tek adrese gelebilir. Bu yüzden her değişiklik, AYNI çalışma alanının ve AYNI App Secret'ın
+//      (imzayı doğrulayan) numaralarından numarası (metadata.phone_number_id) eşleşene, numarasız değişiklik (şablon,
+//      limit) WABA'sı (entry.id) eşleşenlere yönlendirilir. Eşleşmeyen (başka çalışma alanının ya da başka uygulamanın
+//      numarası) atlanır.
+//      Bir numara için ortak adres üzerinden imzalı teslim bildirimi gelirse, o numaranın "bildirim adresi doğrulandı"
+//      adımı da tamamlanır: Meta'nın GET doğrulaması yalnızca uygulamanın tek adresine yapılır; imzalı bildirimin
+//      gelmesi o numaranın bildirimlerinin bize ulaştığının daha güçlü kanıtıdır.
 //
 // İşlenenler (gelen ileti METNİ hiçbir yerde saklanmaz):
 //  - statuses: kuyruk satırının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
-//    131050 → ret; hesap düzeyi hata (131031, 368, 131042; value.errors'ta da) → bağlantı kilitlenir ve çalışma alanının
-//    tüm WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
+//    131050 → ret; hesap düzeyi hata (131031, 368, 131042; value.errors'ta da) → bu WABA'daki numaralar kilitlenir ve
+//    onların WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
 //    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
 //    kuyruk satırı; ret kelimesi / abonelikten çıkma butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi
@@ -30,7 +36,14 @@ import { telefonlaKayitlar } from "../repo/kayitlar";
 import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { adreseGonderilenKayitlar, teslimDurumuIsle } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
-import { imzaliDurumAlindiIsaretle, webhookBaglantisi, webhookDogrulandiIsaretle, webhookIslemi } from "../repo/sistem/whatsapp-webhook";
+import {
+  imzaliDurumAlindiIsaretle,
+  webhookBaglantisi,
+  webhookDogrulandiIsaretle,
+  webhookIslemi,
+  webhookNumaralari,
+  webhookOrtakAdresleDogrulandi,
+} from "../repo/sistem/whatsapp-webhook";
 import { hesapKilidiYaz, limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
 import { gelenIletiKaydet } from "../repo/whatsapp-gelen";
 import { bsuidAta, bsuidDegistir, bsuidIleBul, reklamBilgisiYaz, reklamKisisiOlustur, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
@@ -54,9 +67,9 @@ export function webhookTanimliMi(kimlik: string): boolean {
 export function webhookDogrula(kimlik: string, p: { mode: string | null; token: string | null; challenge: string | null }, simdi = new Date()) {
   const w = webhookBaglantisi(kimlik);
   if (!w || p.mode !== "subscribe" || !p.token || !p.challenge) return null;
-  const gizli = whatsappBaglantisiCoz(w.ctx)?.gizli;
+  const gizli = whatsappBaglantisiCoz(w.ctx, w.baglanti.id)?.gizli;
   if (!gizli?.verifyToken || !esit(p.token, gizli.verifyToken)) return null;
-  webhookDogrulandiIsaretle(w.baglanti.tenantId, simdi);
+  webhookDogrulandiIsaretle(w.baglanti.id, simdi);
   return p.challenge.slice(0, 200);
 }
 
@@ -123,11 +136,25 @@ function katman(deger: string | number | undefined): string | null {
   return null;
 }
 
+/**
+ * İmzayı doğrulayan App Secret'la aynı secret'a sahip, aynı çalışma alanının numaraları (imzayı doğrulayan dahil).
+ * Gizli bilgisi çözülemeyen numara atlanır.
+ */
+function ayniUygulamaNumaralari(ctx: TenantContext, appSecret: string): WhatsappBaglantisi[] {
+  return webhookNumaralari(ctx).filter((b) => {
+    try {
+      return whatsappBaglantisiCoz(ctx, b.id)?.gizli.appSecret === appSecret;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** POST: imza doğrulanırsa işler. */
 export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | null, simdi = new Date()): WebhookSonucu {
   const w = webhookBaglantisi(kimlik);
   if (!w) return { durum: 404, islenen: 0, atlanan: 0 };
-  const gizli = whatsappBaglantisiCoz(w.ctx)?.gizli;
+  const gizli = whatsappBaglantisiCoz(w.ctx, w.baglanti.id)?.gizli;
   if (!gizli?.appSecret || !imzaGecerli(govde, imza, gizli.appSecret)) return { durum: 401, islenen: 0, atlanan: 0 };
 
   let yuk: Yuk;
@@ -138,21 +165,26 @@ export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | nu
   }
   // Tamamı tek transaction: hata olursa gelen ileti kimlikleri de yazılmamış olur, tekrar deneme RET'i kaybetmez.
   return webhookIslemi(() => {
-    const s = new Isleyici(w.ctx, w.baglanti, simdi);
+    const numaralar = ayniUygulamaNumaralari(w.ctx, gizli.appSecret);
+    const s = new Isleyici(w.ctx, simdi);
     for (const entry of yuk.entry ?? []) {
       for (const c of entry.changes ?? []) {
         const v = c.value ?? {};
-        // Numara alanı olan değişiklikte numara, olmayanda (şablon, limit) WABA eşleşmeli.
+        // Numara alanı olan değişiklik o numaraya, olmayan (şablon, limit) WABA'sı eşleşen numaralara.
         const numara = v.metadata?.phone_number_id;
-        const bizim = numara ? numara === w.baglanti.phoneNumberId : entry.id === w.baglanti.wabaId;
-        if (!bizim) {
+        const hedefler = numara ? numaralar.filter((b) => b.phoneNumberId === numara) : numaralar.filter((b) => b.wabaId === entry.id);
+        if (!hedefler.length) {
           s.atlanan++;
           continue;
         }
-        s.degisiklik(c.field ?? "", v);
+        s.degisiklik(c.field ?? "", v, hedefler);
       }
     }
-    if (s.durumAlindi) imzaliDurumAlindiIsaretle(w.baglanti.tenantId, w.baglanti.phoneNumberId, simdi);
+    for (const b of s.durumAlinanlar.values()) {
+      imzaliDurumAlindiIsaretle(b.id, b.phoneNumberId, simdi);
+      // Ortak adres: bu numaranın kendi adresine GET doğrulaması hiç gelmeyebilir (tek Meta uygulaması, tek adres).
+      if (b.id !== w.baglanti.id) webhookOrtakAdresleDogrulandi(b.id, simdi);
+    }
     return { durum: 200 as const, islenen: s.islenen, atlanan: s.atlanan };
   });
 }
@@ -160,15 +192,18 @@ export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | nu
 class Isleyici {
   islenen = 0;
   atlanan = 0;
-  durumAlindi = false;
+  /** Bizim gönderdiğimiz iletinin imzalı durum bildirimini alan numaralar (test modu kilidinin 2. koşulu). */
+  durumAlinanlar = new Map<string, WhatsappBaglantisi>();
+  /** Şu an işlenen değişikliğin numarası (messages alanı tek numaraya aittir). */
+  private baglanti!: WhatsappBaglantisi;
 
   constructor(
     private ctx: TenantContext,
-    private baglanti: WhatsappBaglantisi,
     private simdi: Date,
   ) {}
 
-  degisiklik(alan: string, v: Deger) {
+  degisiklik(alan: string, v: Deger, hedefler: WhatsappBaglantisi[]) {
+    this.baglanti = hedefler[0];
     if (alan === "messages") {
       for (const h of v.errors ?? []) {
         if (this.hesapHatasi(h.code)) this.islenen++;
@@ -182,7 +217,7 @@ class Isleyici {
     } else if (alan === "phone_number_quality_update" || alan === "business_capability_update") {
       const k = katman(v.max_daily_conversations_per_business) ?? katman(v.current_limit);
       if (k && k !== "TIER_NOT_SET") {
-        limitKatmaniYaz(this.ctx, k);
+        limitKatmaniYaz(this.ctx, this.baglanti.wabaId, k);
         this.islenen++;
       }
     } else {
@@ -227,12 +262,11 @@ class Isleyici {
     }
   }
 
-  /** Hesap düzeyi hata kodu: bağlantı kilitlenir, tüm WhatsApp kampanyaları duraklar. Değilse false. */
+  /** Hesap düzeyi hata kodu: bu WABA'daki numaralar kilitlenir, kampanyaları duraklar. Değilse false. */
   private hesapHatasi(kod: number | null | undefined): boolean {
     const neden = hesapKilidiNedeni(kod);
     if (!neden) return false;
-    hesapKilidiYaz(this.ctx, kod!, this.simdi);
-    whatsappKampanyalariniDuraklat(this.ctx, neden);
+    whatsappKampanyalariniDuraklat(this.ctx, neden, { baglantiIdler: hesapKilidiYaz(this.ctx, this.baglanti.id, kod!, this.simdi) });
     return true;
   }
 
@@ -254,7 +288,7 @@ class Isleyici {
     }
     this.islenen++;
     // Test modu kilidinin 2. koşulu: bizim gönderdiğimiz (sandbox olmayan), bağlantının MEVCUT numarasından giden ileti.
-    if (!sonuc.sandbox && sonuc.gonderenNumara === this.baglanti.phoneNumberId) this.durumAlindi = true;
+    if (!sonuc.sandbox && sonuc.gonderenNumara === this.baglanti.phoneNumberId) this.durumAlinanlar.set(this.baglanti.id, this.baglanti);
     if (d.recipient_user_id) bsuidAta(this.ctx, sonuc.leadId, d.recipient_user_id);
     if (d.status === "failed" && kod === 131026) whatsappYokIsaretle(this.ctx, sonuc.leadId, this.simdi);
     if (d.status === "failed" && kod === 131050) {
@@ -348,7 +382,7 @@ class Isleyici {
       this.atlanan++;
       return;
     }
-    const yazildi = sablonDurumuYaz(this.ctx, {
+    const yazildi = sablonDurumuYaz(this.ctx, this.baglanti.wabaId, {
       metaId: v.message_template_id !== undefined ? String(v.message_template_id) : null,
       ad: v.message_template_name,
       dil: v.message_template_language,

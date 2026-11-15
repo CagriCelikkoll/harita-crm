@@ -25,17 +25,24 @@ const SIMDI = new Date("2026-10-29T09:00:00Z"); // 12:00 İstanbul
 const tur = (simdi = SIMDI) => isciTuru({ simdi: () => simdi, parti: 50, whatsappAralikMs: 0 });
 
 let numaraSayaci = 0;
-/** Yönetici + tamamlanmış ticari ileti ayarları + WhatsApp bağlantısı (test modu açık) + senkronize şablonlar. */
+/** Çalışma alanı → tek numarası; şablon → numarası (girdi() gönderen numarayı şablondan bulur). */
+const NUMARALAR = new Map<string, string>();
+const SABLON_NUMARASI = new Map<string, string>();
+const N = (ctx: TenantContext) => NUMARALAR.get(ctx.tenantId)!;
+/** Yönetici + tamamlanmış ticari ileti ayarları + WhatsApp numarası (test modu açık) + senkronize şablonlar. */
 async function kur(ad: string) {
   const { ctx } = kiraciOlustur(ad);
   iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
-  await wa.whatsappBaglantisiKaydet(ctx, {
+  const { baglanti } = await wa.whatsappBaglantisiEkle(ctx, {
+    ad: "Merkez",
     wabaId: "200001",
     phoneNumberId: String(500000 + ++numaraSayaci),
     erisimAnahtari: "anahtar",
     appSecret: "secret",
   });
-  await wa.sablonlariSenkronizeEt(ctx);
+  NUMARALAR.set(ctx.tenantId, baglanti.id!);
+  await wa.sablonlariSenkronizeEt(ctx, baglanti.id!);
+  for (const s of sablonlariListele(ctx)) SABLON_NUMARASI.set(s.id, baglanti.id!);
   const sablon = (adi: string) => sablonlariListele(ctx).find((s) => s.ad === adi)!;
   return { ctx, sablon };
 }
@@ -45,7 +52,7 @@ function testModunuKapat(ctx: TenantContext) {
   db.$client
     .prepare("update whatsapp_baglantilari set webhook_dogrulama_tarihi = ?, son_imzali_durum_tarihi = ? where tenant_id = ?")
     .run(Date.now(), Date.now(), ctx.tenantId);
-  wa.testModuDegistir(ctx, false);
+  wa.testModuDegistir(ctx, N(ctx), false);
 }
 
 /** İzinli kişiler (etiket "wa"). */
@@ -72,6 +79,7 @@ const girdi = (sablonId: string, ek: Partial<KampanyaGirdisi> = {}): KampanyaGir
   ad: "WA kampanyası",
   filtre: { etiket: "wa" },
   testModu: false,
+  baglantiId: SABLON_NUMARASI.get(sablonId),
   sablonId,
   degiskenEslem: {
     "header:1": { kaynak: "isletme_adi", yedek: "Değerli müşterimiz" },
@@ -88,7 +96,7 @@ beforeEach(() => mockWhatsappSifirla());
 describe("özet", () => {
   it("izin, ret, engel, İYS beyanı, test modu ve boş değişken nedenleri; tahmini ücret ve önizleme", async () => {
     const { ctx, sablon } = await kur("Ozet");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01", "0532 000 00 06"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01", "0532 000 00 06"]);
     const [, , retli, engelli] = kisiler(ctx, [
       { tel: "0532 000 00 01", ad: "Ege Emlak" }, // test numarası: uygun
       { tel: "0532 000 00 02", izin: false }, // izin yok
@@ -139,7 +147,7 @@ describe("özet", () => {
 describe("gönderim (işçi)", () => {
   it("test modunda yalnızca test numarasına; şablon, değişkenler ve wamid; kayıt iletişimde", async () => {
     const { ctx, sablon } = await kur("Gonder");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01"]);
     const [k1] = kisiler(ctx, [{ tel: "0532 000 00 01", ad: "Ege Emlak" }, { tel: "0532 000 00 02" }]);
     const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     expect(kampanya.sablon).toBe("kampanya_tanitim (tr)");
@@ -172,7 +180,7 @@ describe("gönderim (işçi)", () => {
 
   it("test modunda test numarası olan bireysel kişiye İYS beyanı aranmaz; WhatsApp izni yine şart; sandbox ve test modu kapalıyken aranır", async () => {
     const { ctx, sablon } = await kur("IysTest");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01", "0532 000 00 02"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01", "0532 000 00 02"]);
     const [test, izinsiz, testDegil] = kisiler(ctx, [
       { tel: "0532 000 00 01", ad: "Test kişisi", bireysel: true, iys: false }, // test numarası, İYS kutusu boş: uygun
       { tel: "0532 000 00 02", bireysel: true, izin: false }, // test numarası ama WhatsApp izni yok
@@ -243,7 +251,7 @@ describe("gönderim (işçi)", () => {
     const { ctx, sablon } = await kur("Limit");
     testModunuKapat(ctx);
     db.$client.prepare("update whatsapp_baglantilari set limit_katmani = 'TIER_250', son_kontrol = ?, kalite = 'GREEN' where tenant_id = ?").run(SIMDI.getTime(), ctx.tenantId);
-    wa.uygulamaPayiKaydet(ctx, 1); // 250 × %1 = 2
+    wa.uygulamaPayiKaydet(ctx, N(ctx), 1); // 250 × %1 = 2
     kisiler(ctx, [{ tel: "0532 000 00 01" }, { tel: "0532 000 00 02" }, { tel: "0532 000 00 03" }]);
     const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     expect(kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI).whatsapp?.limitPayi).toBe(2);
@@ -292,7 +300,7 @@ describe("gönderim (işçi)", () => {
     kisiler(ctx, [{ tel: "0532 000 00 01" }]);
     const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     mockWhatsapp.sablonlar[0].status = "PAUSED";
-    await wa.sablonlariSenkronizeEt(ctx);
+    await wa.sablonlariSenkronizeEt(ctx, N(ctx));
     await tur();
     expect(mockWhatsapp.gonderilenler).toHaveLength(0);
     expect(kampanyaGetir(ctx, kampanya.id)).toMatchObject({ durum: "duraklatildi", duraklatmaNedeni: "sablon_kullanilamaz" });
@@ -387,7 +395,7 @@ describe("gönderen bilgileri ve İYS: test modunda aranmaz, kapalıyken aranır
 
   it("test modunda test numarasına gönderim İYS'siz çalışır: kampanya başlar ve Meta'ya gerçekten gider", async () => {
     const { ctx, sablon } = await kurIysiz("IysizTest");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01"]);
     const [k1] = kisiler(ctx, [{ tel: "0532 000 00 01", ad: "Ben" }]);
     const ozet = kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     expect(ozet).toMatchObject({ sandbox: false, gonderilecek: 1, eksikAyarlar: [] });
@@ -403,7 +411,7 @@ describe("gönderen bilgileri ve İYS: test modunda aranmaz, kapalıyken aranır
 
   it("test modunda test numarası olmayan alıcı yine hariç kalır (özette ve işçide)", async () => {
     const { ctx, sablon } = await kurIysiz("IysizHaric");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01"]);
     kisiler(ctx, [{ tel: "0532 000 00 01" }, { tel: "0532 000 00 02" }]);
     const ozet = kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     expect(ozet.gonderilecek).toBe(1);
@@ -411,7 +419,7 @@ describe("gönderen bilgileri ve İYS: test modunda aranmaz, kapalıyken aranır
 
     const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     // Kampanyadan sonra test numaraları değişse de işçi test numarası olmayana göndermez.
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 09"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 09"]);
     await tur();
     expect(mockWhatsapp.gonderilenler).toHaveLength(0);
     expect(mesajlar(ctx, kampanya.id).map((x) => x.neden)).toEqual(["test_modu", "test_modu"]);
@@ -435,22 +443,22 @@ describe("gönderen bilgileri ve İYS: test modunda aranmaz, kapalıyken aranır
   it("İYS'siz test modu kapatılamaz (sunucu reddeder, durum değişmez); tamamlanınca kapatılabilir", async () => {
     const { ctx } = await kurIysiz("IysizKapat");
     // Önce kurulum sırası: webhook doğrulanmadıysa o neden.
-    expect(() => wa.testModuDegistir(ctx, false)).toThrow(/webhook henüz doğrulanmadı/);
+    expect(() => wa.testModuDegistir(ctx, N(ctx), false)).toThrow(/bildirim adresi henüz doğrulanmadı/);
     kilitKosullari(ctx);
-    expect(wa.baglantiDurumu(ctx)).toMatchObject({
+    expect(wa.baglantiDurumu(ctx, N(ctx))).toMatchObject({
       testModu: true,
       testModuKapatilabilir: false,
       gonderenEksikleri: ["gönderen unvanı", "iletişim bilgisi", "İYS kayıt numarası", "İYS / 6563 sorumluluk onayı"],
     });
-    expect(() => wa.testModuDegistir(ctx, false)).toThrow(/Gönderen bilgileri eksik: gönderen unvanı, iletişim bilgisi, İYS kayıt numarası/);
-    expect(wa.baglantiDurumu(ctx).testModu).toBe(true);
+    expect(() => wa.testModuDegistir(ctx, N(ctx), false)).toThrow(/Gönderen bilgileri eksik: gönderen unvanı, iletişim bilgisi, İYS kayıt numarası/);
+    expect(wa.baglantiDurumu(ctx, N(ctx)).testModu).toBe(true);
     // Test modunu açmak her zaman serbest.
-    expect(() => wa.testModuDegistir(ctx, true)).not.toThrow();
+    expect(() => wa.testModuDegistir(ctx, N(ctx), true)).not.toThrow();
 
     iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
-    expect(wa.baglantiDurumu(ctx)).toMatchObject({ testModuKapatilabilir: true, gonderenEksikleri: [] });
-    wa.testModuDegistir(ctx, false);
-    expect(wa.baglantiDurumu(ctx).testModu).toBe(false);
+    expect(wa.baglantiDurumu(ctx, N(ctx))).toMatchObject({ testModuKapatilabilir: true, gonderenEksikleri: [] });
+    wa.testModuDegistir(ctx, N(ctx), false);
+    expect(wa.baglantiDurumu(ctx, N(ctx)).testModu).toBe(false);
   });
 });
 
@@ -461,14 +469,14 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
   it("gönderim yanıtında 131031: tüm WhatsApp kampanyaları duraklar, mesajlar kuyrukta bekler ve tekrar denenmez; uyarı Ayarlar'da ve Panel'de", async () => {
     // Gerçek denemedeki durum: test modu açık, test numarasına şablon.
     const { ctx, sablon } = await kur("Kilit131031");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01", "0532 000 00 02"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01", "0532 000 00 02"]);
     const [ilk] = kisiler(ctx, [{ tel: "0532 000 00 01" }]);
     const birinci = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     kisiler(ctx, [{ tel: "0532 000 00 02" }]);
     const ikinci = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id, { filtre: { etiket: "wa" } }), SIMDI);
     // Başka çalışma alanı etkilenmez.
     const diger = await kur("Kilit131031Diger");
-    wa.testNumaralariKaydet(diger.ctx, ["0533 000 00 01"]);
+    wa.testNumaralariKaydet(diger.ctx, N(diger.ctx), ["0533 000 00 01"]);
     kisiler(diger.ctx, [{ tel: "0533 000 00 01" }]);
     const digerKampanya = kampanyaBaslat(diger.ctx, girdi(diger.sablon("kampanya_tanitim").id), SIMDI);
 
@@ -491,12 +499,12 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
     expect(mockWhatsapp.gonderilenler).toHaveLength(gidenler);
 
     // Yöneticiye uyarı: Ayarlar durum kartı ve Panel > Sıradaki işler.
-    const durum = wa.baglantiDurumu(ctx);
+    const durum = wa.baglantiDurumu(ctx, N(ctx));
     expect(durum.hesapKilidi).toMatchObject({ kod: 131031, neden: "meta_hesap_kilitli", mesaj: KILIT_UYARISI });
     const isler = siradakiIsler({ yonetici: true, incelenmemis: 0, waBekleyen: 0, gonderimdekiKampanya: 0, isciUyari: false, eksikAyarlar: [], waTestModu: true, waHesapKilidi: durum.hesapKilidi!.mesaj });
     expect(isler[0]).toMatchObject({ aciklama: KILIT_UYARISI, ton: "tehlike", href: "/ayarlar/whatsapp" });
     expect(siradakiIsler({ yonetici: false, incelenmemis: 0, waBekleyen: 0, gonderimdekiKampanya: 0, isciUyari: false, eksikAyarlar: [], waTestModu: false, waHesapKilidi: KILIT_UYARISI })).toEqual([]);
-    expect(wa.baglantiDurumu(diger.ctx).hesapKilidi).toBeNull();
+    expect(wa.baglantiDurumu(diger.ctx, N(diger.ctx)).hesapKilidi).toBeNull();
 
     // Kilitliyken yeni kampanya başlatılamaz (sandbox başlatılabilir).
     expect(kampanyaOzeti(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI).whatsapp?.hesapKilidi).toBe(KILIT_UYARISI);
@@ -506,7 +514,7 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
 
   it("kilit Meta'da sürerken (health_status BLOCKED) test ve devam reddedilir; kalkınca test başarılı olur, kampanyalar yalnızca yönetici devam ettirince gider", async () => {
     const { ctx, sablon } = await kur("KilitKalkar");
-    wa.testNumaralariKaydet(ctx, ["0532 000 00 01"]);
+    wa.testNumaralariKaydet(ctx, N(ctx), ["0532 000 00 01"]);
     kisiler(ctx, [{ tel: "0532 000 00 01" }]);
     const kampanya = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     mockWhatsapp.aliciHatalari.set("905320000001", new GraphHatasi("(#131031) Business Account locked", 400, 131031));
@@ -516,14 +524,14 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
 
     const numara = { id: "1", gorunenNumara: "+90", dogrulanmisAd: "X", kalite: "GREEN", limitKatmani: "TIER_10K" };
     mockWhatsapp.numara = { ...numara, gonderimDurumu: "BLOCKED" };
-    await expect(wa.baglantiyiTestEt(ctx)).rejects.toThrow(/BLOCKED/);
-    expect(wa.baglantiDurumu(ctx).hesapKilidi?.kod).toBe(131031);
+    await expect(wa.baglantiyiTestEt(ctx, N(ctx))).rejects.toThrow(/BLOCKED/);
+    expect(wa.baglantiDurumu(ctx, N(ctx)).hesapKilidi?.kod).toBe(131031);
     await expect(kampanyayiDevamEttir(ctx, kampanya.id)).rejects.toThrow(/hesabınız kilitlendi/);
     expect(kampanyaGetir(ctx, kampanya.id)?.durum).toBe("duraklatildi");
 
     // Kilit kalktı: test başarılı, kilit silinir; kampanya kendiliğinden başlamaz.
     mockWhatsapp.numara = { ...numara, gonderimDurumu: "AVAILABLE" };
-    expect((await wa.baglantiyiTestEt(ctx)).hesapKilidi).toBeNull();
+    expect((await wa.baglantiyiTestEt(ctx, N(ctx))).hesapKilidi).toBeNull();
     await tur();
     expect(mockWhatsapp.gonderilenler).toHaveLength(0);
     expect(kampanyaGetir(ctx, kampanya.id)?.durum).toBe("duraklatildi");
@@ -559,8 +567,8 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
       expect(deneme).toBe(1);
       expect(mockWhatsapp.gonderilenler).toHaveLength(0);
       expect(mesajlar(ctx, k.id).map((m) => m.durum)).toEqual(["kuyrukta", "kuyrukta"]);
-      expect(wa.baglantiDurumu(ctx).hesapKilidi).toMatchObject({ kod, neden });
-      expect(wa.baglantiDurumu(ctx).hesapKilidi!.mesaj).toMatch(uyari);
+      expect(wa.baglantiDurumu(ctx, N(ctx)).hesapKilidi).toMatchObject({ kod, neden });
+      expect(wa.baglantiDurumu(ctx, N(ctx)).hesapKilidi!.mesaj).toMatch(uyari);
       mockWhatsapp.aliciHatalari = new Map();
     }
     // 131026 gibi alıcı düzeyi hata kilitlemez.
@@ -570,7 +578,7 @@ describe("Meta hesap kilidi (131031; aynı davranış 368 ve 131042)", () => {
     const k = kampanyaBaslat(ctx, girdi(sablon("kampanya_tanitim").id), SIMDI);
     mockWhatsapp.aliciHatalari.set("905320000001", new GraphHatasi("(#131026) x", 400, 131026));
     await tur();
-    expect(wa.baglantiDurumu(ctx).hesapKilidi).toBeNull();
+    expect(wa.baglantiDurumu(ctx, N(ctx)).hesapKilidi).toBeNull();
     expect(mockWhatsapp.gonderilenler).toHaveLength(1);
     expect(kampanyaGetir(ctx, k.id)?.durum).not.toBe("duraklatildi");
   });

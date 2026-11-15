@@ -17,7 +17,7 @@ const ADIM_BEKLEME_MS = 800;
 
 class BetikHatasi extends Error {}
 
-type Baglanti = Hesap & { tenantId: string; kimlik: string; appSecret: string; verifyToken: string };
+type Baglanti = Hesap & { id: string; ad: string; tenantId: string; kimlik: string; appSecret: string; verifyToken: string };
 type Veritabani = ReturnType<typeof saltOkunurAc>;
 
 function veritabaniAc(): Veritabani {
@@ -28,14 +28,18 @@ function veritabaniAc(): Veritabani {
   }
 }
 
-function baglantiOku(d: Veritabani): Baglanti {
-  const b = d
+/** Demo çalışma alanının numarası: --numara verilmişse o ad, yoksa ilk numara (sıraya göre). */
+function baglantiOku(d: Veritabani, numara?: string): Baglanti {
+  const satirlar = d
     .prepare(
-      `select b.tenant_id tenantId, b.waba_id wabaId, b.phone_number_id phoneNumberId, b.webhook_kimligi kimlik, b.sifreli_veri sifreli
-       from whatsapp_baglantilari b join tenants t on t.id = b.tenant_id where t.ad = ?`,
+      `select b.id, b.ad, b.tenant_id tenantId, b.waba_id wabaId, b.phone_number_id phoneNumberId, b.webhook_kimligi kimlik, b.sifreli_veri sifreli
+       from whatsapp_baglantilari b join tenants t on t.id = b.tenant_id where t.ad = ? order by b.sira, b.ad`,
     )
-    .get(DEMO_ALAN_ADI) as (Omit<Baglanti, "appSecret" | "verifyToken"> & { sifreli: string }) | undefined;
-  if (!b) throw new BetikHatasi("Demo WhatsApp bağlantısı bulunamadı. Önce: npm run demo:hazirla");
+    .all(DEMO_ALAN_ADI) as (Omit<Baglanti, "appSecret" | "verifyToken"> & { sifreli: string })[];
+  if (!satirlar.length) throw new BetikHatasi("Demo WhatsApp bağlantısı bulunamadı. Önce: npm run demo:hazirla");
+  const b = numara ? satirlar.find((s) => s.ad.toLocaleLowerCase("tr") === numara.toLocaleLowerCase("tr")) : satirlar[0];
+  if (!b) throw new BetikHatasi(`"${numara}" adlı numara yok. Numaralar: ${satirlar.map((s) => s.ad).join(", ")}`);
+  if (satirlar.length > 1 && !numara) console.log(`(Numara: ${b.ad}. Başkası için: --numara <ad>; numaralar: ${satirlar.map((s) => s.ad).join(", ")})`);
   const { sifreli, ...kalan } = b;
   const gizli = coz<{ appSecret: string; verifyToken: string }>(sifreli, b.tenantId, "whatsapp_api");
   return { ...kalan, appSecret: gizli.appSecret, verifyToken: gizli.verifyToken };
@@ -77,7 +81,7 @@ async function dogrula(d: Veritabani, b: Baglanti) {
   const y = await istekYap(`${webhookAdresi(b)}?${q}`);
   yanitDenetle(y.status);
   if ((await y.text()) !== challenge) throw new BetikHatasi("Yanıttaki challenge eşleşmedi.");
-  const r = d.prepare("select webhook_dogrulama_tarihi t from whatsapp_baglantilari where tenant_id = ?").get(b.tenantId) as { t: number | null };
+  const r = d.prepare("select webhook_dogrulama_tarihi t from whatsapp_baglantilari where id = ?").get(b.id) as { t: number | null };
   console.log(`✓ Bildirim adresi doğrulandı (Verify and save karşılığı). Kayıt: ${r.t ? "işaretlendi" : "İŞARETLENMEDİ"}.`);
   console.log("  Ayarlar → WhatsApp (Meta) sayfasını yenileyin: Kurulum adımları 2 \"Tamamlandı\" olmalı.");
 }
@@ -87,16 +91,17 @@ type Mesaj = { wamid: string; kampanyaId: string; ad: string | null; telefon: st
 function mesajlariBul(d: Veritabani, b: Baglanti, hedef: string): Mesaj[] {
   const secim = `select m.saglayici_kimligi wamid, m.kampanya_id kampanyaId, coalesce(l.isletme_adi, l.yetkili_adi) ad, l.ek_telefon telefon
     from message_queue m join leads l on l.id = m.lead_id
-    where m.tenant_id = ? and m.kanal = 'whatsapp_api' and m.saglayici_kimligi is not null and m.sandbox_icerik is null`;
+    where m.tenant_id = ? and m.gonderen_numara = ? and m.kanal = 'whatsapp_api' and m.saglayici_kimligi is not null and m.sandbox_icerik is null`;
+  // Durum bildirimi, iletiyi gönderen numaranın adına gelir (metadata.phone_number_id): yalnızca bu numaranın iletileri.
   if (hedef.startsWith("wamid.")) {
-    const m = d.prepare(`${secim} and m.saglayici_kimligi = ?`).all(b.tenantId, hedef) as Mesaj[];
+    const m = d.prepare(`${secim} and m.saglayici_kimligi = ?`).all(b.tenantId, b.phoneNumberId, hedef) as Mesaj[];
     if (!m.length) throw new BetikHatasi(`Bu kimlikle gönderilmiş mesaj yok: ${hedef}`);
     return m;
   }
-  const son = d.prepare(`${secim} order by m.gonderim_tarihi desc, m.rowid desc limit 1`).get(b.tenantId) as Mesaj | undefined;
+  const son = d.prepare(`${secim} order by m.gonderim_tarihi desc, m.rowid desc limit 1`).get(b.tenantId, b.phoneNumberId) as Mesaj | undefined;
   if (!son) throw new BetikHatasi("Henüz gönderilmiş WhatsApp mesajı yok. Kampanyayı başlatın ve işçinin göndermesini bekleyin (npm run demo:isci).");
   if (hedef === "son") return [son];
-  return d.prepare(`${secim} and m.kampanya_id = ? order by m.rowid`).all(b.tenantId, son.kampanyaId) as Mesaj[];
+  return d.prepare(`${secim} and m.kampanya_id = ? order by m.rowid`).all(b.tenantId, b.phoneNumberId, son.kampanyaId) as Mesaj[];
 }
 
 async function durumGonder(d: Veritabani, b: Baglanti, hedef: string, kadar: (typeof TESLIM_ADIMLARI)[number]) {
@@ -135,7 +140,7 @@ async function gelenGonder(d: Veritabani, b: Baglanti, tur: "ret" | "buton", tel
 async function calistir(k: Komut) {
   const d = veritabaniAc();
   try {
-    const b = baglantiOku(d);
+    const b = baglantiOku(d, k.numara);
     if (k.komut === "dogrula") await dogrula(d, b);
     else if (k.komut === "durum") await durumGonder(d, b, k.hedef, k.kadar);
     else await gelenGonder(d, b, k.komut, k.telefon);

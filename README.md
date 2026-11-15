@@ -37,7 +37,7 @@ npm run demo:hazirla   # ./data/demo.db'yi sıfırdan kurar, giriş bilgilerini 
 npm run demo           # uygulamayı demo.db, PLACES_MOCK=true, WHATSAPP_API_MOCK=1 ile başlatır (http://localhost:3000)
 npm run demo:isci      # ikinci terminalde: gönderim işçisi (demo.db)
 npm run demo:kota -- 0 # demo çalışma alanının Places kotası (kota dolu durumunu denemek için; geri: -- 5000)
-npm run demo:webhook -- durum # imzalı sahte Meta bildirimi (dogrula | durum | ret <tel> | buton <tel>; localhost; docs/PROVA.md)
+npm run demo:webhook -- durum # imzalı sahte Meta bildirimi (dogrula | durum | ret <tel> | buton <tel> [--numara <ad>]; localhost; docs/PROVA.md)
 ```
 
 Demo betikleri (`scripts/demo-ortam.ts`) veritabanı yolunu, sahte istemcileri ve demo'ya özel sabit anahtarları
@@ -170,6 +170,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/gunluk-yedek.test.ts` | Günlük yedek: WAL'daki işlemler dahil `.db.gz`, 0600, geçici dosya kalmaması, uygulamanın veritabanı değilse yedek bırakılmaması; 14 gün saklama (en yeni her zaman kalır, başka veritabanının yedeklerine dokunulmaz). Geri yükleme: önce mevcut veritabanının yedeği; bozuk, yarım ya da yabancı yedekte ve işçi kilidi doluyken hiçbir şeyin değişmemesi; bozuk mevcut dosyanın yalnızca `--zorla` ile kenara taşınması. |
 | `tests/anahtar-uret.test.ts` | `npm run anahtar:uret`: boş anahtarlar doldurulur, dolu (tırnaklı, export'lu, yorumlu) değerlere dokunulmaz, CRLF korunur; script üretilen değerleri çıktıya yazmaz, dosyayı 0600 yapar, ikinci çalıştırmada hiçbir şeyi değiştirmez, dosya yoksa oluşturmaz. |
 | `tests/kayit-kipi.test.ts` | `KAYIT_KIPI=davetle`: hiç kullanıcı yokken yalnızca `ILK_YONETICI_EPOSTASI` (tanımlı değilse kimse), sonra yalnızca geçerli daveti olan e-posta kayıt olur; süresi dolmuş, kabul edilmiş davet ve davetsiz e-posta kayıt ucundan reddedilir, kullanıcı oluşmaz; varsayılan açık kip eskisi gibi. |
+| `tests/coklu-numara.test.ts` | Çoklu WhatsApp numarası: ad zorunlu ve alanda benzersiz, en fazla 10; etiket ("Merkez · …4567", "Silinmiş numara"); başka alanın numarası API'de 404. Şablonlar WABA'ya ait (aynı WABA ortak, başka WABA ayrı senkron; başka WABA'nın şablonuyla kampanya kurulamaz); gönderen numara zorunlu. Test modu ve test numaraları numara başına, kampanya seçilen numaradan gider. Meta hesap kilidi (gönderimde ve webhook'ta) aynı WABA'daki numaraları kilitler ve kampanyalarını duraklatır, başka WABA sürer, kilit bağlantı testiyle WABA'dan kalkar; kalite kırmızı yalnızca o numarayı durdurur; portföy payı bütün numaraların toplamıyla. RET bir numaradan gelir, diğerinden de gönderilmez. Numara kaldırılınca yalnızca onun kampanyaları durur. Ortak bildirim adresi: başka numaranın bildirimi doğru numaraya işlenir ve onun test modu koşullarını sağlar; başka App Secret'lı ya da başka alanın numarasına yönlendirilmez; şablon ve limit bildirimi yalnızca o WABA'ya. Migration 0019: tek bağlantılı eski veritabanı taşınır. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
 
@@ -790,14 +791,30 @@ kontrollüdür.
 Onaylı şablonlarla toplu kampanya için (plan: `docs/plan-whatsapp-api.md`). Bağlantı, şablonlar, kampanyalar ve
 webhook (teslim bildirimleri, ret, reklamdan gelenler).
 
-- **Ayarlar → WhatsApp (Meta)** (yalnızca yönetici): WABA ID, Phone Number ID, kalıcı erişim anahtarı (system
-  user token) ve App Secret.
+- **Çoklu numara:** bir çalışma alanına en fazla 10 numara (Ayarlar → WhatsApp → numara sekmeleri, **+ Numara ekle**).
+  Her numaranın kendi adı ("Merkez"), test modu ve test numaraları, uygulama payı, kalitesi, Meta hesap kilidi ve webhook
+  kimliği vardır. Kampanyada gönderen numara seçilir (zorunlu); listede, ayrıntıda ve sihirbazda "Merkez · …4567"
+  görünür.
+  - **Şablonlar WABA'ya aittir:** aynı WABA'daki numaralar aynı şablonları kullanır; başka WABA'nın şablonuyla kampanya
+    kurulamaz.
+  - **Meta hesap kilidi** (131031, 368, 131042) aynı WABA'daki bütün numaraları kilitler ve onların kampanyalarını
+    duraklatır; başka WABA'daki numara sürer. **Kalite kırmızı** yalnızca o numaranın kampanyalarını duraklatır.
+  - **Limitler:** Meta limitinin payı (portföy) ve günlük WhatsApp sınırı çalışma alanının bütün numaralarının toplamıyla
+    sayılır (portföy limiti numaralarca paylaşılır).
+  - **İzin, RET ve engel listesi kişiye aittir:** bir numaraya RET yazan diğer numaralardan da mesaj almaz.
+  - **Ortak bildirim adresi:** Meta'da callback adresi uygulama düzeyindedir. Bildirim hangi numaranın adresine gelirse
+    gelsin, imzayı doğrulayan App Secret'la aynı secret'a sahip, aynı çalışma alanındaki numaraya
+    (`metadata.phone_number_id`; şablon ve limit bildiriminde WABA) yönlendirilir. Bir numaranın imzalı teslim
+    bildirimi başka numaranın adresinden gelirse o numaranın "bildirim adresi doğrulandı" adımı da tamamlanır.
+  - Numara kaldırılınca yalnızca onun çalışan kampanyaları duraklar; kampanya geçmişinde "Silinmiş numara" görünür.
+- **Ayarlar → WhatsApp (Meta)** (yalnızca yönetici), her numara için: ad, WABA ID, Phone Number ID, kalıcı erişim
+  anahtarı (system user token) ve App Secret.
   - Erişim anahtarı, App Secret, webhook verify token ve test numaraları AES-GCM ile şifreli saklanır (ek doğrulanmış
     veri: kiracı + `whatsapp_api`); hiçbir API yanıtında dönmez, ekranda yalnızca "tanımlı / tanımlı değil".
   - Verify token ilk kayıtta üretilir ve **yalnızca o yanıtta bir kez** gösterilir; "Verify token yenile" yenisini
     üretir (bir kez gösterilir), webhook doğrulamasını sıfırlar ve test modunu yeniden açar.
-  - Webhook adresi çalışma alanına özeldir: `/api/whatsapp/webhook/<rastgele kimlik>`.
-  - Aynı numara iki çalışma alanına bağlanamaz.
+  - Webhook adresi numaraya özeldir: `/api/whatsapp/webhook/<rastgele kimlik>`.
+  - Aynı numara iki kez (iki çalışma alanına ya da aynı alanda iki satıra) bağlanamaz.
   - **Numara sahipliği:** kayıt sırasında Phone Number ID'nin girilen WABA'ya ait olduğu, çalışma alanının **kendi**
     erişim anahtarıyla `GET /{waba-id}/phone_numbers` (tüm sayfalar) ile doğrulanır. Doğrulanamazsa hiçbir şey
     kaydedilmez. Numaranın başka bir çalışma alanına bağlı olması da aynı, tek tip "Numara doğrulanamadı…" mesajıyla

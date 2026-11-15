@@ -210,6 +210,20 @@ satırı olur.
 
 ## 4. Grup A — Çoklu numara
 
+> **Uygulamada plandan ayrılan noktalar (16.11.2026):**
+> - **Günlük sınır:** çalışma alanı geneli kaldı, yani bütün numaraların toplamı (daha sıkı). Sayaç numara başına
+>   bölünmedi. Numara başına ayrı sınır gerekirse sonra eklenir.
+> - **Kampanya – bağlantı ilişkisi:** `kampanyalar.baglanti_id` yabancı anahtarsız. Numara silinince kampanya geçmişi
+>   kalır ("Silinmiş numara"); çalışan kampanyaları duraklar. RESTRICT yerine bu seçildi: numarayı kaldırmak için
+>   önce kampanya arşivlemek gerekmesin.
+> - **Kuyruk:** `message_queue.baglanti_id` eklenmedi. Mevcut `gonderen_numara` (phone_number_id) yetiyor.
+> - **Ek (planda yoktu): ortak bildirim adresi.** Tek Meta uygulamasında Meta'nın GET doğrulaması yalnızca tek adrese
+>   gelir. 2. ve 3. numaranın "bildirim adresi doğrulandı" adımı, kendi App Secret'larıyla imzalı bir teslim
+>   bildirimi ortak adresten gelince tamamlanır. Bu olmadan diğer numaraların test modu hiç kapanamazdı.
+> - **Rotalar:** `/api/ayarlar/whatsapp-api` (liste GET, yeni numara POST) ve `/api/ayarlar/whatsapp-api/[id]` (GET,
+>   PUT, PATCH, DELETE ve `test`, `abonelik`, `verify-token`); şablonlar `?baglanti=<id>`.
+> - **Demo:** canlıdaki gibi tek numara ("Merkez"); `demo:webhook` komutları `--numara <ad>` alır.
+
 ### A1. Veri modeli — migration `0019_coklu_whatsapp_baglantisi.sql`
 
 `whatsapp_baglantilari` tablosu yeniden kurulur (SQLite birincil anahtar değiştiremez): yeni tablo, kopyala, eskiyi

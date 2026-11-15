@@ -4,15 +4,17 @@
 //     Test modunda test numaralarına İYS beyanı aranmaz; test modu sonradan kapatıldıysa yeniden aranır.
 //  2. Şablon hâlâ kullanılabilir mi (değilse kampanya duraklar) ve değişken değerleri (boşsa hariç).
 //  3. Sandbox kampanyası: Meta'ya gidilmez, metin kaydedilir.
-//  4. Bağlantı; Meta hesap kilidi varsa (131031, 368, 131042) tüm WhatsApp kampanyaları duraklar, hiçbir mesaj gitmez;
-//     test modu açıksa yalnızca test numaraları. Test modu kapalıyken gönderen bilgileri (unvan, iletişim, İYS,
+//  4. Kampanyanın gönderen numarası (kampanyalar.baglanti_id; silinmişse kampanya duraklar). Meta hesap kilidi varsa
+//     (131031, 368, 131042) bu WABA'daki numaraların kampanyaları duraklar, hiçbir mesaj gitmez; numaranın test modu
+//     açıksa yalnızca O NUMARANIN test numaraları. Test modu kapalıyken gönderen bilgileri (unvan, iletişim, İYS,
 //     sorumluluk onayı) tam olmalı; test modunda aranmaz.
 //  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir; numara sahipliği de yeniden denetlenir, reddedilirse kampanya
-//     duraklar): RED → çalışma alanının tüm WhatsApp kampanyaları duraklar.
-//  6. Günlük sınır (atomik sayaç) ve Meta mesajlaşma limitinin bu uygulamaya ayrılan payı (kayan 24 saat);
-//     dolarsa ertesi günün gönderim başlangıcına kalır.
+//     duraklar): RED → bu numaranın kampanyaları duraklar (diğer numaralar sürer).
+//  6. Günlük sınır (atomik sayaç, çalışma alanının bütün numaralarının toplamı) ve Meta mesajlaşma limitinin bu
+//     uygulamaya ayrılan payı (kayan 24 saat; portföy limiti numaralarca paylaşıldığı için yine bütün numaraların
+//     toplamı sayılır); dolarsa ertesi günün gönderim başlangıcına kalır.
 //  7. Hız (WHATSAPP_SANIYE_BASI); gönderimden hemen önce satır kilidi ve kampanya durumu yeniden denetlenir;
-//     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bağlantıyı kilitler ve tüm WhatsApp
+//     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bu WABA'daki numaraları kilitler ve onların
 //     kampanyalarını duraklatır; mesaj kuyrukta beklemeye döner (deneme sayılmaz, kendiliğinden tekrar denenmez).
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
 import { degiskenDegerleri, hesapKilidiNedeni, limitKatmaniSayisi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
@@ -27,7 +29,7 @@ import { whatsappKampanyalariniDuraklat, type Kampanya } from "../repo/kampanyal
 import { kayitGetir } from "../repo/kayitlar";
 import { mesajBirak, mesajGonderildi, whatsappSon24Saat, type KuyrukMesaji } from "../repo/kuyruk";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
-import { hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
+import { ayniWabaBaglantilari, hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
 import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
@@ -59,9 +61,12 @@ async function hizSiniri(aralikMs: number) {
   sonGonderim = Date.now();
 }
 
-/** Bu mesajı kuyruğa geri bırakır (denenmiş sayılmaz) ve kampanyayı/kampanyaları duraklatır. */
-function duraklat(ctx: TenantContext, mesaj: KuyrukMesaji, neden: string, tumu = false): WhatsappSonucu {
-  whatsappKampanyalariniDuraklat(ctx, neden, tumu ? undefined : mesaj.kampanyaId);
+/**
+ * Bu mesajı kuyruğa geri bırakır (denenmiş sayılmaz) ve kampanyayı ya da verilen numaralardan gönderen bütün
+ * kampanyaları duraklatır.
+ */
+function duraklat(ctx: TenantContext, mesaj: KuyrukMesaji, neden: string, baglantiIdler?: string[]): WhatsappSonucu {
+  whatsappKampanyalariniDuraklat(ctx, neden, baglantiIdler ? { baglantiIdler } : { kampanyaId: mesaj.kampanyaId });
   mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: `duraklatildi:${neden}`, denemeGeriAl: true });
   return "bekletildi";
 }
@@ -82,7 +87,7 @@ export async function whatsappMesajIsle(
   }
   const wa = whatsappKisisiGetir(ctx, kayit.id);
   // Test modunda test numaralarına İYS beyanı aranmaz; kampanyadan sonra test modu kapatıldıysa yeniden aranır.
-  const testBaglantisi = kampanya.sandbox ? null : whatsappBaglantisiCoz(ctx);
+  const testBaglantisi = kampanya.sandbox || !kampanya.baglantiId ? null : whatsappBaglantisiCoz(ctx, kampanya.baglantiId);
   const karar = aliciDegerlendir({ ...kayit, whatsapp: wa }, "whatsapp_api", engelSorgusuOlustur(ctx, [kayit]), {
     simdi,
     testNumaralari: testBaglantisi?.baglanti.testModu ? new Set(testBaglantisi.gizli.testNumaralari) : undefined,
@@ -119,10 +124,11 @@ export async function whatsappMesajIsle(
   }
 
   // 4) Bağlantı ve test modu.
-  let c = whatsappBaglantisiCoz(ctx);
-  if (!c) return duraklat(ctx, mesaj, "baglanti_yok");
+  const baglantiId = kampanya.baglantiId;
+  let c = baglantiId ? whatsappBaglantisiCoz(ctx, baglantiId) : null;
+  if (!baglantiId || !c) return duraklat(ctx, mesaj, "baglanti_yok");
   const kilit = hesapKilidiNedeni(c.baglanti.hesapKilidiKodu);
-  if (kilit) return duraklat(ctx, mesaj, kilit, true);
+  if (kilit) return duraklat(ctx, mesaj, kilit, ayniWabaBaglantilari(ctx, baglantiId));
   if (c.baglanti.testModu && (karar.kaynak !== "kayit" || !c.gizli.testNumaralari.includes(karar.adres))) {
     mesajBirak(ctx, mesaj.id, { durum: "haric", neden: "test_modu" });
     return "haric";
@@ -138,16 +144,16 @@ export async function whatsappMesajIsle(
   // 5) Kalite.
   if (!c.baglanti.sonKontrol || simdi.getTime() - c.baglanti.sonKontrol.getTime() > KALITE_TAZELIK_MS) {
     try {
-      await baglantiyiTestEt(ctx, simdi);
+      await baglantiyiTestEt(ctx, baglantiId, simdi);
     } catch {
       /* Meta'ya ulaşılamadı: son bilinen kalite kullanılır */
     }
     // Yenileme numara sahipliğini de denetler; reddedildiyse bağlantı artık kullanılmaz.
-    const yeni = whatsappBaglantisiCoz(ctx);
+    const yeni = whatsappBaglantisiCoz(ctx, baglantiId);
     if (!yeni) return duraklat(ctx, mesaj, "baglanti_yok");
     c = yeni;
   }
-  if (c.baglanti.kalite === "RED") return duraklat(ctx, mesaj, "kalite_dusuk", true);
+  if (c.baglanti.kalite === "RED") return duraklat(ctx, mesaj, "kalite_dusuk", [baglantiId]);
 
   // 6) Günlük sınır ve Meta limitinin payı.
   const gun = gunAnahtari(simdi);
@@ -191,7 +197,7 @@ export async function whatsappMesajIsle(
     );
     return "gonderildi";
   } catch (hata) {
-    return hataIsle(ctx, mesaj, kayit.id, ozet, engelTuru, hata, iade, s, simdi);
+    return hataIsle(ctx, mesaj, baglantiId, kayit.id, ozet, engelTuru, hata, iade, s, simdi);
   }
 }
 
@@ -199,6 +205,7 @@ export async function whatsappMesajIsle(
 function hataIsle(
   ctx: TenantContext,
   mesaj: KuyrukMesaji,
+  baglantiId: string,
   leadId: string,
   ozet: string,
   engelTuru: "telefon" | "wa_kimlik",
@@ -219,9 +226,8 @@ function hataIsle(
   iade(); // aşağıdakilerin hepsinde iletinin gitmediği kesin
   const kilit = hesapKilidiNedeni(e.kod);
   if (kilit) {
-    // Hesap düzeyi (131031 kilit, 368 politika, 131042 ödeme): tüm WhatsApp kampanyaları durur.
-    hesapKilidiYaz(ctx, e.kod!, simdi);
-    return duraklat(ctx, mesaj, kilit, true);
+    // Hesap düzeyi (131031 kilit, 368 politika, 131042 ödeme): bu WABA'daki numaralar kilitlenir, kampanyaları durur.
+    return duraklat(ctx, mesaj, kilit, hesapKilidiYaz(ctx, baglantiId, e.kod!, simdi));
   }
   switch (e.kod) {
     case 131026: // teslim edilemez (alıcıda WhatsApp yok vb.)

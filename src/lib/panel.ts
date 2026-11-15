@@ -13,6 +13,8 @@ export function siradakiIsler(d: {
   eksikAyarlar: string[];
   /** WhatsApp (Meta) bağlı ama test modu açık. */
   waTestModu: boolean;
+  /** Test modundaki numaraların etiketleri (birden çok numara varken açıklamada gösterilir). */
+  waTestModuNumaralari?: string[];
   /** Meta hesap kilidinin uyarısı (131031, 368, 131042); null: kilit yok. */
   waHesapKilidi?: string | null;
 }): SiradakiIs[] {
@@ -74,7 +76,10 @@ export function siradakiIsler(d: {
   if (d.yonetici && d.waTestModu) {
     isler.push({
       metin: "WhatsApp test modunda",
-      aciklama: "Kampanyalar yalnızca test numaralarına gider; kurulum adımlarını tamamlayın.",
+      aciklama:
+        (d.waTestModuNumaralari?.length ?? 0) > 1
+          ? `${d.waTestModuNumaralari!.join(", ")}: kampanyalar yalnızca test numaralarına gider; kurulum adımlarını tamamlayın.`
+          : "Kampanyalar yalnızca test numaralarına gider; kurulum adımlarını tamamlayın.",
       href: "/ayarlar/whatsapp",
       eylem: "Kurulum",
       ton: "normal",

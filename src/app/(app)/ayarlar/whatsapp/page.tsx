@@ -1,19 +1,26 @@
 import type { Metadata } from "next";
 import { AyarBolumu } from "@/components/arayuz/kart";
-import { baglantiDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
+import { baglantilarDurumu, sablonlar } from "@/server/servisler/whatsapp-api";
 import { ayarBolumuBaglami } from "../erisim";
-import { WhatsappApiAyarlari } from "../whatsapp-api-ayarlari";
+import { WhatsappNumaralari } from "../whatsapp-numaralari";
 
 export const metadata: Metadata = { title: "WhatsApp (Meta) · Ayarlar" };
 
-export default async function WhatsappSayfasi() {
+export default async function WhatsappSayfasi({ searchParams }: PageProps<"/ayarlar/whatsapp">) {
   const { ctx } = await ayarBolumuBaglami("whatsapp");
+  const p = await searchParams;
+  const numara = typeof p.numara === "string" ? p.numara : null;
+  const liste = baglantilarDurumu(ctx);
   return (
     <AyarBolumu
       baslik="WhatsApp (Meta Business)"
-      aciklama="Meta Business hesabınızdaki WhatsApp numarasıyla onaylı şablon mesajları gönderin. Meta mesaj ücretini doğrudan işletmenizin hesabından keser."
+      aciklama="Meta Business hesabınızdaki WhatsApp numaralarıyla onaylı şablon mesajları gönderin. Her numaranın kurulumu ve test modu ayrıdır. Meta mesaj ücretini doğrudan işletmenizin hesabından keser."
     >
-      <WhatsappApiAyarlari ilk={baglantiDurumu(ctx)} ilkSablonlar={sablonlar(ctx)} />
+      <WhatsappNumaralari
+        ilk={liste}
+        ilkSablonlar={Object.fromEntries(liste.map((b) => [b.id!, sablonlar(ctx, b.id!)]))}
+        ilkSecili={numara}
+      />
     </AyarBolumu>
   );
 }

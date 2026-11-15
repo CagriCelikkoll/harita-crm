@@ -445,7 +445,7 @@ describe("Kampanyalar ve sihirbaz (Grup 6)", () => {
     ]);
     expect(oku("src/proxy.ts")).toContain('"/kampanyalar/:path*"');
     expect(oku("src/components/menu.tsx")).toContain('{ href: "/kampanyalar", ad: "Kampanyalar", simge: "kampanyalar" }');
-    expect(oku("src/app/(app)/ayarlar/whatsapp-api-ayarlari.tsx")).toContain('href="/kampanyalar/yeni?kanal=whatsapp_api"');
+    expect(oku("src/app/(app)/ayarlar/whatsapp-api-ayarlari.tsx")).toContain("href={`/kampanyalar/yeni?kanal=whatsapp_api&numara=${b.id}`}");
     // Uygulama kodunda eski adres kalmadı (yönlendirme tanımı hariç).
     const tara = (klasor: string): string[] =>
       fs.readdirSync(klasor, { withFileTypes: true }).flatMap((g) => {

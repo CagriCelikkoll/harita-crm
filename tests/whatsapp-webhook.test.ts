@@ -21,6 +21,7 @@ import * as wa from "@/server/servisler/whatsapp-api";
 import { mockWhatsappSifirla } from "@/server/whatsapp-api/mock";
 import { GET, POST } from "@/app/api/whatsapp/webhook/[kimlik]/route";
 import { kiraciOlustur } from "./yardimci/fabrika";
+import { tekNumara } from "./yardimci/numara";
 
 const U = "https://crm.ornek.test";
 const SIMDI = new Date("2026-10-29T09:00:00Z");
@@ -34,9 +35,9 @@ async function kur(ad: string): Promise<Kurulum> {
   const phoneId = String(800000 + ++sayac);
   const waba = String(900000 + sayac);
   const secret = `secret-${ad}`;
-  const { verifyToken } = await wa.whatsappBaglantisiKaydet(ctx, { wabaId: waba, phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
-  await wa.sablonlariSenkronizeEt(ctx);
-  return { ctx, kimlik: baglantiGetir(ctx)!.webhookKimligi, secret, phoneId, waba, verifyToken: verifyToken! };
+  const { verifyToken } = await wa.whatsappBaglantisiEkle(ctx, { ad: "Merkez", wabaId: waba, phoneNumberId: phoneId, erisimAnahtari: "x", appSecret: secret });
+  await wa.sablonlariSenkronizeEt(ctx, tekNumara(ctx));
+  return { ctx, kimlik: baglantiGetir(ctx, tekNumara(ctx))!.webhookKimligi, secret, phoneId, waba, verifyToken: verifyToken! };
 }
 
 const imzala = (secret: string, govde: string) => `sha256=${createHmac("sha256", secret).update(govde).digest("hex")}`;
@@ -73,12 +74,12 @@ describe("GET doğrulama", () => {
         params: Promise.resolve({ kimlik }),
       });
     expect((await iste(k.kimlik, "yanlis")).status).toBe(403);
-    expect(baglantiGetir(k.ctx)?.webhookDogrulamaTarihi).toBeNull();
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))?.webhookDogrulamaTarihi).toBeNull();
     expect((await iste("x".repeat(32), k.verifyToken)).status).toBe(403);
     const y = await iste(k.kimlik, k.verifyToken);
     expect(y.status).toBe(200);
     expect(await y.text()).toBe("12345");
-    expect(baglantiGetir(k.ctx)?.webhookDogrulamaTarihi).toBeInstanceOf(Date);
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))?.webhookDogrulamaTarihi).toBeInstanceOf(Date);
   });
 });
 
@@ -110,7 +111,7 @@ describe("POST imza ve çalışma alanı", () => {
 describe("teslim durumları", () => {
   it("durum yalnızca ileri gider; ücret yazılır; imzalı durum bildirimi test modu kilidini açar; 131026 WhatsApp yok", async () => {
     const k = await kur("Durum");
-    wa.testNumaralariKaydet(k.ctx, ["0532 111 00 01", "0532 111 00 02"]);
+    wa.testNumaralariKaydet(k.ctx, tekNumara(k.ctx), ["0532 111 00 01", "0532 111 00 02"]);
     const [a, b] = kisileriEkle(
       k.ctx,
       [
@@ -123,7 +124,7 @@ describe("teslim durumları", () => {
     const sablon = sablonlariListele(k.ctx).find((s) => s.ad === "randevu_hatirlatma")!;
     const kampanya = kampanyaBaslat(
       k.ctx,
-      { kanal: "whatsapp_api", ad: "K", filtre: { etiket: "wh" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } },
+      { kanal: "whatsapp_api", baglantiId: tekNumara(k.ctx), ad: "K", filtre: { etiket: "wh" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } },
       SIMDI,
     );
     await isciTuru({ simdi: () => SIMDI, whatsappAralikMs: 0 });
@@ -149,7 +150,7 @@ describe("teslim durumları", () => {
     // Webhook doğrulaması da yapılınca test modu kapatılabilir.
     db.$client.prepare("update whatsapp_baglantilari set webhook_dogrulama_tarihi = ? where tenant_id = ?").run(Date.now(), k.ctx.tenantId);
     expect(svcKapatilabilir(k)).toBe(true);
-    expect(() => wa.testModuDegistir(k.ctx, false)).not.toThrow();
+    expect(() => wa.testModuDegistir(k.ctx, tekNumara(k.ctx), false)).not.toThrow();
   });
 
   it("131050 (pazarlama durduruldu) teslim hatası ret akışını çalıştırır", async () => {
@@ -169,7 +170,7 @@ describe("teslim durumları", () => {
   it("test modu kilidini yalnızca bizim gönderdiğimiz, sandbox olmayan ve mevcut numaradan giden iletinin bildirimi açar", async () => {
     const k = await kur("KilitKaynak");
     const [a] = kisileriEkle(k.ctx, [{ kaynak: "elle", ekTelefon: "0532 111 00 07" }], "x");
-    const sonImzali = () => baglantiGetir(k.ctx)?.sonImzaliDurumTarihi ?? null;
+    const sonImzali = () => baglantiGetir(k.ctx, tekNumara(k.ctx))?.sonImzaliDurumTarihi ?? null;
     const durum = (id: string) => gonder(k, mesajlar(k, "messages", { statuses: [{ id, status: "delivered", recipient_id: "905321110007" }] }));
     const satir = (id: string, wamid: string, ek: { sandbox?: boolean; numara?: string | null }) => {
       db.$client
@@ -199,7 +200,7 @@ describe("teslim durumları", () => {
 });
 
 function svcKapatilabilir(k: Kurulum) {
-  return wa.baglantiDurumu(k.ctx).testModuKapatilabilir;
+  return wa.baglantiDurumu(k.ctx, tekNumara(k.ctx)).testModuKapatilabilir;
 }
 
 describe("gelen iletiler", () => {
@@ -344,8 +345,8 @@ describe("hesap bildirimleri", () => {
 
     db.$client.prepare("update whatsapp_baglantilari set son_kontrol = ? where tenant_id = ?").run(Date.now(), k.ctx.tenantId);
     await gonder(k, hesap("business_capability_update", { max_daily_conversations_per_business: "TIER_100K" }));
-    expect(baglantiGetir(k.ctx)).toMatchObject({ limitKatmani: "TIER_100K", sonKontrol: null });
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))).toMatchObject({ limitKatmani: "TIER_100K", sonKontrol: null });
     await gonder(k, hesap("phone_number_quality_update", { event: "THROUGHPUT_UPGRADE", current_limit: "TIER_10K", max_daily_conversations_per_business: "TIER_2K" }));
-    expect(baglantiGetir(k.ctx)?.limitKatmani).toBe("TIER_2K");
+    expect(baglantiGetir(k.ctx, tekNumara(k.ctx))?.limitKatmani).toBe("TIER_2K");
   });
 });

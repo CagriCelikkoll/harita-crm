@@ -434,6 +434,9 @@ export const kampanyalar = sqliteTable(
     sablonId: text("sablon_id"),
     degiskenEslem: text("degisken_eslem", { mode: "json" }).$type<DegiskenEslemi>(),
     duraklatmaNedeni: text("duraklatma_nedeni"),
+    // Yalnızca WhatsApp: gönderen numara (whatsapp_baglantilari.id). Yabancı anahtar yok: bağlantı silinse de kampanya
+    // geçmişi kalır ("silinmiş numara"); çalışan kampanya bağlantı bulunamayınca duraklar. Kiracı denetimi serviste.
+    baglantiId: text("baglanti_id"),
   },
   (t) => [
     uniqueIndex("kampanyalar_tenant_id_uq").on(t.tenantId, t.id),
@@ -556,12 +559,21 @@ export const whatsappListesi = sqliteTable(
  * phone_number_id'nin WABA'ya ait olduğu kiracının kendi anahtarıyla Graph API'den doğrulandı; boşsa bağlantı
  * kullanılmaz (gönderim, webhook, şablon senkronu).
  */
+/**
+ * WhatsApp Cloud API bağlantıları: çalışma alanı başına birden çok numara (0019). Her satırın kendi test modu, test
+ * numaraları, uygulama payı, kalitesi, hesap kilidi ve webhook kimliği vardır. Şablonlar WABA'ya aittir
+ * (whatsapp_sablonlari.waba_id): aynı WABA'daki numaralar aynı şablonları kullanır.
+ */
 export const whatsappBaglantilari = sqliteTable(
   "whatsapp_baglantilari",
   {
+    id: text("id").primaryKey(),
     tenantId: text("tenant_id")
-      .primaryKey()
+      .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
+    // Ekranlarda gösterilen ad ("Merkez", "Şube 2"); çalışma alanında benzersiz.
+    ad: text("ad").notNull(),
+    sira: integer("sira").notNull().default(0),
     webhookKimligi: text("webhook_kimligi").notNull(),
     wabaId: text("waba_id").notNull(),
     phoneNumberId: text("phone_number_id").notNull(),
@@ -588,8 +600,10 @@ export const whatsappBaglantilari = sqliteTable(
   },
   (t) => [
     uniqueIndex("whatsapp_baglantilari_webhook_uq").on(t.webhookKimligi),
-    // Aynı numara iki çalışma alanına bağlanamaz.
+    // Aynı numara iki kez (iki çalışma alanına ya da aynı alanda iki satıra) bağlanamaz.
     uniqueIndex("whatsapp_baglantilari_numara_uq").on(t.phoneNumberId),
+    uniqueIndex("whatsapp_baglantilari_tenant_id_uq").on(t.tenantId, t.id),
+    uniqueIndex("whatsapp_baglantilari_ad_uq").on(t.tenantId, t.ad),
   ],
 );
 
@@ -601,6 +615,8 @@ export const whatsappSablonlari = sqliteTable(
     tenantId: text("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
+    // Şablonun ait olduğu WhatsApp Business hesabı: aynı WABA'daki tüm numaralar kullanır (0019).
+    wabaId: text("waba_id").notNull(),
     metaId: text("meta_id").notNull(),
     ad: text("ad").notNull(),
     dil: text("dil").notNull(),
@@ -616,7 +632,7 @@ export const whatsappSablonlari = sqliteTable(
     senkronTarihi: zaman("senkron_tarihi").notNull().default(simdi),
   },
   (t) => [
-    uniqueIndex("whatsapp_sablonlari_uq").on(t.tenantId, t.ad, t.dil),
+    uniqueIndex("whatsapp_sablonlari_uq").on(t.tenantId, t.wabaId, t.ad, t.dil),
     uniqueIndex("whatsapp_sablonlari_tenant_id_uq").on(t.tenantId, t.id),
   ],
 );
