@@ -1,5 +1,5 @@
 # Caddy: deneme.bursalidagitim.com için otomatik HTTPS (Let's Encrypt) ve uygulamaya ters vekil.
-# Kopyala: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# Kopyala: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo caddy validate --config /etc/caddy/Caddyfile && sudo chown -R caddy:caddy /var/log/caddy && sudo systemctl reload caddy
 # Alan adı değişirse yalnızca aşağıdaki satırı ve .env.production.local'deki BETTER_AUTH_URL / GENEL_ADRES'i değiştirin.
 # Caddy Host başlığını değiştirmeden iletir ve X-Forwarded-For ekler (sağlık ucunun ayrıntıyı yalnızca sunucuya
 # vermesi buna dayanır).

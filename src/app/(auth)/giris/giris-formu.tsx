@@ -34,7 +34,7 @@ export function GirisFormu() {
         : await authIstemci.signUp.email({ email: eposta, password: sifre, name: String(veri.get("ad")) });
     setBekliyor(false);
     if (error) {
-      setHata(hataMetni(error.code, error.message));
+      setHata(hataMetni(error.code, error.message, error.status));
       return;
     }
     // Aynı sekmede önceki oturumdan kalmış Google bilgileri yeni oturumda kullanılmaz.
@@ -99,7 +99,9 @@ export function GirisFormu() {
   );
 }
 
-function hataMetni(kod: string | undefined, mesaj: string | undefined) {
+function hataMetni(kod: string | undefined, mesaj: string | undefined, durum?: number) {
+  // Better Auth'un kendi hız sınırı (production) kodsuz ve İngilizce 429 döner.
+  if (durum === 429 && kod !== "COK_FAZLA_DENEME") return "Çok fazla deneme yapıldı. Lütfen biraz bekleyip tekrar deneyin.";
   switch (kod) {
     case "INVALID_EMAIL_OR_PASSWORD":
       return "E-posta veya şifre hatalı.";

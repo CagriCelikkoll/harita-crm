@@ -278,8 +278,12 @@ sudo systemctl restart systemd-journald
 ```bash
 sudo cp /opt/harita-crm/deploy/Caddyfile /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
+sudo chown -R caddy:caddy /var/log/caddy
 sudo systemctl reload caddy
 ```
+
+`caddy validate` root olarak çalıştığı için log dosyasını (`/var/log/caddy/harita-crm.log`) **root sahipli** açar;
+`chown` yapılmazsa `reload` "permission denied" ile düşer. Caddyfile'ı her değiştirdiğinizde aynı üç satırı çalıştırın.
 
 Caddy sertifikayı ilk istekte birkaç saniye içinde alır.
 
@@ -423,6 +427,7 @@ Hata durumları:
 | Sağlıkta `isci` sorunlu | `systemctl status harita-worker`; `journalctl -u harita-worker -n 50`. İşçi durmuşsa kampanyalar ilerlemez. |
 | Sağlıkta `yedek` sorunlu | `journalctl -u harita-yedek -n 20`; `systemctl list-timers`. Elle: `sudo systemctl start harita-yedek`. |
 | Sağlıkta `disk` sorunlu | `df -h /var/lib/harita-crm`. Eski migration yedekleri günlük bakımda kendiliğinden silinir (son 10 + son 30 gün). |
+| `systemctl reload caddy` "permission denied" (`/var/log/caddy/harita-crm.log`) | `sudo caddy validate` log dosyasını root sahipli oluşturmuş. `sudo chown -R caddy:caddy /var/log/caddy && sudo systemctl reload caddy` (12. adım). |
 | Tarayıcıda sertifika hatası | DNS doğru mu (1. adım), 80/443 açık mı (`sudo ufw status`); `journalctl -u caddy -n 50`. |
 | Giriş yapınca hemen çıkıyor | `BETTER_AUTH_URL` tam olarak `https://deneme.bursalidagitim.com` olmalı; `AUTH_INSECURE_COOKIES=false`. |
 | Kayıt "ILK_YONETICI_EPOSTASI tanımlı değil" diyor | 8. adımdaki e-postayı doldurun, `sudo systemctl restart harita-web`. |
