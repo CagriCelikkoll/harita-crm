@@ -141,6 +141,13 @@
       "when": 1794742287216,
       "tag": "0019_coklu_whatsapp_baglantisi",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794828903995,
+      "tag": "0020_gelen_kutusu",
+      "breakpoints": true
     }
   ]
 }

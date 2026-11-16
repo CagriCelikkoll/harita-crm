@@ -82,17 +82,17 @@ describe("işçinin günlük bakımı", () => {
   it("ilk turda ve sonra günde bir kez eski yedekleri siler", () => {
     Array.from({ length: 12 }, (_, i) => yedekYap(40 + i));
     const ilk = gunlukBakim(null, dosya, SIMDI);
-    expect(ilk).toEqual({ sonCalismaMs: SIMDI.getTime(), silinenYedek: 2 });
+    expect(ilk).toMatchObject({ sonCalismaMs: SIMDI.getTime(), silinenYedek: 2, temizlik: expect.any(Object) });
 
     // Bir gün dolmadan: çalışmaz.
     Array.from({ length: 3 }, (_, i) => yedekYap(60 + i));
     const erken = gunlukBakim(ilk.sonCalismaMs, dosya, new Date(SIMDI.getTime() + GUNLUK_BAKIM_MS - 1));
-    expect(erken).toEqual({ sonCalismaMs: ilk.sonCalismaMs, silinenYedek: 0 });
+    expect(erken).toEqual({ sonCalismaMs: ilk.sonCalismaMs, silinenYedek: 0, temizlik: null });
     expect(kalanlar()).toHaveLength(13);
 
     // Bir gün sonra: çalışır.
     const sonra = new Date(SIMDI.getTime() + GUNLUK_BAKIM_MS);
-    expect(gunlukBakim(ilk.sonCalismaMs, dosya, sonra)).toEqual({ sonCalismaMs: sonra.getTime(), silinenYedek: 3 });
+    expect(gunlukBakim(ilk.sonCalismaMs, dosya, sonra)).toMatchObject({ sonCalismaMs: sonra.getTime(), silinenYedek: 3 });
     expect(kalanlar()).toHaveLength(10);
   });
 });

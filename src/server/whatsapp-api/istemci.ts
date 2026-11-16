@@ -73,6 +73,29 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
       return { wamid: m.id, durum: m.message_status ?? null };
     },
 
+    async metinGonder(g) {
+      const v = await istek<{ messages?: { id: string; message_status?: string }[] }>(`${b.phoneNumberId}/messages`, {
+        method: "POST",
+        govde: {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          ...(g.alici.tur === "telefon" ? { to: g.alici.deger } : { recipient: g.alici.deger }),
+          type: "text",
+          text: { preview_url: false, body: g.metin },
+        },
+      });
+      const m = v.messages?.[0];
+      if (!m?.id) throw new GraphHatasi("Meta yanıtında ileti kimliği yok.", 0);
+      return { wamid: m.id, durum: m.message_status ?? null };
+    },
+
+    async okunduBildir(wamid) {
+      await istek(`${b.phoneNumberId}/messages`, {
+        method: "POST",
+        govde: { messaging_product: "whatsapp", status: "read", message_id: wamid },
+      });
+    },
+
     async numaraBilgisi() {
       const v = await istek<{
         id: string;

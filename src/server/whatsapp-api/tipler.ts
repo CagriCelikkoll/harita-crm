@@ -40,11 +40,17 @@ export type SablonGonderimi = {
   bilesenler: { type: "header" | "body"; parameters: { type: "text"; text: string; parameter_name?: string }[] }[];
 };
 
+/** POST /{phone-number-id}/messages, type "text": 24 saat penceresinde serbest metin (gelen kutusu yanıtı). */
+export type MetinGonderimi = { alici: { tur: "telefon" | "bsuid"; deger: string }; metin: string };
+
 /** messages[0].id (wamid) ve message_status (accepted | held_for_quality_assessment | paused). */
 export type GonderimYaniti = { wamid: string; durum: string | null };
 
 export interface WhatsappApiIstemcisi {
   mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
+  metinGonder(g: MetinGonderimi): Promise<GonderimYaniti>;
+  /** POST /{phone-number-id}/messages { status: "read", message_id }: gelen iletiyi okundu işaretler. */
+  okunduBildir(wamid: string): Promise<void>;
   numaraBilgisi(): Promise<NumaraBilgisi>;
   /** GET /{waba-id}/phone_numbers (tüm sayfalar): WABA'daki numaraların kimlikleri (sahiplik doğrulaması). */
   wabaNumaralari(): Promise<string[]>;

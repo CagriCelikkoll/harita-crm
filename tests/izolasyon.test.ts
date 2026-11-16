@@ -25,6 +25,7 @@ import * as iceAktarmalar from "@/server/repo/ice-aktarmalar";
 import * as waBaglantilari from "@/server/repo/whatsapp-baglantilari";
 import * as waSablonlari from "@/server/repo/whatsapp-sablonlari";
 import * as waGelen from "@/server/repo/whatsapp-gelen";
+import * as gelenKutusu from "@/server/repo/gelen-kutusu";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -49,6 +50,10 @@ let bWaKisi: whatsappKisileri.WhatsappKisisi;
 let bIceAktarma: iceAktarmalar.IceAktarma;
 let bWaBaglanti: waBaglantilari.WhatsappBaglantisi;
 let bWaSablon: waSablonlari.WhatsappSablonu;
+let bSohbet: gelenKutusu.Sohbet;
+let bSohbetMesajlari: gelenKutusu.SohbetMesajiSatiri[];
+let bSohbetNotlari: ReturnType<typeof gelenKutusu.notlariListele>;
+let bGelenKutusuSurumu: number;
 const B_SABLON: waSablonlari.SenkronSablonu = {
   metaId: "b-1",
   ad: "b_sablon",
@@ -110,6 +115,15 @@ beforeAll(() => {
   bWaBaglanti = waBaglantilari.baglantiGetir(B, bWaBaglanti.id)!;
   bWaSablon = waSablonlari.sablonlariListele(B)[0];
   waGelen.gelenIletiKaydet(B, "wamid.B-gelen");
+  // Gelen kutusu: B'nin sohbeti (gelen + giden mesaj, iç not, atama).
+  const gelen = gelenKutusu.gelenMesajYaz(B, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, wamid: "wamid.B-sohbet", tur: "text", metin: "B'nin gizli mesajı", medyaId: null, metaZamani: null })!;
+  gelenKutusu.gidenMesajYaz(B, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, kaynak: "temsilci", tur: "text", metin: "B yanıtı", wamid: "wamid.B-giden", istemciKimligi: "B-istemci", gonderenKullanici: bKullaniciId, teslimDurumu: "gonderildi", ilkDurum: "acik" });
+  gelenKutusu.notEkle(B, gelen.sohbetId, "B'nin iç notu");
+  gelenKutusu.sohbetGuncelle(B, gelen.sohbetId, { atananKullanici: bKullaniciId });
+  bSohbet = gelenKutusu.sohbetGetir(B, gelen.sohbetId)!;
+  bSohbetMesajlari = gelenKutusu.sohbetMesajlariGetir(B, bSohbet.id);
+  bSohbetNotlari = gelenKutusu.notlariListele(B, bSohbet.id);
+  bGelenKutusuSurumu = gelenKutusu.gelenKutusuSurumuGetir(B);
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -138,6 +152,10 @@ function bDegismedi() {
   expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)).toEqual(bWaBaglanti);
   expect(waBaglantilari.baglantilariListele(B)).toEqual([bWaBaglanti]);
   expect(waSablonlari.sablonGetir(B, bWaSablon.id)).toEqual(bWaSablon);
+  expect(gelenKutusu.sohbetGetir(B, bSohbet.id)).toEqual(bSohbet);
+  expect(gelenKutusu.sohbetMesajlariGetir(B, bSohbet.id)).toEqual(bSohbetMesajlari);
+  expect(gelenKutusu.notlariListele(B, bSohbet.id)).toEqual(bSohbetNotlari);
+  expect(gelenKutusu.gelenKutusuSurumuGetir(B)).toBe(bGelenKutusuSurumu);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -607,6 +625,14 @@ const whatsappKisiTestleri: Record<keyof typeof whatsappKisileri, () => void> = 
       whatsappKisileri.reklamBilgisiYaz(A, bKisi.id, { reklamKimligi: "x", reklamBasligi: "x", ctwaClid: null, pencereBitis: new Date() }),
     ).toBe(false);
   },
+  gelenKisiOlustur: () => {
+    // Kişi her zaman çağıranın kiracısında; B'nin BSUID'i A'da ayrı kişi olabilir.
+    const id = whatsappKisileri.gelenKisiOlustur(A, { ad: "Yazan", telefon: null, bsuid: B_BSUID, kullaniciAdi: null, numaraAdi: "A" })!;
+    expect(kayitlar.kayitGetir(A, id)?.tenantId).toBe(A.tenantId);
+    expect(kayitlar.kayitGetir(B, id)).toBeNull();
+    expect(whatsappKisileri.bsuidIleBul(B, B_BSUID)).toBe(bKisi.id);
+    kayitlar.kayitSil(A, id);
+  },
   reklamKisisiOlustur: () => {
     // Kişi her zaman çağıranın kiracısında; B'nin BSUID'i A'da ayrı kişi olabilir (BSUID işletmeye özel).
     const id = whatsappKisileri.reklamKisisiOlustur(A, {
@@ -758,6 +784,66 @@ const waGelenTestleri: Record<keyof typeof waGelen, () => void> = {
   },
 };
 
+const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
+  gelenKutusuSurumuGetir: () => {
+    expect(gelenKutusu.gelenKutusuSurumuGetir(A)).not.toBe(bGelenKutusuSurumu);
+  },
+  sohbetGetir: () => {
+    expect(gelenKutusu.sohbetGetir(A, bSohbet.id)).toBeNull();
+  },
+  sohbetBul: () => {
+    expect(gelenKutusu.sohbetBul(A, bWaBaglanti.id, bKisi.id)).toBeNull();
+  },
+  gelenMesajYaz: () => {
+    // B'nin kaydına A adına sohbet açılamaz.
+    expect(() =>
+      gelenKutusu.gelenMesajYaz(A, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, wamid: "wamid.A-saldiri", tur: "text", metin: "x", medyaId: null, metaZamani: null }),
+    ).toThrow();
+  },
+  gidenMesajYaz: () => {
+    expect(() =>
+      gelenKutusu.gidenMesajYaz(A, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, kaynak: "temsilci", tur: "text", metin: "x", wamid: null, teslimDurumu: null, ilkDurum: "acik" }),
+    ).toThrow();
+  },
+  istemciMesajiBul: () => {
+    expect(gelenKutusu.istemciMesajiBul(A, "B-istemci")).toBeNull();
+    expect(gelenKutusu.istemciMesajiBul(B, "B-istemci")).not.toBeNull();
+  },
+  mesajTeslimDurumuYaz: () => {
+    expect(gelenKutusu.mesajTeslimDurumuYaz(A, "wamid.B-giden", "read", null)).toBe(false);
+  },
+  sohbetleriListele: () => {
+    expect(gelenKutusu.sohbetleriListele(A).toplam).toBe(0);
+    expect(gelenKutusu.sohbetleriListele(A, { idler: [bSohbet.id] }).satirlar).toEqual([]);
+    expect(gelenKutusu.sohbetleriListele(B).toplam).toBe(1);
+  },
+  okunmamisSayilari: () => {
+    expect(gelenKutusu.okunmamisSayilari(A).size).toBe(0);
+  },
+  sohbetMesajlariGetir: () => {
+    expect(gelenKutusu.sohbetMesajlariGetir(A, bSohbet.id)).toEqual([]);
+    expect(gelenKutusu.sohbetMesajlariGetir(A, bSohbet.id, { sonraSurum: 0 })).toEqual([]);
+  },
+  degisenSohbetler: () => {
+    expect(gelenKutusu.degisenSohbetler(A, 0)).not.toContain(bSohbet.id);
+  },
+  okunduIsaretle: () => {
+    expect(gelenKutusu.okunduIsaretle(A, bSohbet.id)).toBeNull();
+  },
+  sohbetGuncelle: () => {
+    expect(gelenKutusu.sohbetGuncelle(A, bSohbet.id, { durum: "kapali", atananKullanici: null })).toBeNull();
+  },
+  notEkle: () => {
+    expect(gelenKutusu.notEkle(A, bSohbet.id, "saldırı")).toBeNull();
+  },
+  notlariListele: () => {
+    expect(gelenKutusu.notlariListele(A, bSohbet.id)).toEqual([]);
+  },
+  atanabilirUyeler: () => {
+    expect(gelenKutusu.atanabilirUyeler(A).map((u) => u.id)).not.toContain(bKullaniciId);
+  },
+};
+
 const MODULLER = {
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
@@ -777,6 +863,7 @@ const MODULLER = {
   "whatsapp-baglantilari": [waBaglantilari, waBaglantiTestleri],
   "whatsapp-sablonlari": [waSablonlari, waSablonTestleri],
   "whatsapp-gelen": [waGelen, waGelenTestleri],
+  "gelen-kutusu": [gelenKutusu, gelenKutusuTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

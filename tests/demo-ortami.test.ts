@@ -78,11 +78,11 @@ describe("npm run demo:hazirla", () => {
       expect(await verifyPassword({ hash: k.password, password: h.parola })).toBe(true);
     }
 
-    // Kayıtlar: dört kaynak, farklı durum ve izinler; Google kaynaklılar sahte place_id ile.
+    // Kayıtlar: beş kaynak (WhatsApp'tan yazan yeni kişi dahil), farklı durum ve izinler; Google kaynaklılar sahte place_id ile.
     const kayitlar = sorgu<{ kaynak: string; place_id: string | null; durum: string; ileti_izni: string; alici_turu: string }>(
       "select kaynak, place_id, durum, ileti_izni, alici_turu from leads",
     );
-    expect(new Set(kayitlar.map((k) => k.kaynak))).toEqual(new Set(["google", "elle", "ice_aktarma", "meta_reklam"]));
+    expect(new Set(kayitlar.map((k) => k.kaynak))).toEqual(new Set(["google", "elle", "ice_aktarma", "meta_reklam", "whatsapp_gelen"]));
     expect(kayitlar.filter((k) => k.kaynak === "google").every((k) => k.place_id?.startsWith("mock_"))).toBe(true);
     expect(new Set(kayitlar.map((k) => k.durum))).toEqual(new Set(["yeni", "iletisimde", "gorusme", "kazanildi", "ilgilenmiyor"]));
     expect(new Set(kayitlar.map((k) => k.ileti_izni))).toEqual(new Set(["bekliyor", "onayli", "ret"]));
@@ -90,7 +90,11 @@ describe("npm run demo:hazirla", () => {
 
     // Ret verilmiş kayıt: adresleri engel listesinde, WhatsApp izni 'ret'.
     expect(sorgu<{ tur: string }>("select tur from engel_listesi order by tur").map((e) => e.tur)).toEqual(["eposta", "telefon"]);
-    expect(sorgu<{ izin: string }>("select izin from whatsapp_kisileri").map((k) => k.izin).sort()).toEqual(["ret", "var", "var", "var", "var"]);
+    expect(sorgu<{ izin: string }>("select izin from whatsapp_kisileri").map((k) => k.izin).sort()).toEqual(["ret", "var", "var", "var", "var", "yok"]);
+
+    // Gelen kutusu: üç örnek sohbet (açık pencere, RET'li kişi, pencere kapalı yeni kişi), hepsi okunmamış.
+    expect(sorgu<{ n: number; o: number }>("select count(*) n, sum(okunmamis) o from sohbetler")).toEqual([{ n: 3, o: 4 }]);
+    expect(sorgu<{ yon: string; kaynak: string }>("select distinct yon, kaynak from sohbet_mesajlari")).toEqual([{ yon: "gelen", kaynak: "musteri" }]);
 
     // Sahte WhatsApp bağlantısı (test modunda, numara doğrulanmış) ve şablonlar.
     expect(sorgu("select test_modu, numara_dogrulama_tarihi is not null as d from whatsapp_baglantilari")).toEqual([{ test_modu: 1, d: 1 }]);

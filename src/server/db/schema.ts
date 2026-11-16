@@ -43,6 +43,14 @@ import {
   WHATSAPP_IZINLERI,
 } from "../../lib/mesajlasma";
 import { ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
+import {
+  MESAJ_KAYNAKLARI,
+  MESAJ_YONLERI,
+  SOHBET_DURUMLARI,
+  SOHBET_MESAJ_TURLERI,
+  VARSAYILAN_MEDYA_SAKLAMA_GUN,
+  VARSAYILAN_MESAJ_SAKLAMA_GUN,
+} from "../../lib/gelen-kutusu";
 import type { DegiskenEslemi, MetaSablonBileseni, SablonDegiskeni } from "../../lib/whatsapp-api";
 
 export * from "./auth-schema";
@@ -200,7 +208,7 @@ export const taramaSonuclari = sqliteTable(
 /**
  * Kaydın WhatsApp (Cloud API) bilgileri, leads ile 1:1. İzin kanıtı (tarih, kaynak, not, içe aktarma) burada tutulur.
  * bsuid: Meta'nın işletmeye özel kullanıcı kimliği; kişi eşleştirmesi önce bununla, yoksa telefon_e164 ile yapılır.
- * Gelen mesajların METNİ hiçbir yerde saklanmaz.
+ * Gelen mesajların metni yalnızca gelen kutusunda (sohbet_mesajlari) ve saklama süresi boyunca tutulur.
  */
 export const whatsappKisileri = sqliteTable(
   "whatsapp_kisileri",
@@ -356,6 +364,10 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   // WhatsApp günlük liste: {isletme} yer tutuculu şablon ve kullanıcı başına günlük sınır (null = varsayılan 30, en fazla 50).
   whatsappSablonu: text("whatsapp_sablonu"),
   whatsappGunlukSinir: integer("whatsapp_gunluk_sinir"),
+  // Gelen kutusu (0020): yazışma metni ve medya saklama süresi (gün); sohbet açılınca okundu bildirimi.
+  mesajSaklamaGun: integer("mesaj_saklama_gun").notNull().default(VARSAYILAN_MESAJ_SAKLAMA_GUN),
+  medyaSaklamaGun: integer("medya_saklama_gun").notNull().default(VARSAYILAN_MEDYA_SAKLAMA_GUN),
+  okunduBildirimi: integer("okundu_bildirimi", { mode: "boolean" }).notNull().default(true),
   guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
 });
 
@@ -653,6 +665,114 @@ export const whatsappGelenKimlikleri = sqliteTable(
   (t) => [primaryKey({ columns: [t.tenantId, t.wamid] }), index("whatsapp_gelen_tarih_idx").on(t.tarih)],
 );
 
+// ---------------------------------------------------------------------------------------------
+// Gelen kutusu (0020). Müşteri yazışmaları burada saklanır: metin ileti_ayarlari.mesaj_saklama_gun (varsayılan 365)
+// sonra boşaltılır, satır ve teslim bilgisi kalır. Kişi × numara başına bir sohbet. Herkes tüm sohbetleri görür;
+// atama yalnızca sorumluluğu gösterir.
+
+/** Kişi × numara başına sohbet. 24 saatlik pencere son_gelen_tarihi + 24 saattir. */
+export const sohbetler = sqliteTable(
+  "sohbetler",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    // whatsapp_baglantilari.id; yabancı anahtar yok: numara kaldırılsa da yazışma geçmişi kalır ("Silinmiş numara").
+    baglantiId: text("baglanti_id").notNull(),
+    leadId: text("lead_id").notNull(),
+    durum: text("durum", { enum: SOHBET_DURUMLARI }).notNull().default("acik"),
+    atananKullanici: text("atanan_kullanici").references(() => user.id, { onDelete: "set null" }),
+    sonMesajTarihi: zaman("son_mesaj_tarihi"),
+    sonGelenTarihi: zaman("son_gelen_tarihi"),
+    okunmamis: integer("okunmamis").notNull().default(0),
+    // Bot (C grubu): bu ana kadar susar.
+    botSusBitis: zaman("bot_sus_bitis"),
+    // gelen_kutusu_surumu imleci: sohbet satırını değiştiren son işlem.
+    surum: integer("surum").notNull().default(0),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.leadId], foreignColumns: [leads.tenantId, leads.id] }).onDelete("cascade"),
+    uniqueIndex("sohbetler_tenant_id_uq").on(t.tenantId, t.id),
+    uniqueIndex("sohbetler_kisi_numara_uq").on(t.tenantId, t.baglantiId, t.leadId),
+    index("sohbetler_numara_son_idx").on(t.tenantId, t.baglantiId, t.sonMesajTarihi),
+    index("sohbetler_son_idx").on(t.tenantId, t.sonMesajTarihi),
+    index("sohbetler_surum_idx").on(t.tenantId, t.surum),
+  ],
+);
+
+/**
+ * Sohbetin mesajları. wamid (Meta ileti kimliği) çalışma alanında benzersiz: Meta aynı bildirimi tekrar gönderse de
+ * mesaj bir kez yazılır. istemci_kimligi: gelen kutusundan gönderimde aynı mesajın iki kez gitmemesi için.
+ * metin: yalnızca metin ve başlık (medya baytları burada değil); saklama süresi dolunca null, icerik_silindi = 1.
+ */
+export const sohbetMesajlari = sqliteTable(
+  "sohbet_mesajlari",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    sohbetId: text("sohbet_id").notNull(),
+    yon: text("yon", { enum: MESAJ_YONLERI }).notNull(),
+    kaynak: text("kaynak", { enum: MESAJ_KAYNAKLARI }).notNull(),
+    wamid: text("wamid"),
+    istemciKimligi: text("istemci_kimligi"),
+    tur: text("tur", { enum: SOHBET_MESAJ_TURLERI }).notNull(),
+    metin: text("metin"),
+    medyaId: text("medya_id"),
+    icerikSilindi: integer("icerik_silindi", { mode: "boolean" }).notNull().default(false),
+    gonderenKullanici: text("gonderen_kullanici").references(() => user.id, { onDelete: "set null" }),
+    kampanyaId: text("kampanya_id"),
+    teslimDurumu: text("teslim_durumu"),
+    teslimHataKodu: integer("teslim_hata_kodu"),
+    // Meta'nın bildirdiği zaman (gelen iletide mesajın yazıldığı an); sıralama "tarih" ile yapılır.
+    metaZamani: zaman("meta_zamani"),
+    tarih: zaman("tarih").notNull(),
+    surum: integer("surum").notNull().default(0),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.sohbetId], foreignColumns: [sohbetler.tenantId, sohbetler.id] }).onDelete("cascade"),
+    uniqueIndex("sohbet_mesajlari_wamid_uq").on(t.tenantId, t.wamid).where(sql`${t.wamid} is not null`),
+    uniqueIndex("sohbet_mesajlari_istemci_uq").on(t.tenantId, t.istemciKimligi).where(sql`${t.istemciKimligi} is not null`),
+    index("sohbet_mesajlari_sohbet_idx").on(t.tenantId, t.sohbetId, t.tarih),
+    index("sohbet_mesajlari_surum_idx").on(t.tenantId, t.surum),
+    index("sohbet_mesajlari_tarih_idx").on(t.tarih),
+  ],
+);
+
+/** İç notlar: yalnızca ekip görür, Meta'ya hiçbir koşulda gitmez. */
+export const sohbetNotlari = sqliteTable(
+  "sohbet_notlari",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    sohbetId: text("sohbet_id").notNull(),
+    kullaniciId: text("kullanici_id").references(() => user.id, { onDelete: "set null" }),
+    metin: text("metin").notNull(),
+    tarih: zaman("tarih").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.sohbetId], foreignColumns: [sohbetler.tenantId, sohbetler.id] }).onDelete("cascade"),
+    index("sohbet_notlari_sohbet_idx").on(t.tenantId, t.sohbetId, t.tarih),
+  ],
+);
+
+/**
+ * Canlı yenileme imleci: sohbeti ya da mesajı değiştiren her işlem çalışma alanının sayacını artırır ve yeni değeri
+ * satıra (surum) yazar. İstemci "bu sürümden sonrası" diye sorar (kısa yoklama).
+ */
+export const gelenKutusuSurumu = sqliteTable("gelen_kutusu_surumu", {
+  tenantId: text("tenant_id")
+    .primaryKey()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  surum: integer("surum").notNull().default(0),
+});
+
 export type Tarama = typeof scans.$inferSelect;
 export type Kayit = typeof leads.$inferSelect;
 export type KayitOlayi = typeof leadEvents.$inferSelect;
@@ -663,6 +783,8 @@ export type WhatsappKisisi = typeof whatsappKisileri.$inferSelect;
 export type IceAktarma = typeof iceAktarmalar.$inferSelect;
 export type WhatsappBaglantisi = typeof whatsappBaglantilari.$inferSelect;
 export type WhatsappSablonu = typeof whatsappSablonlari.$inferSelect;
+export type Sohbet = typeof sohbetler.$inferSelect;
+export type SohbetMesaji = typeof sohbetMesajlari.$inferSelect;
 
 /**
  * Gönderim işçisi kilidi: aynı anda yalnızca bir işçi turu çalışır (cron ile üst üste binen `--bir-kez` turları ya

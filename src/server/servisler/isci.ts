@@ -32,7 +32,7 @@ import {
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
 import { iletiOlustur } from "./mesaj";
 import { saglayiciAl, type SaglayiciSecenekleri } from "./saglayici";
-import { suresiDolanIceAktarmalariKapat } from "../repo/sistem/bakim";
+import { suresiDolanIceAktarmalariKapat, temizlikYap } from "../repo/sistem/bakim";
 import { eskiYedekleriSil } from "../yedek-saklama";
 import { placesTelefonuGetir } from "./telefon";
 import { whatsappMesajIsle } from "./whatsapp-gonderici";
@@ -344,13 +344,15 @@ export const GUNLUK_BAKIM_MS = 24 * 3600_000;
 
 /**
  * İşçi döngüsünün günlük bakımı: veritabanının saklama süresi dolan migration yedeklerini siler (son 10 ve son 30 gün
- * kalır; src/server/yedek-saklama.ts). Son çalışmadan bu yana bir gün geçmediyse bir şey yapmaz.
+ * kalır; src/server/yedek-saklama.ts) ve `npm run cleanup`'ın işini yapar (temizlikYap: Places konumları 30 gün,
+ * veri saklama süresi, davetler, gelen kutusu mesaj metinleri). Sunucuda ayrıca cron gerekmez. Son çalışmadan bu yana
+ * bir gün geçmediyse bir şey yapmaz.
  */
 export function gunlukBakim(
   sonCalismaMs: number | null,
   dosyaYolu: string,
   simdi = new Date(),
-): { sonCalismaMs: number | null; silinenYedek: number } {
-  if (sonCalismaMs !== null && simdi.getTime() - sonCalismaMs < GUNLUK_BAKIM_MS) return { sonCalismaMs, silinenYedek: 0 };
-  return { sonCalismaMs: simdi.getTime(), silinenYedek: eskiYedekleriSil(dosyaYolu, simdi).length };
+): { sonCalismaMs: number | null; silinenYedek: number; temizlik: ReturnType<typeof temizlikYap> | null } {
+  if (sonCalismaMs !== null && simdi.getTime() - sonCalismaMs < GUNLUK_BAKIM_MS) return { sonCalismaMs, silinenYedek: 0, temizlik: null };
+  return { sonCalismaMs: simdi.getTime(), silinenYedek: eskiYedekleriSil(dosyaYolu, simdi).length, temizlik: temizlikYap(simdi) };
 }

@@ -14,6 +14,7 @@ const BAGLANTILAR: { href: string; ad: string; simge: SimgeAdi }[] = [
   { href: "/panel", ad: "Panel", simge: "panel" },
   { href: "/tarama", ad: "Bölge tara", simge: "tarama" },
   { href: "/kayitlar", ad: "Kayıtlar", simge: "kayitlar" },
+  { href: "/gelen-kutusu", ad: "Gelen kutusu", simge: "whatsapp" },
   { href: "/kampanyalar", ad: "Kampanyalar", simge: "kampanyalar" },
   { href: "/ayarlar", ad: "Ayarlar", simge: "ayarlar" },
 ];
@@ -27,6 +28,8 @@ export function Menu(props: {
   aktifAlan: Alan;
   alanlar: Alan[];
   kullanim: KullanimOzeti;
+  /** Gelen kutusundaki okunmamış mesajların toplamı (sayfa yüklenirken). */
+  okunmamis: number;
 }) {
   const yol = usePathname();
   const [acik, setAcik] = useState(false);
@@ -67,6 +70,11 @@ export function Menu(props: {
               >
                 <Simge ad={b.simge} />
                 {b.ad}
+                {b.href === "/gelen-kutusu" && props.okunmamis > 0 && (
+                  <span className="ml-auto rounded-full bg-menu-vurgu px-2 py-0.5 text-xs font-bold text-menu" aria-label={`${props.okunmamis} okunmamış`}>
+                    {props.okunmamis > 99 ? "99+" : props.okunmamis}
+                  </span>
+                )}
               </Link>
             );
           })}

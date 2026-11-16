@@ -265,11 +265,12 @@ describe("gelen iletiler", () => {
     expect(whatsappKisisiGetir(k.ctx, liste[0].id)?.reklamKimligi).toBe("ad-456");
     expect(gelenOlaylari()).toBe(2);
 
-    // Gelen ileti METNİ hiçbir tabloda yok.
+    // Gelen ileti metni YALNIZCA gelen kutusunda (sohbet_mesajlari; saklama süresiyle) ve bir kez; başka tabloda yok.
     const tablolar = (db.$client.prepare("select name from sqlite_master where type = 'table'").all() as { name: string }[]).map((t) => t.name);
     for (const t of tablolar) {
       const satirlar = db.$client.prepare(`select * from "${t}"`).all();
-      expect(JSON.stringify(satirlar), t).not.toContain("GİZLİ-METİN-98765");
+      if (t === "sohbet_mesajlari") expect(JSON.stringify(satirlar).split("GİZLİ-METİN-98765").length - 1, t).toBe(1);
+      else expect(JSON.stringify(satirlar), t).not.toContain("GİZLİ-METİN-98765");
     }
   });
 
@@ -293,7 +294,7 @@ describe("gelen iletiler", () => {
     expect(kayitlariListele(k.ctx).toplam).toBe(1);
   });
 
-  it("eşleştirme önce BSUID, sonra telefon; reklamsız ileti yeni kayıt açmaz", async () => {
+  it("eşleştirme önce BSUID, sonra telefon; reklamsız bilinmeyen numara: 'whatsapp_gelen' kaydı, bireysel, izin YOK", async () => {
     const k = await kur("Eslesme");
     const [a, b] = kisileriEkle(
       k.ctx,
@@ -311,9 +312,15 @@ describe("gelen iletiler", () => {
     // Telefonla eşleşme + BSUID öğrenilir
     await gonder(k, gelen(k, { from: "905324440001", from_user_id: "TR.555", type: "text", text: { body: "x" } }, { wa_id: "905324440001", user_id: "TR.555" }));
     expect(whatsappKisisiGetir(k.ctx, a.id)?.bsuid).toBe("TR.555");
-    // Bilinmeyen numara, reklamsız: kayıt açılmaz
-    await gonder(k, gelen(k, { from: "905324449999", type: "text", text: { body: "x" } }, { wa_id: "905324449999" }));
-    expect(kayitlariListele(k.ctx).toplam).toBe(2);
+    // Bilinmeyen numara, reklamsız (gelen kutusu, K5): kayıt açılır ama kendisi yazdı diye pazarlama izni sayılmaz.
+    await gonder(k, gelen(k, { from: "905324449999", type: "text", text: { body: "x" } }, { profile: { name: "Yeni Kişi" }, wa_id: "905324449999" }));
+    expect(kayitlariListele(k.ctx).toplam).toBe(3);
+    const yeni = kayitlariListele(k.ctx).kayitlar.find((x) => x.telefonE164 === "905324449999")!;
+    expect(yeni).toMatchObject({ kaynak: "whatsapp_gelen", yetkiliAdi: "Yeni Kişi", aliciTuru: "bireysel", isletmeAdi: null, placeId: null });
+    expect(whatsappKisisiGetir(k.ctx, yeni.id)).toMatchObject({ izin: "yok", izinKaynagi: null });
+    // Aynı numara tekrar yazınca çift kayıt yok.
+    await gonder(k, gelen(k, { from: "905324449999", type: "text", text: { body: "y" } }, { wa_id: "905324449999" }));
+    expect(kayitlariListele(k.ctx).toplam).toBe(3);
   });
 
   it("kullanıcı tercihleri: stop → ret; resume ret'i geri almaz", async () => {

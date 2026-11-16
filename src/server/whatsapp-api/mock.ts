@@ -1,6 +1,6 @@
 // Sahte WhatsApp Cloud API istemcisi: testlerde her zaman, geliştirmede WHATSAPP_API_MOCK=1 ile. Gerçek ağa çıkmaz.
 // Durum modül düzeyindedir; testler mockWhatsappSifirla() ve mockWhatsapp üzerinden senaryo kurar.
-import type { MetaSablon, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
+import type { MetaSablon, MetinGonderimi, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
 import { GraphHatasi, type GraphBaglantisi } from "./tipler";
 
 const ornekSablonlar = (): MetaSablon[] => [
@@ -45,6 +45,10 @@ export const mockWhatsapp = {
   abonelikSayisi: 0,
   /** Gönderilen şablonlu iletiler (sırasıyla). */
   gonderilenler: [] as (SablonGonderimi & { wamid: string })[],
+  /** Gönderilen serbest metinler (gelen kutusu yanıtları). */
+  metinler: [] as (MetinGonderimi & { wamid: string; phoneNumberId: string })[],
+  /** Okundu bildirimi gönderilen gelen ileti kimlikleri. */
+  okundular: [] as string[],
   /** Alıcıya (telefon ya da BSUID) özel gönderim hatası; her gönderimde yeniden uygulanır. */
   aliciHatalari: new Map<string, GraphHatasi>(),
   /** Gönderim yanıtındaki message_status. */
@@ -62,6 +66,8 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.abonelikSayisi = 0;
   mockWhatsapp.sonBaglanti = null;
   mockWhatsapp.gonderilenler = [];
+  mockWhatsapp.metinler = [];
+  mockWhatsapp.okundular = [];
   mockWhatsapp.aliciHatalari = new Map();
   mockWhatsapp.gonderimDurumu = "accepted";
   mockWhatsapp.wabaNumaralari = null;
@@ -87,6 +93,18 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
       const wamid = `wamid.MOCK${SUREC_ONEKI}${String(mockWhatsapp.gonderilenler.length + 1).padStart(6, "0")}`;
       mockWhatsapp.gonderilenler.push({ ...structuredClone(g), wamid });
       return { wamid, durum: mockWhatsapp.gonderimDurumu };
+    },
+    async metinGonder(g) {
+      cagri();
+      const h = mockWhatsapp.aliciHatalari.get(g.alici.deger);
+      if (h) throw h;
+      const wamid = `wamid.MOCKM${SUREC_ONEKI}${String(mockWhatsapp.metinler.length + 1).padStart(6, "0")}`;
+      mockWhatsapp.metinler.push({ ...structuredClone(g), wamid, phoneNumberId: b.phoneNumberId });
+      return { wamid, durum: mockWhatsapp.gonderimDurumu };
+    },
+    async okunduBildir(wamid) {
+      cagri();
+      mockWhatsapp.okundular.push(wamid);
     },
     async numaraBilgisi() {
       cagri();

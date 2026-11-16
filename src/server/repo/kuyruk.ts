@@ -8,6 +8,7 @@ import type { MesajDurumu } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { leadEvents, leads, messageQueue, type KuyrukMesaji } from "../db/schema";
 import type { TenantContext } from "./baglam";
+import { gidenMesajYaz } from "./gelen-kutusu";
 
 export type { KuyrukMesaji };
 
@@ -40,6 +41,11 @@ export function mesajGonderildi(
     adresOzeti?: string | null;
     /** Yalnızca WhatsApp: gönderen numara (phone_number_id). */
     gonderenNumara?: string | null;
+    /**
+     * Yalnızca gerçek WhatsApp gönderimi: mesaj aynı transaction'da gelen kutusuna düşer (gönderen numara ve şablonun
+     * işlenmiş metni). Sohbet yoksa KAPALI açılır; müşteri cevap verince açılır.
+     */
+    sohbet?: { baglantiId: string; metin: string } | null;
   },
   simdi = new Date(),
 ): boolean {
@@ -58,9 +64,26 @@ export function mesajGonderildi(
         kilitZamani: null,
       })
       .where(gonderiliyorKosulu(ctx, id))
-      .returning({ leadId: messageQueue.leadId, kanal: messageQueue.kanal })
+      .returning({ leadId: messageQueue.leadId, kanal: messageQueue.kanal, kampanyaId: messageQueue.kampanyaId })
       .get();
     if (!m) return false;
+    if (g.sohbet && !g.sandbox) {
+      gidenMesajYaz(
+        ctx,
+        {
+          baglantiId: g.sohbet.baglantiId,
+          leadId: m.leadId,
+          kaynak: "kampanya",
+          tur: "template",
+          metin: g.sohbet.metin,
+          wamid: g.saglayiciKimligi,
+          kampanyaId: m.kampanyaId,
+          teslimDurumu: "gonderildi",
+          ilkDurum: "kapali",
+        },
+        simdi,
+      );
+    }
     const olay = (tur: "eposta" | "sms" | "whatsapp_api" | "durum", aciklama: string) =>
       tx
         .insert(leadEvents)

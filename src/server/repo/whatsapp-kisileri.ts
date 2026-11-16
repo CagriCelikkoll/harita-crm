@@ -189,7 +189,38 @@ export function bsuidDegistir(ctx: TenantContext, eski: string, yeni: string): s
   });
 }
 
-export type ReklamBilgisi = { reklamKimligi: string | null; reklamBasligi: string | null; ctwaClid: string | null; pencereBitis: Date };
+/**
+ * Bilinmeyen numaradan WhatsApp'a yazan kişi (reklam dışı): kaynak 'whatsapp_gelen', alıcı türü bireysel (K5), ad
+ * olarak WhatsApp profil adı yetkili_adi'na. WhatsApp izni 'yok': kendisi yazdı diye pazarlama izni SAYILMAZ (kampanya
+ * ve şablon gönderilmez; 24 saat içinde elle yanıt verilebilir). BSUID başka kayıttaysa null.
+ */
+export function gelenKisiOlustur(
+  ctx: TenantContext,
+  g: { ad: string | null; telefon: string | null; bsuid: string | null; kullaniciAdi: string | null; numaraAdi: string },
+): string | null {
+  return db.transaction((tx) => {
+    if (g.bsuid) {
+      const var_ = tx
+        .select({ leadId: whatsappKisileri.leadId })
+        .from(whatsappKisileri)
+        .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), eq(whatsappKisileri.bsuid, g.bsuid)))
+        .get();
+      if (var_) return null;
+    }
+    const [kayit] = kisileriEkle(
+      ctx,
+      [{ kaynak: "whatsapp_gelen", yetkiliAdi: g.ad, ekTelefon: g.telefon, aliciTuru: "bireysel" }],
+      `Müşteri WhatsApp'tan kendisi yazdı (${g.numaraAdi} numarası)`,
+      tx,
+    );
+    tx.insert(whatsappKisileri)
+      .values({ tenantId: ctx.tenantId, leadId: kayit.id, bsuid: g.bsuid, waKullaniciAdi: g.kullaniciAdi, izin: "yok" })
+      .run();
+    return kayit.id;
+  });
+}
+
+export type ReklamBilgisi ={ reklamKimligi: string | null; reklamBasligi: string | null; ctwaClid: string | null; pencereBitis: Date };
 
 /** Mevcut kişinin son reklam bilgisi ve ücretsiz pencere bitişi (izni değiştirmez). */
 export function reklamBilgisiYaz(ctx: TenantContext, leadId: string, r: ReklamBilgisi): boolean {

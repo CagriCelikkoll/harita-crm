@@ -52,11 +52,13 @@ async function calistir() {
     } catch (hata) {
       console.error("[işçi] saatlik bakım hatası:", hata);
     }
-    // Günde bir: saklama süresi dolan migration yedekleri (son 10 ve son 30 gündekiler kalır).
+    // Günde bir: saklama süresi dolan migration yedekleri (son 10 ve son 30 gündekiler kalır) ve npm run cleanup'ın
+    // işi (Places konumları, veri saklama, gelen kutusu mesaj metinleri).
     try {
       const g = gunlukBakim(sonGunlukBakim, veritabani);
       sonGunlukBakim = g.sonCalismaMs;
       if (g.silinenYedek) console.log(`[işçi] saklama süresi dolan ${g.silinenYedek} eski yedek silindi.`);
+      if (g.temizlik) console.log(`[işçi] günlük temizlik: ${JSON.stringify(g.temizlik)}`);
     } catch (hata) {
       console.error("[işçi] günlük bakım hatası:", hata);
     }

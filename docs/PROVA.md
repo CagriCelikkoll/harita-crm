@@ -176,6 +176,27 @@ Beklenen çıktılar: `Kayıt: Prova Ben · İleti izni: ret` ve `Kayıt: Prova 
 
 Ret alan kayıtların **Geçmiş** sekmesinde "Gelen WhatsApp mesajı (text)" ya da "(button)" olayı görünür.
 
+### 9b. Gelen kutusu
+
+📍 Ofiste: müşteri numaranıza yazınca mesaj **Gelen kutusu**'na düşer; komut gerekmez.
+
+**Demoda:** menüde **Gelen kutusu** (yanında okunmamış sayısı). Hazır üç sohbet var:
+
+| Sohbet | Ne görürsünüz |
+|---|---|
+| Örnek Kırtasiye | Pencere açık (test numarası): yazıp **Gönder** → balon "Demo Yönetici" adıyla ve ✓ ile düşer |
+| Ret Vermiş Örnek İşletme | Kırmızı uyarı "RET verdi: yalnızca sorusuna yanıt verin…"; şablon düğmesi yok |
+| Deneme WhatsApp Yazanı | Pencere kapalı, izin yok: yazma alanı yerine açıklama |
+
+Canlı yenileme: sohbet açıkken başka terminalde
+
+```
+npm run demo:webhook -- mesaj 05000000001 Yarın gelip görebilir miyim?
+```
+
+Birkaç saniye içinde mesaj sayfayı yenilemeden görünür. Kayıtlı olmayan bir numarayla (ör. `05000000088`) yazarsanız
+**Kayıtlar**'da "WhatsApp'tan yazdı" kaynaklı yeni kişi açılır; WhatsApp izni **yok**, kampanyaya girmez.
+
 ---
 
 ## 10. Baba'nın kendi taraması

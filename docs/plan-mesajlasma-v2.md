@@ -337,6 +337,24 @@ Yeni uç yok; mevcutlar bağlantı başına çağrılır.
 
 ## 5. Grup B — Gelen kutusu
 
+> **B1'in uygulanması (16.11.2026) — plandan ayrılan ve plana eklenen noktalar:**
+> - **Reklam akışı kontrolü (B2.2 notu):** `reklamKisisiOlustur` reklamdan ilk kez yazan kişiye WhatsApp iznini `var`,
+>   kaynağını `kendisi_yazdi` yazıyor. Plan gereği değiştirilmedi; reklam dışı bilinmeyen numara ise izin **yok** ile
+>   açılır. Reklamdan yazan kişinin otomatik pazarlama izni sayılıp sayılmayacağına ayrıca karar verilmeli.
+> - **Günlük temizlik işçide:** `temizlikYap` (Places konumları 30 gün, veri saklama, davetler ve yeni olarak mesaj
+>   metinleri) yalnızca `npm run cleanup` ile çalışıyordu; sunucu rehberinde bunun için cron yoktu. Artık işçinin günlük
+>   bakımı da çalıştırır.
+> - **`sohbet_mesajlari.tarih`** sıralama için ayrı alan (gelen iletide Meta'nın zamanı, gidende gönderim anı);
+>   `icerik_silindi` saklama süresi dolunca boşaltılan metni işaretler. `istemci_kimligi` çift gönderim koruması için
+>   tabloda (benzersiz), eşzamanlı ikinci istek 409.
+> - **Okundu "bir kez":** okunmamış sayısı > 0 iken son gelen mesaja gönderilir; numara test modundaysa yalnızca test
+>   numaralarına (bildirim de bir gönderim sayıldı).
+> - **Şablon günlük sınırı:** gelen kutusundan şablon günlük WhatsApp sınırına sayılır; portföy payının kayan 24 saat
+>   sayımına (kuyruk tablosundan) girmez.
+> - **Arayüz ek:** pencere kapalı ve izin yoksa şablon seçici yerine açıklama (sunucu zaten 403 verir). Menü rozeti
+>   sayfa geçişinde güncellenir; sayfanın kendisi canlı.
+> - **Demo:** `demo:hazirla` üç örnek sohbet kurar; `npm run demo:webhook -- mesaj <tel> [metin]` müşteri mesajı yollar.
+
 ### B1. Veri modeli — migration `0020_gelen_kutusu.sql`
 
 **`sohbetler`:** kişi × numara başına bir satır.

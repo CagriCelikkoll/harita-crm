@@ -13,15 +13,17 @@
 //      adımı da tamamlanır: Meta'nın GET doğrulaması yalnızca uygulamanın tek adresine yapılır; imzalı bildirimin
 //      gelmesi o numaranın bildirimlerinin bize ulaştığının daha güçlü kanıtıdır.
 //
-// İşlenenler (gelen ileti METNİ hiçbir yerde saklanmaz):
-//  - statuses: kuyruk satırının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
+// İşlenenler:
+//  - statuses: kuyruk satırının ve gelen kutusu mesajının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
 //    131050 → ret; hesap düzeyi hata (131031, 368, 131042; value.errors'ta da) → bu WABA'daki numaralar kilitlenir ve
 //    onların WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
 //    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
-//    kuyruk satırı; ret kelimesi / abonelikten çıkma butonu → ret akışı; Click-to-WhatsApp reklamı (referral) → kişi
-//    yoksa 'meta_reklam' kaydı (izin "kendisi yazdı"), varsa reklam bilgisi; diğer iletiler yalnızca "gelen WhatsApp
-//    mesajı" olayı; BSUID değişimi.
+//    kuyruk satırı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı (izin "kendisi yazdı"),
+//    varsa reklam bilgisi; reklam dışı bilinmeyen numara → 'whatsapp_gelen' kaydı (bireysel, WhatsApp izni YOK);
+//    ret kelimesi / abonelikten çıkma butonu → ret akışı (sohbet kaydından ÖNCE); sonra gelen kutusu: sohbet (kişi ×
+//    numara) ve mesaj (metin ya da başlık; medya baytları B2'de), okunmamış ve 24 saat penceresi; "gelen WhatsApp
+//    mesajı" olayı; BSUID değişimi. Metin ileti_ayarlari.mesaj_saklama_gun sonra boşaltılır (bakim.ts).
 //  - user_preferences: "stop" → ret (K5); "resume" yalnızca olay (ret geri alınmaz).
 //  - message_template_status_update: şablon durumu ve kullanılabilirliği.
 //  - phone_number_quality_update / business_capability_update: portföy mesajlaşma limiti.
@@ -46,8 +48,18 @@ import {
 } from "../repo/sistem/whatsapp-webhook";
 import { hesapKilidiYaz, limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
 import { gelenIletiKaydet } from "../repo/whatsapp-gelen";
-import { bsuidAta, bsuidDegistir, bsuidIleBul, reklamBilgisiYaz, reklamKisisiOlustur, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
+import {
+  bsuidAta,
+  bsuidDegistir,
+  bsuidIleBul,
+  gelenKisiOlustur,
+  reklamBilgisiYaz,
+  reklamKisisiOlustur,
+  whatsappYokIsaretle,
+} from "../repo/whatsapp-kisileri";
 import { sablonDurumuYaz } from "../repo/whatsapp-sablonlari";
+import { gelenMesajYaz, mesajTeslimDurumuYaz } from "../repo/gelen-kutusu";
+import { MEDYA_TURLERI, sohbetMesajTuru } from "@/lib/gelen-kutusu";
 import { whatsappBaglantisiCoz } from "./whatsapp-api";
 
 export const WEBHOOK_AZAMI_BAYT = 1024 * 1024;
@@ -94,10 +106,18 @@ type Gelen = {
   type: string;
   text?: { body?: string };
   button?: { payload?: string; text?: string };
-  interactive?: { button_reply?: { id?: string; title?: string } };
+  interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
+  image?: Medya;
+  video?: Medya;
+  document?: Medya;
+  audio?: Medya;
+  sticker?: Medya;
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  reaction?: { emoji?: string; message_id?: string };
   referral?: { source_id?: string; source_type?: string; headline?: string; ctwa_clid?: string };
   system?: { type?: string; user_id?: string; previous_user_id?: string; wa_id?: string };
 };
+type Medya = { id?: string; caption?: string; filename?: string; mime_type?: string };
 type Durum = {
   id: string;
   status: string;
@@ -189,6 +209,28 @@ export function webhookIsle(kimlik: string, govde: Uint8Array, imza: string | nu
   });
 }
 
+/** Gelen iletinin sohbette gösterilecek metni (metin, başlık, buton, konum, tepki). Medya baytları burada değil. */
+function gelenMetni(m: Gelen, medya: Medya | undefined): string | null {
+  switch (m.type) {
+    case "text":
+      return m.text?.body ?? null;
+    case "button":
+      return m.button?.text ?? m.button?.payload ?? null;
+    case "interactive":
+      return m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null;
+    case "location": {
+      const l = m.location;
+      if (!l) return null;
+      const yer = [l.name, l.address].filter(Boolean).join(", ");
+      return `${yer ? `${yer} ` : ""}(${l.latitude ?? "?"}, ${l.longitude ?? "?"})`;
+    }
+    case "reaction":
+      return m.reaction?.emoji ?? null;
+    default:
+      return medya?.caption ?? medya?.filename ?? null;
+  }
+}
+
 class Isleyici {
   islenen = 0;
   atlanan = 0;
@@ -273,6 +315,8 @@ class Isleyici {
   private durum(d: Durum) {
     const kod = d.errors?.[0]?.code ?? null;
     const kilit = d.status === "failed" && this.hesapHatasi(kod);
+    // Gelen kutusundaki mesaj (temsilci yanıtı ya da sohbete düşen kampanya mesajı): yalnızca ileri.
+    const sohbetteVar = mesajTeslimDurumuYaz(this.ctx, d.id, d.status, kod);
     const sonuc = teslimDurumuIsle(this.ctx, d.id, {
       durum: d.status,
       hataKodu: kod,
@@ -281,8 +325,9 @@ class Isleyici {
       ucretli: d.pricing?.billable ?? null,
     });
     if (!sonuc) {
-      // Bizim göndermediğimiz ileti (aynı numarayı kullanan başka bir araç): test modu kilidini açmaz.
-      if (kilit) this.islenen++;
+      // Kuyrukta yok: gelen kutusu yanıtı ya da bizim göndermediğimiz ileti (aynı numarayı kullanan başka bir araç).
+      // İkisi de test modu kilidini açmaz.
+      if (kilit || sohbetteVar) this.islenen++;
       else this.atlanan++;
       return;
     }
@@ -343,6 +388,17 @@ class Isleyici {
         );
       }
     }
+    // Bilinmeyen numara (reklam dışı): kayıt açılır, WhatsApp izni YOK (kendisi yazdı diye pazarlama izni sayılmaz).
+    if (!leadId && (waId || bsuid)) {
+      leadId =
+        gelenKisiOlustur(this.ctx, {
+          ad: kisi?.profile?.name?.slice(0, 120) ?? null,
+          telefon: waId ? `+${waId.replace(/\D/g, "")}` : null,
+          bsuid: bsuid ?? null,
+          kullaniciAdi: kisi?.profile?.username ?? null,
+          numaraAdi: this.baglanti.ad,
+        }) ?? this.kisiBul(bsuid, waId);
+    }
     if (leadId && (bsuid || kisi?.profile?.username)) bsuidAta(this.ctx, leadId, bsuid ?? null, kisi?.profile?.username ?? undefined);
 
     // Buton yanıtında yük (payload) Meta'nın verdiği bir kimlik olabilir: yük, metin, kimlik ve başlık ayrı ayrı denenir.
@@ -350,10 +406,26 @@ class Isleyici {
     const retMi =
       (m.type === "text" && retMetniMi(m.text?.body)) ||
       (butonYaniti && cikisYanitiMi([m.button?.payload, m.button?.text, m.interactive?.button_reply?.id, m.interactive?.button_reply?.title]));
+    // Önce ret (değişmez akış), sonra sohbet: RET yazan kişinin mesajı da gelen kutusuna düşer.
     if (retMi) {
       this.ret(leadId, bsuid, waId, m.type === "text" ? "WhatsApp'ta ret yazdı" : "WhatsApp'ta abonelikten çıkma butonuna dokundu");
     }
     if (leadId) {
+      const tur = sohbetMesajTuru(m.type);
+      const medya = MEDYA_TURLERI.includes(tur) ? m[tur as "image" | "video" | "document" | "audio" | "sticker"] : undefined;
+      gelenMesajYaz(
+        this.ctx,
+        {
+          baglantiId: this.baglanti.id,
+          leadId,
+          wamid: m.id,
+          tur,
+          metin: gelenMetni(m, medya)?.slice(0, 4096) ?? null,
+          medyaId: medya?.id ?? null,
+          metaZamani: zaman(m.timestamp, this.simdi),
+        },
+        this.simdi,
+      );
       sistemOlayiEkle(
         this.ctx,
         leadId,

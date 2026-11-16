@@ -37,7 +37,7 @@ npm run demo:hazirla   # ./data/demo.db'yi sıfırdan kurar, giriş bilgilerini 
 npm run demo           # uygulamayı demo.db, PLACES_MOCK=true, WHATSAPP_API_MOCK=1 ile başlatır (http://localhost:3000)
 npm run demo:isci      # ikinci terminalde: gönderim işçisi (demo.db)
 npm run demo:kota -- 0 # demo çalışma alanının Places kotası (kota dolu durumunu denemek için; geri: -- 5000)
-npm run demo:webhook -- durum # imzalı sahte Meta bildirimi (dogrula | durum | ret <tel> | buton <tel> [--numara <ad>]; localhost; docs/PROVA.md)
+npm run demo:webhook -- durum # imzalı sahte Meta bildirimi (dogrula | durum | ret <tel> | buton <tel> | mesaj <tel> [metin] [--numara <ad>]; localhost; docs/PROVA.md)
 ```
 
 Demo betikleri (`scripts/demo-ortam.ts`) veritabanı yolunu, sahte istemcileri ve demo'ya özel sabit anahtarları
@@ -155,7 +155,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/places-maske.test.ts` | Maliyet güvencesi: liste maskesinde Enterprise alanı olmaması (yalnızca ad + adres, Pro), detayın telefon/web sitesini ayrı çağrıda istemesi, taramada yalnızca ID. |
 | `tests/kota.test.ts` | Varsayılan ve ortam değişkeninden kota; kotaya kadar ayırma ve sonrasında ret; %80 uyarı / %100 doldu; `npm run kota` mantığı; **eşzamanlılık:** aynı süreçte 40 eşzamanlı liste isteğinde (17 birim) kota 425 birimken tam 25 başarı ve **4 ayrı süreçte 1.200 denemede tam 500 (kota) başarı**; kota dolunca taramanın kısmi bitmesi; liste/detayda Places çağrısı yapılmaması; gerçek istemcide kota doluyken HTTP isteği gönderilmemesi ve başarısız istekte iade. |
 | `tests/yedek-saklama.test.ts` | Yedek saklama kuralı: 30 günden eskilerden yalnızca en son 10'u kalır, son 30 gündekilerin hepsi kalır, 10 ve altında hiçbiri silinmez; başka veritabanının yedekleri ve klasördeki diğer dosyalar silinmez; işçinin günlük bakımının günde bir çalışması; `npm run db:migrate`'in yedek alıp sonunda eski yedekleri silmesi. |
-| `tests/demo-webhook.test.ts` | `npm run demo:webhook`: komut ayrıştırma; imzalı sahte bildirimlerin gerçek webhook rotasında işlenmesi (sent → delivered → read, RET metni, anlamsız yüklü çıkış düğmesi, yanlış App Secret → 401); demo veritabanı yokken dosya oluşturulmaması; sahte istemcinin süreçler arası farklı wamid üretmesi. |
+| `tests/demo-webhook.test.ts` | `npm run demo:webhook`: komut ayrıştırma; imzalı sahte bildirimlerin gerçek webhook rotasında işlenmesi (sent → delivered → read, RET metni, anlamsız yüklü çıkış düğmesi, yanlış App Secret → 401); demo veritabanı yokken dosya oluşturulmaması; sahte istemcinin süreçler arası farklı wamid üretmesi; `mesaj`: kayıtlı kişinin mesajı gelen kutusuna düşer, kayıtsız numara izinsiz yeni kişi açar. |
 | `tests/demo-ortami.test.ts` | `npm run demo:hazirla` yalnızca `data/demo.db`'yi kurar (aynı klasördeki başka veritabanı ve testin veritabanı bayt bayt aynı kalır), her çalıştırmada sıfırdan kurar; yazdırdığı giriş bilgileri Better Auth parola özetiyle eşleşir; kaynak / durum / izin çeşitliliği, ret ve engel listesi, test modunda WhatsApp bağlantısı ve şablonlar; elle girilen bütün adreslerin sahte biçimde olması. `docs/ornek-ice-aktarma.csv`'nin rehberde yazan önizleme sonucunu vermesi. |
 | `tests/kullanilabilirlik.test.ts` | Gönderim servisinin son nabzı (kilit alma/bırakma, işçi turu, kampanya API'si) ve 5 dakika uyarısı; engelli işareti; WhatsApp izni değişince güncelleme tarihi; "bilgi" / "izin" olay türleri; dışa aktarmada BOM, noktalı virgül ve Türkçe etiketler; şablon metni parçaları, numara biçimi, limit katmanı adı; "WhatsApp'ta aç"ın tek Enterprise çağrısıyla adı döndürmesi (ek birim yok, kaydın kendi adı varsa dönmez, hiçbir tabloya yazılmaz); giriş formunun hidrasyondan önce gönderilememesi ve geliştirme simgesinin yeri. |
 | `tests/liste-maliyeti.test.ts` | Kayıt listesinin Places'a gitmemesi (0 birim); istenince yalnızca kiracının Google kayıtlarının ad/adresinin kayıt başı 17 birimle, `no-store` ile dönmesi (en fazla 20; kota doluysa çağrı yok) ve hiçbir tabloya yazılmaması; bileşenlerde tarayıcı depolaması kullanılmaması; detay panelinde "ilgilenmiyor" kayıt ve kota %80+ iken otomatik çağrı yapılmaması, `?canli=1` ile yapılması; inceleme işaretleri (toplu, kiracı izolasyonu, varsayılan gizleme, süzgeçler), migration 0013'ün mevcut kayıtları "ilgileniyor" yapması; "ilgilenmiyor" kaydın kampanya özetinde hariç tutulması, kampanyadan sonra işaretlenince işçinin göndermemesi ve WhatsApp listesine alınmaması. |
@@ -171,6 +171,7 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/anahtar-uret.test.ts` | `npm run anahtar:uret`: boş anahtarlar doldurulur, dolu (tırnaklı, export'lu, yorumlu) değerlere dokunulmaz, CRLF korunur; script üretilen değerleri çıktıya yazmaz, dosyayı 0600 yapar, ikinci çalıştırmada hiçbir şeyi değiştirmez, dosya yoksa oluşturmaz. |
 | `tests/kayit-kipi.test.ts` | `KAYIT_KIPI=davetle`: hiç kullanıcı yokken yalnızca `ILK_YONETICI_EPOSTASI` (tanımlı değilse kimse), sonra yalnızca geçerli daveti olan e-posta kayıt olur; süresi dolmuş, kabul edilmiş davet ve davetsiz e-posta kayıt ucundan reddedilir, kullanıcı oluşmaz; varsayılan açık kip eskisi gibi. |
 | `tests/giris-siniri.test.ts` | Kaba kuvvet koruması (`src/server/giris-siniri.ts`, her ortamda): girişte aynı hesaba 15 dakikada 5 deneme (IP'den bağımsız, büyük/küçük harf aynı hesap), aynı IP'den dakikada 10 / saatte 50; kayıtta IP başına saatte 5, e-posta başına saatte 3; fazlası 429 `COK_FAZLA_DENEME`, başka hesap ve IP etkilenmez; pencere dolunca yeniden izin; IP çözülemezse ortak sayaç; sunucu içi `auth.api` çağrıları sayılmaz. Better Auth'un kendi IP sınırı (10 sn'de 3) production'da ayrıca çalışır. |
+| `tests/gelen-kutusu.test.ts` | Gelen kutusu (plan B1): gelen metin sohbet ve mesaj oluşturur, okunmamış artar, aynı wamid bir kez, kapalı sohbet yeni mesajla açılır; medya başlığı ve kimliği, konum metni. RET önce engel listesine sonra sohbete; RET'li kişiye pencere içinde elle metin gider ("RET'li kişiye hizmet yanıtı" olayı), şablon her kategoride 403, pencere dışında metin 400, kampanya oluşmaz. İzinsiz kişiye elle metin gider, şablon 403. Bilinmeyen numara: `whatsapp_gelen` kaydı, bireysel, izin yok, kampanyaya girmez. Pencere: 23 sa 59 dk'da gider, 24 sa 1 sn'de 400; pencere dışında izinli kişiye şablon gider; başka WABA'nın şablonu ve eksik değişken 400; pencere numara başına. Kampanya mesajı sohbete kapalı düşer, teslim durumu kuyruğa ve sohbete yalnızca ileri yazılır; temsilci yanıtının durumu da. Okundu bir kez, ayar kapalıysa gönderilmez. Değişiklik ucu: değişiklik yoksa küçük yanıt, yalnızca yeni mesajlar, başka alanın değişikliği görünmez, oturumsuz 401. Atama yalnızca aynı alanın üyesine, notlar Meta'ya gitmez, başka alanın sohbeti 404, süzgeçler. Test modu, hesap kilidi, aynı istemci kimliği, belirsiz sonuç ("durum belirsiz", tekrar denenmez), geçersiz gövde. Saklama: süresi dolan metin boşaltılır, satır kalır; süre ayardan. |
 | `tests/coklu-numara.test.ts` | Çoklu WhatsApp numarası: ad zorunlu ve alanda benzersiz, en fazla 10; etiket ("Merkez · …4567", "Silinmiş numara"); başka alanın numarası API'de 404. Şablonlar WABA'ya ait (aynı WABA ortak, başka WABA ayrı senkron; başka WABA'nın şablonuyla kampanya kurulamaz); gönderen numara zorunlu. Test modu ve test numaraları numara başına, kampanya seçilen numaradan gider. Meta hesap kilidi (gönderimde ve webhook'ta) aynı WABA'daki numaraları kilitler ve kampanyalarını duraklatır, başka WABA sürer, kilit bağlantı testiyle WABA'dan kalkar; kalite kırmızı yalnızca o numarayı durdurur; portföy payı bütün numaraların toplamıyla. RET bir numaradan gelir, diğerinden de gönderilmez. Numara kaldırılınca yalnızca onun kampanyaları durur. Ortak bildirim adresi: başka numaranın bildirimi doğru numaraya işlenir ve onun test modu koşullarını sağlar; başka App Secret'lı ya da başka alanın numarasına yönlendirilmez; şablon ve limit bildirimi yalnızca o WABA'ya. Migration 0019: tek bağlantılı eski veritabanı taşınır. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
@@ -396,7 +397,9 @@ devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **49.000–94.000
 
 ## Zamanlanmış temizlik (`npm run cleanup`)
 
-`scripts/cleanup.ts` günde bir kez çalışmalıdır:
+`scripts/cleanup.ts` günde bir kez çalışmalıdır. **Gönderim işçisi (`npm run worker`) bunu günlük bakımında
+kendisi yapar** (ilk turda ve sonra günde bir); işçi sürekli çalışıyorsa (sunucuda `harita-worker` servisi) ayrıca cron
+gerekmez. İşçi çalışmayan kurulumlarda aşağıdaki cron kullanılır.
 
 - 30 günden eski Places konumlarını (`place_locations`) siler (Google kuralı).
 - 30 günden eski **tüm** taramaların merkez koordinatlarını (`merkez_lat/lng`) siler; adres metni ve yarıçap kalır.
@@ -407,6 +410,8 @@ devam eder. Yukarıdaki varsayımla yeni akışta tüketim ≈ **49.000–94.000
   **saatte bir** (ve her `--bir-kez` çalıştırmasında) yapar; kişisel veri en fazla yaklaşık 2 saat kalır.
 - Çalışma alanında "veri saklama süresi" ayarlıysa o süredir güncellenmeyen kayıtları ve olaylarını siler.
 - Süresi dolmuş, kabul edilmemiş davetleri siler.
+- Gelen kutusu: saklama süresi (Ayarlar → Veri saklama, varsayılan 365 gün) dolan WhatsApp mesajlarının metnini boşaltır;
+  satır, yön, tür ve teslim bilgisi kalır.
 - Yarıda kalmış taramaları "hata" yapar (aşağıya bakın).
 
 **Linux (cron):** `crontab -e` ile her gece 03:30'da:
@@ -808,6 +813,27 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
     (`metadata.phone_number_id`; şablon ve limit bildiriminde WABA) yönlendirilir. Bir numaranın imzalı teslim
     bildirimi başka numaranın adresinden gelirse o numaranın "bildirim adresi doğrulandı" adımı da tamamlanır.
   - Numara kaldırılınca yalnızca onun çalışan kampanyaları duraklar; kampanya geçmişinde "Silinmiş numara" görünür.
+- **Gelen kutusu** (`/gelen-kutusu`, menüde okunmamış rozeti): WhatsApp sohbetleri, kişi × numara başına bir sohbet.
+  Herkes tüm sohbetleri görür; atama yalnızca sorumluluğu gösterir. Liste: numara sekmeleri (okunmamışlarıyla),
+  açık / kapalı, bana atanan / atanmamış, ad ya da telefonla arama, kalan pencere süresi. Sohbet: balonlar (temsilci adı,
+  Kampanya), teslim işaretleri (✓, ✓✓, mavi ✓✓, İletilemedi, durum belirsiz), atama, kapat / yeniden aç, iç notlar.
+  - **Pencere içinde elle serbest metin** (kişinin bu numaraya son yazdığı andan 24 saat) müşteri hizmeti yanıtıdır:
+    WhatsApp izni yoksa da, kişi RET vermişse de gider (K4, B3). RET'li kişide yazma alanının üstünde kalıcı kırmızı
+    uyarı ("RET verdi: yalnızca sorusuna yanıt verin, pazarlama içeriği göndermeyin"); her yanıt olay geçmişine
+    "RET'li kişiye hizmet yanıtı" olarak yazılır.
+  - **Şablon** (pencere kapalıyken ya da "Şablon gönder" ile): kampanya alıcı kurallarının tamamı (izin, RET, engel,
+    bireyselde İYS beyanı); RET'li ya da engelli kişiye **hiçbir koşulda** gitmez (403). Yalnızca numaranın WABA'sındaki
+    kullanılabilir şablonlar; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına sayılır.
+  - Numara kilitliyse, kalitesi kırmızıysa gönderim yok; test modunda yalnızca test numaraları. Gönderim istekte yapılır
+    (kuyruğa girmez); belirsiz sonuç tekrar denenmez ("durum belirsiz" yazılır). Aynı mesaj iki kez gitmez
+    (istemci kimliği). Bot ve kampanya bu yoldan geçmez.
+  - Kampanya mesajları da gönderen numaranın sohbetine düşer (sohbet kapalı açılır, müşteri cevap verince açılır);
+    teslim durumu hem kuyruğa hem sohbete yazılır (yalnızca ileri).
+  - Okundu: temsilci sohbeti açınca son gelen mesaja bir kez (Ayarlar → Veri saklama'dan kapatılabilir).
+  - Canlı yenileme kısa yoklamayla (`/api/gelen-kutusu/degisiklikler?sonra=<sürüm>`): görünür sekmede 3 sn, arka planda
+    20 sn; değişiklik yoksa küçük yanıt. Menüdeki rozet sayfa geçişinde güncellenir.
+  - Saklama: mesaj metni varsayılan 365 gün (Ayarlar → Veri saklama), sonra boşaltılır; medya süresi (90) B2 içindir.
+  - KVKK: müşteri yazışmaları uygulamada saklanır. Aydınlatma metni veri sorumlusunun (çalışma alanının sahibi) işidir.
 - **Ayarlar → WhatsApp (Meta)** (yalnızca yönetici), her numara için: ad, WABA ID, Phone Number ID, kalıcı erişim
   anahtarı (system user token) ve App Secret.
   - Erişim anahtarı, App Secret, webhook verify token ve test numaraları AES-GCM ile şifreli saklanır (ek doğrulanmış
@@ -945,9 +971,14 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   adı, alıcı türü bireysel), WhatsApp izni `var` ("WhatsApp'tan kendisi yazdı"), reklam kimliği ve başlığı,
   `ctwa_clid`, ücretsiz pencere bitişi (+72 saat). Aynı kişi tekrar yazarsa yeni kayıt açılmaz; reklam bilgisi ve
   pencere güncellenir. Kayıtlar listesinde "WhatsApp penceresi açık" rozeti.
-- **Diğer gelen iletiler** yalnızca `lead_events`'e "Gelen WhatsApp mesajı (tür)" olayı olarak yazılır; **ileti
-  metni hiçbir tabloda saklanmaz**. Meta'nın tekrar gönderdiği webhook ikinci olay üretmez (ileti kimliği 7 gün
-  tutulur, `npm run cleanup` siler). Bilinen bir kişiye bağlanamayan ve reklamdan gelmeyen ileti için kayıt açılmaz.
+- **Gelen kutusu:** her gelen ileti (RET dahil, ret akışından SONRA) gönderen numaranın sohbetine (kişi × numara)
+  yazılır: metin ya da başlık (medya içeriği B2'de; şimdilik "telefondan bakın"), okunmamış artar, kapalı sohbet açılır,
+  24 saat penceresi ilerler. Ayrıca kayda "Gelen WhatsApp mesajı (tür)" olayı. İleti metni **yalnızca**
+  `sohbet_mesajlari`'nda ve saklama süresi boyunca tutulur. Meta'nın tekrar gönderdiği webhook ikinci kez yazılmaz
+  (ileti kimliği 7 gün; ayrıca `sohbet_mesajlari.wamid` benzersiz).
+- **Bilinmeyen numara** (reklam dışı): `kaynak = whatsapp_gelen` kayıt (ad: WhatsApp profil adı `yetkili_adi`'na,
+  alıcı türü bireysel), WhatsApp izni **yok**: kendisi yazdı diye pazarlama izni sayılmaz, kampanya almaz; 24 saat
+  içinde elle yanıt verilebilir. Olay: "Müşteri WhatsApp'tan kendisi yazdı (Merkez numarası)".
 - **Şablon durumu** (`message_template_status_update`): APPROVED / REJECTED / PAUSED / DISABLED / ARCHIVED / DELETED /
   PENDING_DELETION / LOCKED işlenir, kampanyada kullanılabilirlik yeniden hesaplanır (kullanılamazsa çalışan kampanya
   duraklar). Diğer olaylar (FLAGGED, IN_APPEAL …) bir sonraki senkronu bekler.

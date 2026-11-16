@@ -54,7 +54,8 @@ async function calistir() {
   const { taramaOlustur } = await import("../src/server/repo/taramalar");
   const { taramaCalistir } = await import("../src/server/servisler/tarama");
   const { kayitGuncelle, kisileriEkle, taramaKayitlari } = await import("../src/server/repo/kayitlar");
-  const { whatsappIzniAyarla, reklamKisisiOlustur } = await import("../src/server/repo/whatsapp-kisileri");
+  const { whatsappIzniAyarla, reklamKisisiOlustur, gelenKisiOlustur } = await import("../src/server/repo/whatsapp-kisileri");
+  const { gelenMesajYaz } = await import("../src/server/repo/gelen-kutusu");
   const api = await import("../src/server/servisler/whatsapp-api");
   const { mockKullaniliyor } = await import("../src/server/whatsapp-api");
 
@@ -225,6 +226,18 @@ async function calistir() {
   await api.sablonlariSenkronizeEt(ctx, numara);
   api.testNumaralariKaydet(ctx, numara, [TEST_NUMARASI]);
 
+  // --- Gelen kutusu: örnek sohbetler (sahte; Meta'ya gidilmez) ---
+  // Kırtasiye (test numarası): pencere açık, yanıt verilebilir. Ret vermiş kişi: pencere açık, kırmızı RET uyarısı.
+  // WhatsApp'tan yazan yeni kişi: pencere kapalı (30 saat önce), yalnızca şablon.
+  const saatOnce = (sa: number) => new Date(Date.now() - sa * 3600 * 1000);
+  const yazdi = (leadId: string, n: number, metin: string, zaman: Date) =>
+    gelenMesajYaz(ctx, { baglantiId: numara, leadId, wamid: `wamid.DEMO.ORNEK.${n}`, tur: "text", metin, medyaId: null, metaZamani: zaman }, zaman);
+  yazdi(kirtasiye.id, 1, "Merhaba, geçen hafta sorduğum dükkân hâlâ kiralık mı?", saatOnce(2));
+  yazdi(kirtasiye.id, 2, "Fiyatı da yazarsanız sevinirim.", saatOnce(1.9));
+  yazdi(retli.id, 3, "Bana bir daha kampanya yazmayın ama kiradaki dairem için bir sorum var.", saatOnce(1));
+  const yeniKisi = gelenKisiOlustur(ctx, { ad: "Deneme WhatsApp Yazanı", telefon: "0500 000 00 07", bsuid: null, kullaniciAdi: null, numaraAdi: "Merkez" })!;
+  yazdi(yeniKisi, 4, "İlanınızı gördüm, ararsanız sevinirim.", saatOnce(30));
+
   const sablonSayisi = api.sablonlar(ctx, numara).length;
   const toplam = (db.$client.prepare("select count(*) as n from leads").get() as { n: number }).n;
   db.$client.pragma("wal_checkpoint(TRUNCATE)");
@@ -237,6 +250,8 @@ Demo ortamı hazır: ${DEMO_VERITABANI}
   Ret verilmiş  : "Ret Vermiş Örnek İşletme" (0500 000 00 09, ret.ornek@demo.test engel listesinde)
   Sabit hat     : ${DEMO_SABIT_HATLAR.length} Google kaydının telefonu 0 (212) 000 … (SMS'te "cep telefonu değil")
   WhatsApp      : sahte numara "Merkez" (test modunda), ${sablonSayisi} şablon, test numarası ${TEST_NUMARASI}
+  Gelen kutusu  : 3 örnek sohbet (açık pencere, RET'li kişi, pencere kapalı yeni kişi);
+                  yeni mesaj için: npm run demo:webhook -- mesaj 05000000001 Merhaba
   Sınırlar      : günde 5 e-posta, 5 SMS (demo için düşük); Places kotası 5.000 birim/ay (npm run demo:kota -- <birim>)
 
 Giriş bilgileri (${DEMO_ADRESI}/giris):

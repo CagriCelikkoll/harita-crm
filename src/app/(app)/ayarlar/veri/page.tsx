@@ -3,7 +3,8 @@ import { AyarBolumu, AyarSatiri, Kart } from "@/components/arayuz/kart";
 import { PLACES_KONUM_SAKLAMA_GUN } from "@/lib/sabitler";
 import { calismaAlaniGetir } from "@/server/repo/calisma-alani";
 import { ayarBolumuBaglami } from "../erisim";
-import { VeriSaklamaFormu } from "../formlar";
+import { GelenKutusuSaklamaFormu, VeriSaklamaFormu } from "../formlar";
+import { iletiAyarlariGetir } from "@/server/repo/ileti-ayarlari";
 
 export const metadata: Metadata = { title: "Veri saklama · Ayarlar" };
 
@@ -13,10 +14,19 @@ const DISA_AKTARMA_ADRESI = "/api/kayitlar/disa-aktar";
 export default async function VeriSaklamaSayfasi() {
   const { ctx } = await ayarBolumuBaglami("veri");
   const alan = calismaAlaniGetir(ctx)!;
+  const ileti = iletiAyarlariGetir(ctx);
   return (
     <AyarBolumu baslik="Veri saklama" aciklama="Kişisel verilerin ne kadar süre tutulacağı ve dışa aktarma.">
       <Kart>
         <VeriSaklamaFormu veriSaklamaGun={alan.veriSaklamaGun} />
+      </Kart>
+      <Kart>
+        <GelenKutusuSaklamaFormu
+          mesajSaklamaGun={ileti.mesajSaklamaGun}
+          medyaSaklamaGun={ileti.medyaSaklamaGun}
+          okunduBildirimi={ileti.okunduBildirimi}
+          yonetici={ctx.rol === "yonetici"}
+        />
       </Kart>
       <Kart>
         <AyarSatiri baslik="Verilerinizi dışa aktarın" aciklama="Kendi girdiğiniz kayıtlar Excel uyumlu CSV olarak. Google'dan gelen bilgiler dosyada yer almaz.">

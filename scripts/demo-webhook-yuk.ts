@@ -13,6 +13,8 @@ export type Komut = (
   /** hedef: "son", "kampanya" ya da wamid. */
   | { komut: "durum"; hedef: string; kadar: TeslimAdimi }
   | { komut: "ret" | "buton"; telefon: string }
+  /** Gelen kutusu: o numaradan serbest metinli mesaj. */
+  | { komut: "mesaj"; telefon: string; metin: string }
 ) & {
   /** --numara <ad>: demo çalışma alanında birden çok numara varsa hangisi (yoksa ilk numara). */
   numara?: string;
@@ -28,6 +30,9 @@ export const KULLANIM = `Kullanım (npm run demo açıkken):
       O numaradan "RET" metinli gelen mesaj.
   npm run demo:webhook -- buton <telefon>
       O numaradan abonelikten çıkma hızlı yanıt düğmesine basılmış gibi.
+  npm run demo:webhook -- mesaj <telefon> [metin]
+      O numaradan müşteri mesajı (Gelen kutusu). Numarayı bitişik yazın; metin verilmezse örnek bir soru.
+      Kayıtlı olmayan numara yeni kişi olarak açılır (WhatsApp izni yok).
   Her komuta eklenebilir: --numara <ad>  (birden çok numara varsa; yoksa ilk numara, ör. --numara Merkez)`;
 
 /** Komut satırı (npm run demo:webhook -- …). Hatalıysa ekrana yazılacak metin döner. */
@@ -63,6 +68,12 @@ function komutAyristir(argumanlar: string[]): Komut | { hata: string } {
     }
     return { komut, hedef, kadar };
   }
+  if (komut === "mesaj") {
+    const [tel, ...metin] = kalan;
+    const telefon = telefonNormallestir(tel ?? "");
+    if (!cepMi(telefon)) return { hata: "Cep telefonu numarası gerekli, bitişik yazın (ör. npm run demo:webhook -- mesaj 05000000021 Merhaba)." };
+    return { komut, telefon, metin: metin.join(" ").trim() || "Merhaba, ilanınızla ilgili bilgi alabilir miyim?" };
+  }
   if (komut === "ret" || komut === "buton") {
     // Tırnaksız yazılan "0500 000 00 21" ayrı argümanlar olarak gelir.
     const telefon = telefonNormallestir(kalan.join(" "));
@@ -95,11 +106,15 @@ const zarf = (h: Hesap, value: Record<string, unknown>) => ({
 export const durumYuku = (h: Hesap, wamid: string, durum: TeslimAdimi, aliciWaId: string | null, simdi = new Date()) =>
   zarf(h, { statuses: [{ id: wamid, status: durum, timestamp: saniye(simdi), ...(aliciWaId ? { recipient_id: aliciWaId } : {}) }] });
 
-const gelenYuku = (h: Hesap, waId: string, mesaj: Record<string, unknown>, simdi: Date) =>
+const gelenYuku = (h: Hesap, waId: string, mesaj: Record<string, unknown>, simdi: Date, ad = "Demo Kişi") =>
   zarf(h, {
-    contacts: [{ profile: { name: "Demo Kişi" }, wa_id: waId }],
+    contacts: [{ profile: { name: ad }, wa_id: waId }],
     messages: [{ from: waId, id: `wamid.DEMO.GELEN.${randomBytes(9).toString("hex")}`, timestamp: saniye(simdi), ...mesaj }],
   });
+
+/** Müşterinin serbest metinli mesajı (gelen kutusu). */
+export const mesajYuku = (h: Hesap, waId: string, metin: string, simdi = new Date()) =>
+  gelenYuku(h, waId, { type: "text", text: { body: metin } }, simdi, "Demo Müşteri");
 
 export const retYuku = (h: Hesap, waId: string, simdi = new Date()) => gelenYuku(h, waId, { type: "text", text: { body: "RET" } }, simdi);
 

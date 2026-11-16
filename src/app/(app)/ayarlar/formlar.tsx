@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { AyarSatiri, KaydetCubugu } from "@/components/arayuz/kart";
 import { SonucMesaji } from "@/components/bildirim";
 import { ROL_ADLARI, ROLLER } from "@/lib/sabitler";
-import { alanGuncelle, davetGonder, uyeyiCikar, type FormDurumu } from "./eylemler";
+import { alanGuncelle, davetGonder, gelenKutusuAyarGuncelle, uyeyiCikar, type FormDurumu } from "./eylemler";
 
 function Durum({ durum }: { durum: FormDurumu }) {
   return (
@@ -107,6 +107,50 @@ export function VeriSaklamaFormu(props: { veriSaklamaGun: number | null }) {
           Kaydet
         </button>
       </KaydetCubugu>
+    </form>
+  );
+}
+
+/** Gelen kutusu: yazışma metni ve medya saklama süresi, okundu bildirimi (K3). */
+export function GelenKutusuSaklamaFormu(props: { mesajSaklamaGun: number; medyaSaklamaGun: number; okunduBildirimi: boolean; yonetici: boolean }) {
+  const [durum, eylem, bekliyor] = useActionState(gelenKutusuAyarGuncelle, {});
+  return (
+    <form action={eylem}>
+      <fieldset disabled={bekliyor || !props.yonetici}>
+        <AyarSatiri
+          baslik="WhatsApp yazışmaları"
+          aciklama="Gelen kutusundaki mesaj metinleri bu süreden sonra günlük temizlikte silinir; kim, ne zaman ve teslim bilgisi kalır."
+          alanId="gk-mesaj"
+        >
+          <div className="flex items-center gap-3">
+            <input id="gk-mesaj" name="mesajSaklamaGun" type="number" min={30} max={3650} required defaultValue={props.mesajSaklamaGun} className="girdi max-w-40" />
+            <span className="text-soluk">gün (30–3650)</span>
+          </div>
+        </AyarSatiri>
+        <AyarSatiri baslik="Gelen fotoğraf, belge ve sesler" aciklama="Medya dosyaları daha kısa süre tutulur." alanId="gk-medya">
+          <div className="flex items-center gap-3">
+            <input id="gk-medya" name="medyaSaklamaGun" type="number" min={7} max={3650} required defaultValue={props.medyaSaklamaGun} className="girdi max-w-40" />
+            <span className="text-soluk">gün (7–3650)</span>
+          </div>
+        </AyarSatiri>
+        <AyarSatiri baslik="Okundu bildirimi" aciklama="Bir sohbeti açtığınızda müşteriye mavi tik gider.">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="okunduBildirimi" defaultChecked={props.okunduBildirimi} className="size-4 accent-ana" />
+            Sohbet açılınca okundu bildir
+          </label>
+        </AyarSatiri>
+      </fieldset>
+      <div className="px-7 empty:hidden">
+        {!props.yonetici && <p className="text-sm text-soluk">{SALT_OKUNUR}</p>}
+        <Durum durum={durum} />
+      </div>
+      {props.yonetici && (
+        <KaydetCubugu>
+          <button type="submit" className="dugme-ana" disabled={bekliyor}>
+            Kaydet
+          </button>
+        </KaydetCubugu>
+      )}
     </form>
   );
 }

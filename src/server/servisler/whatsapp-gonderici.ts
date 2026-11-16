@@ -192,7 +192,15 @@ export async function whatsappMesajIsle(
     mesajGonderildi(
       ctx,
       mesaj.id,
-      { saglayiciKimligi: yanit.wamid, sandbox: false, sandboxIcerik: null, olayAciklamasi, adresOzeti: ozet, gonderenNumara: c.baglanti.phoneNumberId },
+      {
+        saglayiciKimligi: yanit.wamid,
+        sandbox: false,
+        sandboxIcerik: null,
+        olayAciklamasi,
+        adresOzeti: ozet,
+        gonderenNumara: c.baglanti.phoneNumberId,
+        sohbet: { baglantiId, metin: sablonMetni(sablon.bilesenler, degerler) },
+      },
       simdi,
     );
     return "gonderildi";

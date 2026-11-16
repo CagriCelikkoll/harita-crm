@@ -1,5 +1,6 @@
 // Çalışma alanının ticari ileti bilgileri ve gönderim kuralları (ileti_ayarlari, kiracı başına tek satır).
 import { eq } from "drizzle-orm";
+import { VARSAYILAN_MEDYA_SAKLAMA_GUN, VARSAYILAN_MESAJ_SAKLAMA_GUN } from "@/lib/gelen-kutusu";
 import { VARSAYILAN_GONDERIM_BASLANGIC_DK, VARSAYILAN_GONDERIM_BITIS_DK } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { iletiAyarlari, type IletiAyarlari } from "../db/schema";
@@ -23,6 +24,9 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   yetkiliTelefonu: null,
   whatsappSablonu: null,
   whatsappGunlukSinir: null,
+  mesajSaklamaGun: VARSAYILAN_MESAJ_SAKLAMA_GUN,
+  medyaSaklamaGun: VARSAYILAN_MEDYA_SAKLAMA_GUN,
+  okunduBildirimi: true,
   guncellemeTarihi: new Date(0),
 });
 
@@ -46,6 +50,10 @@ export type IletiAyarDegisikligi = Partial<{
   sorumlulukOnayi: boolean;
   gonderimBaslangicDk: number;
   gonderimBitisDk: number;
+  /** Gelen kutusu: yazışma metni ve medya saklama süresi (gün); sohbet açılınca okundu bildirimi. */
+  mesajSaklamaGun: number;
+  medyaSaklamaGun: number;
+  okunduBildirimi: boolean;
 }>;
 
 /** Yalnızca yönetici. Onay zaten verilmişse ilk onay zamanı ve onaylayan korunur. */

@@ -3,6 +3,7 @@
 // gerçekten çalışır. Rehber: docs/PROVA.md
 //
 // Kullanım: npm run demo:webhook -- dogrula | durum [son|kampanya|<wamid>] [--kadar …] | ret <telefon> | buton <telefon>
+//           | mesaj <telefon> [metin]
 //
 // Betik veritabanını yalnızca SALT OKUNUR açar (yazan tek taraf webhook ucudur), yol demo-ortam.ts'te sabittir ve
 // istekler yalnızca localhost'a gider; Meta'ya ve Google'a hiçbir istek yapılmaz. Gizli değerler ekrana yazılmaz.
@@ -10,7 +11,7 @@ import { DEMO_ADRESI, DEMO_ALAN_ADI, DEMO_VERITABANI } from "./demo-ortam";
 import { setTimeout as bekle } from "node:timers/promises";
 import { telefonBicimle, telefonNormallestir } from "../src/lib/adres-normal";
 import { coz } from "../src/server/messaging/sifreleme";
-import { butonYuku, durumYuku, imzala, komutCozumle, retYuku, TESLIM_ADIMLARI, type Hesap, type Komut } from "./demo-webhook-yuk";
+import { butonYuku, durumYuku, imzala, komutCozumle, mesajYuku, retYuku, TESLIM_ADIMLARI, type Hesap, type Komut } from "./demo-webhook-yuk";
 import { saltOkunurAc } from "./salt-okunur-db";
 
 const ADIM_BEKLEME_MS = 800;
@@ -130,11 +131,19 @@ function kayitlariOku(d: Veritabani, b: Baglanti, telefon: string): Kayit[] {
 
 async function gelenGonder(d: Veritabani, b: Baglanti, tur: "ret" | "buton", telefon: string) {
   if (!kayitlariOku(d, b, telefon).length) {
-    console.warn(`! ${telefonBicimle(telefon)} numarasında kayıt yok: numara yalnızca engel listesine yazılacak, hiçbir kayıt değişmeyecek.`);
+    console.warn(`! ${telefonBicimle(telefon)} numarasında kayıt yok: WhatsApp'tan yazan yeni kişi olarak açılacak ve hemen Ret işlenecek.`);
   }
   await bildirimGonder(b, tur === "ret" ? retYuku(b, telefon) : butonYuku(b, telefon));
   console.log(`✓ ${tur === "ret" ? '"RET" metni' : "Abonelikten çıkma düğmesi"} ${telefonBicimle(telefon)} numarasından gönderildi ve işlendi.`);
   for (const k of kayitlariOku(d, b, telefon)) console.log(`  Kayıt: ${k.ad ?? "(adsız)"} · İleti izni: ${k.izin}`);
+}
+
+async function mesajGonder(d: Veritabani, b: Baglanti, telefon: string, metin: string) {
+  const kayitli = kayitlariOku(d, b, telefon).length > 0;
+  await bildirimGonder(b, mesajYuku(b, telefon, metin));
+  console.log(`✓ ${telefonBicimle(telefon)} numarasından ${b.ad} numarasına mesaj gönderildi: "${metin}"`);
+  console.log(kayitli ? "  Kayıtlı kişi." : "  Kayıt yoktu: \"WhatsApp'tan yazdı\" kaynaklı yeni kişi açıldı (WhatsApp izni yok).");
+  console.log("  Gelen kutusu birkaç saniye içinde kendiliğinden yenilenir.");
 }
 
 async function calistir(k: Komut) {
@@ -143,6 +152,7 @@ async function calistir(k: Komut) {
     const b = baglantiOku(d, k.numara);
     if (k.komut === "dogrula") await dogrula(d, b);
     else if (k.komut === "durum") await durumGonder(d, b, k.hedef, k.kadar);
+    else if (k.komut === "mesaj") await mesajGonder(d, b, k.telefon, k.metin);
     else await gelenGonder(d, b, k.komut, k.telefon);
   } finally {
     d.close();

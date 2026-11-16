@@ -7,6 +7,7 @@ import { postaciAl } from "@/server/eposta/postaci";
 import { sayfaBaglami } from "@/server/oturum";
 import { YetkiHatasi } from "@/server/repo/baglam";
 import { calismaAlaniGuncelle, davetIptal, davetOlustur, uyeCikar } from "@/server/repo/calisma-alani";
+import { iletiAyarlariGuncelle } from "@/server/repo/ileti-ayarlari";
 
 export type FormDurumu = { hata?: string; tamam?: string; baglanti?: string };
 
@@ -37,6 +38,36 @@ export async function alanGuncelle(_o: FormDurumu, formData: FormData): Promise<
     return yetkiMesaji(h);
   }
   revalidatePath("/", "layout");
+  return { tamam: "Kaydedildi." };
+}
+
+/** Gelen kutusu (Ayarlar > Veri saklama): yazışma metni ve medya saklama süresi, okundu bildirimi. Yalnızca yönetici. */
+export async function gelenKutusuAyarGuncelle(_o: FormDurumu, formData: FormData): Promise<FormDurumu> {
+  const { ctx } = await sayfaBaglami();
+  const gun = (alt: number, ad: string) =>
+    z
+      .string()
+      .trim()
+      .transform(Number)
+      .refine((n) => Number.isInteger(n) && n >= alt && n <= 3650, `${ad} ${alt}–3650 gün olmalı.`);
+  const sonuc = z
+    .object({
+      mesajSaklamaGun: gun(30, "Mesaj saklama süresi"),
+      medyaSaklamaGun: gun(7, "Medya saklama süresi"),
+      okunduBildirimi: z.literal("on").optional(),
+    })
+    .safeParse(Object.fromEntries(formData));
+  if (!sonuc.success) return { hata: sonuc.error.issues[0]?.message };
+  try {
+    iletiAyarlariGuncelle(ctx, {
+      mesajSaklamaGun: sonuc.data.mesajSaklamaGun,
+      medyaSaklamaGun: sonuc.data.medyaSaklamaGun,
+      okunduBildirimi: sonuc.data.okunduBildirimi === "on",
+    });
+  } catch (h) {
+    return yetkiMesaji(h);
+  }
+  revalidatePath("/ayarlar/veri");
   return { tamam: "Kaydedildi." };
 }
 

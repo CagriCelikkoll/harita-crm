@@ -47,6 +47,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "sms_ret_numarasi", "yetkili_telefonu", // çalışma alanının kendi numaraları
     "gunluk_whatsapp_api_siniri",
     "whatsapp_sablonu", "whatsapp_gunluk_sinir",
+    "mesaj_saklama_gun", "medya_saklama_gun", "okundu_bildirimi", // gelen kutusu (0020)
   ],
   saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "webhook_ozeti", "guncelleyen", "guncelleme_tarihi"],
   engel_listesi: ["id", "tenant_id", "tur", "ozet", "kaynak", "lead_id", "tarih"],
@@ -83,6 +84,19 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ],
   // Yalnızca tekrar eleme için ileti kimliği; içerik yok, 7 gün sonra silinir.
   whatsapp_gelen_kimlikleri: ["tenant_id", "wamid", "tarih"],
+  // Gelen kutusu (0020): müşteri yazışmaları (çalışma alanının verisi; Places içeriği yok). Metin saklama süresi
+  // dolunca boşaltılır (icerik_silindi). Ad ve telefon burada değil, kayıttan (leads) okunur.
+  sohbetler: [
+    "id", "tenant_id", "baglanti_id", "lead_id", "durum", "atanan_kullanici", "son_mesaj_tarihi", "son_gelen_tarihi",
+    "okunmamis", "bot_sus_bitis", "surum", "olusturma_tarihi",
+  ],
+  sohbet_mesajlari: [
+    "id", "tenant_id", "sohbet_id", "yon", "kaynak", "wamid", "istemci_kimligi", "tur", "metin", "medya_id",
+    "icerik_silindi", "gonderen_kullanici", "kampanya_id", "teslim_durumu", "teslim_hata_kodu", "meta_zamani", "tarih",
+    "surum", "olusturma_tarihi",
+  ],
+  sohbet_notlari: ["id", "tenant_id", "sohbet_id", "kullanici_id", "metin", "tarih"],
+  gelen_kutusu_surumu: ["tenant_id", "surum"],
   // Gönderim işçisi kilidi (kiracı verisi yok).
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [

@@ -19,7 +19,9 @@ import { kampanyaBaslat } from "@/server/servisler/kampanya";
 import * as wa from "@/server/servisler/whatsapp-api";
 import { mockWhatsappSifirla } from "@/server/whatsapp-api/mock";
 import { POST } from "@/app/api/whatsapp/webhook/[kimlik]/route";
-import { butonYuku, durumYuku, imzala, komutCozumle, retYuku, TESLIM_ADIMLARI } from "../scripts/demo-webhook-yuk";
+import { butonYuku, durumYuku, imzala, komutCozumle, mesajYuku, retYuku, TESLIM_ADIMLARI } from "../scripts/demo-webhook-yuk";
+import { sohbetleriListele, sohbetMesajlariGetir } from "@/server/repo/gelen-kutusu";
+import { kayitlariListele } from "@/server/repo/kayitlar";
 import { kiraciOlustur } from "./yardimci/fabrika";
 import { tekNumara } from "./yardimci/numara";
 
@@ -64,7 +66,9 @@ describe("komut satırı", () => {
     expect(komutCozumle(["durum", "wamid.ABC"])).toEqual({ komut: "durum", hedef: "wamid.ABC", kadar: "read" });
     expect(komutCozumle(["ret", "0532", "222", "00", "01"])).toEqual({ komut: "ret", telefon: WA_ID });
     expect(komutCozumle(["buton", "+905322220001"])).toEqual({ komut: "buton", telefon: WA_ID });
-    for (const hatali of [[], ["bilinmeyen"], ["ret"], ["ret", "02122220001"], ["durum", "yanlis"], ["durum", "--kadar", "failed"]]) {
+    expect(komutCozumle(["mesaj", "05322220001", "Fiyat", "nedir?"])).toEqual({ komut: "mesaj", telefon: WA_ID, metin: "Fiyat nedir?" });
+    expect(komutCozumle(["mesaj", "05322220001"])).toMatchObject({ komut: "mesaj", telefon: WA_ID, metin: expect.stringContaining("bilgi") });
+    for (const hatali of [[], ["bilinmeyen"], ["ret"], ["ret", "02122220001"], ["durum", "yanlis"], ["durum", "--kadar", "failed"], ["mesaj"], ["mesaj", "02122220001"]]) {
       expect(komutCozumle(hatali)).toHaveProperty("hata");
     }
   });
@@ -110,6 +114,16 @@ describe("sahte bildirimler gerçek webhook kodunda", () => {
     expect((await k.gonder(butonYuku(k.hesap, WA_ID, SIMDI))).status).toBe(200);
     expect(kayitGetir(k.ctx, k.kayit.id)?.iletiIzni).toBe("ret");
     expect(olaylariListele(k.ctx, k.kayit.id).map((o) => o.aciklama).join(" | ")).toContain("Gelen WhatsApp mesajı (button)");
+  });
+
+  it("mesaj: kayıtlı kişinin mesajı gelen kutusuna düşer; kayıtsız numara izinsiz yeni kişi açar", async () => {
+    const k = await kur();
+    expect((await k.gonder(mesajYuku(k.hesap, WA_ID, "Daire hâlâ satılık mı?"))).status).toBe(200);
+    const [s] = sohbetleriListele(k.ctx).satirlar;
+    expect(s).toMatchObject({ leadId: k.kayit.id, okunmamis: 1, durum: "acik" });
+    expect(sohbetMesajlariGetir(k.ctx, s.id).map((m) => m.metin)).toEqual(["Daire hâlâ satılık mı?"]);
+    expect((await k.gonder(mesajYuku(k.hesap, "905322229999", "Merhaba"))).status).toBe(200);
+    expect(kayitlariListele(k.ctx).kayitlar.find((x) => x.telefonE164 === "905322229999")).toMatchObject({ kaynak: "whatsapp_gelen", yetkiliAdi: "Demo Müşteri" });
   });
 
   it("art arda iki bildirimde gelen ileti kimliği farklıdır (ikincisi tekrar sayılmaz)", async () => {

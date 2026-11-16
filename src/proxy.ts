@@ -13,7 +13,7 @@ const bulunamadi = () =>
   new NextResponse("Bulunamadı.", { status: 404, headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" } });
 
 /** Oturum çerezi yoksa girişe yönlendirilen sayfalar (Next matcher biçiminde: "/x/:path*" hem /x'i hem altını kapsar). */
-const OTURUM_YOLLARI = ["/", "/panel/:path*", "/tarama/:path*", "/kayitlar/:path*", "/kampanyalar/:path*", "/iletisim/:path*", "/ayarlar/:path*", "/kurulum"];
+const OTURUM_YOLLARI = ["/", "/panel/:path*", "/tarama/:path*", "/kayitlar/:path*", "/kampanyalar/:path*", "/gelen-kutusu/:path*", "/iletisim/:path*", "/ayarlar/:path*", "/kurulum"];
 
 export function oturumYoluMu(yol: string): boolean {
   return OTURUM_YOLLARI.some((y) => {

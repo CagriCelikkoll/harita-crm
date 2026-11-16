@@ -26,12 +26,14 @@ export const OLAY_TURLERI = [
   "izin",
   "whatsapp_api",
   "whatsapp_gelen",
+  // Gelen kutusundan temsilcinin gönderdiği WhatsApp yanıtı (metin ya da şablon).
+  "whatsapp_yanit",
 ] as const;
 /**
  * Kaydın nereden geldiği. Yalnızca 'google' kayıtlarında place_id vardır ve Places saklama kuralı geçerlidir;
  * diğerlerinde ad ve telefon kullanıcının (çalışma alanının) kendi verisidir.
  */
-export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam"] as const;
+export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam", "whatsapp_gelen"] as const;
 export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
 /**
  * Tarama sonucunun incelenmesi: yeni Google kayıtları "incelenmedi" gelir; kullanıcı "İlgilen" / "İlgilenme" der.
@@ -85,6 +87,7 @@ export const OLAY_TURU_ADLARI: Record<OlayTuru, string> = {
   izin: "İzin değişti",
   whatsapp_api: "WhatsApp kampanyası",
   whatsapp_gelen: "Gelen WhatsApp mesajı",
+  whatsapp_yanit: "WhatsApp yanıtı",
 };
 
 export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
@@ -92,6 +95,7 @@ export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
   ice_aktarma: "İçe aktarma",
   elle: "Elle eklendi",
   meta_reklam: "Meta reklamı",
+  whatsapp_gelen: "WhatsApp'tan yazdı",
 };
 
 export const INCELEME_ADLARI: Record<IncelemeDurumu, string> = {

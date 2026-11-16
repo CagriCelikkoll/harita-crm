@@ -3,7 +3,8 @@
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { PLACES_KONUM_SAKLAMA_GUN, YARIM_KALDI_MESAJI } from "@/lib/sabitler";
 import { db } from "../../db";
-import { iceAktarmalar, invitations, leads, placeLocations, scans, tenants, whatsappGelenKimlikleri } from "../../db/schema";
+import { VARSAYILAN_MESAJ_SAKLAMA_GUN } from "@/lib/gelen-kutusu";
+import { iceAktarmalar, invitations, leads, placeLocations, scans, sohbetMesajlari, tenants, whatsappGelenKimlikleri } from "../../db/schema";
 import { ICE_AKTARMA_OTURUM_DAKIKA } from "@/lib/ice-aktarma";
 import { yarimKalanKosulu } from "./tarama-kosulu";
 
@@ -95,6 +96,16 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ wamid: whatsappGelenKimlikleri.wamid })
       .all().length;
 
-    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma, silinenGelenKimlik };
+    // 7) Gelen kutusu: saklama süresi (ileti_ayarlari.mesaj_saklama_gun, satır yoksa varsayılan) dolan mesajların metni
+    //    boşaltılır; satır, yön, tür ve teslim bilgisi kalır (sohbette "içerik saklama süresi doldu").
+    const saklamaGunu = sql`coalesce((select a.mesaj_saklama_gun from ileti_ayarlari a where a.tenant_id = ${sohbetMesajlari.tenantId}), ${VARSAYILAN_MESAJ_SAKLAMA_GUN})`;
+    const bosaltilanMesaj = tx
+      .update(sohbetMesajlari)
+      .set({ metin: null, icerikSilindi: true })
+      .where(and(isNotNull(sohbetMesajlari.metin), sql`${sohbetMesajlari.tarih} < ${simdi.getTime()} - ${saklamaGunu} * ${GUN_MS}`))
+      .returning({ id: sohbetMesajlari.id })
+      .all().length;
+
+    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma, silinenGelenKimlik, bosaltilanMesaj };
   });
 }
