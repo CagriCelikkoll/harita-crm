@@ -185,12 +185,14 @@ normaldir). `ls /opt/harita-crm` → `package.json`, `deploy/`, `docs/` …
 ## 8. Bağımlılıklar, ortam dosyası ve gizli anahtarlar
 
 ```bash
-cd /opt/harita-crm
-sudo -u harita -H npm ci --no-audit --no-fund
-sudo -u harita cp .env.production.example .env.production.local
-sudo -u harita chmod 600 .env.production.local
-sudo -u harita -H npm run --silent anahtar:uret -- .env.production.local
+sudo -u harita -H bash -c 'cd /opt/harita-crm && npm ci --no-audit --no-fund'
+sudo -u harita cp /opt/harita-crm/.env.production.example /opt/harita-crm/.env.production.local
+sudo -u harita chmod 600 /opt/harita-crm/.env.production.local
+sudo -u harita -H bash -c 'cd /opt/harita-crm && npm run --silent anahtar:uret -- .env.production.local'
 ```
+
+> `/opt/harita-crm` yalnızca `harita` kullanıcısına açıktır (750); yönetici kullanıcı oraya `cd` yapamaz. Bu yüzden
+> bu rehberdeki komutlar tam yol kullanır ya da klasöre `harita` (veya `sudo`) olarak geçer.
 
 `npm ci` birkaç dakika sürer. Son komut üç gizli anahtarı (`BETTER_AUTH_SECRET`, `ILETI_SIFRELEME_ANAHTARI`,
 `ILETI_IMZA_ANAHTARI`) üretip dosyaya yazar. **Değerleri ekrana yazmaz**, dolu olanların üzerine de yazmaz. Ekranda
@@ -219,18 +221,16 @@ Diğer değerler canlı için hazır gelir: veritabanı yolu, yedek klasörü, a
 > Bu iki anahtarı **hiçbir zaman değiştirmeyin.**
 
 **Kontrol:** `sudo -u harita grep -c '^ILETI_IMZA_ANAHTARI=.\+' /opt/harita-crm/.env.production.local` → `1`.
-Bu komut değeri değil, yalnızca doluluğu gösterir. `ls -l .env.production.local` → `-rw-------`.
+Bu komut değeri değil, yalnızca doluluğu gösterir. `sudo ls -l /opt/harita-crm/.env.production.local` → `-rw-------`.
 
 ## 9. Derleme ve veritabanı
 
 ```bash
-cd /opt/harita-crm
-sudo -u harita -H npm run build
-sudo -u harita -H npm run db:migrate
+sudo -u harita -H bash -c 'cd /opt/harita-crm && npm run build < /dev/null && npm run db:migrate'
 ```
 
 Derleme birkaç dakika sürer. `NEXT_PUBLIC_*` değerleri derleme anında sayfaya gömülür; bunları sonradan değiştirirseniz
-`sudo bash deploy/guncelle.sh --zorla` ile yeniden derleyin.
+`sudo bash /opt/harita-crm/deploy/guncelle.sh --zorla` ile yeniden derleyin.
 
 **Kontrol:**
 - `npm run build` sonunda `✓ Compiled successfully` ve rota listesi görünmeli.
@@ -240,8 +240,7 @@ Derleme birkaç dakika sürer. `NEXT_PUBLIC_*` değerleri derleme anında sayfay
 ## 10. Servisler (systemd)
 
 ```bash
-cd /opt/harita-crm
-sudo cp deploy/harita-web.service deploy/harita-worker.service deploy/harita-yedek.service deploy/harita-yedek.timer /etc/systemd/system/
+sudo bash -c 'cd /opt/harita-crm/deploy && cp harita-web.service harita-worker.service harita-yedek.service harita-yedek.timer /etc/systemd/system/'
 sudo systemctl daemon-reload
 sudo systemctl enable --now harita-web harita-worker
 ```
@@ -324,9 +323,8 @@ systemctl list-timers harita-yedek.timer
 **Geri yüklemeyi şimdi, veritabanı boşken bir kez deneyin.** Gerçek bir sorun günü ilk kez denemek riskli.
 
 ```bash
-cd /opt/harita-crm
 SON="$(sudo sh -c 'ls -1t /var/backups/harita-crm/app-*.db.gz | head -1')"; echo "$SON"
-sudo bash deploy/geri-yukle.sh "$SON"
+sudo bash /opt/harita-crm/deploy/geri-yukle.sh "$SON"
 ```
 
 Script onay ister (`evet` yazın). Sonra sırayla:
@@ -386,23 +384,28 @@ Canlıya **tek numarayla** çıkılır; diğer iki numara sonra taşınır.
 ## 16. Güncelleme (her yeni sürümde)
 
 ```bash
-cd /opt/harita-crm
-sudo bash deploy/guncelle.sh
+sudo bash /opt/harita-crm/deploy/guncelle.sh
 ```
+
+Hangi klasörde olduğunuz fark etmez; betik kendi klasörüne kendisi geçer.
 
 Script sırayla:
 1. Sunucuda elle değiştirilmiş dosya var mı bakar.
 2. Yeni sürümü çeker; yoksa çıkar.
 3. Web ve işçiyi durdurur. Kesinti genelde 1–3 dakikadır; Meta bildirimleri bu sürede cevap alamazsa sonra yeniden
    gönderir.
-4. `npm ci`, derleme ve `db:migrate` çalıştırır. Migration'dan önce yedek alınır.
+4. `npm ci`, derleme ve `db:migrate` çalıştırır. Migration'dan önce yedek alınır. Derleme soru sormaz: Next.js
+   sürümü bir güvenlik bülteninden etkileniyorsa terminalde yükseltme menüsü açıp cevap beklerdi; betik bunu kapatır
+   (`< /dev/null`). Yükseltme geliştirme ortamında yapılır, sunucuya yeni sürümle gelir.
 5. Servisleri başlatır ve sağlık denetimini bekler.
 
 Hata durumları:
 - **Derleme ya da migration hata verirse:** kod kendiliğinden eski sürüme döner ve eski sürüm başlatılır. Migration
-  hata verirse veritabanı değişmez.
+  hata verirse veritabanı değişmez. Eski sürüme dönüşte de bir adım hata verirse (ör. eski sürüm derlenemezse) script
+  ekrana `UYARI: eski sürüme dönüşte de hata çıktı` yazar ve servisleri **yine de** başlatmayı dener; site açılmazsa
+  logları okuyup `sudo systemctl start harita-worker harita-web` ile elle başlatın.
 - **Migration geçip uygulama açılmazsa:** script durur ve son migration yedeğinin yolunu gösterir. Logları okuyun:
-  `journalctl -u harita-web -n 100 --no-pager`. Gerekirse `sudo bash deploy/geri-yukle.sh <yedek>`.
+  `journalctl -u harita-web -n 100 --no-pager`. Gerekirse `sudo bash /opt/harita-crm/deploy/geri-yukle.sh <yedek>`.
 
 **Kontrol:** `== Tamam: <sürüm> çalışıyor.`
 
@@ -432,6 +435,6 @@ Hata durumları:
 | Giriş yapınca hemen çıkıyor | `BETTER_AUTH_URL` tam olarak `https://deneme.bursalidagitim.com` olmalı; `AUTH_INSECURE_COOKIES=false`. |
 | Kayıt "ILK_YONETICI_EPOSTASI tanımlı değil" diyor | 8. adımdaki e-postayı doldurun, `sudo systemctl restart harita-web`. |
 | Sayfa 404 "Bulunamadı." | Alan adı dışındaki adresle (IP) girilmiş, ya da `UYGULAMA_ALANLARI` / `BETTER_AUTH_URL` alan adıyla uyuşmuyor. |
-| Harita görünmüyor | `NEXT_PUBLIC_GOOGLE_MAPS_*` boş ya da referrer kısıtı yanlış; değiştirdikten sonra `sudo bash deploy/guncelle.sh --zorla`. |
+| Harita görünmüyor | `NEXT_PUBLIC_GOOGLE_MAPS_*` boş ya da referrer kısıtı yanlış; değiştirdikten sonra `sudo bash /opt/harita-crm/deploy/guncelle.sh --zorla`. |
 | `guncelle.sh` "değiştirilmiş dosyalar var" diyor | Sunucuda kod elle değiştirilmiş; listedeki dosyaları `sudo -u harita git -C /opt/harita-crm checkout -- .` ile geri alın. |
 | `npm ci` "gyp" / derleme hatası | `build-essential` ve `python3` kurulu mu (3. adım). |

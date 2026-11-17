@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Yedekten geri yükleme: sudo bash deploy/geri-yukle.sh <yedek.db.gz | yedek.db> [--evet] [--zorla]
+# Yedekten geri yükleme: sudo bash /opt/harita-crm/deploy/geri-yukle.sh <yedek.db.gz | yedek.db> [--evet] [--zorla]
+# Hangi klasörden çağrılırsa çağrılsın çalışır: uygulama klasörü, betiğin bulunduğu deploy/ klasörünün üst klasörüdür
+# (UYGULAMA_DIZINI ile değiştirilebilir).
 #
 # Günlük yedekler: /var/backups/harita-crm/app-<damga>.db.gz   (ls -1t /var/backups/harita-crm | head)
 # Migration yedekleri: /var/lib/harita-crm/yedek/app-<damga>.db
@@ -13,12 +15,13 @@
 #   sudo systemctl start harita-worker harita-web
 set -euo pipefail
 
-UYGULAMA_DIZINI="${UYGULAMA_DIZINI:-/opt/harita-crm}"
+BETIK_KOKU="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
+UYGULAMA_DIZINI="${UYGULAMA_DIZINI:-$BETIK_KOKU}"
 KULLANICI="${KULLANICI:-harita}"
 SAGLIK_ADRESI="${SAGLIK_ADRESI:-http://127.0.0.1:3000/api/saglik}"
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Bu script sudo ile çalıştırılmalı: sudo bash deploy/geri-yukle.sh <yedek>" >&2
+  echo "Bu script sudo ile çalıştırılmalı: sudo bash $UYGULAMA_DIZINI/deploy/geri-yukle.sh <yedek>" >&2
   exit 1
 fi
 
@@ -34,7 +37,7 @@ for a in "$@"; do
   esac
 done
 if [ -z "$YEDEK" ]; then
-  echo "Kullanım: sudo bash deploy/geri-yukle.sh <yedek.db.gz> [--evet] [--zorla]" >&2
+  echo "Kullanım: sudo bash $UYGULAMA_DIZINI/deploy/geri-yukle.sh <yedek.db.gz> [--evet] [--zorla]" >&2
   echo "Son günlük yedekler:" >&2
   ls -1t /var/backups/harita-crm 2>/dev/null | head -5 >&2 || true
   exit 1

@@ -48,10 +48,18 @@ beforeEach(() => {
 
 type Numara = { id: string; phoneId: string; waba: string; kimlik: string };
 
-/** Yönetici, ticari ileti ayarları tam, bir numara (test modu kapalı, webhook ve kalite hazır). */
+/** Yönetici, ticari ileti ayarları tam, bir numara (test modu kapalı, webhook ve kalite hazır). Kampanya işçisi gerçek
+ * saatle çalıştığı için gönderim penceresi bütün güne açılır; yoksa testler 20:00–09:00 arası "gonderim_saati" ile düşer. */
 async function alan(ad: string, ek: { testModu?: boolean; waba?: string } = {}) {
   const { ctx, kullanici } = kiraciOlustur(ad);
-  iletiAyarlariGuncelle(ctx, { gonderenUnvani: "Ege Emlak Ltd.", iletisimBilgisi: "İzmir", iysNo: "123456", sorumlulukOnayi: true });
+  iletiAyarlariGuncelle(ctx, {
+    gonderenUnvani: "Ege Emlak Ltd.",
+    iletisimBilgisi: "İzmir",
+    iysNo: "123456",
+    sorumlulukOnayi: true,
+    gonderimBaslangicDk: 0,
+    gonderimBitisDk: 24 * 60,
+  });
   const n = await numaraEkle(ctx, "Merkez", ek.waba ?? String(400000 + ++sayac));
   if (!ek.testModu) wa.testModuDegistir(ctx, n.id, false);
   oturum.ctx = ctx;
