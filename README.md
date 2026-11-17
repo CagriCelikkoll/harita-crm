@@ -461,6 +461,8 @@ Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarl
     kişi eklenir, izin yazılmaz, satır "İYS beyanı gerekli" uyarısıyla raporlanır. Engel listesindeki numaraya
     (her biçimde) izin yazılmaz. İzinli içe aktarmada beyan onayı ve sürümü kanıt olarak tutulur.
   - Örnek: `docs/ornek-google-kisiler.csv` (14 satır, sahte numaralar; 2 satır birleşir, 3 satır sorunlu).
+  - Müşteri rehberi: `docs/KISILERI-BIRLESTIRME.md` (birkaç telefondaki rehberi tek Gmail'de birleştirip aktarma;
+    teknik olmayan kullanıcı için).
 - **Dışa aktarma:** Kayıtlar → süzgeç → "Google Kişiler CSV olarak indir" (yalnızca yönetici;
   `/api/kayitlar/disa-aktar?bicim=google`). Sütunlar `First Name, Last Name, Organization Name, Phone 1 - Label,
   Phone 1 - Value, E-mail 1 - Value, Labels, Notes`; telefon `+90 5xx xxx xx xx`; etiketler
