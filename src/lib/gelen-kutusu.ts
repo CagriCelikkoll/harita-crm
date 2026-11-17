@@ -128,6 +128,13 @@ export type SohbetNotuDto = { id: string; kullanici: string | null; metin: strin
 export type SohbetAyrintiDto = SohbetOzetiDto & {
   /** Kişinin izin durumu: var | yok | ret (WhatsApp) ya da kaydın ileti reddi. */
   izin: "var" | "yok" | "ret";
+  /** İzin 'var' ise kaynağının adı (ör. "WhatsApp sohbeti"). */
+  izinKaynagi: string | null;
+  bireysel: boolean;
+  /** Bireysel alıcıda izin İYS'ye kaydedildi beyanı. */
+  iysBeyani: boolean;
+  /** Kayıt Click-to-WhatsApp reklamından açıldı ("Reklamdan yazdı"). */
+  reklamdan: boolean;
   retVerdi: boolean;
   pencereBitis: string | null;
   testModu: boolean;

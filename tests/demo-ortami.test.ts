@@ -88,9 +88,10 @@ describe("npm run demo:hazirla", () => {
     expect(new Set(kayitlar.map((k) => k.ileti_izni))).toEqual(new Set(["bekliyor", "onayli", "ret"]));
     expect(new Set(kayitlar.map((k) => k.alici_turu))).toEqual(new Set(["tacir_esnaf", "bireysel"]));
 
-    // Ret verilmiş kayıt: adresleri engel listesinde, WhatsApp izni 'ret'.
+    // Ret verilmiş kayıt: adresleri engel listesinde, WhatsApp izni 'ret'. Reklamdan yazan ve kendiliğinden yazan
+    // kişide izin 'yok' (yazmak pazarlama izni sayılmaz).
     expect(sorgu<{ tur: string }>("select tur from engel_listesi order by tur").map((e) => e.tur)).toEqual(["eposta", "telefon"]);
-    expect(sorgu<{ izin: string }>("select izin from whatsapp_kisileri").map((k) => k.izin).sort()).toEqual(["ret", "var", "var", "var", "var", "yok"]);
+    expect(sorgu<{ izin: string }>("select izin from whatsapp_kisileri").map((k) => k.izin).sort()).toEqual(["ret", "var", "var", "var", "yok", "yok"]);
 
     // Gelen kutusu: üç örnek sohbet (açık pencere, RET'li kişi, pencere kapalı yeni kişi), hepsi okunmamış.
     expect(sorgu<{ n: number; o: number }>("select count(*) n, sum(okunmamis) o from sohbetler")).toEqual([{ n: 3, o: 4 }]);

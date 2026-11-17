@@ -9,7 +9,8 @@
 //    müşteri kendisi yazdı. RET'li kişiye her yanıt olay geçmişine "RET'li kişiye hizmet yanıtı" olarak yazılır.
 //  - ŞABLON (her kategori): kampanya alıcı kurallarının tamamı (WhatsApp izni, RET, engel listesi, bireyselde İYS
 //    beyanı, WhatsApp yok). RET'li ya da engelli kişiye şablon HİÇBİR koşulda gitmez (403). Şablon numaranın WABA'sında
-//    ve kullanılabilir olmalı; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına sayılır.
+//    ve kullanılabilir olmalı; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına ve Meta
+//    portföy limitinin uygulama payına (kampanyalarla ortak, kayan 24 saat) sayılır.
 //  - Gönderim istekte yapılır (kuyruğa girmez). Belirsiz sonuç (zaman aşımı, 5xx) tekrar denenmez: mesaj "gönderilemedi,
 //    durum belirsiz" olarak yazılır. Aynı istemci kimliğiyle ikinci istek ilk mesajı döner (çift gönderim yok).
 //  - Bot ve kampanya bu yoldan geçmez (kampanya işçide, bot C grubunda).
@@ -28,8 +29,17 @@ import {
   type SohbetNotuDto,
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
-import { HARIC_NEDEN_ADLARI } from "@/lib/mesajlasma";
-import { degiskenDegerleri, hesapKilidiMesaji, hesapKilidiNedeni, numaraEtiketi, sablonMetni, sablonParametreleri, type DegiskenEslemi } from "@/lib/whatsapp-api";
+import { HARIC_NEDEN_ADLARI, WHATSAPP_IZIN_KAYNAK_ADLARI } from "@/lib/mesajlasma";
+import {
+  degiskenDegerleri,
+  hesapKilidiMesaji,
+  hesapKilidiNedeni,
+  metaLimitPayi,
+  numaraEtiketi,
+  sablonMetni,
+  sablonParametreleri,
+  type DegiskenEslemi,
+} from "@/lib/whatsapp-api";
 import { gunAnahtari } from "@/lib/zaman";
 import { adresOzeti, telefonNormallestir } from "../messaging/adres";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
@@ -57,9 +67,10 @@ import { sayacAyir, sayacIade } from "../repo/gonderim-sayaci";
 import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { kayitGetir } from "../repo/kayitlar";
+import { whatsappSon24Saat } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
 import { baglantiGetir, baglantilariListele, hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
-import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
+import { whatsappIzniAyarla, whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
@@ -170,6 +181,10 @@ function ayrintiDto(ctx: TenantContext, id: string, simdi: Date): SohbetAyrintiD
   return {
     ...ozetDto(satir, etiketler(ctx)),
     izin: retVerdi ? "ret" : wa?.izin === "var" ? "var" : "yok",
+    izinKaynagi: !retVerdi && wa?.izin === "var" && wa.izinKaynagi ? WHATSAPP_IZIN_KAYNAK_ADLARI[wa.izinKaynagi] : null,
+    bireysel: kayit.aliciTuru === "bireysel",
+    iysBeyani: Boolean(wa?.iysBeyanTarihi),
+    reklamdan: kayit.kaynak === "meta_reklam",
     retVerdi,
     pencereBitis: pencereAcik(satir.sonGelenTarihi, simdi) ? (pencereBitisi(satir.sonGelenTarihi)?.toISOString() ?? null) : null,
     testModu: b?.testModu ?? false,
@@ -272,6 +287,54 @@ export function notYaz(ctx: TenantContext, id: string, metin: string): SohbetNot
 
 const notlariDto = (ctx: TenantContext, id: string): SohbetNotuDto[] =>
   notlariListele(ctx, id).map((n) => ({ id: n.id, kullanici: n.kullanici, metin: n.metin, tarih: n.tarih.toISOString() }));
+
+// --- Pazarlama izni (sohbetten) ---
+
+export const IzinGirdisi = z.object({ iysBeyani: z.boolean().default(false) }).strict();
+
+/**
+ * Kişi sohbette pazarlama iletisi istedi: temsilci tek tıkla WhatsApp iznini 'var' kaydeder (kaynak "WhatsApp sohbeti",
+ * tarih şimdi, temsilci olayda ve notta). Bireysel alıcıda İYS beyanı ayrıca işaretlenmezse kampanya ve şablon yine
+ * gitmez (kayıt ekranındaki kural aynen). RET'li kişide ve adresi engel listesindeyse izin yazılmaz (409): RET geri
+ * alınamaz. İzin zaten 'var' ise yalnızca İYS beyanı eklenebilir; mevcut kaynak ve tarih korunur.
+ */
+export function pazarlamaIzniKaydet(ctx: TenantContext, sohbetId: string, g: { iysBeyani: boolean }): SohbetAyrintiDto {
+  const sohbet = sohbetGetir(ctx, sohbetId);
+  if (!sohbet) throw new GelenKutusuHatasi("Sohbet bulunamadı.", 404);
+  const kayit = kayitGetir(ctx, sohbet.leadId);
+  if (!kayit) throw new GelenKutusuHatasi("Kişi bulunamadı.", 404);
+  const wa = whatsappKisisiGetir(ctx, kayit.id);
+  if (kayit.iletiIzni === "ret" || wa?.izin === "ret") {
+    throw new GelenKutusuHatasi("RET verdi: pazarlama izni kaydedilemez (ret geri alınamaz).", 409);
+  }
+  const engelli = engelSorgusuOlustur(ctx, [kayit]);
+  const telefon = telefonNormallestir(kayit.ekTelefon);
+  if ((telefon && engelli("telefon", telefon)) || (wa?.bsuid && engelli("wa_kimlik", wa.bsuid))) {
+    throw new GelenKutusuHatasi("Kişinin adresi engel listesinde: pazarlama izni kaydedilemez.", 409);
+  }
+  const iysBeyani = kayit.aliciTuru === "bireysel" && g.iysBeyani;
+  const numara = baglantiGetir(ctx, sohbet.baglantiId)?.ad ?? "silinmiş";
+  const kullaniciAdi = atanabilirUyeler(ctx).find((u) => u.id === ctx.userId)?.ad ?? "bilinmiyor";
+  const sonuc =
+    wa?.izin === "var"
+      ? whatsappIzniAyarla(ctx, kayit.id, {
+          izin: "var",
+          kaynak: wa.izinKaynagi,
+          tarih: wa.izinTarihi,
+          not: wa.izinNotu,
+          iceAktarmaId: wa.izinIceAktarmaId,
+          iysBeyani: iysBeyani || Boolean(wa.iysBeyanTarihi),
+        })
+      : whatsappIzniAyarla(ctx, kayit.id, {
+          izin: "var",
+          kaynak: "whatsapp_sohbeti",
+          tarih: new Date(),
+          not: `Kişi WhatsApp sohbetinde pazarlama iletisi istedi (${numara} numarası); kaydeden: ${kullaniciAdi}`,
+          iysBeyani,
+        });
+  if (!sonuc.tamam) throw new GelenKutusuHatasi(sonuc.neden === "ret" ? "RET verdi: pazarlama izni kaydedilemez." : "Kişi bulunamadı.", sonuc.neden === "ret" ? 409 : 404);
+  return ayrintiDto(ctx, sohbetId, new Date())!;
+}
 
 // --- Gönderme ---
 
@@ -393,6 +456,14 @@ async function gonder(
     if (!c.baglanti.testModu) {
       const eksik = ticariIletiEksikleri(iletiAyarlariGetir(ctx), "whatsapp_api");
       if (eksik.length) throw new GelenKutusuHatasi(`Ticari ileti bilgileri eksik: ${eksik.join(", ")}.`, 400);
+    }
+    // Meta portföy limitinin payı: kampanyalarla ortak (kayan 24 saat, bütün numaralar).
+    const pay = metaLimitPayi(c.baglanti);
+    if (Number.isFinite(pay) && whatsappSon24Saat(ctx, simdi) >= pay) {
+      throw new GelenKutusuHatasi(
+        "Meta mesajlaşma limitinin bu uygulamaya ayrılan payı son 24 saatte doldu (kampanyalarla ortak). Daha sonra tekrar deneyin.",
+        429,
+      );
     }
     const gun = gunAnahtari(simdi);
     if (!sayacAyir(ctx, "whatsapp_api", gun, gunlukSinir(iletiAyarlariGetir(ctx), "whatsapp_api"))) {

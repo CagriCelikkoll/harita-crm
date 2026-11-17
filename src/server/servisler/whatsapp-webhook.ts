@@ -19,7 +19,7 @@
 //    onların WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
 //    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
-//    kuyruk satırı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı (izin "kendisi yazdı"),
+//    kuyruk satırı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı ("Reklamdan yazdı", izin YOK),
 //    varsa reklam bilgisi; reklam dışı bilinmeyen numara → 'whatsapp_gelen' kaydı (bireysel, WhatsApp izni YOK);
 //    ret kelimesi / abonelikten çıkma butonu → ret akışı (sohbet kaydından ÖNCE); sonra gelen kutusu: sohbet (kişi ×
 //    numara) ve mesaj (metin ya da başlık; medya baytları B2'de), okunmamış ve 24 saat penceresi; "gelen WhatsApp
@@ -384,7 +384,6 @@ class Isleyici {
             aliciTuru: "bireysel", // K15
             reklam: bilgi,
           },
-          this.simdi,
         );
       }
     }

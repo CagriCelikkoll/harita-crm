@@ -12,12 +12,12 @@
 //     duraklar): RED → bu numaranın kampanyaları duraklar (diğer numaralar sürer).
 //  6. Günlük sınır (atomik sayaç, çalışma alanının bütün numaralarının toplamı) ve Meta mesajlaşma limitinin bu
 //     uygulamaya ayrılan payı (kayan 24 saat; portföy limiti numaralarca paylaşıldığı için yine bütün numaraların
-//     toplamı sayılır); dolarsa ertesi günün gönderim başlangıcına kalır.
+//     toplamı sayılır; gelen kutusundan gönderilen şablonlar da sayılır); dolarsa ertesi günün gönderim başlangıcına kalır.
 //  7. Hız (WHATSAPP_SANIYE_BASI); gönderimden hemen önce satır kilidi ve kampanya durumu yeniden denetlenir;
 //     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bu WABA'daki numaraları kilitler ve onların
 //     kampanyalarını duraklatır; mesaj kuyrukta beklemeye döner (deneme sayılmaz, kendiliğinden tekrar denenmez).
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
-import { degiskenDegerleri, hesapKilidiNedeni, limitKatmaniSayisi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
+import { degiskenDegerleri, hesapKilidiNedeni, metaLimitPayi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
 import { gunAnahtari, gunEkle, istanbulAni } from "@/lib/zaman";
 import { adresOzeti } from "../messaging/adres";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
@@ -39,8 +39,6 @@ export type WhatsappSonucu = "gonderildi" | "bekletildi" | "haric" | "basarisiz"
 
 /** Kalite bilgisi bundan eskiyse gönderimden önce Meta'dan yenilenir. */
 const KALITE_TAZELIK_MS = 15 * 60_000;
-/** Limit katmanı bilinmiyorsa en düşük katman varsayılır. */
-const EN_DUSUK_LIMIT = 250;
 
 export type WhatsappGondericiSecenekleri = {
   /** İki gönderim arası en az süre (ms). Varsayılan 1000 / WHATSAPP_SANIYE_BASI (20 → 50 ms). */
@@ -163,14 +161,12 @@ export async function whatsappMesajIsle(
     return "bekletildi";
   }
   const iade = () => sayacIade(ctx, "whatsapp_api", gun);
-  const limit = limitKatmaniSayisi(c.baglanti.limitKatmani) ?? EN_DUSUK_LIMIT;
-  if (Number.isFinite(limit)) {
-    const pay = Math.max(1, Math.floor((limit * c.baglanti.uygulamaPayi) / 100));
-    if (whatsappSon24Saat(ctx, simdi, mesaj.id) >= pay) {
-      iade();
-      mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: "whatsapp_limit", sonrakiDeneme: yarin, denemeGeriAl: true });
-      return "bekletildi";
-    }
+  // Gelen kutusundan gönderilen şablonlar da bu paya sayılır (whatsappSon24Saat).
+  const pay = metaLimitPayi(c.baglanti);
+  if (Number.isFinite(pay) && whatsappSon24Saat(ctx, simdi, mesaj.id) >= pay) {
+    iade();
+    mesajBirak(ctx, mesaj.id, { durum: "kuyrukta", neden: "whatsapp_limit", sonrakiDeneme: yarin, denemeGeriAl: true });
+    return "bekletildi";
   }
 
   // 7) Gönderim.

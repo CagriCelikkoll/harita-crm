@@ -57,14 +57,15 @@ describe("dosya ayrıştırma", () => {
     ]);
   });
 
-  it("sınırlar: boş, yalnızca başlık, .xls, 5.000 satırdan fazla", async () => {
+  it("sınırlar: boş, yalnızca başlık, .xls, 20.000 satırdan fazla, 10 MB'tan büyük", async () => {
     await expect(svc.dosyaAyristir("a.csv", new Uint8Array())).rejects.toThrow(/boş/);
     await expect(svc.dosyaAyristir("a.csv", metin("Ad;Telefon\n"))).rejects.toThrow(/veri yok/);
     await expect(svc.dosyaAyristir("a.xls", metin("x"))).rejects.toThrow(/xlsx/);
-    const cok = ["Telefon", ...Array.from({ length: 5001 }, (_, i) => `0532${String(i).padStart(7, "0")}`)].join("\n");
-    await expect(svc.dosyaAyristir("a.csv", metin(cok))).rejects.toThrow(/5\.000/);
-    const tam = ["Telefon", ...Array.from({ length: 5000 }, (_, i) => `0532${String(i).padStart(7, "0")}`)].join("\n");
-    expect(await svc.dosyaAyristir("a.csv", metin(tam))).toHaveLength(5001);
+    const cok = ["Telefon", ...Array.from({ length: 20_001 }, (_, i) => `0532${String(i).padStart(7, "0")}`)].join("\n");
+    await expect(svc.dosyaAyristir("a.csv", metin(cok))).rejects.toThrow(/20\.000/);
+    const tam = ["Telefon", ...Array.from({ length: 20_000 }, (_, i) => `0532${String(i).padStart(7, "0")}`)].join("\n");
+    expect(await svc.dosyaAyristir("a.csv", metin(tam))).toHaveLength(20_001);
+    await expect(svc.dosyaAyristir("a.csv", new Uint8Array(10 * 1024 * 1024 + 1).fill(65))).rejects.toThrow(/10 MB/);
   });
 
   it("başlıktan sütun eşlemesi önerilir", async () => {

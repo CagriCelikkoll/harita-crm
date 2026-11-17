@@ -94,7 +94,7 @@ export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
   google: "Google tarama",
   ice_aktarma: "İçe aktarma",
   elle: "Elle eklendi",
-  meta_reklam: "Meta reklamı",
+  meta_reklam: "Reklamdan yazdı",
   whatsapp_gelen: "WhatsApp'tan yazdı",
 };
 

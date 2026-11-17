@@ -6,7 +6,7 @@ import { WHATSAPP_TESLIM_SIRASI } from "@/lib/whatsapp-api";
 import { KAYIT_DURUM_ADLARI } from "@/lib/sabitler";
 import type { MesajDurumu } from "@/lib/mesajlasma";
 import { db } from "../db";
-import { leadEvents, leads, messageQueue, type KuyrukMesaji } from "../db/schema";
+import { leadEvents, leads, messageQueue, sohbetMesajlari, type KuyrukMesaji } from "../db/schema";
 import type { TenantContext } from "./baglam";
 import { gidenMesajYaz } from "./gelen-kutusu";
 
@@ -157,13 +157,15 @@ export function adreseGonderilenKayitlar(ctx: TenantContext, adresOzeti: string)
 }
 
 /**
- * Kayan 24 saatte bu çalışma alanının WhatsApp (Cloud API) gönderimleri: gönderilmiş (sandbox hariç) ve şu an
- * gönderilmekte olan (bu mesaj hariç). Meta limiti benzersiz alıcı sayar; burada ileti sayılır (aynı kişiye iki
- * kampanya iki sayılır) — temkinli.
+ * Kayan 24 saatte bu çalışma alanının WhatsApp (Cloud API) şablon gönderimleri (Meta portföy limitinin payı için):
+ * kampanya kuyruğunda gönderilmiş (sandbox hariç) ve şu an gönderilmekte olan (haricMesajId hariç) + gelen kutusundan
+ * temsilcinin gönderdiği şablonlar (sonucu belirsiz olanlar dahil; Meta'nın "iletilemedi" dediği hariç). Pencere içi
+ * serbest metin sayılmaz: müşterinin başlattığı sohbete yanıttır. Meta limiti benzersiz alıcı sayar; burada ileti
+ * sayılır (aynı kişiye iki şablon iki sayılır) — temkinli.
  */
-export function whatsappSon24Saat(ctx: TenantContext, simdi: Date, haricMesajId: string): number {
+export function whatsappSon24Saat(ctx: TenantContext, simdi: Date, haricMesajId: string | null = null): number {
   const sinir = new Date(simdi.getTime() - 24 * 60 * 60 * 1000);
-  return (
+  const kuyruk =
     db
       .select({ n: count() })
       .from(messageQueue)
@@ -171,15 +173,30 @@ export function whatsappSon24Saat(ctx: TenantContext, simdi: Date, haricMesajId:
         and(
           eq(messageQueue.tenantId, ctx.tenantId),
           eq(messageQueue.kanal, "whatsapp_api"),
-          ne(messageQueue.id, haricMesajId),
+          haricMesajId ? ne(messageQueue.id, haricMesajId) : undefined,
           or(
             and(eq(messageQueue.durum, "gonderildi"), gte(messageQueue.gonderimTarihi, sinir), sql`${messageQueue.sandboxIcerik} is null`),
             eq(messageQueue.durum, "gonderiliyor"),
           ),
         ),
       )
-      .get()?.n ?? 0
-  );
+      .get()?.n ?? 0;
+  const gelenKutusu =
+    db
+      .select({ n: count() })
+      .from(sohbetMesajlari)
+      .where(
+        and(
+          eq(sohbetMesajlari.tenantId, ctx.tenantId),
+          eq(sohbetMesajlari.yon, "giden"),
+          eq(sohbetMesajlari.kaynak, "temsilci"),
+          eq(sohbetMesajlari.tur, "template"),
+          gte(sohbetMesajlari.tarih, sinir),
+          sql`coalesce(${sohbetMesajlari.teslimDurumu}, '') <> 'failed'`,
+        ),
+      )
+      .get()?.n ?? 0;
+  return kuyruk + gelenKutusu;
 }
 
 /**

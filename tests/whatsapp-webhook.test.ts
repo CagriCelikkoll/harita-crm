@@ -243,7 +243,7 @@ describe("gelen iletiler", () => {
     expect(olaylariListele(k.ctx, kisiler[0].id).some((o) => o.aciklama?.includes("abonelikten çıkma butonuna dokundu"))).toBe(true);
   });
 
-  it("reklamdan gelen yeni kişi: meta_reklam kaydı, izin 'kendisi yazdı', bireysel, pencere 72 saat; aynı numara ikinci kez çift kayıt açmaz; tekrar webhook tek olay", async () => {
+  it("reklamdan gelen yeni kişi: meta_reklam kaydı, WhatsApp izni YOK (reklam pazarlama izni sayılmaz), bireysel, pencere 72 saat; aynı numara ikinci kez çift kayıt açmaz; tekrar webhook tek olay", async () => {
     const k = await kur("Reklam");
     const referral = { source_type: "ad", source_id: "ad-123", headline: "Yeni projemiz", ctwa_clid: "clid-1" };
     const kisi = { profile: { name: "Zeynep Kaya", username: "zeynepk" }, wa_id: "905339990001", user_id: "TR.111" };
@@ -254,7 +254,7 @@ describe("gelen iletiler", () => {
     expect(liste).toHaveLength(1);
     expect(liste[0]).toMatchObject({ kaynak: "meta_reklam", yetkiliAdi: "Zeynep Kaya", telefonE164: "905339990001", aliciTuru: "bireysel", placeId: null });
     const w = whatsappKisisiGetir(k.ctx, liste[0].id)!;
-    expect(w).toMatchObject({ izin: "var", izinKaynagi: "kendisi_yazdi", bsuid: "TR.111", waKullaniciAdi: "zeynepk", reklamKimligi: "ad-123", reklamBasligi: "Yeni projemiz", ctwaClid: "clid-1" });
+    expect(w).toMatchObject({ izin: "yok", izinKaynagi: null, izinTarihi: null, bsuid: "TR.111", waKullaniciAdi: "zeynepk", reklamKimligi: "ad-123", reklamBasligi: "Yeni projemiz", ctwaClid: "clid-1" });
     expect(w.pencereBitis?.getTime()).toBe(SIMDI.getTime() + 72 * 3_600_000);
     const gelenOlaylari = () => olaylariListele(k.ctx, liste[0].id).filter((o) => o.tur === "whatsapp_gelen").length;
     expect(gelenOlaylari()).toBe(1);

@@ -194,7 +194,8 @@ async function calistir() {
   whatsappIzniAyarla(ctx, firin.id, { izin: "var", kaynak: "sozlu", tarih: izinTarihi, not: "Demo: telefonda sözlü onay (sahte)" });
   whatsappIzniAyarla(ctx, bireysel.id, { izin: "var", kaynak: "form", tarih: izinTarihi, iysBeyani: false });
 
-  // Meta reklamından WhatsApp ile yazmış kişi (sahte reklam bilgisi).
+  // Meta reklamından WhatsApp ile yazmış kişi (sahte reklam bilgisi). WhatsApp izni yok: reklamdan yazmak pazarlama
+  // izni sayılmaz; gelen kutusunda "Pazarlama izni istedi" ile kaydedilebilir.
   reklamKisisiOlustur(ctx, {
     ad: "Reklamdan Gelen Deneme Kişi",
     telefon: "0500 000 00 06",

@@ -338,9 +338,11 @@ Yeni uç yok; mevcutlar bağlantı başına çağrılır.
 ## 5. Grup B — Gelen kutusu
 
 > **B1'in uygulanması (16.11.2026) — plandan ayrılan ve plana eklenen noktalar:**
-> - **Reklam akışı kontrolü (B2.2 notu):** `reklamKisisiOlustur` reklamdan ilk kez yazan kişiye WhatsApp iznini `var`,
->   kaynağını `kendisi_yazdi` yazıyor. Plan gereği değiştirilmedi; reklam dışı bilinmeyen numara ise izin **yok** ile
->   açılır. Reklamdan yazan kişinin otomatik pazarlama izni sayılıp sayılmayacağına ayrıca karar verilmeli.
+> - **Reklam akışı (karar 17.11.2026):** reklamdan (Click-to-WhatsApp) ilk kez yazan kişinin WhatsApp izni artık
+>   otomatik `var` yazılmaz: izin **yok**, kayıt kaynağı "Reklamdan yazdı" (`meta_reklam`). Pencere içinde elle yanıt
+>   verilebilir (B3 gibi). Sohbet ekranında "Pazarlama izni istedi" eylemi izni `var` kaydeder (yeni izin kaynağı
+>   `whatsapp_sohbeti`, tarih, temsilci adı notta ve olayda); bireyselde İYS beyanı kuralı aynen. RET'li ya da engelli
+>   kişide 409. Daha önce bu akışla `var` yazılmış kayıtlar kendiliğinden değiştirilmedi.
 > - **Günlük temizlik işçide:** `temizlikYap` (Places konumları 30 gün, veri saklama, davetler ve yeni olarak mesaj
 >   metinleri) yalnızca `npm run cleanup` ile çalışıyordu; sunucu rehberinde bunun için cron yoktu. Artık işçinin günlük
 >   bakımı da çalıştırır.
@@ -349,8 +351,10 @@ Yeni uç yok; mevcutlar bağlantı başına çağrılır.
 >   tabloda (benzersiz), eşzamanlı ikinci istek 409.
 > - **Okundu "bir kez":** okunmamış sayısı > 0 iken son gelen mesaja gönderilir; numara test modundaysa yalnızca test
 >   numaralarına (bildirim de bir gönderim sayıldı).
-> - **Şablon günlük sınırı:** gelen kutusundan şablon günlük WhatsApp sınırına sayılır; portföy payının kayan 24 saat
->   sayımına (kuyruk tablosundan) girmez.
+> - **Şablon sınırları:** gelen kutusundan şablon günlük WhatsApp sınırına ve (17.11.2026'dan beri) Meta portföy
+>   payının kayan 24 saat sayımına (`whatsappSon24Saat`: kuyruk + `sohbet_mesajlari`'ndaki temsilci şablonları, Meta'nın
+>   "iletilemedi" dedikleri hariç) sayılır; pay doluysa 429 ve kampanya mesajı bekler. Gelen kutusu ile işçi ayrı
+>   süreçte olduğundan aynı anda gönderimde pay bir-iki ileti aşılabilir (kampanya tarafında da sayım atomik değil).
 > - **Arayüz ek:** pencere kapalı ve izin yoksa şablon seçici yerine açıklama (sunucu zaten 403 verir). Menü rozeti
 >   sayfa geçişinde güncellenir; sayfanın kendisi canlı.
 > - **Demo:** `demo:hazirla` üç örnek sohbet kurar; `npm run demo:webhook -- mesaj <tel> [metin]` müşteri mesajı yollar.
@@ -561,6 +565,23 @@ Veri modeli B1'de buna göre kurulur (`kaynak = telefon | gecmis`, `meta_zamani`
 ---
 
 ## 6. Grup D — Google Kişiler CSV
+
+> **D'nin uygulanması (17.11.2026) — plandan ayrılan ve plana eklenen noktalar:**
+> - **Migration `0021_google_kisiler`** (planda 0022): `ice_aktarmalar.bicim` (genel | google) ve `birlesen`.
+> - Ön işlem yükleme anında yapılır; oturumda dönüşmüş satırlar (7 sütun, son sütun "Dosya satırı") saklanır.
+>   Önizlemedeki ve sorunlu satır raporundaki satır numaraları dönüşmüş listeye göredir; özgün satır CSV'deki "Dosya
+>   satırı" sütunundadır. "Dosya içi tekrar birleşti" ayrı satır olarak raporlanmaz; sayısı ve birleşen satırlar görünür.
+> - **Uyarı listesi (yeni):** alınan ama izni yazılmayan satırlar (engel listesi, İYS beyanı gerekli) ayrı sayılır ve
+>   sorunlu satırlar CSV'sine "Uyarı:" önekiyle eklenir. **Engel listesine izin yazılmaması bütün içe aktarmalara
+>   uygulandı** (genel biçim dahil); "bireysel + İYS beyanı yok → izin yazılmaz" yalnızca Google biçiminde (genel
+>   biçimde eskisi gibi izin yazılır, kampanya İYS beyanı olmadan gitmez).
+> - Toplu WhatsApp izni (`varsayilanIzin`) ve etiket eşleme (`etiketEslemi`) genel seçenektir; izin sütunu eşlenmemiş her
+>   dosyada kullanılabilir. Etiketler Türkçe küçük harfe çevrilir (mevcut kural: "VIP" → "vıp").
+> - Google dosyasında sütun sınırı 250 (genelde 50); satır sınırı 20 000, dosya 10 MB (Caddy sınırı 25 MB).
+> - 20 000 satır (ayrıştırma + ön işlem + tamamlama) geliştirme makinesinde yaklaşık 5,2 sn; parti işleme gerekmedi.
+> - Dışa aktarma olayı her kayda "bilgi" türünde yazılır; kaydın güncelleme tarihi değişmez. Kullanıcı verisi olmayan
+>   Google kaydı satır olarak çıkmaz. E-postası olup telefonu olmayan kişi gidiş-dönüşte yeniden eklenir (veritabanı
+>   çakışması telefona göredir).
 
 ### D1. Biçim
 

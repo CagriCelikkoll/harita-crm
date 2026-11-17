@@ -14,6 +14,13 @@ export const EslemVeSecenekler = z
         varsayilanAliciTuru: z.enum(ALICI_TURLERI).nullable(),
         varsayilanIzinKaynagi: z.enum(WHATSAPP_IZIN_KAYNAKLARI).nullable(),
         iysBeyani: z.boolean(),
+        // WhatsApp izni sütunu eşlenmemişse tüm dosya için (Google biçimi toplu seçim).
+        varsayilanIzin: z.enum(["yok", "var"]).default("yok"),
+        // Dosyadaki etiket → yeni ad (null / boş: yok say).
+        etiketEslemi: z
+          .record(z.string().max(100), z.string().trim().max(40).nullable())
+          .refine((r) => Object.keys(r).length <= 500, "En fazla 500 etiket eşlenebilir.")
+          .optional(),
       })
       .strict(),
   })

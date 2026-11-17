@@ -171,7 +171,8 @@ Testler her dosya için geçici bir SQLite veritabanı oluşturur, migration'lar
 | `tests/anahtar-uret.test.ts` | `npm run anahtar:uret`: boş anahtarlar doldurulur, dolu (tırnaklı, export'lu, yorumlu) değerlere dokunulmaz, CRLF korunur; script üretilen değerleri çıktıya yazmaz, dosyayı 0600 yapar, ikinci çalıştırmada hiçbir şeyi değiştirmez, dosya yoksa oluşturmaz. |
 | `tests/kayit-kipi.test.ts` | `KAYIT_KIPI=davetle`: hiç kullanıcı yokken yalnızca `ILK_YONETICI_EPOSTASI` (tanımlı değilse kimse), sonra yalnızca geçerli daveti olan e-posta kayıt olur; süresi dolmuş, kabul edilmiş davet ve davetsiz e-posta kayıt ucundan reddedilir, kullanıcı oluşmaz; varsayılan açık kip eskisi gibi. |
 | `tests/giris-siniri.test.ts` | Kaba kuvvet koruması (`src/server/giris-siniri.ts`, her ortamda): girişte aynı hesaba 15 dakikada 5 deneme (IP'den bağımsız, büyük/küçük harf aynı hesap), aynı IP'den dakikada 10 / saatte 50; kayıtta IP başına saatte 5, e-posta başına saatte 3; fazlası 429 `COK_FAZLA_DENEME`, başka hesap ve IP etkilenmez; pencere dolunca yeniden izin; IP çözülemezse ortak sayaç; sunucu içi `auth.api` çağrıları sayılmaz. Better Auth'un kendi IP sınırı (10 sn'de 3) production'da ayrıca çalışır. |
-| `tests/gelen-kutusu.test.ts` | Gelen kutusu (plan B1): gelen metin sohbet ve mesaj oluşturur, okunmamış artar, aynı wamid bir kez, kapalı sohbet yeni mesajla açılır; medya başlığı ve kimliği, konum metni. RET önce engel listesine sonra sohbete; RET'li kişiye pencere içinde elle metin gider ("RET'li kişiye hizmet yanıtı" olayı), şablon her kategoride 403, pencere dışında metin 400, kampanya oluşmaz. İzinsiz kişiye elle metin gider, şablon 403. Bilinmeyen numara: `whatsapp_gelen` kaydı, bireysel, izin yok, kampanyaya girmez. Pencere: 23 sa 59 dk'da gider, 24 sa 1 sn'de 400; pencere dışında izinli kişiye şablon gider; başka WABA'nın şablonu ve eksik değişken 400; pencere numara başına. Kampanya mesajı sohbete kapalı düşer, teslim durumu kuyruğa ve sohbete yalnızca ileri yazılır; temsilci yanıtının durumu da. Okundu bir kez, ayar kapalıysa gönderilmez. Değişiklik ucu: değişiklik yoksa küçük yanıt, yalnızca yeni mesajlar, başka alanın değişikliği görünmez, oturumsuz 401. Atama yalnızca aynı alanın üyesine, notlar Meta'ya gitmez, başka alanın sohbeti 404, süzgeçler. Test modu, hesap kilidi, aynı istemci kimliği, belirsiz sonuç ("durum belirsiz", tekrar denenmez), geçersiz gövde. Saklama: süresi dolan metin boşaltılır, satır kalır; süre ayardan. |
+| `tests/google-kisiler.test.ts` | Google Kişiler CSV (plan D): örnek dosya yeni biçim olarak tanınır, 2 satır birleşir (etiketler ve notlar), cep önceliği, ikinci telefon nota, ` ::: ` çoklu değer, sistem grupları atılır, yurt dışı / geçersiz / iletişimsiz satır sorunlu; eski biçim tanınır; genel dosya Google sayılmaz, sütun sınırı yalnızca Google'da geniş. Etiket eşleme (yeniden adlandır, yok say), çakışmada atla. Toplu izin: kaynaksız reddedilir; bireysel + İYS beyanı yok → izin yazılmaz (uyarı, sorunlu CSV'de), beyanla yazılır, tacirde aranmaz; engel listesine izin yazılmaz. Dışa aktarma: sütun sırası, BOM, +90, etiketler, formül kaçışı, place_id yok, boş Google kaydı atlanır, olay yazılır, üye 403, oturumsuz 401; gidiş-dönüş 0 yeni. 20.001 satır reddedilir; 20.000 satır içe aktarılır (süre ölçülür). |
+| `tests/gelen-kutusu.test.ts` | Gelen kutusu (plan B1): gelen metin sohbet ve mesaj oluşturur, okunmamış artar, aynı wamid bir kez, kapalı sohbet yeni mesajla açılır; medya başlığı ve kimliği, konum metni. RET önce engel listesine sonra sohbete; RET'li kişiye pencere içinde elle metin gider ("RET'li kişiye hizmet yanıtı" olayı), şablon her kategoride 403, pencere dışında metin 400, kampanya oluşmaz. İzinsiz kişiye elle metin gider, şablon 403. Bilinmeyen numara: `whatsapp_gelen` kaydı, bireysel, izin yok, kampanyaya girmez. Pencere: 23 sa 59 dk'da gider, 24 sa 1 sn'de 400; pencere dışında izinli kişiye şablon gider; başka WABA'nın şablonu ve eksik değişken 400; pencere numara başına. Kampanya mesajı sohbete kapalı düşer, teslim durumu kuyruğa ve sohbete yalnızca ileri yazılır; temsilci yanıtının durumu da. Okundu bir kez, ayar kapalıysa gönderilmez. Değişiklik ucu: değişiklik yoksa küçük yanıt, yalnızca yeni mesajlar, başka alanın değişikliği görünmez, oturumsuz 401. Atama yalnızca aynı alanın üyesine, notlar Meta'ya gitmez, başka alanın sohbeti 404, süzgeçler. Test modu, hesap kilidi, aynı istemci kimliği, belirsiz sonuç ("durum belirsiz", tekrar denenmez), geçersiz gövde. Saklama: süresi dolan metin boşaltılır, satır kalır; süre ayardan. Reklamdan ilk kez yazan: "Reklamdan yazdı", izin yok, elle yanıt gider, şablon ve kampanya gitmez; "Pazarlama izni istedi" kaynak/tarih/temsilciyle izni yazar, bireyselde İYS beyanı olmadan şablon yine 403, beyanla gider; RET'li kişide 409, tacirde İYS beyanı yazılmaz, başka alan 404. Portföy payı: gelen kutusu şablonları kayan 24 saate sayılır (serbest metin ve "iletilemedi" sayılmaz), pay dolunca gelen kutusu 429 ve kampanya mesajı `whatsapp_limit` ile bekler. |
 | `tests/coklu-numara.test.ts` | Çoklu WhatsApp numarası: ad zorunlu ve alanda benzersiz, en fazla 10; etiket ("Merkez · …4567", "Silinmiş numara"); başka alanın numarası API'de 404. Şablonlar WABA'ya ait (aynı WABA ortak, başka WABA ayrı senkron; başka WABA'nın şablonuyla kampanya kurulamaz); gönderen numara zorunlu. Test modu ve test numaraları numara başına, kampanya seçilen numaradan gider. Meta hesap kilidi (gönderimde ve webhook'ta) aynı WABA'daki numaraları kilitler ve kampanyalarını duraklatır, başka WABA sürer, kilit bağlantı testiyle WABA'dan kalkar; kalite kırmızı yalnızca o numarayı durdurur; portföy payı bütün numaraların toplamıyla. RET bir numaradan gelir, diğerinden de gönderilmez. Numara kaldırılınca yalnızca onun kampanyaları durur. Ortak bildirim adresi: başka numaranın bildirimi doğru numaraya işlenir ve onun test modu koşullarını sağlar; başka App Secret'lı ya da başka alanın numarasına yönlendirilmez; şablon ve limit bildirimi yalnızca o WABA'ya. Migration 0019: tek bağlantılı eski veritabanı taşınır. |
 
 ## Kiracı izolasyonu (SQLite, RLS yerine)
@@ -441,9 +442,34 @@ Kontrol şu anlarda yapılır:
 
 Mesaj tarama geçmişinde ve panelde görünür; "Tekrar kullan" düğmesi ayarları forma alır.
 
+## Google Kişiler CSV
+
+- **İçe aktarma:** contacts.google.com → Dışa aktar → "Google CSV" dosyası Kayıtlar → İçe aktar'a doğrudan yüklenir.
+  Yeni (`First Name`, `Labels`, `Phone 1 - Label` …) ve eski (`Name`, `Given Name`, `Group Membership`,
+  `Phone 1 - Type` …) biçim başlıklardan tanınır; bilinmeyen başlıkta genel eşleme ekranına düşülür. Google biçimi
+  yalnızca bir **ön işlemdir** (`src/server/servisler/google-kisiler.ts`); sonrası genel içe aktarma hattıdır.
+  - Bir hücrede birden çok değer ` ::: ` ile ayrılır. `*` ile başlayan sistem grupları (`* myContacts`, `* starred`)
+    atılır; kalan etiketler sihirbazda yeniden adlandırılabilir ya da yok sayılabilir.
+  - Telefon: önce Türkiye cep numarası (`Mobile` etiketli öncelikli), sonra diğer Türkiye numaraları; diğer numaralar
+    nota "Diğer telefonlar: …" olarak eklenir. Yurt dışı numara ve tanınmayan numara satırı sorunlu olur.
+  - İşletme adı: şirket adı, yoksa ad soyad; yetkili adı: ad soyad.
+  - Aynı (normalleştirilmiş) telefonlu satırlar dosyada birleşir: etiketler birleşir, notlar eklenir, ad ilk dolu
+    değerdir. Önizlemede ve "Dosya satırı" sütununda görünür. Veritabanındaki kayıtla çakışmada seçilen politika
+    (atla / boş alanları doldur) geçerlidir.
+  - Toplu seçimler: alıcı türü, WhatsApp izni (yok / var) ve izin kaynağı. **Bireysel + izin var + İYS beyanı yok:**
+    kişi eklenir, izin yazılmaz, satır "İYS beyanı gerekli" uyarısıyla raporlanır. Engel listesindeki numaraya
+    (her biçimde) izin yazılmaz. İzinli içe aktarmada beyan onayı ve sürümü kanıt olarak tutulur.
+  - Örnek: `docs/ornek-google-kisiler.csv` (14 satır, sahte numaralar; 2 satır birleşir, 3 satır sorunlu).
+- **Dışa aktarma:** Kayıtlar → süzgeç → "Google Kişiler CSV olarak indir" (yalnızca yönetici;
+  `/api/kayitlar/disa-aktar?bicim=google`). Sütunlar `First Name, Last Name, Organization Name, Phone 1 - Label,
+  Phone 1 - Value, E-mail 1 - Value, Labels, Notes`; telefon `+90 5xx xxx xx xx`; etiketler
+  `* myContacts ::: etiket`; UTF-8 BOM, virgül. Yalnızca kullanıcının girdiği veriler çıkar (Places içeriği ve
+  place_id yok; kullanıcı verisi olmayan Google kaydı atlanır). Dışa aktarılan her kaydın geçmişine olay yazılır.
+  Dışa aktarılan dosya yeniden içe aktarılınca yeni kayıt açılmaz (telefona göre çakışır).
+
 ## Kişi içe aktarma: girdi sınırları
 
-- Dosya en fazla 5 MB, 5.000 satır, 50 sütun; yalnızca `.csv` ve `.xlsx`. Yükleme gövdesi akış halinde sayaçla okunur
+- Dosya en fazla 10 MB, 20.000 satır, 50 sütun (Google Kişiler CSV'sinde 250); yalnızca `.csv` ve `.xlsx`. Yükleme gövdesi akış halinde sayaçla okunur
   (Content-Length'e güvenilmez); sınır aşılınca okuma kesilir (413).
 - **XLSX sıkıştırma bombası:** ayrıştırmadan (exceljs) önce ZIP merkez dizinindeki iç dosya sayısı (en fazla 1.000)
   ve açılmış boyut toplamı (en fazla 50 MB) denetlenir; merkez dizin yalan söyleyebileceği için her iç dosya ayrıca
@@ -823,7 +849,13 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
     "RET'li kişiye hizmet yanıtı" olarak yazılır.
   - **Şablon** (pencere kapalıyken ya da "Şablon gönder" ile): kampanya alıcı kurallarının tamamı (izin, RET, engel,
     bireyselde İYS beyanı); RET'li ya da engelli kişiye **hiçbir koşulda** gitmez (403). Yalnızca numaranın WABA'sındaki
-    kullanılabilir şablonlar; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına sayılır.
+    kullanılabilir şablonlar; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına ve Meta
+    limitinin payına (kampanyalarla ortak kayan 24 saat; pay doluysa 429) sayılır. Pencere içi serbest metin
+    limit payına sayılmaz.
+  - **Pazarlama izni (sohbetten):** kişi sohbette kampanya / duyuru almak istediğini yazdıysa temsilci sağdaki
+    "Pazarlama izni istedi" ile tek tıkla kaydeder: WhatsApp izni `var`, kaynak "WhatsApp sohbeti", tarih ve temsilci
+    (izin notu ve olay). Bireysel kişide "İzin İYS'ye kaydedildi" ayrıca işaretlenmezse kampanya ve şablon yine gitmez
+    (sonradan "İYS beyanını kaydet" ile eklenebilir). RET'li ya da adresi engel listesindeki kişide kaydedilemez.
   - Numara kilitliyse, kalitesi kırmızıysa gönderim yok; test modunda yalnızca test numaraları. Gönderim istekte yapılır
     (kuyruğa girmez); belirsiz sonuç tekrar denenmez ("durum belirsiz" yazılır). Aynı mesaj iki kez gitmez
     (istemci kimliği). Bot ve kampanya bu yoldan geçmez.
@@ -968,7 +1000,8 @@ webhook (teslim bildirimleri, ret, reklamdan gelenler).
   butonu (`type: button`) → ret akışı (genel izin + WhatsApp izni ret, telefon ve BSUID engel listesine).
   `user_preferences` "stop" da ret sayılır; "resume" yalnızca olaydır (ret geri alınmaz).
 - **Reklamdan gelen** (`referral.source_type = ad`): kişi yoksa `kaynak = meta_reklam` kayıt (ad: WhatsApp profil
-  adı, alıcı türü bireysel), WhatsApp izni `var` ("WhatsApp'tan kendisi yazdı"), reklam kimliği ve başlığı,
+  adı, alıcı türü bireysel, kaynak adı "Reklamdan yazdı"), WhatsApp izni **yok** (reklama tıklayıp yazmak pazarlama
+  izni sayılmaz; 24 saat içinde elle yanıt verilebilir, izni temsilci gelen kutusundan kaydeder), reklam kimliği ve başlığı,
   `ctwa_clid`, ücretsiz pencere bitişi (+72 saat). Aynı kişi tekrar yazarsa yeni kayıt açılmaz; reklam bilgisi ve
   pencere güncellenir. Kayıtlar listesinde "WhatsApp penceresi açık" rozeti.
 - **Gelen kutusu:** her gelen ileti (RET dahil, ret akışından SONRA) gönderen numaranın sohbetine (kişi × numara)
@@ -1164,10 +1197,11 @@ tests/                           Vitest
     gönderse de İYS / 6563 yükümlülükleri çalışma alanındadır. WhatsApp Business kullanım şartları (toplu ve
     istenmeyen mesaj yasağı) için günlük sınır düşük tutulmuştur. Hukuki gözden geçirme önerilir.
 13. **"Gönderdim" beyana dayanır:** uygulama mesajın gerçekten gönderildiğini doğrulayamaz.
-14. **WhatsApp "kendisi yazdı" izni ve İYS:** Reklamdan yazan kişi WhatsApp izni "var" (kaynak: kendisi yazdı) ile
-    kaydedilir; ancak varsayılan alıcı türü bireysel olduğundan İYS beyanı olmadan kampanyaya girmez. Alıcı türünü
-    tacir/esnaf yapmak yalnızca yöneticiye ve açıklamayla açıktır (olay olarak loglanır). Kişinin işletmeye
-    yazmasının ticari ileti onayı sayılıp sayılmayacağı hukuken değerlendirilmeli.
+14. **WhatsApp'tan yazan kişi ve İYS:** Reklamdan ya da kendiliğinden yazan kişi WhatsApp izni "yok" ile kaydedilir;
+    yazması ticari ileti onayı sayılmaz. Kişi sohbette açıkça isterse temsilci izni "WhatsApp sohbeti" kaynağıyla
+    kaydeder (tarih, temsilci; yazışma saklama süresi boyunca gelen kutusunda). Bireysel kişide İYS beyanı olmadan
+    kampanyaya girmez. Alıcı türünü tacir/esnaf yapmak yalnızca yöneticiye ve açıklamayla açıktır (olay olarak
+    loglanır). Sohbetteki talebin onay kanıtı olarak yeterliliği hukuken değerlendirilmeli.
 15. **WhatsApp ücretsiz pencere süresi:** Meta'nın fiyat sayfası 72 saat, geliştirici changelog'u (28.09.2026) koşullu
     olarak 7 güne kadar der; rozet en az süreyi (72 saat) gösterir.
 16. **WhatsApp fiyatları** (`src/lib/whatsapp-fiyatlar.ts`) Meta'nın kendi kartından doğrulanmadı; pilot öncesi
@@ -1190,7 +1224,7 @@ tests/                           Vitest
    (yeni 30 gün) sayılır.
 4. **XLSX denetimi:** ZIP64 ve deflate dışı sıkıştırma reddedilir; açılmış içerik toplamı 50 MB ve iç dosya sayısı
    1.000 ile sınırlı. Doğrulama sırasında dosya bir kez fazladan açılır (en fazla 50 MB bellek).
-5. **Gövde sınırları uygulama içindedir:** webhook (1 MB) ve içe aktarma (5 MB) gövdeleri akışta kesilir; yine de önde
+5. **Gövde sınırları uygulama içindedir:** webhook (1 MB) ve içe aktarma (10 MB) gövdeleri akışta kesilir; yine de önde
    çalışan ters vekilde (nginx `client_max_body_size`, Caddy `request_body max_size`) aynı sınırları koymanız önerilir.
 6. **Origin denetimi:** değişiklik yapan API'ler `Origin` başlığı OLMAYAN isteklere (tarayıcı dışı istemciler) izin
    verir; oturum çerezi SameSite=Lax olduğu için tarayıcıdan CSRF'e karşı ikinci katman yine de vardır.

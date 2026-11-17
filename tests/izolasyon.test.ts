@@ -311,6 +311,11 @@ const olayTestleri: Record<keyof typeof olaylar, () => void> = {
     expect(olaylar.sistemOlayiEkle(A, bKayit.id, "whatsapp_gelen", "sızma")).toBeNull();
     expect(olaylar.olaylariListele(B, bKayit.id)).toHaveLength(sayi);
   },
+  topluOlayEkle: () => {
+    const sayi = olaylar.olaylariListele(B, bKayit.id).length;
+    expect(olaylar.topluOlayEkle(A, [bKayit.id], "bilgi", "sızma")).toBe(0);
+    expect(olaylar.olaylariListele(B, bKayit.id)).toHaveLength(sayi);
+  },
 };
 
 const kullanimTestleri: Record<keyof typeof kullanim, () => void> = {

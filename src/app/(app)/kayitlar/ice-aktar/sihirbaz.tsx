@@ -9,8 +9,11 @@ import {
   CAKISMA_POLITIKA_ADLARI,
   ICE_AKTARMA_ALAN_ADLARI,
   ICE_AKTARMA_ALANLARI,
+  ICE_AKTARMA_AZAMI_MB,
+  ICE_AKTARMA_AZAMI_SATIR,
   IZIN_BEYANI_METNI,
   type CakismaPolitikasi,
+  type IceAktarmaBicimi,
   type IceAktarmaAlani,
   type SutunEslemi,
 } from "@/lib/ice-aktarma";
@@ -29,9 +32,14 @@ import type { IceAktarmaRaporu } from "@/server/servisler/ice-aktarma";
 type Oturum = {
   id: string;
   dosyaAdi: string;
+  bicim: IceAktarmaBicimi;
+  googleBicimi: "yeni" | "eski" | null;
   basliklar: string[];
   ornek: string[][];
+  dosyaSatiri: number;
   toplam: number;
+  birlesen: number;
+  googleEtiketleri: string[];
   onerilenEslem: SutunEslemi;
 };
 type Secenekler = {
@@ -39,6 +47,9 @@ type Secenekler = {
   varsayilanAliciTuru: AliciTuru | null;
   varsayilanIzinKaynagi: WhatsappIzinKaynagi | null;
   iysBeyani: boolean;
+  varsayilanIzin: "yok" | "var";
+  /** Etiket → yeni ad; null: yok say. Yalnızca değiştirilenler gönderilir. */
+  etiketEslemi: Record<string, string | null>;
 };
 type Sonuc = IceAktarmaRaporu & { eklenen: number; guncellenen: number };
 
@@ -52,6 +63,8 @@ export function IceAktarmaSihirbazi() {
     varsayilanAliciTuru: null,
     varsayilanIzinKaynagi: null,
     iysBeyani: false,
+    varsayilanIzin: "yok",
+    etiketEslemi: {},
   });
   const [rapor, setRapor] = useState<IceAktarmaRaporu | null>(null);
   const [beyan, setBeyan] = useState(false);
@@ -163,6 +176,8 @@ export function IceAktarmaSihirbazi() {
           <li>Mevcut kayıtla çakışan: {sayi(sonuc.cakisan)}</li>
           <li>Hatalı (alınmadı): {sayi(sonuc.hatali)}</li>
           <li>Engel listesinde (eklendi ama ileti gönderilmez): {sayi(sonuc.engelli)}</li>
+          {sonuc.uyari > 0 && <li>Eklendi ama WhatsApp izni yazılmadı (engel listesi / İYS beyanı): {sayi(sonuc.uyari)}</li>}
+          {sonuc.bicim === "google" && sonuc.birlesen > 0 && <li>Dosyada aynı telefonla birleşen satır: {sayi(sonuc.birlesen)}</li>}
           {sonuc.retli > 0 && <li>Ret işaretli (ret akışından geçti): {sayi(sonuc.retli)}</li>}
         </ul>
         <div className="flex gap-2 pt-2">
@@ -183,7 +198,13 @@ export function IceAktarmaSihirbazi() {
         <h2 className="font-semibold">1. Dosya seçin</h2>
         <p className="text-sm text-soluk">
           İlk satır başlık olmalı. Telefon ya da e-posta sütunu zorunlu. WhatsApp izni sütunu (var / yok / ret) eşlenmezse
-          tüm kişiler &quot;izin yok&quot; olarak eklenir.
+          izni tüm dosya için seçersiniz (varsayılan &quot;izin yok&quot;). En fazla {sayi(ICE_AKTARMA_AZAMI_SATIR)} satır,{" "}
+          {ICE_AKTARMA_AZAMI_MB} MB.
+        </p>
+        <p className="text-sm text-soluk">
+          <strong className="font-medium">Google Kişiler:</strong> contacts.google.com → Dışa aktar → &quot;Google
+          CSV&quot; ile aldığınız dosyayı doğrudan yükleyin; biçim tanınır, sütunlar kendiliğinden eşlenir, aynı telefonlu kişiler
+          birleşir.
         </p>
         <input
           type="file"
@@ -205,17 +226,31 @@ export function IceAktarmaSihirbazi() {
   const izinEslendi = eslem.whatsappIzni !== undefined;
   const turEslendi = eslem.aliciTuru !== undefined;
   const turEksik = !turEslendi && !secenekler.varsayilanAliciTuru;
+  // İzin bilgisi dosyadan (sütun) ya da toplu seçimle gelebilir: kaynak ve İYS beyanı o zaman sorulur.
+  const izinOlabilir = izinEslendi || secenekler.varsayilanIzin === "var";
+  const kaynakEksik = !izinEslendi && secenekler.varsayilanIzin === "var" && eslem.izinKaynagi === undefined && !secenekler.varsayilanIzinKaynagi;
+  const google = oturum.bicim === "google";
   return (
     <div className="space-y-4">
       <section className="kart space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold">
-            2. Sütunları eşleyin — {oturum.dosyaAdi} ({sayi(oturum.toplam)} satır)
+            2. Sütunları eşleyin — {oturum.dosyaAdi} ({sayi(oturum.toplam)} {google ? "kişi" : "satır"})
           </h2>
           <button type="button" className="dugme" onClick={iptal}>
             Vazgeç
           </button>
         </div>
+        {google && (
+          <p className="rounded-md bg-ana-acik p-3 text-sm">
+            Google Kişiler dosyası tanındı ({oturum.googleBicimi === "eski" ? "eski biçim" : "yeni biçim"}). Sütunlar
+            kendiliğinden eşlendi: şirket adı yoksa ad soyad işletme adı olur; cep numarası (Mobile etiketli öncelikli) telefon
+            olur, diğer numaralar nota yazılır; &quot;* myContacts&quot; gibi sistem grupları atılır.{" "}
+            {oturum.birlesen > 0
+              ? `${sayi(oturum.dosyaSatiri)} satırdan ${sayi(oturum.birlesen)} satır aynı telefonla birleşti: ${sayi(oturum.toplam)} kişi.`
+              : `${sayi(oturum.dosyaSatiri)} satır, birleşen yok.`}
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ICE_AKTARMA_ALANLARI.map((alan) => (
             <label key={alan} className="etiket">
@@ -267,15 +302,29 @@ export function IceAktarmaSihirbazi() {
               ))}
             </select>
           </label>
-          {izinEslendi && (
+          {!izinEslendi && (
             <label className="etiket">
-              İzin kaynağı sütunu boşsa
+              WhatsApp izni (dosyada sütun yok; tüm kişiler için)
               <select
                 className="girdi"
+                value={secenekler.varsayilanIzin}
+                onChange={(e) => secenek("varsayilanIzin", e.target.value as "yok" | "var")}
+              >
+                <option value="yok">İzin yok</option>
+                <option value="var">İzin var (hepsinden onay alındı)</option>
+              </select>
+            </label>
+          )}
+          {izinOlabilir && (
+            <label className="etiket">
+              {izinEslendi ? "İzin kaynağı sütunu boşsa" : "İzin kaynağı"}
+              <select
+                className="girdi"
+                aria-invalid={kaynakEksik}
                 value={secenekler.varsayilanIzinKaynagi ?? ""}
                 onChange={(e) => secenek("varsayilanIzinKaynagi", (e.target.value || null) as WhatsappIzinKaynagi | null)}
               >
-                <option value="">— yok (satır hatalı sayılır) —</option>
+                <option value="">{izinEslendi ? "— yok (satır hatalı sayılır) —" : "Seçin"}</option>
                 {WHATSAPP_IZIN_KAYNAKLARI.map((k) => (
                   <option key={k} value={k}>
                     {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
@@ -285,7 +334,7 @@ export function IceAktarmaSihirbazi() {
             </label>
           )}
         </div>
-        {izinEslendi && (
+        {izinOlabilir && (
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -293,15 +342,64 @@ export function IceAktarmaSihirbazi() {
               checked={secenekler.iysBeyani}
               onChange={(e) => secenek("iysBeyani", e.target.checked)}
             />
-            Bireysel kişilerin WhatsApp izinleri İYS&apos;ye kaydedilmiştir. (İşaretlenmezse bireysel kişilere WhatsApp
-            kampanyası gönderilmez.)
+            {google
+              ? "Bireysel kişilerin WhatsApp izinleri İYS'ye kaydedilmiştir. (İşaretlenmezse bireysel kişiler izinsiz eklenir; satırlar raporda \"İYS beyanı gerekli\" olarak görünür.)"
+              : "Bireysel kişilerin WhatsApp izinleri İYS'ye kaydedilmiştir. (İşaretlenmezse bireysel kişilere WhatsApp kampanyası gönderilmez.)"}
           </label>
         )}
         <p className="text-xs text-soluk">
-          Ret işaretli mevcut kayıtların izni hiçbir koşulda değiştirilmez.
+          Ret işaretli mevcut kayıtların izni hiçbir koşulda değiştirilmez; engel listesindeki numaralara izin yazılmaz.
         </p>
 
-        <div className="overflow-x-auto">
+        {oturum.googleEtiketleri.length > 0 && (
+          <details className="rounded-md border border-kenar p-3 text-sm" open={oturum.googleEtiketleri.length <= 12}>
+            <summary className="cursor-pointer font-medium">Etiketler ({sayi(oturum.googleEtiketleri.length)}): yeniden adlandırın ya da yok sayın</summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {oturum.googleEtiketleri.map((e) => {
+                const eslenen = secenekler.etiketEslemi[e];
+                const yokSay = eslenen === null;
+                return (
+                  <div key={e} className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-28 truncate" title={e}>
+                      {e}
+                    </span>
+                    <span aria-hidden>→</span>
+                    <input
+                      className="girdi !min-h-8 !w-40 !py-1"
+                      aria-label={`${e} etiketinin yeni adı`}
+                      maxLength={40}
+                      disabled={yokSay}
+                      placeholder={e}
+                      value={yokSay ? "" : (eslenen ?? "")}
+                      onChange={(ev) => {
+                        const yeni = { ...secenekler.etiketEslemi };
+                        if (ev.target.value.trim()) yeni[e] = ev.target.value;
+                        else delete yeni[e];
+                        secenek("etiketEslemi", yeni);
+                      }}
+                    />
+                    <label className="flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={yokSay}
+                        onChange={(ev) => {
+                          const yeni = { ...secenekler.etiketEslemi };
+                          if (ev.target.checked) yeni[e] = null;
+                          else delete yeni[e];
+                          secenek("etiketEslemi", yeni);
+                        }}
+                      />
+                      yok say
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        )}
+
+        {google && <p className="text-xs text-soluk">Dönüşmüş hal (ilk {sayi(oturum.ornek.length)} kişi):</p>}
+        <div className={`overflow-x-auto ${google ? "max-h-80 overflow-y-auto" : ""}`}>
           <table className="min-w-full text-xs">
             <thead>
               <tr className="text-left text-soluk">
@@ -313,10 +411,10 @@ export function IceAktarmaSihirbazi() {
               </tr>
             </thead>
             <tbody>
-              {oturum.ornek.slice(0, 5).map((s, i) => (
+              {oturum.ornek.slice(0, google ? 50 : 5).map((s, i) => (
                 <tr key={i} className="border-t border-kenar">
                   {s.map((h, j) => (
-                    <td key={j} className="max-w-48 truncate px-2 py-1">
+                    <td key={j} className="max-w-48 truncate px-2 py-1" title={h}>
                       {h}
                     </td>
                   ))}
@@ -330,7 +428,8 @@ export function IceAktarmaSihirbazi() {
             Dosyada alıcı türü sütunu yok: önizlemeden önce tüm kişiler için alıcı türünü seçin.
           </p>
         )}
-        <button type="button" className="dugme-ana" disabled={mesgul || turEksik} onClick={onizle}>
+        {kaynakEksik && <p className="text-sm text-tehlike">Tüm kişilere WhatsApp izni verilecekse izin kaynağını seçin.</p>}
+        <button type="button" className="dugme-ana" disabled={mesgul || turEksik || kaynakEksik} onClick={onizle}>
           3. Önizle
         </button>
       </section>
@@ -359,10 +458,32 @@ export function IceAktarmaSihirbazi() {
             <dd>{sayi(rapor.izinli)}</dd>
             <dt className="text-soluk">Ret işaretli</dt>
             <dd>{sayi(rapor.retli)}</dd>
+            {rapor.bicim === "google" && (
+              <>
+                <dt className="text-soluk">Dosyada birleşen satır</dt>
+                <dd>{sayi(rapor.birlesen)}</dd>
+              </>
+            )}
+            <dt className="text-soluk">Eklenecek ama izni yazılmayacak</dt>
+            <dd className={rapor.uyari ? "text-uyari" : ""}>{sayi(rapor.uyari)}</dd>
           </dl>
-          {rapor.sorunlar.length > 0 && (
+          {rapor.uyarilar.length > 0 && (
             <details className="text-sm">
-              <summary className="cursor-pointer">Sorunlu satırlar ({sayi(rapor.hatali)})</summary>
+              <summary className="cursor-pointer">İzni yazılmayacak satırlar ({sayi(rapor.uyari)})</summary>
+              <ul className="mt-2 max-h-60 overflow-y-auto text-xs">
+                {rapor.uyarilar.map((s) => (
+                  <li key={s.satir}>
+                    Satır {s.satir}: {s.neden}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {(rapor.sorunlar.length > 0 || rapor.uyarilar.length > 0) && (
+            <details className="text-sm">
+              <summary className="cursor-pointer">
+                Sorunlu satırlar ({sayi(rapor.hatali)}){rapor.bicim === "google" ? " — satır numarası dönüşmüş listeye göredir; CSV'de \"Dosya satırı\" sütunu özgün satırı gösterir" : ""}
+              </summary>
               <ul className="mt-2 max-h-60 overflow-y-auto text-xs">
                 {rapor.sorunlar.map((s) => (
                   <li key={s.satir}>

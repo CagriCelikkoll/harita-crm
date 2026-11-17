@@ -1,0 +1,16 @@
+First Name,Middle Name,Last Name,Nickname,Organization Name,Organization Title,Notes,Labels,E-mail 1 - Label,E-mail 1 - Value,Phone 1 - Label,Phone 1 - Value,Phone 2 - Label,Phone 2 - Value
+Ayşe,,Kaya,,Kaya Kırtasiye (Sahte),Sahibi,,* myContacts ::: Esnaf ::: Bursa,* Work,ayse.kaya@ornek.test,Mobile,0500 000 00 01,,
+Mehmet,,Demir,,,,,* myContacts ::: Müşteri,,,Work,0224 000 00 02,Mobile,+90 500 000 00 02
+Ayşe,,Kaya,,,,Fuarda tanıştık (sahte),* starred ::: Toptancı,,,Mobile,0090 500 000 00 01,,
+Zeynep,,Ak,,,,Yurt dışı numara (sahte),* myContacts,,,Mobile,+49 30 1234567,,
+Ali,,Veli,,,,Geçersiz numara,* myContacts,,,Mobile,12345,,
+,,,,Örnek Fırın (Sahte),,,* myContacts ::: Esnaf,,,Work,0500 000 00 06,,
+Can,,Er,,,,,* myContacts,,,Mobile,0500 000 00 07 ::: 0500 000 00 08,,
+Elif,,Su,,,,Yalnızca e-posta,* myContacts,* Home,elif.su@ornek.test,,,,
+Burak,,Taş,,,,Telefon ve e-posta yok,* myContacts,,,,,,
+Deniz,,Yıldız,,,,,* myContacts ::: Esnaf,,,Mobile,0500 000 00 10,,
+Okan,,Gül,,Gül Matbaa (Sahte),,,* myContacts,,,Work,0224 000 00 11,,
+Selin,,Ay,,,,,Bursa,,,Mobile,0500 000 00 12,,
+Mert,,Kaya,,,,,* myContacts,,,Mobile,500 000 00 13,,
+Deniz,,Yıldız,,,,"Çok satır
+not (sahte)",* myContacts ::: VIP,,,Mobile,0500 000 00 10,,

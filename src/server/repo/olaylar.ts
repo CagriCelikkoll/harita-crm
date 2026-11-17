@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { OlayTuru } from "@/lib/sabitler";
 import { db } from "../db";
 import { leadEvents, leads, user, type KayitOlayi } from "../db/schema";
@@ -106,5 +106,30 @@ export function sistemOlayiEkle(ctx: TenantContext, leadId: string, tur: OlayTur
       .values({ id: crypto.randomUUID(), tenantId: ctx.tenantId, leadId: kayit.id, tur, aciklama, kullaniciId: null, sistem: true })
       .returning()
       .get();
+  });
+}
+
+/**
+ * Aynı olayı birçok kayda yazar (ör. dışa aktarma). Yalnızca bu kiracının kayıtlarına; kaydın güncelleme tarihi
+ * değişmez (liste sıralaması bozulmasın). Olayı yapan kullanıcı ctx'tekidir. Yazılan olay sayısı döner.
+ */
+export function topluOlayEkle(ctx: TenantContext, leadIdler: string[], tur: OlayTuru, aciklama: string): number {
+  const benzersiz = [...new Set(leadIdler)];
+  return db.transaction((tx) => {
+    let n = 0;
+    for (let i = 0; i < benzersiz.length; i += 500) {
+      const idler = tx
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, benzersiz.slice(i, i + 500))))
+        .all()
+        .map((k) => k.id);
+      if (!idler.length) continue;
+      tx.insert(leadEvents)
+        .values(idler.map((leadId) => ({ id: crypto.randomUUID(), tenantId: ctx.tenantId, leadId, tur, aciklama, kullaniciId: ctx.userId || null, sistem: true })))
+        .run();
+      n += idler.length;
+    }
+    return n;
   });
 }

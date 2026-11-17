@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
+import { ICE_AKTARMA_AZAMI_SATIR } from "@/lib/ice-aktarma";
 import { sayfaBaglami } from "@/server/oturum";
 import { IceAktarmaSihirbazi } from "./sihirbaz";
 
@@ -12,7 +13,7 @@ export default async function IceAktarSayfasi() {
     <>
       <SayfaBasligi
         baslik="Kişileri içe aktar"
-        aciklama="CSV ya da XLSX; tek seferde en fazla 5.000 satır. Ad ve telefon çalışma alanınızın verisi olarak saklanır."
+        aciklama={`CSV, XLSX ya da Google Kişiler CSV'si; tek seferde en fazla ${ICE_AKTARMA_AZAMI_SATIR.toLocaleString("tr")} satır. Ad ve telefon çalışma alanınızın verisi olarak saklanır.`}
       >
         <Link href="/kayitlar" className="dugme">
           Kayıtlara dön

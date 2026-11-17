@@ -107,6 +107,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ice_aktarmalar: [
     "id", "tenant_id", "kullanici_id", "dosya_adi", "durum", "satirlar", "eslem", "toplam", "eklenen", "guncellenen",
     "hatali", "cakisan", "engelli", "beyan_onay_tarihi", "beyan_surumu", "olusturma_tarihi", "tamamlanma_tarihi",
+    // bicim: genel | google; birlesen: Google dosyasında telefona göre birleşen satır sayısı.
+    "bicim", "birlesen",
   ],
 };
 

@@ -3,8 +3,13 @@
 export const ICE_AKTARMA_DURUMLARI = ["hazirlaniyor", "tamamlandi", "iptal"] as const;
 export type IceAktarmaDurumu = (typeof ICE_AKTARMA_DURUMLARI)[number];
 
-export const ICE_AKTARMA_AZAMI_SATIR = 5000;
-export const ICE_AKTARMA_AZAMI_BAYT = 5 * 1024 * 1024;
+/** genel: kullanıcının kendi tablosu (elle sütun eşleme); google: Google Kişiler CSV'si (başlıktan tanınır). */
+export const ICE_AKTARMA_BICIMLERI = ["genel", "google"] as const;
+export type IceAktarmaBicimi = (typeof ICE_AKTARMA_BICIMLERI)[number];
+
+export const ICE_AKTARMA_AZAMI_SATIR = 20_000;
+export const ICE_AKTARMA_AZAMI_BAYT = 10 * 1024 * 1024;
+export const ICE_AKTARMA_AZAMI_MB = ICE_AKTARMA_AZAMI_BAYT / 1024 / 1024;
 /** XLSX (ZIP) açıldığında toplam en fazla bu kadar olabilir (sıkıştırma bombasına karşı). */
 export const XLSX_AZAMI_ACIK_BAYT = 50 * 1024 * 1024;
 /** XLSX içindeki en fazla dosya sayısı. */

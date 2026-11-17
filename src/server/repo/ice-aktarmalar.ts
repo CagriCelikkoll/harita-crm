@@ -2,7 +2,7 @@
 // transaction'da yapılır: yeni kişiler, WhatsApp izinleri, çakışan kayıtlarda boş alan doldurma, oturumun kapanması.
 // Aynı oturum iki kez uygulanamaz (durum 'hazirlaniyor' → 'tamamlandi' atomik).
 import { and, eq, sql } from "drizzle-orm";
-import { IZIN_BEYANI_SURUMU, type SutunEslemi } from "@/lib/ice-aktarma";
+import { IZIN_BEYANI_SURUMU, type IceAktarmaBicimi, type SutunEslemi } from "@/lib/ice-aktarma";
 import type { WhatsappIzinKaynagi } from "@/lib/mesajlasma";
 import { db } from "../db";
 import { iceAktarmalar, leadEvents, leads, whatsappKisileri, type IceAktarma } from "../db/schema";
@@ -12,7 +12,10 @@ import { kisileriEkle, type YeniKisi } from "./kayitlar";
 
 export type { IceAktarma };
 
-export function iceAktarmaOlustur(ctx: TenantContext, g: { dosyaAdi: string; satirlar: string[][] }): IceAktarma {
+export function iceAktarmaOlustur(
+  ctx: TenantContext,
+  g: { dosyaAdi: string; satirlar: string[][]; bicim?: IceAktarmaBicimi; birlesen?: number },
+): IceAktarma {
   return db
     .insert(iceAktarmalar)
     .values({
@@ -20,6 +23,8 @@ export function iceAktarmaOlustur(ctx: TenantContext, g: { dosyaAdi: string; sat
       tenantId: ctx.tenantId,
       kullaniciId: ctx.userId || null,
       dosyaAdi: g.dosyaAdi,
+      bicim: g.bicim ?? "genel",
+      birlesen: g.birlesen ?? 0,
       satirlar: g.satirlar,
       toplam: Math.max(0, g.satirlar.length - 1),
     })

@@ -10,12 +10,14 @@ import {
   eslemOner,
   ICE_AKTARMA_ALANLARI,
   ICE_AKTARMA_AZAMI_BAYT,
+  ICE_AKTARMA_AZAMI_MB,
   ICE_AKTARMA_AZAMI_SATIR,
   ICE_AKTARMA_OTURUM_DAKIKA,
   XLSX_AZAMI_ACIK_BAYT,
   XLSX_AZAMI_DOSYA,
   type CakismaPolitikasi,
   type IceAktarmaAlani,
+  type IceAktarmaBicimi,
   type SatirSorunu,
   type SutunEslemi,
 } from "@/lib/ice-aktarma";
@@ -32,9 +34,13 @@ import {
 } from "../repo/ice-aktarmalar";
 import { telefonlaKayitlar, type YeniKisi } from "../repo/kayitlar";
 import { zipDenetle } from "../zip-denetimi";
+import { GOOGLE_ESLEMI, googleBicimi, googleEtiketiSadelestir, googleOnIsle } from "./google-kisiler";
 
 const AZAMI_SUTUN = 50;
+const GOOGLE_AZAMI_SUTUN = 250;
 const ORNEK_SATIR = 20;
+/** Google biçiminde dönüşmüş halin önizlemesi. */
+const GOOGLE_ORNEK_SATIR = 50;
 const RAPOR_AZAMI_SORUN = 200;
 
 export class IceAktarmaHatasi extends Error {
@@ -70,10 +76,14 @@ function hucreMetni(deger: ExcelJS.CellValue): string {
   return String(deger);
 }
 
-/** Dosyayı satırlara ayırır (ilk satır başlık). Boyut, satır ve sütun sınırları burada uygulanır. */
+/**
+ * Dosyayı satırlara ayırır (ilk satır başlık). Boyut, satır ve sütun sınırları burada uygulanır. Google Kişiler
+ * dışa aktarması çok sütunludur (her telefon / adres / e-posta ayrı sütun): ön işlemde 7 sütuna indiği için onun
+ * sütun sınırı daha geniştir.
+ */
 export async function dosyaAyristir(dosyaAdi: string, bayt: Uint8Array): Promise<string[][]> {
   if (bayt.byteLength === 0) throw new IceAktarmaHatasi("Dosya boş.");
-  if (bayt.byteLength > ICE_AKTARMA_AZAMI_BAYT) throw new IceAktarmaHatasi("Dosya en fazla 5 MB olabilir.");
+  if (bayt.byteLength > ICE_AKTARMA_AZAMI_BAYT) throw new IceAktarmaHatasi(`Dosya en fazla ${ICE_AKTARMA_AZAMI_MB} MB olabilir.`);
   const uzanti = dosyaAdi.toLowerCase().split(".").pop();
   let satirlar: string[][];
   if (uzanti === "csv" || uzanti === "txt") {
@@ -114,23 +124,44 @@ export async function dosyaAyristir(dosyaAdi: string, bayt: Uint8Array): Promise
   if (satirlar.length - 1 > ICE_AKTARMA_AZAMI_SATIR) {
     throw new IceAktarmaHatasi(`Tek seferde en fazla ${ICE_AKTARMA_AZAMI_SATIR.toLocaleString("tr")} satır içe aktarılabilir.`);
   }
-  const genislik = Math.max(...satirlar.map((s) => s.length));
-  if (genislik > AZAMI_SUTUN) throw new IceAktarmaHatasi(`En fazla ${AZAMI_SUTUN} sütun desteklenir.`);
+  const genislik = satirlar.reduce((a, s) => Math.max(a, s.length), 0);
+  const azami = googleBicimi(satirlar[0]) ? GOOGLE_AZAMI_SUTUN : AZAMI_SUTUN;
+  if (genislik > azami) throw new IceAktarmaHatasi(`En fazla ${azami} sütun desteklenir.`);
   return satirlar.map((s) => Array.from({ length: genislik }, (_, i) => (s[i] ?? "").trim()));
 }
 
 // --- Oturum ---
 
+/**
+ * Dosyayı ayrıştırır ve oturumu açar. Google Kişiler biçimi başlıklardan tanınırsa satırlar ön işlemden geçer
+ * (bizim sütunlarımız, telefon seçimi, dosya içi birleştirme) ve eşleme hazır gelir.
+ */
 export async function iceAktarmaBaslat(ctx: TenantContext, dosyaAdi: string, bayt: Uint8Array) {
-  const satirlar = await dosyaAyristir(dosyaAdi, bayt);
-  const oturum = iceAktarmaOlustur(ctx, { dosyaAdi: dosyaAdi.slice(0, 200), satirlar });
+  const ham = await dosyaAyristir(dosyaAdi, bayt);
+  const google = googleBicimi(ham[0]);
+  const on = google ? googleOnIsle(ham) : null;
+  const satirlar = on?.satirlar ?? ham;
+  const oturum = iceAktarmaOlustur(ctx, {
+    dosyaAdi: dosyaAdi.slice(0, 200),
+    satirlar,
+    bicim: google ? "google" : "genel",
+    birlesen: on?.birlesen ?? 0,
+  });
   return {
     id: oturum.id,
     dosyaAdi: oturum.dosyaAdi,
+    bicim: oturum.bicim,
+    /** Google biçiminin türü (yeni / eski); genel dosyada null. */
+    googleBicimi: google,
     basliklar: satirlar[0],
-    ornek: satirlar.slice(1, 1 + ORNEK_SATIR),
+    ornek: satirlar.slice(1, 1 + (google ? GOOGLE_ORNEK_SATIR : ORNEK_SATIR)),
+    /** Dosyadaki veri satırı; Google biçiminde birleşmeden önce. */
+    dosyaSatiri: ham.length - 1,
     toplam: oturum.toplam,
-    onerilenEslem: eslemOner(satirlar[0]),
+    birlesen: oturum.birlesen,
+    /** Google etiketleri (sistem grupları hariç): etiket eşleme ekranı için. */
+    googleEtiketleri: on?.etiketler ?? [],
+    onerilenEslem: google ? GOOGLE_ESLEMI : eslemOner(satirlar[0]),
   };
 }
 
@@ -147,7 +178,16 @@ export type IceAktarmaSecenekleri = {
   varsayilanIzinKaynagi: WhatsappIzinKaynagi | null;
   /** Bireysel kişilerin izinleri İYS'ye kaydedildi beyanı. */
   iysBeyani: boolean;
+  /** WhatsApp izni sütunu eşlenmemişse tüm dosya için izin (toplu seçim; Google biçimi). Varsayılan "yok". */
+  varsayilanIzin?: "yok" | "var";
+  /**
+   * Etiket eşleme: dosyadaki etiket (küçük harf) → yeni ad; null ya da boş: yok sayılır. Eşlenmeyen etiket aynen
+   * alınır.
+   */
+  etiketEslemi?: Record<string, string | null>;
 };
+
+type Baglam = { bicim: IceAktarmaBicimi };
 
 type GecerliSatir = {
   satir: number;
@@ -156,6 +196,8 @@ type GecerliSatir = {
   eposta: string | null;
   izin: "var" | "yok" | "ret";
   izinBilgisi: IzinBilgisi | null;
+  /** Satır alınır ama izin yazılmaz (ör. bireysel + İYS beyanı yok, Google biçimi). */
+  uyari: string | null;
 };
 
 const IZIN_VAR = new Set(["var", "evet", "e", "yes", "y", "1", "true", "x", "onayli", "onay", "izinli", "✓"]);
@@ -203,13 +245,18 @@ function satirDogrula(
   eslem: SutunEslemi,
   s: IceAktarmaSecenekleri,
   simdi: Date,
+  b: Baglam,
 ): GecerliSatir | SatirSorunu {
   const d = (alan: IceAktarmaAlani) => (eslem[alan] === undefined ? "" : (hucreler[eslem[alan]!] ?? "").trim());
   const sorun = (neden: string): SatirSorunu => ({ satir: satirNo, neden });
 
   const hamTelefon = d("telefon");
   const telefon = telefonNormallestir(hamTelefon);
-  if (hamTelefon && !telefon) return sorun("Telefon numarası tanınmadı");
+  if (hamTelefon && !telefon) {
+    // +49 …, 0049 …: Türkiye dışı numaralar desteklenmez (WhatsApp ve SMS kuralları Türkiye numarasına göre).
+    const yurtDisi = /^\s*(\+|00)(?!90)\d/.test(hamTelefon);
+    return sorun(yurtDisi ? "Yurt dışı numara (yalnızca Türkiye numaraları)" : "Telefon numarası tanınmadı");
+  }
   const hamEposta = d("eposta");
   const eposta = epostaNormallestir(hamEposta);
   if (hamEposta && !eposta) return sorun("E-posta adresi geçersiz");
@@ -232,23 +279,35 @@ function satirDogrula(
       d("etiketler")
         .split(/[,;]/)
         .map((e) => e.trim().toLocaleLowerCase("tr"))
-        .filter(Boolean),
+        .filter(Boolean)
+        .flatMap((e) => {
+          if (!s.etiketEslemi || !(e in s.etiketEslemi)) return [e];
+          const yeni = googleEtiketiSadelestir(s.etiketEslemi[e] ?? "");
+          return yeni ? [yeni] : [];
+        }),
     ),
   ];
   if (etiketler.length > 20 || etiketler.some((e) => e.length > 40)) return sorun("En fazla 20 etiket, her biri en fazla 40 karakter");
 
-  const hamIzin = basligiSadelestir(d("whatsappIzni"));
+  // İzin sütunu eşlenmemişse tüm dosya için toplu seçim (varsayılan "yok").
+  const hamIzin = eslem.whatsappIzni === undefined ? (s.varsayilanIzin ?? "yok") : basligiSadelestir(d("whatsappIzni"));
   const izin = IZIN_VAR.has(hamIzin) ? "var" : IZIN_RET.has(hamIzin) ? "ret" : IZIN_YOK.has(hamIzin) ? "yok" : null;
   if (!izin) return sorun("WhatsApp izni anlaşılamadı (var / yok / ret)");
 
   let izinBilgisi: IzinBilgisi | null = null;
+  let uyari: string | null = null;
   if (izin === "var") {
     const hamKaynak = basligiSadelestir(d("izinKaynagi"));
     const kaynak = hamKaynak ? IZIN_KAYNAKLARI[hamKaynak] : s.varsayilanIzinKaynagi;
     if (!kaynak) return sorun(hamKaynak ? "İzin kaynağı anlaşılamadı" : "İzin kaynağı yok");
     const tarih = tarihCoz(d("izinTarihi"), simdi);
     if (tarih === "gecersiz") return sorun("İzin tarihi geçersiz (GG.AA.YYYY ya da YYYY-AA-GG)");
-    izinBilgisi = { izin: "var", kaynak, tarih: tarih ?? simdi, iysBeyani: aliciTuru === "bireysel" && s.iysBeyani };
+    if (b.bicim === "google" && aliciTuru === "bireysel" && !s.iysBeyani) {
+      // Google Kişiler (plan D2): bireysel kişide İYS beyanı yoksa izin hiç yazılmaz; kişi izinsiz eklenir.
+      uyari = "İYS beyanı gerekli: kişi eklendi, WhatsApp izni yazılmadı";
+    } else {
+      izinBilgisi = { izin: "var", kaynak, tarih: tarih ?? simdi, iysBeyani: aliciTuru === "bireysel" && s.iysBeyani };
+    }
   }
 
   return {
@@ -257,6 +316,7 @@ function satirDogrula(
     eposta,
     izin,
     izinBilgisi,
+    uyari,
     kisi: {
       kaynak: "ice_aktarma",
       isletmeAdi: isletmeAdi || null,
@@ -281,8 +341,14 @@ export type IceAktarmaRaporu = {
   hatali: number;
   /** İlk 200 sorunlu satır. */
   sorunlar: SatirSorunu[];
+  /** Alınan ama izni yazılmayan satırlar (engel listesi, İYS beyanı gerekli): sayı ve ilk 200. */
+  uyari: number;
+  uyarilar: SatirSorunu[];
   /** İzin 'var' satırı var: uygulamadan önce beyan onayı zorunlu. */
   beyanGerekli: boolean;
+  bicim: IceAktarmaBicimi;
+  /** Google biçiminde dosya içinde telefona göre birleşen satır. */
+  birlesen: number;
 };
 
 function eslemDogrula(eslem: SutunEslemi, genislik: number, s: IceAktarmaSecenekleri) {
@@ -302,6 +368,9 @@ function eslemDogrula(eslem: SutunEslemi, genislik: number, s: IceAktarmaSecenek
       "eslem",
     );
   }
+  if (eslem.whatsappIzni === undefined && s.varsayilanIzin === "var" && eslem.izinKaynagi === undefined && !s.varsayilanIzinKaynagi) {
+    throw new IceAktarmaHatasi("Tüm kişilere WhatsApp izni verilecekse izin kaynağını seçin.", "eslem");
+  }
 }
 
 /** Planı ve raporu üretir; hiçbir şey yazmaz. */
@@ -313,12 +382,14 @@ function planla(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarm
   }
   const [baslik, ...veri] = oturum.satirlar;
   eslemDogrula(eslem, baslik.length, s);
+  const b: Baglam = { bicim: oturum.bicim };
 
   const sorunlar: SatirSorunu[] = [];
+  const uyarilar: SatirSorunu[] = [];
   const gecerliler: GecerliSatir[] = [];
   const gorulen = new Map<string, number>();
   veri.forEach((hucreler, i) => {
-    const sonuc = satirDogrula(hucreler, i + 2, eslem, s, simdi);
+    const sonuc = satirDogrula(hucreler, i + 2, eslem, s, simdi, b);
     if ("neden" in sonuc) return void sorunlar.push(sonuc);
     const anahtar = sonuc.telefon ? `t:${sonuc.telefon}` : `e:${sonuc.eposta}`;
     const onceki = gorulen.get(anahtar);
@@ -347,7 +418,15 @@ function planla(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarm
   const retler: { satirIndeksi: number; leadId: string | null }[] = [];
   let izinli = 0;
   for (const g of gecerliler) {
-    if (ozetler(g).some((o) => engelli.has(o))) plan.sayilar.engelli++;
+    if (ozetler(g).some((o) => engelli.has(o))) {
+      plan.sayilar.engelli++;
+      // Engel listesindeki (RET'li / abonelikten çıkmış) adrese izin yazılmaz; kişi yine eklenir / eşleşir.
+      if (g.izinBilgisi) {
+        g.izinBilgisi = null;
+        g.uyari = "Engel listesinde: WhatsApp izni yazılmadı";
+      }
+    }
+    if (g.uyari) uyarilar.push({ satir: g.satir, neden: g.uyari });
     if (g.izinBilgisi) izinli++;
     const mevcutId = g.telefon ? mevcut.get(g.telefon) : undefined;
     if (mevcutId) {
@@ -375,9 +454,13 @@ function planla(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarm
     retli: retler.length,
     hatali: sorunlar.length,
     sorunlar: sorunlar.slice(0, RAPOR_AZAMI_SORUN),
+    uyari: uyarilar.length,
+    uyarilar: uyarilar.slice(0, RAPOR_AZAMI_SORUN),
     beyanGerekli: izinli > 0,
+    bicim: oturum.bicim,
+    birlesen: oturum.birlesen,
   };
-  return { plan, rapor, retler, sorunlar, oturum };
+  return { plan, rapor, retler, sorunlar, uyarilar, oturum };
 }
 
 export function iceAktarmaOnizle(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarmaSecenekleri) {
@@ -412,10 +495,15 @@ export function iceAktarmaTamamla(
   return { ...rapor, eklenen: sonuc.eklenen.length, guncellenen: sonuc.guncellenen.length };
 }
 
-/** Sorunlu satırlar CSV (satır no, neden + dosyadaki hücreler). Oturum hazırlanırken indirilebilir. */
+/**
+ * Sorunlu satırlar CSV (satır no, neden + dosyadaki hücreler). Oturum hazırlanırken indirilebilir. Alınan ama izni
+ * yazılmayan satırlar "Uyarı:" önekiyle eklenir. Google biçiminde hücreler dönüşmüş haldir; "Dosya satırı" sütunu
+ * özgün dosyadaki satır numaralarını (birleşenler dahil) gösterir.
+ */
 export function sorunluSatirlarCsv(ctx: TenantContext, id: string, eslem: SutunEslemi, s: IceAktarmaSecenekleri): string {
-  const { sorunlar, oturum } = planla(ctx, id, eslem, s, new Date());
-  const satirlar = oturum.satirlar!;
+  const p = planla(ctx, id, eslem, s, new Date());
+  const satirlar = p.oturum.satirlar!;
+  const sorunlar = [...p.sorunlar, ...p.uyarilar.map((u) => ({ satir: u.satir, neden: `Uyarı: ${u.neden}` }))].sort((a, b) => a.satir - b.satir);
   // Dışa aktarmayla aynı biçim: UTF-8 BOM + noktalı virgül (Türkçe Excel'de doğrudan sütunlara ayrılır).
   return (
     "\uFEFF" +

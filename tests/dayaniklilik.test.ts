@@ -141,14 +141,14 @@ describe("oturumsuz webhook'lar: önce kimlik, sonra sınırlı akış okuma", (
     expect(buyuk.sayac.okunan).toBeLessThanOrEqual(MB + 2 * 64 * 1024);
   });
 
-  it("içe aktarma: Content-Length'siz 5 MB üstü gövde akışta kesilir (413)", async () => {
+  it("içe aktarma: Content-Length'siz 10 MB üstü gövde akışta kesilir (413)", async () => {
     oturum.ctx = kiraciOlustur("GovdeIce").ctx;
     const buyuk = sonsuzGovde();
     const y = await yuklemeRotasi.POST(
       akisIstegi(`${U}/api/ice-aktarma`, buyuk.akis, { "content-type": "multipart/form-data; boundary=x", origin: U }),
     );
     expect(y.status).toBe(413);
-    expect(buyuk.sayac.okunan).toBeLessThanOrEqual(5 * MB + 64 * 1024 + 2 * 64 * 1024);
+    expect(buyuk.sayac.okunan).toBeLessThanOrEqual(10 * MB + 64 * 1024 + 2 * 64 * 1024);
   });
 });
 

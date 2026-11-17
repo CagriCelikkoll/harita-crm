@@ -375,6 +375,7 @@ function SohbetEkrani(props: {
           <DurumRozeti ton={s.izin === "ret" ? "tehlike" : s.izin === "var" ? "ana" : "notr"}>
             {s.izin === "ret" ? "RET verdi" : s.izin === "var" ? "WhatsApp izni var" : "WhatsApp izni yok"}
           </DurumRozeti>
+          {s.reklamdan && <DurumRozeti ton="notr">Reklamdan yazdı</DurumRozeti>}
           <select
             aria-label="Atanan kişi"
             className="girdi !min-h-9 !w-auto !py-1"
@@ -408,8 +409,66 @@ function SohbetEkrani(props: {
         <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} />
       </div>
 
-      <Notlar sohbetId={s.id} notlar={a.notlar} onNotlar={props.onNotlar} />
+      <div className="flex flex-col gap-4 self-start">
+        <PazarlamaIzni key={s.id} s={s} onSohbet={(sohbet) => props.onDegisti({ ...a, sohbet })} />
+        <Notlar sohbetId={s.id} notlar={a.notlar} onNotlar={props.onNotlar} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * Kişi sohbette pazarlama iletisi istediyse temsilci tek tıkla kaydeder (kaynak "WhatsApp sohbeti", tarih ve temsilci
+ * sunucuda yazılır). Bireysel kişide İYS beyanı ayrıca işaretlenmezse kampanya ve şablon yine gitmez.
+ */
+function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: SohbetAyrintisi["sohbet"]) => void }) {
+  const { s } = props;
+  const [iys, setIys] = useState(false);
+  const [bekliyor, setBekliyor] = useState(false);
+  if (s.retVerdi) return null;
+  const iysEksik = s.izin === "var" && s.bireysel && !s.iysBeyani;
+  if (s.izin === "var" && !iysEksik) {
+    return (
+      <aside className="kart flex flex-col gap-1 text-[13px]" aria-label="Pazarlama izni">
+        <h2 className="text-sm font-semibold">Pazarlama izni</h2>
+        <p>
+          WhatsApp izni var{s.izinKaynagi ? ` (${s.izinKaynagi})` : ""}
+          {s.bireysel ? " · İYS beyanı var" : ""}.
+        </p>
+      </aside>
+    );
+  }
+  const kaydet = async () => {
+    setBekliyor(true);
+    const y = await apiIstek<{ sohbet: SohbetAyrintisi["sohbet"] }>(`/api/sohbetler/${s.id}/izin`, { method: "POST", govde: { iysBeyani: s.bireysel && iys } });
+    setBekliyor(false);
+    if (!y.ok) return bildir(y.hata, "hata");
+    props.onSohbet(y.veri.sohbet);
+    bildir(iysEksik ? "İYS beyanı kaydedildi." : "Pazarlama izni kaydedildi.");
+  };
+  return (
+    <aside className="kart flex flex-col gap-2 text-[13px]" aria-label="Pazarlama izni">
+      <h2 className="text-sm font-semibold">Pazarlama izni</h2>
+      {iysEksik ? (
+        <p className="text-uyari">
+          WhatsApp izni var{s.izinKaynagi ? ` (${s.izinKaynagi})` : ""} ama İYS beyanı yok: bireysel kişiye kampanya ve şablon gitmez.
+        </p>
+      ) : (
+        <p className="text-soluk">
+          {s.reklamdan ? "Reklamdan yazdı; bu, pazarlama izni sayılmaz. " : ""}Kişi bu sohbette kampanya / duyuru almak istediğini yazdıysa
+          kaydedin. Tarih ve adınız izin kaydına yazılır.
+        </p>
+      )}
+      {s.bireysel && (
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" checked={iys} onChange={(e) => setIys(e.target.checked)} />
+          <span>İzin İYS&apos;ye kaydedildi{iysEksik ? "" : " (işaretlenmezse bireysel kişiye kampanya ve şablon gitmez)"}</span>
+        </label>
+      )}
+      <button type="button" className="dugme-kucuk self-start" disabled={bekliyor || (iysEksik && !iys)} onClick={() => void kaydet()}>
+        {iysEksik ? "İYS beyanını kaydet" : "Pazarlama izni istedi"}
+      </button>
+    </aside>
   );
 }
 
@@ -519,7 +578,7 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
       return (
         <p className="border-t border-cizgi bg-uyari-acik px-4 py-3 text-sm text-uyari">
           24 saatlik pencere kapalı ve bu kişinin WhatsApp izni yok: şablon da gönderilemez. Kişi yeniden yazarsa 24 saat
-          içinde yanıt verebilirsiniz; izin alındıysa Kayıtlar&apos;dan işleyin.
+          içinde yanıt verebilirsiniz; sohbette pazarlama iletisi istediyse yandaki &quot;Pazarlama izni istedi&quot; ile kaydedin.
         </p>
       );
     }
@@ -636,7 +695,7 @@ function SablonSecici(props: { a: SohbetAyrintisi; gonderiliyor: boolean; onGond
 function Notlar(props: { sohbetId: string; notlar: SohbetNotuDto[]; onNotlar: (n: SohbetNotuDto[]) => void }) {
   const [metin, setMetin] = useState("");
   return (
-    <aside className="kart flex flex-col gap-3 self-start" aria-label="İç notlar">
+    <aside className="kart flex flex-col gap-3" aria-label="İç notlar">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Simge ad="kilit" boyut={16} /> İç notlar
       </h2>

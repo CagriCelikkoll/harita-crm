@@ -30,7 +30,8 @@ export const ENGEL_KAYNAKLARI = ["abonelik", "kayit_ret", "sms_ret", "iys_ret", 
 
 /** Kanal bazlı WhatsApp (Cloud API) izni. Genel ileti izninden (ileti_izni) ayrıdır; ikisinden biri 'ret' ise gönderilmez. */
 export const WHATSAPP_IZINLERI = ["yok", "var", "ret"] as const;
-export const WHATSAPP_IZIN_KAYNAKLARI = ["form", "sozlesme", "sozlu", "kendisi_yazdi", "reklam"] as const;
+/** whatsapp_sohbeti: kişi gelen kutusundaki sohbette pazarlama iletisi istedi; temsilci sohbet ekranından kaydetti. */
+export const WHATSAPP_IZIN_KAYNAKLARI = ["form", "sozlesme", "sozlu", "kendisi_yazdi", "reklam", "whatsapp_sohbeti"] as const;
 
 export type AliciTuru = (typeof ALICI_TURLERI)[number];
 export type WhatsappIzni = (typeof WHATSAPP_IZINLERI)[number];
@@ -97,6 +98,7 @@ export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = 
   sozlu: "Sözlü",
   kendisi_yazdi: "WhatsApp'tan kendisi yazdı",
   reklam: "Reklam",
+  whatsapp_sohbeti: "WhatsApp sohbeti",
 };
 
 export const KANAL_ADLARI: Record<KuyrukKanali, string> = { eposta: "E-posta", sms: "SMS", whatsapp_api: "WhatsApp (API)" };

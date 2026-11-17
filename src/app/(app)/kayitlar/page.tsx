@@ -212,6 +212,15 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
             <a href={`/api/kayitlar/disa-aktar${sorgu.size ? `?${sorgu}` : ""}`} download className="text-sm text-ana underline">
               Bu listeyi CSV olarak indir
             </a>
+            {ctx.rol === "yonetici" && (
+              <a
+                href={`/api/kayitlar/disa-aktar?${new URLSearchParams([...sorgu, ["bicim", "google"]])}`}
+                download
+                className="text-sm text-ana underline"
+              >
+                Google Kişiler CSV olarak indir (yalnızca girdiğiniz ad, telefon, e-posta, etiket, not)
+              </a>
+            )}
             <p className="text-xs text-soluk">
               Arama ve süzgeçler yalnızca sizin girdiğiniz bilgilerde çalışır; Google&apos;dan gelen ad ve adres saklanmadığı için
               aranamaz.

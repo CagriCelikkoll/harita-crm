@@ -148,6 +148,13 @@
       "when": 1794828903995,
       "tag": "0020_gelen_kutusu",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794919359323,
+      "tag": "0021_google_kisiler",
+      "breakpoints": true
     }
   ]
 }

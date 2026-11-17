@@ -234,13 +234,14 @@ export function reklamBilgisiYaz(ctx: TenantContext, leadId: string, r: ReklamBi
 }
 
 /**
- * Click-to-WhatsApp reklamından ilk kez yazan kişi: kaynak 'meta_reklam' kayıt + WhatsApp izni 'var'
- * ("WhatsApp'tan kendisi yazdı"), BSUID, reklam bilgisi — tek transaction. BSUID başka kayıttaysa null.
+ * Click-to-WhatsApp reklamından ilk kez yazan kişi: kaynak 'meta_reklam' ("Reklamdan yazdı") kayıt, BSUID, reklam
+ * bilgisi — tek transaction. WhatsApp izni 'yok': reklama tıklayıp yazmak pazarlama izni SAYILMAZ (24 saat içinde elle
+ * yanıt verilebilir; temsilci kişi isterse gelen kutusundan "pazarlama izni istedi" diye kaydeder). BSUID başka
+ * kayıttaysa null.
  */
 export function reklamKisisiOlustur(
   ctx: TenantContext,
   g: { ad: string | null; telefon: string | null; bsuid: string | null; kullaniciAdi: string | null; aliciTuru: AliciTuru; reklam: ReklamBilgisi },
-  simdi = new Date(),
 ): string | null {
   return db.transaction((tx) => {
     if (g.bsuid) {
@@ -264,9 +265,7 @@ export function reklamKisisiOlustur(
         leadId: kayit.id,
         bsuid: g.bsuid,
         waKullaniciAdi: g.kullaniciAdi,
-        izin: "var",
-        izinTarihi: simdi,
-        izinKaynagi: "kendisi_yazdi",
+        izin: "yok",
         ...g.reklam,
       })
       .run();

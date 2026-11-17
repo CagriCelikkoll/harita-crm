@@ -66,6 +66,18 @@ export function limitKatmaniSayisi(katman: string | null | undefined): number | 
   return Number(m[1]) * (m[2] ? 1000 : 1);
 }
 
+/** Limit katmanı bilinmiyorsa en düşük katman varsayılır. */
+export const EN_DUSUK_LIMIT = 250;
+
+/**
+ * Meta portföy limitinin bu uygulamaya ayrılan payı (kayan 24 saatte şablon sayısı). Sınırsız katmanda Infinity.
+ * Kampanya işçisi ve gelen kutusu aynı payı paylaşır.
+ */
+export function metaLimitPayi(b: { limitKatmani: string | null; uygulamaPayi: number }): number {
+  const limit = limitKatmaniSayisi(b.limitKatmani) ?? EN_DUSUK_LIMIT;
+  return Number.isFinite(limit) ? Math.max(1, Math.floor((limit * b.uygulamaPayi) / 100)) : limit;
+}
+
 /** Limit katmanının sade adı: TIER_10K → "Günde 10.000 kişi" (24 saatte farklı alıcı), TIER_UNLIMITED → "Sınırsız". */
 export function limitKatmaniAdi(katman: string | null | undefined): string {
   const n = limitKatmaniSayisi(katman);

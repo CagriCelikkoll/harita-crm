@@ -30,6 +30,9 @@ const sohbetRotasi = await import("@/app/api/sohbetler/[id]/route");
 const mesajRotasi = await import("@/app/api/sohbetler/[id]/mesaj/route");
 const okunduRotasi = await import("@/app/api/sohbetler/[id]/okundu/route");
 const notRotasi = await import("@/app/api/sohbetler/[id]/notlar/route");
+const izinRotasi = await import("@/app/api/sohbetler/[id]/izin/route");
+const { whatsappSon24Saat } = await import("@/server/repo/kuyruk");
+const { KAYIT_KAYNAK_ADLARI } = await import("@/lib/sabitler");
 const degisiklikRotasi = await import("@/app/api/gelen-kutusu/degisiklikler/route");
 const { kiraciOlustur, kullaniciOlustur } = await import("./yardimci/fabrika");
 
@@ -458,6 +461,134 @@ describe("gönderim güvenceleri", () => {
     const s = sohbetiBul(ctx, n, k.id);
     expect((await mesajRotasi.POST(istek("POST", { tur: "metin", metin: "x" }), p(s.id))).status).toBe(400);
     expect((await metinGonder(s.id, "   ")).status).toBe(400);
+  });
+});
+
+describe("reklamdan yazan kişi ve sohbetten pazarlama izni", () => {
+  const izinKaydet = (id: string, govde: unknown = {}) => izinRotasi.POST(istek("POST", govde), p(id));
+
+  it("reklamdan ilk kez yazan: 'Reklamdan yazdı', izin YOK; elle yanıt gider, şablon ve kampanya gitmez; temsilci izni kaydeder, bireyselde İYS beyanı ayrıca", async () => {
+    const { ctx, kullanici, n } = await alan("ReklamIzin");
+    const referral = { source_type: "ad", source_id: "ad-9", headline: "Yeni konut projesi", ctwa_clid: "clid-9" };
+    await yaz(n, "905325000001", "Fiyat alabilir miyim?", { ad: "Elif Ak", ek: { referral } });
+    const [k] = kayitlariListele(ctx).kayitlar;
+    expect(k).toMatchObject({ kaynak: "meta_reklam", aliciTuru: "bireysel", yetkiliAdi: "Elif Ak" });
+    expect(KAYIT_KAYNAK_ADLARI.meta_reklam).toBe("Reklamdan yazdı");
+    expect(whatsappKisisiGetir(ctx, k.id)).toMatchObject({ izin: "yok", izinKaynagi: null, izinTarihi: null, reklamKimligi: "ad-9" });
+
+    const s = sohbetiBul(ctx, n, k.id);
+    const ayrinti = await (await sohbetRotasi.GET(istek("GET"), p(s.id))).json();
+    expect(ayrinti.sohbet).toMatchObject({ izin: "yok", reklamdan: true, bireysel: true, iysBeyani: false, izinKaynagi: null });
+    expect((await metinGonder(s.id, "Merhaba, fiyat listesi şöyle…")).status).toBe(201); // B3 gibi
+    const r = await sablonGonder(s.id, sablon(ctx, n).id, RANDEVU);
+    expect(r.status).toBe(403);
+    expect((await r.json()).hata).toMatch(/WhatsApp izni/);
+    const kampanyaGirdisi = KampanyaGirdisi.parse({
+      kanal: "whatsapp_api",
+      ad: "K",
+      filtre: {},
+      testModu: false,
+      baglantiId: n.id,
+      sablonId: sablon(ctx, n).id,
+      degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } },
+    });
+    const { kampanyaOzeti } = await import("@/server/servisler/kampanya");
+    expect(kampanyaOzeti(ctx, kampanyaGirdisi)).toMatchObject({ gonderilecek: 0, haricler: { whatsapp_izni_yok: 1 } });
+
+    // Kişi sohbette kampanya istedi: tek tık. Kaynak, tarih, temsilci yazılır; İYS beyanı işaretlenmedi.
+    const once = Date.now();
+    const y = await izinKaydet(s.id);
+    expect(y.status).toBe(200);
+    expect((await y.json()).sohbet).toMatchObject({ izin: "var", izinKaynagi: "WhatsApp sohbeti", iysBeyani: false });
+    const w = whatsappKisisiGetir(ctx, k.id)!;
+    expect(w).toMatchObject({ izin: "var", izinKaynagi: "whatsapp_sohbeti", iysBeyanTarihi: null });
+    expect(w.izinTarihi!.getTime()).toBeGreaterThanOrEqual(once - 1000);
+    expect(w.izinNotu).toContain(kullanici.name);
+    expect(w.izinNotu).toContain("Merkez numarası");
+    const olay = olaylariListele(ctx, k.id).find((o) => o.tur === "izin");
+    expect(olay).toMatchObject({ aciklama: "WhatsApp izni: İzin var, WhatsApp sohbeti", kullaniciId: kullanici.id });
+
+    // Bireysel + İYS beyanı yok: şablon ve kampanya yine gitmez (kural aynen).
+    const r2 = await sablonGonder(s.id, sablon(ctx, n).id, RANDEVU);
+    expect(r2.status).toBe(403);
+    expect((await r2.json()).hata).toMatch(/İYS/);
+    expect(kampanyaOzeti(ctx, kampanyaGirdisi)).toMatchObject({ gonderilecek: 0, haricler: { iys_beyani_yok: 1 } });
+
+    // İYS beyanı eklenir: kaynak ve tarih korunur; şablon artık gider.
+    expect((await izinKaydet(s.id, { iysBeyani: true })).status).toBe(200);
+    expect(whatsappKisisiGetir(ctx, k.id)).toMatchObject({ izin: "var", izinKaynagi: "whatsapp_sohbeti", izinTarihi: w.izinTarihi });
+    expect(whatsappKisisiGetir(ctx, k.id)?.iysBeyanTarihi).not.toBeNull();
+    expect((await sablonGonder(s.id, sablon(ctx, n).id, RANDEVU)).status).toBe(201);
+    expect(mockWhatsapp.gonderilenler).toHaveLength(1);
+  });
+
+  it("RET'li kişide izin kaydedilemez (409); tacir/esnafta İYS beyanı yazılmaz; başka alanın sohbeti 404; geçersiz gövde 400", async () => {
+    const { ctx, n } = await alan("IzinKural");
+    const retli = kisi(ctx, "0532 500 00 02", "yok");
+    await yaz(n, "905325000002", "RET");
+    const rs = sohbetiBul(ctx, n, retli.id);
+    expect((await izinKaydet(rs.id)).status).toBe(409);
+    expect(whatsappKisisiGetir(ctx, retli.id)?.izin).toBe("ret");
+
+    const tacir = kisi(ctx, "0532 500 00 03", "yok");
+    await yaz(n, "905325000003", "Kampanyalarınızdan haberdar edin");
+    const ts = sohbetiBul(ctx, n, tacir.id);
+    expect((await izinKaydet(ts.id, { iysBeyani: true })).status).toBe(200);
+    expect(whatsappKisisiGetir(ctx, tacir.id)).toMatchObject({ izin: "var", izinKaynagi: "whatsapp_sohbeti", iysBeyanTarihi: null });
+    expect((await izinKaydet(ts.id, { iysBeyani: "evet" })).status).toBe(400);
+
+    const baska = await alan("IzinBaska");
+    oturum.ctx = baska.ctx;
+    expect((await izinKaydet(ts.id)).status).toBe(404);
+    oturum.ctx = null;
+    expect((await izinKaydet(ts.id)).status).toBe(401);
+  });
+});
+
+describe("Meta portföy limiti (gelen kutusu şablonları kampanyalarla ortak)", () => {
+  it("gelen kutusu şablonları kayan 24 saate sayılır; pay dolunca gelen kutusu 429, kampanya bekler; 'iletilemedi' sayılmaz, serbest metin sayılmaz", async () => {
+    const { ctx, n } = await alan("Portfoy");
+    // TIER_250 × %1 → pay 2 şablon / 24 saat.
+    db.$client.prepare("update whatsapp_baglantilari set limit_katmani = 'TIER_250', uygulama_payi = 1 where id = ?").run(n.id);
+    const a = kisi(ctx, "0532 600 00 01");
+    const b = kisi(ctx, "0532 600 00 02");
+    const c = kisi(ctx, "0532 600 00 03");
+    for (const tel of ["905326000001", "905326000002", "905326000003"]) await yaz(n, tel, "Merhaba");
+    const sa = sohbetiBul(ctx, n, a.id);
+    expect((await metinGonder(sa.id, "Serbest metin sayılmaz")).status).toBe(201);
+    expect(whatsappSon24Saat(ctx, new Date())).toBe(0);
+
+    expect((await sablonGonder(sa.id, sablon(ctx, n).id, RANDEVU)).status).toBe(201);
+    expect((await sablonGonder(sohbetiBul(ctx, n, b.id).id, sablon(ctx, n).id, RANDEVU)).status).toBe(201);
+    expect(whatsappSon24Saat(ctx, new Date())).toBe(2);
+
+    const dolu = await sablonGonder(sohbetiBul(ctx, n, c.id).id, sablon(ctx, n).id, RANDEVU);
+    expect(dolu.status).toBe(429);
+    expect((await dolu.json()).hata).toMatch(/Meta mesajlaşma limiti/);
+    expect(mockWhatsapp.gonderilenler).toHaveLength(2);
+
+    // Kampanya aynı payı kullanır: gelen kutusu payı doldurduysa kampanya mesajı bekler.
+    const kampanya = kampanyaBaslat(
+      ctx,
+      KampanyaGirdisi.parse({
+        kanal: "whatsapp_api",
+        ad: "Pay",
+        filtre: { etiket: "e0003" },
+        testModu: false,
+        baglantiId: n.id,
+        sablonId: sablon(ctx, n).id,
+        degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } },
+      }),
+    );
+    await isciTuru({ parti: 50, whatsappAralikMs: 0 });
+    expect(mockWhatsapp.gonderilenler).toHaveLength(2);
+    expect(db.$client.prepare("select durum, neden from message_queue where kampanya_id = ?").get(kampanya.id)).toEqual({ durum: "kuyrukta", neden: "whatsapp_limit" });
+
+    // Meta "iletilemedi" dediği şablon paydan düşer; 24 saatten eski olanlar sayılmaz.
+    const [ilk] = mockWhatsapp.gonderilenler;
+    await bildirim(n, "messages", { statuses: [{ id: ilk.wamid, status: "failed", timestamp: String(Math.floor(Date.now() / 1000)), recipient_id: "905326000001", errors: [{ code: 131049 }] }] });
+    expect(whatsappSon24Saat(ctx, new Date())).toBe(1);
+    expect(whatsappSon24Saat(ctx, new Date(Date.now() + 24 * SAAT + 60_000))).toBe(0);
   });
 });
 

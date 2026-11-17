@@ -42,7 +42,7 @@ import {
   WHATSAPP_IZIN_KAYNAKLARI,
   WHATSAPP_IZINLERI,
 } from "../../lib/mesajlasma";
-import { ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
+import { ICE_AKTARMA_BICIMLERI, ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
 import {
   MESAJ_KAYNAKLARI,
   MESAJ_YONLERI,
@@ -257,6 +257,10 @@ export const iceAktarmalar = sqliteTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     kullaniciId: text("kullanici_id").references(() => user.id, { onDelete: "set null" }),
     dosyaAdi: text("dosya_adi").notNull(),
+    // genel: kullanıcının kendi tablosu; google: Google Kişiler dışa aktarması (ön işlemden geçmiş satırlar).
+    bicim: text("bicim", { enum: ICE_AKTARMA_BICIMLERI }).notNull().default("genel"),
+    // Google biçiminde dosya içinde telefona göre birleşen satır sayısı.
+    birlesen: integer("birlesen").notNull().default(0),
     durum: text("durum", { enum: ICE_AKTARMA_DURUMLARI }).notNull().default("hazirlaniyor"),
     satirlar: text("satirlar", { mode: "json" }).$type<string[][]>(),
     eslem: text("eslem", { mode: "json" }).$type<Record<string, number>>(),
