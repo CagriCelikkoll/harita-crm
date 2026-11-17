@@ -96,6 +96,11 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "surum", "olusturma_tarihi",
   ],
   sohbet_notlari: ["id", "tenant_id", "sohbet_id", "kullanici_id", "metin", "tarih"],
+  // Gelen medya: yalnızca Meta'nın medya kimliği, tür, boyut, özet ve diskteki göreli yol (Places verisi yok).
+  sohbet_medyalari: [
+    "id", "tenant_id", "mesaj_id", "meta_medya_id", "mime", "boyut", "sha256", "meta_sha256", "dosya_adi", "yol", "durum",
+    "neden", "deneme", "sonraki_deneme", "indirme_tarihi", "silinme_tarihi", "olusturma_tarihi",
+  ],
   gelen_kutusu_surumu: ["tenant_id", "surum"],
   // Gönderim işçisi kilidi (kiracı verisi yok).
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],

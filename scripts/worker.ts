@@ -10,6 +10,7 @@
 // `--bir-kez` çalıştırmaları güvenlidir. Bir mesaj iki kez gönderilmez (satırlar atomik olarak alınır).
 // Saatte bir (ve her `--bir-kez` çalıştırmasında) süresi dolan içe aktarma oturumlarının dosya satırları silinir;
 // günde bir (ve her `--bir-kez` çalıştırmasında) saklama süresi dolan migration yedekleri silinir (data/yedek/).
+// Her turda sırası gelen gelen medya (fotoğraf, belge, ses) Meta'dan indirilir (src/server/servisler/medya.ts).
 // SIGINT/SIGTERM: eldeki tur bitirilir, sonra çıkılır.
 import "./ortam";
 import { gunlukBakim, isciTuru, saatlikBakim } from "../src/server/servisler/isci";
@@ -59,6 +60,7 @@ async function calistir() {
       sonGunlukBakim = g.sonCalismaMs;
       if (g.silinenYedek) console.log(`[işçi] saklama süresi dolan ${g.silinenYedek} eski yedek silindi.`);
       if (g.temizlik) console.log(`[işçi] günlük temizlik: ${JSON.stringify(g.temizlik)}`);
+      if (g.medya) console.log(`[işçi] medya bakımı: ${g.medya.suresiDolan} süresi dolan, ${g.medya.artakalan} artakalan dosya silindi.`);
     } catch (hata) {
       console.error("[işçi] günlük bakım hatası:", hata);
     }
@@ -84,8 +86,15 @@ async function calistir() {
           `biten kampanya ${tamamlananKampanya}`,
       );
     }
-    // Parti doluysa kuyrukta daha fazlası olabilir: beklemeden devam.
-    if (!birKez && alinan < parti) await bekle(aralikMs);
+    const m = sonuc.medya;
+    const medyaSayisi = m.indirilen + m.reddedilen + m.hata + m.bekletilen;
+    if (medyaSayisi) {
+      console.log(
+        `[${new Date().toISOString()}] gelen medya: indirilen ${m.indirilen}, reddedilen ${m.reddedilen}, hata ${m.hata}, bekleyen ${m.bekletilen}`,
+      );
+    }
+    // Parti doluysa kuyrukta daha fazlası olabilir: beklemeden devam (medyada da indirilen varsa).
+    if (!birKez && alinan < parti && m.indirilen + m.reddedilen + m.hata === 0) await bekle(aralikMs);
   } while (!birKez && !durdur);
   console.log("[işçi] durdu.");
 }

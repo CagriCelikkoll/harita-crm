@@ -2,10 +2,13 @@
 // değiştirilir; https zorunlu). Sayfalama Meta'nın döndürdüğü "next" adresiyle değil, imleçle (after) yapılır:
 // istekler yalnızca yapılandırılmış adrese gider.
 import "server-only";
+import { metaMedyaAdresiGecerli } from "./medya-adresi";
 import { GraphHatasi, type GraphBaglantisi, type MetaSablon, type NumaraBilgisi, type WhatsappApiIstemcisi } from "./tipler";
 
 export const VARSAYILAN_GRAPH_SURUMU = "v26.0";
 const ZAMAN_ASIMI_MS = 15_000;
+/** Medya indirmesi (en büyük belge 100 MB) için toplam süre. */
+const MEDYA_ZAMAN_ASIMI_MS = 120_000;
 const AZAMI_SAYFA = 50;
 
 export function graphAyarlari() {
@@ -56,6 +59,63 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
   }
 
   return {
+    async medyaBilgisi(medyaId) {
+      if (!/^\d{1,30}$/.test(medyaId)) throw new GraphHatasi("Medya kimliği geçersiz.", 400);
+      const v = await istek<{ url?: string; mime_type?: string; sha256?: string; file_size?: number | string }>(medyaId, {
+        sorgu: { phone_number_id: b.phoneNumberId },
+      });
+      if (!v.url) throw new GraphHatasi("Meta yanıtında medya adresi yok.", 0);
+      const boyut = Number(v.file_size);
+      return { url: v.url, mime: v.mime_type ?? null, boyut: Number.isFinite(boyut) ? boyut : null, sha256: v.sha256 ?? null };
+    },
+
+    async medyaAkisi(url) {
+      if (!metaMedyaAdresiGecerli(url)) throw new GraphHatasi("Medya adresi Meta'nın alanında değil.", 400);
+      const denetci = new AbortController();
+      const zamanlayici = setTimeout(() => denetci.abort(), MEDYA_ZAMAN_ASIMI_MS);
+      let yanit: Response;
+      try {
+        yanit = await fetch(url, {
+          headers: { Authorization: `Bearer ${b.erisimAnahtari}`, "User-Agent": "HaritaCRM/1.0" },
+          signal: denetci.signal,
+          redirect: "error",
+          cache: "no-store",
+        });
+      } catch {
+        clearTimeout(zamanlayici);
+        throw new GraphHatasi("Meta'dan medya indirilemedi: ağ hatası ya da zaman aşımı", 0);
+      }
+      if (!yanit.ok || !yanit.body) {
+        clearTimeout(zamanlayici);
+        await yanit.body?.cancel().catch(() => {});
+        throw new GraphHatasi(`Meta medya HTTP ${yanit.status}`, yanit.status);
+      }
+      const boyut = Number(yanit.headers.get("content-length"));
+      const okuyucu = yanit.body.getReader();
+      return {
+        boyut: Number.isFinite(boyut) && boyut > 0 ? boyut : null,
+        parcalar: {
+          async *[Symbol.asyncIterator]() {
+            try {
+              for (;;) {
+                const { done, value } = await okuyucu.read();
+                if (done) return;
+                yield value;
+              }
+            } catch {
+              throw new GraphHatasi("Meta'dan medya indirilemedi: bağlantı kesildi ya da zaman aşımı", 0);
+            } finally {
+              clearTimeout(zamanlayici);
+            }
+          },
+        },
+        iptal: () => {
+          clearTimeout(zamanlayici);
+          denetci.abort();
+        },
+      };
+    },
+
     async mesajGonder(g) {
       const v = await istek<{ messages?: { id: string; message_status?: string }[] }>(`${b.phoneNumberId}/messages`, {
         method: "POST",

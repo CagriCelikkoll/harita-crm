@@ -46,7 +46,17 @@ export type MetinGonderimi = { alici: { tur: "telefon" | "bsuid"; deger: string 
 /** messages[0].id (wamid) ve message_status (accepted | held_for_quality_assessment | paused). */
 export type GonderimYaniti = { wamid: string; durum: string | null };
 
+/** GET /{media-id}?phone_number_id=…: kısa ömürlü indirme adresi ve Meta'nın bildirdiği tür, boyut, özet. */
+export type MedyaBilgisi = { url: string; mime: string | null; boyut: number | null; sha256: string | null };
+
+/** İndirme adresine yapılan GET'in gövdesi; parça parça okunur (boyut sınırı çağıranda). */
+export type MedyaAkisi = { boyut: number | null; parcalar: AsyncIterable<Uint8Array>; iptal: () => void };
+
 export interface WhatsappApiIstemcisi {
+  /** GET /{media-id}: indirme adresi (birkaç dakika geçerli). */
+  medyaBilgisi(medyaId: string): Promise<MedyaBilgisi>;
+  /** Adres Meta'nın medya alanında olmalı (metaMedyaAdresiGecerli); yönlendirme izlenmez. */
+  medyaAkisi(url: string): Promise<MedyaAkisi>;
   mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
   metinGonder(g: MetinGonderimi): Promise<GonderimYaniti>;
   /** POST /{phone-number-id}/messages { status: "read", message_id }: gelen iletiyi okundu işaretler. */

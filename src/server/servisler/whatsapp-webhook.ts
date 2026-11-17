@@ -22,8 +22,8 @@
 //    kuyruk satırı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı ("Reklamdan yazdı", izin YOK),
 //    varsa reklam bilgisi; reklam dışı bilinmeyen numara → 'whatsapp_gelen' kaydı (bireysel, WhatsApp izni YOK);
 //    ret kelimesi / abonelikten çıkma butonu → ret akışı (sohbet kaydından ÖNCE); sonra gelen kutusu: sohbet (kişi ×
-//    numara) ve mesaj (metin ya da başlık; medya baytları B2'de), okunmamış ve 24 saat penceresi; "gelen WhatsApp
-//    mesajı" olayı; BSUID değişimi. Metin ileti_ayarlari.mesaj_saklama_gun sonra boşaltılır (bakim.ts).
+//    numara) ve mesaj (metin ya da başlık; fotoğraf, belge ve seste "bekliyor" medya satırı, indirme işçide),
+//    okunmamış ve 24 saat penceresi; "gelen WhatsApp mesajı" olayı; BSUID değişimi. Metin ileti_ayarlari.mesaj_saklama_gun sonra boşaltılır (bakim.ts).
 //  - user_preferences: "stop" → ret (K5); "resume" yalnızca olay (ret geri alınmaz).
 //  - message_template_status_update: şablon durumu ve kullanılabilirliği.
 //  - phone_number_quality_update / business_capability_update: portföy mesajlaşma limiti.
@@ -117,7 +117,7 @@ type Gelen = {
   referral?: { source_id?: string; source_type?: string; headline?: string; ctwa_clid?: string };
   system?: { type?: string; user_id?: string; previous_user_id?: string; wa_id?: string };
 };
-type Medya = { id?: string; caption?: string; filename?: string; mime_type?: string };
+type Medya = { id?: string; caption?: string; filename?: string; mime_type?: string; sha256?: string };
 type Durum = {
   id: string;
   status: string;
@@ -421,6 +421,7 @@ class Isleyici {
           tur,
           metin: gelenMetni(m, medya)?.slice(0, 4096) ?? null,
           medyaId: medya?.id ?? null,
+          medya: medya ? { mime: medya.mime_type ?? null, dosyaAdi: medya.filename ?? null, metaSha256: medya.sha256 ?? null } : null,
           metaZamani: zaman(m.timestamp, this.simdi),
         },
         this.simdi,

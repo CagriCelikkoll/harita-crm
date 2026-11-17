@@ -35,6 +35,8 @@ import { saglayiciAl, type SaglayiciSecenekleri } from "./saglayici";
 import { suresiDolanIceAktarmalariKapat, temizlikYap } from "../repo/sistem/bakim";
 import { eskiYedekleriSil } from "../yedek-saklama";
 import { placesTelefonuGetir } from "./telefon";
+import { medyalariIndir, type MedyaTurSonucu } from "./medya";
+import { medyaBakimi } from "./medya-dosyalari";
 import { whatsappMesajIsle } from "./whatsapp-gonderici";
 
 export type IsciSecenekleri = {
@@ -64,6 +66,8 @@ export type TurSonucu = {
   basarisiz: number;
   /** Gönderimden hemen önce satır bu turda değildi: gönderilmedi, satıra dokunulmadı. */
   atlanan: number;
+  /** Gelen medya indirmesi (kampanya gönderiminden sonra, aynı kilit altında). */
+  medya: MedyaTurSonucu;
 };
 
 type Sonuc = "gonderildi" | "bekletildi" | "haric" | "basarisiz" | "atlandi";
@@ -81,6 +85,7 @@ export async function isciTuru(s: IsciSecenekleri = {}): Promise<TurSonucu> {
     haric: 0,
     basarisiz: 0,
     atlanan: 0,
+    medya: { indirilen: 0, reddedilen: 0, hata: 0, bekletilen: 0 },
   };
   const kimlik = s.isciKimligi ?? crypto.randomUUID();
   const sure = s.kilitSuresiMs ?? Math.max(10, Number(process.env.ISCI_KILIT_SN ?? 120)) * 1000;
@@ -124,6 +129,8 @@ export async function isciTuru(s: IsciSecenekleri = {}): Promise<TurSonucu> {
       else sonuc.basarisiz++;
     }
     sonuc.tamamlananKampanya = bitenKampanyalariKapat(simdi());
+    // Gelen medya: kampanyadan sonra; kilit kaybedildiyse başka işçi indirir.
+    if (!kilitKaybedildi && isciKilidiYenile(kimlik, sure)) sonuc.medya = await medyalariIndir({ simdi });
     return sonuc;
   } finally {
     clearInterval(nabiz);
@@ -345,14 +352,24 @@ export const GUNLUK_BAKIM_MS = 24 * 3600_000;
 /**
  * İşçi döngüsünün günlük bakımı: veritabanının saklama süresi dolan migration yedeklerini siler (son 10 ve son 30 gün
  * kalır; src/server/yedek-saklama.ts) ve `npm run cleanup`'ın işini yapar (temizlikYap: Places konumları 30 gün,
- * veri saklama süresi, davetler, gelen kutusu mesaj metinleri). Sunucuda ayrıca cron gerekmez. Son çalışmadan bu yana
- * bir gün geçmediyse bir şey yapmaz.
+ * veri saklama süresi, davetler, gelen kutusu mesaj metinleri) ve medya bakımını (saklama süresi dolan ve artakalan
+ * medya dosyaları). Sunucuda ayrıca cron gerekmez. Son çalışmadan bu yana bir gün geçmediyse bir şey yapmaz.
  */
 export function gunlukBakim(
   sonCalismaMs: number | null,
   dosyaYolu: string,
   simdi = new Date(),
-): { sonCalismaMs: number | null; silinenYedek: number; temizlik: ReturnType<typeof temizlikYap> | null } {
-  if (sonCalismaMs !== null && simdi.getTime() - sonCalismaMs < GUNLUK_BAKIM_MS) return { sonCalismaMs, silinenYedek: 0, temizlik: null };
-  return { sonCalismaMs: simdi.getTime(), silinenYedek: eskiYedekleriSil(dosyaYolu, simdi).length, temizlik: temizlikYap(simdi) };
+): {
+  sonCalismaMs: number | null;
+  silinenYedek: number;
+  temizlik: ReturnType<typeof temizlikYap> | null;
+  medya: ReturnType<typeof medyaBakimi> | null;
+} {
+  if (sonCalismaMs !== null && simdi.getTime() - sonCalismaMs < GUNLUK_BAKIM_MS) return { sonCalismaMs, silinenYedek: 0, temizlik: null, medya: null };
+  return {
+    sonCalismaMs: simdi.getTime(),
+    silinenYedek: eskiYedekleriSil(dosyaYolu, simdi).length,
+    temizlik: temizlikYap(simdi),
+    medya: medyaBakimi(simdi),
+  };
 }

@@ -33,8 +33,72 @@ export type SohbetMesajTuru = (typeof SOHBET_MESAJ_TURLERI)[number];
 export const sohbetMesajTuru = (t: string | undefined): SohbetMesajTuru =>
   (SOHBET_MESAJ_TURLERI as readonly string[]).includes(t ?? "") ? (t as SohbetMesajTuru) : "unsupported";
 
-/** Medya türleri: B1'de içerik indirilmez ("telefondan bakın"); B2 grubu indirir. */
+/** Medya türleri. İndirilenler MEDYA_INDIRILEN_TURLER; video indirilmez ("telefondan bakın"). */
 export const MEDYA_TURLERI: readonly SohbetMesajTuru[] = ["image", "video", "document", "audio", "sticker"];
+
+/** İşçinin indirdiği medya türleri ve her birinin en büyük boyutu (WhatsApp'ın kendi sınırları). */
+export const MEDYA_AZAMI_BAYT = {
+  image: 5 * 1024 * 1024,
+  sticker: 1024 * 1024,
+  audio: 16 * 1024 * 1024,
+  document: 100 * 1024 * 1024,
+} as const;
+export type IndirilenMedyaTuru = keyof typeof MEDYA_AZAMI_BAYT;
+export const MEDYA_INDIRILEN_TURLER = Object.keys(MEDYA_AZAMI_BAYT) as IndirilenMedyaTuru[];
+export const medyaIndirilir = (t: SohbetMesajTuru): t is IndirilenMedyaTuru => (MEDYA_INDIRILEN_TURLER as string[]).includes(t);
+
+/** Çalışma alanı başına indirilen medyanın toplam üst sınırı; dolunca yeni medya indirilmez. */
+export const MEDYA_KOTA_BAYT = 5 * 1024 * 1024 * 1024;
+
+/**
+ * bekliyor: işçi indirecek (geçici hatada yeniden dener); indirildi; hata: indirilemedi (Meta'daki süre doldu, kalıcı
+ * hata ya da deneme hakkı bitti); reddedildi: tür, boyut, adres ya da özet (sha256) kurala uymadı; silindi: saklama
+ * süresi doldu.
+ */
+export const MEDYA_DURUMLARI = ["bekliyor", "indirildi", "hata", "reddedildi", "silindi"] as const;
+export type MedyaDurumu = (typeof MEDYA_DURUMLARI)[number];
+
+/** Gösterim biçimi: görseller satır içi, ses oynatıcıyla (dosya olarak iner), belge indirme bağlantısıyla. */
+export type MedyaGorunumu = "gorsel" | "ses" | "belge";
+
+/**
+ * MIME beyaz listesi (Content-Type bu listeden verilir, dosyanın içeriğinden değil). SVG, HTML ve betik içerebilecek
+ * hiçbir tür yoktur. Görsel türleri belge olarak gönderilse de görsel olarak gösterilir.
+ */
+export const MEDYA_MIME_TURLERI: Record<string, { gorunum: MedyaGorunumu; uzanti: string }> = {
+  "image/jpeg": { gorunum: "gorsel", uzanti: "jpg" },
+  "image/png": { gorunum: "gorsel", uzanti: "png" },
+  "image/webp": { gorunum: "gorsel", uzanti: "webp" },
+  "audio/ogg": { gorunum: "ses", uzanti: "ogg" },
+  "audio/mpeg": { gorunum: "ses", uzanti: "mp3" },
+  "audio/mp4": { gorunum: "ses", uzanti: "m4a" },
+  "audio/aac": { gorunum: "ses", uzanti: "aac" },
+  "audio/amr": { gorunum: "ses", uzanti: "amr" },
+  "application/pdf": { gorunum: "belge", uzanti: "pdf" },
+  "text/plain": { gorunum: "belge", uzanti: "txt" },
+  "application/msword": { gorunum: "belge", uzanti: "doc" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { gorunum: "belge", uzanti: "docx" },
+  "application/vnd.ms-excel": { gorunum: "belge", uzanti: "xls" },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { gorunum: "belge", uzanti: "xlsx" },
+  "application/vnd.ms-powerpoint": { gorunum: "belge", uzanti: "ppt" },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { gorunum: "belge", uzanti: "pptx" },
+};
+
+/** "audio/ogg; codecs=opus" → "audio/ogg"; listede yoksa null. */
+export function medyaMimeSadelestir(mime: string | null | undefined): string | null {
+  const m = (mime ?? "").split(";")[0].trim().toLowerCase();
+  return Object.hasOwn(MEDYA_MIME_TURLERI, m) ? m : null;
+}
+
+export type MedyaDto = {
+  id: string;
+  durum: MedyaDurumu;
+  gorunum: MedyaGorunumu | null;
+  dosyaAdi: string | null;
+  boyut: number | null;
+  /** Gösterilemiyorsa nedeni (kullanıcıya). */
+  neden: string | null;
+};
 
 export const MESAJ_TUR_ADLARI: Record<SohbetMesajTuru, string> = {
   text: "Metin",
@@ -114,7 +178,8 @@ export type SohbetMesajiDto = {
   metin: string | null;
   /** Metin saklama süresi dolduğu için boşaltıldı. */
   icerikSilindi: boolean;
-  medya: boolean;
+  /** Fotoğraf, belge, ses: indirme durumu. Video ve medyasız iletide null. */
+  medya: MedyaDto | null;
   gonderen: string | null;
   kampanyaId: string | null;
   teslimDurumu: string | null;

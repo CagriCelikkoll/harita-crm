@@ -131,7 +131,7 @@ describe("gelen ileti", () => {
     expect(olaylariListele(ctx, k.id).filter((o) => o.tur === "whatsapp_gelen")).toHaveLength(2);
   });
 
-  it("medya: B1'de içerik indirilmez, başlık ve medya kimliği yazılır; konum metne çevrilir", async () => {
+  it("medya: webhook içeriği indirmez (işçi indirir, tests/gelen-medya.test.ts); başlık ve medya kimliği yazılır; konum metne çevrilir", async () => {
     const { ctx, n } = await alan("Medya");
     const k = kisi(ctx, "0532 100 00 02");
     await bildirim(n, "messages", {

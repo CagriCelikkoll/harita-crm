@@ -51,6 +51,7 @@ let bIceAktarma: iceAktarmalar.IceAktarma;
 let bWaBaglanti: waBaglantilari.WhatsappBaglantisi;
 let bWaSablon: waSablonlari.WhatsappSablonu;
 let bSohbet: gelenKutusu.Sohbet;
+let bMedya: gelenKutusu.SohbetMedyasi;
 let bSohbetMesajlari: gelenKutusu.SohbetMesajiSatiri[];
 let bSohbetNotlari: ReturnType<typeof gelenKutusu.notlariListele>;
 let bGelenKutusuSurumu: number;
@@ -118,6 +119,9 @@ beforeAll(() => {
   // Gelen kutusu: B'nin sohbeti (gelen + giden mesaj, iç not, atama).
   const gelen = gelenKutusu.gelenMesajYaz(B, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, wamid: "wamid.B-sohbet", tur: "text", metin: "B'nin gizli mesajı", medyaId: null, metaZamani: null })!;
   gelenKutusu.gidenMesajYaz(B, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, kaynak: "temsilci", tur: "text", metin: "B yanıtı", wamid: "wamid.B-giden", istemciKimligi: "B-istemci", gonderenKullanici: bKullaniciId, teslimDurumu: "gonderildi", ilkDurum: "acik" });
+  const fotograf = gelenKutusu.gelenMesajYaz(B, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, wamid: "wamid.B-foto", tur: "image", metin: null, medyaId: "777001", medya: { mime: "image/jpeg", dosyaAdi: null, metaSha256: null }, metaZamani: null })!;
+  db.$client.prepare("update sohbet_medyalari set durum = 'indirildi', yol = ?, boyut = 1234 where mesaj_id = ?").run(`${B.tenantId}/2026-11/b-foto`, fotograf.mesajId);
+  bMedya = gelenKutusu.sohbetMesajlariGetir(B, gelen.sohbetId).find((m) => m.id === fotograf.mesajId)!.medya!;
   gelenKutusu.notEkle(B, gelen.sohbetId, "B'nin iç notu");
   gelenKutusu.sohbetGuncelle(B, gelen.sohbetId, { atananKullanici: bKullaniciId });
   bSohbet = gelenKutusu.sohbetGetir(B, gelen.sohbetId)!;
@@ -156,6 +160,7 @@ function bDegismedi() {
   expect(gelenKutusu.sohbetMesajlariGetir(B, bSohbet.id)).toEqual(bSohbetMesajlari);
   expect(gelenKutusu.notlariListele(B, bSohbet.id)).toEqual(bSohbetNotlari);
   expect(gelenKutusu.gelenKutusuSurumuGetir(B)).toBe(bGelenKutusuSurumu);
+  expect(gelenKutusu.medyaGetir(B, bMedya.id)).toEqual(bMedya);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -846,6 +851,13 @@ const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
   },
   atanabilirUyeler: () => {
     expect(gelenKutusu.atanabilirUyeler(A).map((u) => u.id)).not.toContain(bKullaniciId);
+  },
+  medyaGetir: () => {
+    expect(gelenKutusu.medyaGetir(A, bMedya.id)).toBeNull();
+  },
+  medyaKullanimi: () => {
+    expect(gelenKutusu.medyaKullanimi(B)).toEqual({ bayt: 1234, adet: 1 });
+    expect(gelenKutusu.medyaKullanimi(A)).toEqual({ bayt: 0, adet: 0 });
   },
 };
 

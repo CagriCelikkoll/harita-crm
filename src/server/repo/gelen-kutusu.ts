@@ -4,22 +4,31 @@
 // İç fonksiyonlar kendi transaction'larını açar; çağıranın transaction'ı içinde savepoint olur (better-sqlite3).
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { WHATSAPP_TESLIM_SIRASI } from "@/lib/whatsapp-api";
-import { MESAJ_SAYFA_BOYUTU, SOHBET_SAYFA_BOYUTU, type MesajKaynagi, type SohbetDurumu, type SohbetMesajTuru } from "@/lib/gelen-kutusu";
+import {
+  MESAJ_SAYFA_BOYUTU,
+  medyaIndirilir,
+  SOHBET_SAYFA_BOYUTU,
+  type MesajKaynagi,
+  type SohbetDurumu,
+  type SohbetMesajTuru,
+} from "@/lib/gelen-kutusu";
 import { db } from "../db";
 import {
   gelenKutusuSurumu,
   leads,
   memberships,
   sohbetler,
+  sohbetMedyalari,
   sohbetMesajlari,
   sohbetNotlari,
   user,
   type Sohbet,
+  type SohbetMedyasi,
   type SohbetMesaji,
 } from "../db/schema";
 import { KayitKuraliHatasi, likeKacir, type TenantContext } from "./baglam";
 
-export type { Sohbet, SohbetMesaji };
+export type { Sohbet, SohbetMedyasi, SohbetMesaji };
 
 /** Çalışma alanının sayacını bir artırır ve yeni değeri döner. */
 function surumAl(ctx: TenantContext): number {
@@ -68,13 +77,16 @@ export type GelenMesajGirdisi = {
   tur: SohbetMesajTuru;
   metin: string | null;
   medyaId: string | null;
+  /** Webhook'taki medya bilgisi (MIME, belgenin adı, Meta'nın sha256 özeti). İndirilen türlerde "bekliyor" satırı açar. */
+  medya?: { mime: string | null; dosyaAdi: string | null; metaSha256: string | null } | null;
   /** Meta'nın bildirdiği yazılma anı; yoksa simdi. */
   metaZamani: Date | null;
 };
 
 /**
  * Müşterinin yazdığı mesaj: sohbeti (yoksa) açar, kapalıysa yeniden açar, okunmamışı artırır, 24 saat penceresini
- * (son_gelen_tarihi) ilerletir. Aynı wamid ikinci kez yazılmaz (null döner).
+ * (son_gelen_tarihi) ilerletir. Aynı wamid ikinci kez yazılmaz (null döner). Fotoğraf, belge ve seste aynı transaction'da
+ * "bekliyor" medya satırı eklenir (indirme işçide; webhook ağ isteği yapmaz).
  */
 export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = new Date()): { sohbetId: string; mesajId: string } | null {
   return db.transaction(() => {
@@ -102,6 +114,20 @@ export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = 
       .returning({ id: sohbetMesajlari.id })
       .get();
     if (!mesaj) return null;
+    if (g.medyaId && medyaIndirilir(g.tur)) {
+      db.insert(sohbetMedyalari)
+        .values({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          mesajId: mesaj.id,
+          metaMedyaId: g.medyaId,
+          mime: g.medya?.mime?.slice(0, 200) ?? null,
+          dosyaAdi: g.medya?.dosyaAdi?.slice(0, 255) ?? null,
+          metaSha256: g.medya?.metaSha256?.slice(0, 200) ?? null,
+          olusturmaTarihi: simdi,
+        })
+        .run();
+    }
     db.update(sohbetler)
       .set({
         durum: "acik",
@@ -308,7 +334,7 @@ export function okunmamisSayilari(ctx: TenantContext): Map<string, number> {
 }
 
 /** Sohbetin son mesajları (eskiden yeniye). onceTarih: daha eskileri (geriye kaydırma). */
-export type SohbetMesajiSatiri = SohbetMesaji & { gonderenAd: string | null };
+export type SohbetMesajiSatiri = SohbetMesaji & { gonderenAd: string | null; medya: SohbetMedyasi | null };
 
 /**
  * Sohbetin mesajları (eskiden yeniye), gönderen temsilcinin adıyla. Varsayılan: son MESAJ_SAYFA_BOYUTU mesaj;
@@ -324,15 +350,31 @@ export function sohbetMesajlariGetir(
   if (secenek.sonraSurum !== undefined) kosul.push(gt(sohbetMesajlari.surum, secenek.sonraSurum));
   const sira = sql.raw("sohbet_mesajlari.rowid");
   const sorgu = db
-    .select({ m: sohbetMesajlari, gonderenAd: user.name })
+    .select({ m: sohbetMesajlari, gonderenAd: user.name, medya: sohbetMedyalari })
     .from(sohbetMesajlari)
     .leftJoin(user, eq(user.id, sohbetMesajlari.gonderenKullanici))
+    .leftJoin(sohbetMedyalari, and(eq(sohbetMedyalari.tenantId, sohbetMesajlari.tenantId), eq(sohbetMedyalari.mesajId, sohbetMesajlari.id)))
     .where(and(...kosul));
   const satirlar =
     secenek.sonraSurum !== undefined
       ? sorgu.orderBy(asc(sohbetMesajlari.tarih), asc(sira)).limit(500).all()
       : sorgu.orderBy(desc(sohbetMesajlari.tarih), desc(sira)).limit(MESAJ_SAYFA_BOYUTU).all().reverse();
-  return satirlar.map((s) => ({ ...s.m, gonderenAd: s.gonderenAd }));
+  return satirlar.map((s) => ({ ...s.m, gonderenAd: s.gonderenAd, medya: s.medya }));
+}
+
+/** Gelen medya satırı (yalnızca bu çalışma alanının). */
+export function medyaGetir(ctx: TenantContext, id: string): SohbetMedyasi | null {
+  return db.select().from(sohbetMedyalari).where(and(eq(sohbetMedyalari.tenantId, ctx.tenantId), eq(sohbetMedyalari.id, id))).get() ?? null;
+}
+
+/** Çalışma alanının diskte duran (indirilmiş) medyası: toplam bayt ve dosya sayısı. */
+export function medyaKullanimi(ctx: TenantContext): { bayt: number; adet: number } {
+  const r = db
+    .select({ bayt: sql<number>`coalesce(sum(${sohbetMedyalari.boyut}), 0)`, adet: sql<number>`count(*)` })
+    .from(sohbetMedyalari)
+    .where(and(eq(sohbetMedyalari.tenantId, ctx.tenantId), eq(sohbetMedyalari.durum, "indirildi")))
+    .get();
+  return { bayt: r?.bayt ?? 0, adet: r?.adet ?? 0 };
 }
 
 /** Sürümden sonra değişen sohbetlerin kimlikleri (en fazla 200). */

@@ -44,6 +44,7 @@ import {
 } from "../../lib/mesajlasma";
 import { ICE_AKTARMA_BICIMLERI, ICE_AKTARMA_DURUMLARI } from "../../lib/ice-aktarma";
 import {
+  MEDYA_DURUMLARI,
   MESAJ_KAYNAKLARI,
   MESAJ_YONLERI,
   SOHBET_DURUMLARI,
@@ -739,6 +740,7 @@ export const sohbetMesajlari = sqliteTable(
   },
   (t) => [
     foreignKey({ columns: [t.tenantId, t.sohbetId], foreignColumns: [sohbetler.tenantId, sohbetler.id] }).onDelete("cascade"),
+    uniqueIndex("sohbet_mesajlari_tenant_id_uq").on(t.tenantId, t.id),
     uniqueIndex("sohbet_mesajlari_wamid_uq").on(t.tenantId, t.wamid).where(sql`${t.wamid} is not null`),
     uniqueIndex("sohbet_mesajlari_istemci_uq").on(t.tenantId, t.istemciKimligi).where(sql`${t.istemciKimligi} is not null`),
     index("sohbet_mesajlari_sohbet_idx").on(t.tenantId, t.sohbetId, t.tarih),
@@ -767,6 +769,44 @@ export const sohbetNotlari = sqliteTable(
 );
 
 /**
+ * Gelen medya (fotoğraf, belge, ses): webhook "bekliyor" satırı ekler (ağ isteği yapmaz), işçi Meta'dan indirir.
+ * yol: medya klasörüne göre "<tenant>/<yyyy-mm>/<uuid>" (kullanıcı girdisinden üretilmez); mime beyaz listeden.
+ * sha256: indirilen dosyanın özeti (hex); meta_sha256: Meta'nın bildirdiği özet. Saklama süresi dolunca dosya silinir,
+ * satır "silindi" olur. Mesaj (ya da kayıt) silinince satır da silinir; artakalan dosyayı günlük bakım temizler.
+ */
+export const sohbetMedyalari = sqliteTable(
+  "sohbet_medyalari",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    mesajId: text("mesaj_id").notNull(),
+    metaMedyaId: text("meta_medya_id").notNull(),
+    mime: text("mime"),
+    boyut: integer("boyut"),
+    sha256: text("sha256"),
+    metaSha256: text("meta_sha256"),
+    dosyaAdi: text("dosya_adi"),
+    yol: text("yol"),
+    durum: text("durum", { enum: MEDYA_DURUMLARI }).notNull().default("bekliyor"),
+    neden: text("neden"),
+    deneme: integer("deneme").notNull().default(0),
+    sonrakiDeneme: zaman("sonraki_deneme"),
+    indirmeTarihi: zaman("indirme_tarihi"),
+    silinmeTarihi: zaman("silinme_tarihi"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId, t.mesajId], foreignColumns: [sohbetMesajlari.tenantId, sohbetMesajlari.id] }).onDelete("cascade"),
+    uniqueIndex("sohbet_medyalari_mesaj_uq").on(t.tenantId, t.mesajId),
+    index("sohbet_medyalari_bekleyen_idx").on(t.durum, t.sonrakiDeneme),
+    index("sohbet_medyalari_kota_idx").on(t.tenantId, t.durum),
+    index("sohbet_medyalari_yol_idx").on(t.yol),
+  ],
+);
+
+/**
  * Canlı yenileme imleci: sohbeti ya da mesajı değiştiren her işlem çalışma alanının sayacını artırır ve yeni değeri
  * satıra (surum) yazar. İstemci "bu sürümden sonrası" diye sorar (kısa yoklama).
  */
@@ -789,6 +829,7 @@ export type WhatsappBaglantisi = typeof whatsappBaglantilari.$inferSelect;
 export type WhatsappSablonu = typeof whatsappSablonlari.$inferSelect;
 export type Sohbet = typeof sohbetler.$inferSelect;
 export type SohbetMesaji = typeof sohbetMesajlari.$inferSelect;
+export type SohbetMedyasi = typeof sohbetMedyalari.$inferSelect;
 
 /**
  * Gönderim işçisi kilidi: aynı anda yalnızca bir işçi turu çalışır (cron ile üst üste binen `--bir-kez` turları ya

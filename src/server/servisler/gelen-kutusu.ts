@@ -74,6 +74,7 @@ import { whatsappIzniAyarla, whatsappKisisiGetir, whatsappYokIsaretle } from "..
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
+import { medyaDto } from "./medya";
 import { sablonlar, whatsappBaglantisiCoz, type SablonDto } from "./whatsapp-api";
 
 export class GelenKutusuHatasi extends Error {
@@ -116,7 +117,7 @@ export function mesajDto(m: SohbetMesajiSatiri): SohbetMesajiDto {
     tur: m.tur,
     metin: m.metin,
     icerikSilindi: m.icerikSilindi,
-    medya: Boolean(m.medyaId),
+    medya: m.medya ? medyaDto(m.medya) : null,
     gonderen: m.gonderenAd,
     kampanyaId: m.kampanyaId,
     teslimDurumu: m.teslimDurumu,
@@ -371,7 +372,7 @@ export async function sohbetMesajiGonder(ctx: TenantContext, sohbetId: string, g
   const onceki = istemciMesajiBul(ctx, g.istemciKimligi);
   if (onceki) {
     if (onceki.sohbetId !== sohbetId) throw new GelenKutusuHatasi("Geçersiz istemci kimliği.", 400);
-    return { mesaj: mesajDto({ ...onceki, gonderenAd: null }), tekrar: true, uyari: null };
+    return { mesaj: mesajDto({ ...onceki, gonderenAd: null, medya: null }), tekrar: true, uyari: null };
   }
   const anahtar = `${ctx.tenantId}|${g.istemciKimligi}`;
   if (isleniyor.has(anahtar)) throw new GelenKutusuHatasi("Bu mesaj zaten gönderiliyor.", 409);
@@ -509,7 +510,7 @@ async function gonder(
     const yanit = await h.gonderim();
     const mesaj = yaz(yanit.wamid, "gonderildi");
     sistemOlayiEkle(ctx, kayit.id, "whatsapp_yanit", h.olay);
-    return { mesaj: mesajDto({ ...mesaj, gonderenAd: null }), tekrar: false, uyari: null };
+    return { mesaj: mesajDto({ ...mesaj, gonderenAd: null, medya: null }), tekrar: false, uyari: null };
   } catch (hata) {
     const e = hata instanceof GraphHatasi ? hata : null;
     // Gidip gitmediği bilinmiyor: tekrar denenmez, sayaçtan düşülmez; temsilci görsün diye mesaj yazılır.
@@ -517,7 +518,7 @@ async function gonder(
       const mesaj = yaz(null, "belirsiz");
       sistemOlayiEkle(ctx, kayit.id, "whatsapp_yanit", `${h.olay} — sonuç belirsiz`);
       return {
-        mesaj: mesajDto({ ...mesaj, gonderenAd: null }),
+        mesaj: mesajDto({ ...mesaj, gonderenAd: null, medya: null }),
         tekrar: false,
         uyari: "Meta'dan yanıt alınamadı: mesaj gitmiş de olabilir, gitmemiş de. Tekrar göndermeden önce müşteriyle teyit edin.",
       };

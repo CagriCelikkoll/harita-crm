@@ -2,6 +2,8 @@
 // Durum modül düzeyindedir; testler mockWhatsappSifirla() ve mockWhatsapp üzerinden senaryo kurar.
 import type { MetaSablon, MetinGonderimi, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
 import { GraphHatasi, type GraphBaglantisi } from "./tipler";
+import { createHash } from "node:crypto";
+import { metaMedyaAdresiGecerli } from "./medya-adresi";
 
 const ornekSablonlar = (): MetaSablon[] => [
   {
@@ -57,6 +59,17 @@ export const mockWhatsapp = {
   sonBaglanti: null as GraphBaglantisi | null,
   /** WABA'daki numaralar; null: yalnızca bağlantının kendi numarası (sahiplik doğrulanır). */
   wabaNumaralari: null as string[] | null,
+  /**
+   * Meta'daki medyalar (kimlik → içerik). url verilmezse Meta'nın medya alanında bir adres üretilir; sha256 verilmezse
+   * içeriğin gerçek özeti (hex) döner; boyut verilmezse içeriğin boyutu. akisBoyutu: indirme yanıtının Content-Length'i
+   * (verilmezse içeriğin boyutu; null: başlık yok). Listede olmayan kimlik 404.
+   */
+  medyalar: new Map<
+    string,
+    { icerik: Uint8Array; mime: string; url?: string; sha256?: string | null; boyut?: number | null; akisBoyutu?: number | null }
+  >(),
+  /** İndirilen medya adresleri (sırasıyla). */
+  medyaIndirmeleri: [] as string[],
 };
 
 export function mockWhatsappSifirla() {
@@ -71,7 +84,11 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.aliciHatalari = new Map();
   mockWhatsapp.gonderimDurumu = "accepted";
   mockWhatsapp.wabaNumaralari = null;
+  mockWhatsapp.medyalar = new Map();
+  mockWhatsapp.medyaIndirmeleri = [];
 }
+
+const mockMedyaAdresi = (id: string) => `https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=${id}`;
 
 // Demo işçisi her açılışta sayacı sıfırdan başlatır ama demo.db kalıcıdır: önek olmasa yeni mesaj eski mesajın kimliğini
 // alır ve teslim bildirimi eski satıra işlenir.
@@ -86,6 +103,34 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
     if (b.erisimAnahtari === "gecersiz") throw new GraphHatasi("Invalid OAuth access token", 401, 190);
   };
   return {
+    async medyaBilgisi(medyaId) {
+      cagri();
+      const m = mockWhatsapp.medyalar.get(medyaId);
+      if (!m) throw new GraphHatasi("Unsupported get request. Object does not exist", 404, 100);
+      return {
+        url: m.url ?? mockMedyaAdresi(medyaId),
+        mime: m.mime,
+        boyut: m.boyut === undefined ? m.icerik.byteLength : m.boyut,
+        sha256: m.sha256 === undefined ? createHash("sha256").update(m.icerik).digest("hex") : m.sha256,
+      };
+    },
+    async medyaAkisi(url) {
+      cagri();
+      if (!metaMedyaAdresiGecerli(url)) throw new GraphHatasi("Medya adresi Meta'nın alanında değil.", 400);
+      const m = [...mockWhatsapp.medyalar.entries()].find(([id, v]) => (v.url ?? mockMedyaAdresi(id)) === url)?.[1];
+      if (!m) throw new GraphHatasi("Meta medya HTTP 404", 404);
+      mockWhatsapp.medyaIndirmeleri.push(url);
+      const icerik = m.icerik;
+      return {
+        boyut: m.akisBoyutu === undefined ? icerik.byteLength : m.akisBoyutu,
+        parcalar: {
+          async *[Symbol.asyncIterator]() {
+            for (let i = 0; i < icerik.byteLength; i += 64 * 1024) yield icerik.subarray(i, i + 64 * 1024);
+          },
+        },
+        iptal: () => {},
+      };
+    },
     async mesajGonder(g) {
       cagri();
       const h = mockWhatsapp.aliciHatalari.get(g.alici.deger);

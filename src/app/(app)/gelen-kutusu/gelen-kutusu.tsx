@@ -9,7 +9,7 @@ import { bildir } from "@/components/bildirim";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { Simge } from "@/components/arayuz/simge";
 import { apiIstek } from "@/lib/api-istemci";
-import { tarihYaz } from "@/lib/bicim";
+import { boyutYaz, tarihYaz } from "@/lib/bicim";
 import {
   MEDYA_TURLERI,
   MESAJ_TUR_ADLARI,
@@ -18,6 +18,7 @@ import {
   RET_UYARISI,
   TESLIM_ADLARI,
   YANIT_AZAMI,
+  type MedyaDto,
   type SohbetMesajiDto,
   type SohbetNotuDto,
   type SohbetOzetiDto,
@@ -506,23 +507,67 @@ function TeslimIsareti({ m }: { m: SohbetMesajiDto }) {
   );
 }
 
+/** Gelen fotoğraf (satır içi), ses (oynatıcı) ve belge (indirme bağlantısı); indirilemediyse nedeni. */
+function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto["tur"] }) {
+  const adres = `/api/medya/${medya.id}`;
+  const ad = MESAJ_TUR_ADLARI[tur];
+  if (medya.durum !== "indirildi" || !medya.gorunum) {
+    return (
+      <div className="mb-1 rounded bg-segment px-2 py-1 text-xs text-metin-ikincil">
+        [{ad}] {medya.neden ?? "görüntülenemiyor, telefondan bakın"}
+      </div>
+    );
+  }
+  if (medya.gorunum === "gorsel") {
+    return (
+      <a href={adres} target="_blank" rel="noopener" className="mb-1 block" title="Büyük boyutta aç">
+        {/* eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz */}
+        <img src={adres} alt={ad} loading="lazy" className="max-h-72 max-w-full rounded-md" />
+      </a>
+    );
+  }
+  const indirme = (
+    <a href={`${adres}?indir=1`} className="text-xs font-medium text-ana-koyu underline" download>
+      {medya.gorunum === "ses" ? "Ses kaydını indir" : (medya.dosyaAdi ?? "Belgeyi indir")}
+      {medya.boyut !== null ? ` (${boyutYaz(medya.boyut)})` : ""}
+    </a>
+  );
+  if (medya.gorunum === "ses") {
+    return (
+      <div className="mb-1 flex flex-col gap-1">
+        <audio controls preload="none" src={adres} className="w-64 max-w-full">
+          {indirme}
+        </audio>
+        {indirme}
+      </div>
+    );
+  }
+  return <div className="mb-1 rounded bg-segment px-2 py-1.5">{indirme}</div>;
+}
+
 function Balon({ m }: { m: SohbetMesajiDto }) {
   const giden = m.yon === "giden";
   const etiket = kaynakEtiketi(m);
   const medya = MEDYA_TURLERI.includes(m.tur);
+  // Belgede Meta başlık yoksa dosya adını metin olarak verir: indirme bağlantısında zaten görünür.
+  const metin = m.medya?.dosyaAdi && m.metin === m.medya.dosyaAdi ? null : m.metin;
   return (
     <div className={`flex ${giden ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm shadow-sm ${giden ? "bg-ana-acik" : "bg-white"}`}>
         {etiket && <div className="mb-0.5 text-xs font-semibold text-ana-koyu">{etiket}</div>}
-        {medya && (
-          <div className="mb-1 rounded bg-segment px-2 py-1 text-xs text-metin-ikincil">
-            [{MESAJ_TUR_ADLARI[m.tur]}] görüntülenemiyor, telefondan bakın
-          </div>
+        {m.medya ? (
+          <MedyaGosterimi medya={m.medya} tur={m.tur} />
+        ) : (
+          medya && (
+            <div className="mb-1 rounded bg-segment px-2 py-1 text-xs text-metin-ikincil">
+              [{MESAJ_TUR_ADLARI[m.tur]}] görüntülenemiyor, telefondan bakın
+            </div>
+          )
         )}
         {m.icerikSilindi ? (
           <p className="text-soluk italic">İçerik saklama süresi doldu</p>
-        ) : m.metin ? (
-          <p className="break-words whitespace-pre-wrap">{m.metin}</p>
+        ) : metin ? (
+          <p className="break-words whitespace-pre-wrap">{metin}</p>
         ) : !medya ? (
           <p className="text-soluk italic">[{MESAJ_TUR_ADLARI[m.tur]}]</p>
         ) : null}
