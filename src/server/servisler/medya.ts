@@ -1,4 +1,4 @@
-// Gelen medya (fotoğraf, belge, ses): işçinin indirmesi ve gösterim. Webhook yalnızca "bekliyor" satırı ekler.
+// Gelen medya (fotoğraf, video, belge, ses): işçinin indirmesi ve gösterim. Webhook yalnızca "bekliyor" satırı ekler.
 //
 // İndirme (her işçi turunda, sırası gelenler):
 //  1. Meta'daki ömrü (7 gün) dolduysa "hata". Kota (MEDYA_KOTA_BAYT) doluysa satır bekler, saatte bir yeniden bakılır.
@@ -13,7 +13,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { MEDYA_AZAMI_BAYT, MEDYA_KOTA_BAYT, MEDYA_MIME_TURLERI, medyaIndirilir, medyaMimeSadelestir, type MedyaDto } from "@/lib/gelen-kutusu";
+import { MEDYA_AZAMI_BAYT, MEDYA_KOTA_BAYT, MEDYA_MIME_TURLERI, medyaIndirilir, medyaMimeSadelestir, type MedyaDto, type MedyaGorunumu } from "@/lib/gelen-kutusu";
 import type { TenantContext } from "../repo/baglam";
 import { medyaGetir, type SohbetMedyasi } from "../repo/gelen-kutusu";
 import { indirilecekMedyalar, medyaGuncelle, medyaKotaKullanimi, type IndirilecekMedya } from "../repo/sistem/medya";
@@ -166,7 +166,7 @@ export function medyaDto(m: SohbetMedyasi): MedyaDto {
 export function medyaDosyasi(
   ctx: TenantContext,
   id: string,
-): { tam: string; mime: string; boyut: number; gorunum: "gorsel" | "ses" | "belge"; dosyaAdi: string } | null {
+): { tam: string; mime: string; boyut: number; gorunum: MedyaGorunumu; dosyaAdi: string } | null {
   const m = medyaGetir(ctx, id);
   if (!m || m.durum !== "indirildi" || !m.yol) return null;
   const mime = medyaMimeSadelestir(m.mime);

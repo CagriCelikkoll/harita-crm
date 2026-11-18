@@ -507,7 +507,7 @@ function TeslimIsareti({ m }: { m: SohbetMesajiDto }) {
   );
 }
 
-/** Gelen fotoğraf (satır içi), ses (oynatıcı) ve belge (indirme bağlantısı); indirilemediyse nedeni. */
+/** Gelen fotoğraf (satır içi), ses ve video (oynatıcı) ve belge (indirme bağlantısı); indirilemediyse nedeni. */
 function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto["tur"] }) {
   const adres = `/api/medya/${medya.id}`;
   const ad = MESAJ_TUR_ADLARI[tur];
@@ -528,7 +528,7 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
   }
   const indirme = (
     <a href={`${adres}?indir=1`} className="text-xs font-medium text-ana-koyu underline" download>
-      {medya.gorunum === "ses" ? "Ses kaydını indir" : (medya.dosyaAdi ?? "Belgeyi indir")}
+      {medya.gorunum === "ses" ? "Ses kaydını indir" : medya.gorunum === "video" ? "Videoyu indir" : (medya.dosyaAdi ?? "Belgeyi indir")}
       {medya.boyut !== null ? ` (${boyutYaz(medya.boyut)})` : ""}
     </a>
   );
@@ -538,6 +538,17 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
         <audio controls preload="none" src={adres} className="w-64 max-w-full">
           {indirme}
         </audio>
+        {indirme}
+      </div>
+    );
+  }
+  if (medya.gorunum === "video") {
+    // 3GP'yi çoğu tarayıcı oynatamaz: indirme bağlantısı her zaman görünür.
+    return (
+      <div className="mb-1 flex flex-col gap-1">
+        <video controls preload="metadata" playsInline src={adres} className="max-h-80 w-72 max-w-full rounded-md bg-black">
+          {indirme}
+        </video>
         {indirme}
       </div>
     );

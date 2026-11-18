@@ -22,7 +22,7 @@ nasıl anlayacağınızı söyler. Kontrol tutmuyorsa sonraki adıma geçmeyin; 
 | `/opt/harita-crm/.env.production.local` | Ayarlar ve gizli anahtarlar (0600, git'e girmez) |
 | `/var/lib/harita-crm/app.db` | Veritabanı (SQLite) |
 | `/var/lib/harita-crm/yedek/` | Her güncellemede migration öncesi alınan yedekler |
-| `/var/lib/harita-crm/medya/` | Gelen WhatsApp fotoğraf, belge ve sesleri (işçi indirir; saklama süresi dolunca silinir) |
+| `/var/lib/harita-crm/medya/` | Gelen WhatsApp fotoğraf, video, belge ve sesleri (işçi indirir; saklama süresi dolunca silinir) |
 | `/var/backups/harita-crm/` | Günlük yedekler (`app-<tarih>.db.gz`) |
 
 **Gerekenler:**
@@ -356,7 +356,7 @@ ssh yonetici@SUNUCU_IP rm son-yedek.db.gz
 
 Yedek kişisel veri içerir; şifreli bir diskte saklayın. Sürekli uzak yedek için README → "Litestream ile yedekleme".
 
-> **Gelen medya yedeğe girmez.** `/var/lib/harita-crm/medya/` (fotoğraf, belge, ses) günlük yedekte yoktur; saklama
+> **Gelen medya yedeğe girmez.** `/var/lib/harita-crm/medya/` (fotoğraf, video, belge, ses) günlük yedekte yoktur; saklama
 > süresi (varsayılan 90 gün) dolunca zaten silinir. Sunucu giderse sohbetlerde bu dosyalar "görüntülenemiyor" olur,
 > yazışma metinleri yedekten gelir. Çalışma alanı başına üst sınır 5 GB'tır (Ayarlar → Veri saklama'da görünür); diskte
 > yer ayırırken çalışma alanı sayısını hesaba katın.

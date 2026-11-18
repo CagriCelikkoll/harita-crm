@@ -89,3 +89,26 @@ export function medyaBakimi(simdi = new Date()): { suresiDolan: number; artakala
   }
   return { suresiDolan, artakalan };
 }
+
+/** "bytes=a-b", "bytes=a-", "bytes=-n" → kapalı aralık; başlık yoksa ya da çok parçalıysa null (tüm dosya); karşılanamazsa "gecersiz". */
+export function aralikCoz(baslik: string | null, boyut: number): { bas: number; son: number } | null | "gecersiz" {
+  if (!baslik) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(baslik.trim());
+  if (!m) return baslik.includes(",") ? null : "gecersiz";
+  const [, a, b] = m;
+  if (a === "" && b === "") return "gecersiz";
+  let bas: number;
+  let son: number;
+  if (a === "") {
+    const n = Number(b);
+    if (n === 0) return "gecersiz";
+    bas = Math.max(0, boyut - n);
+    son = boyut - 1;
+  } else {
+    bas = Number(a);
+    son = b === "" ? boyut - 1 : Math.min(Number(b), boyut - 1);
+    if (b !== "" && Number(b) < bas) return "gecersiz";
+  }
+  if (bas >= boyut || !Number.isSafeInteger(bas) || !Number.isSafeInteger(son)) return "gecersiz";
+  return { bas, son };
+}

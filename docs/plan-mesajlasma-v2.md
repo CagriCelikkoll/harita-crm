@@ -503,13 +503,15 @@ Gerekçe:
 > - Migration numarası **0022** (0021 D grubuna gitti).
 > - Durumlara **`reddedildi`** eklendi (tür, boyut, Meta dışı adres ya da özet uyuşmazlığı; yeniden denenmez) ve
 >   kullanıcıya gösterilen **`neden`** alanı; `hata` kalıcı hata ya da 5 deneme sonrası içindir.
-> - **Video indirilmez** (istenen kapsam fotoğraf, belge, ses; çıkartma da indirilir). Sohbette "telefondan bakın".
+> - Video ilk sürümde indirilmiyordu; sonradan eklendi: MP4 ve 3GP, 16 MB, aynı denetimler, sohbette oynatıcı. Dosya
+>   rotası tek parçalı Range isteğini 206 ile yanıtlar (Safari video için ister). Çıkartma da indirilir.
 > - Meta'nın sha256 özeti hex ya da base64 gelebileceği için ikisi de kabul edilir; özet yoksa denetim atlanır.
 > - İndirme işçi turunda, kampanyalardan sonra ve aynı kilit altında; tur başına en fazla 10 dosya.
 > - Kayıt ya da mesaj silinince medya satırı cascade ile gider; dosyayı günlük bakımın **sahipsiz dosya taraması**
 >   siler (1 saatten eski, hiçbir indirilmiş satıra ait olmayan dosyalar ve yarım `.part` dosyaları).
 > - **Medya yedeği yapılmadı:** plandaki "ayrı `tar` ile 14 gün" yerine medya yedeğe hiç girmez (SUNUCU-KURULUM'da
->   not). 5 GB'a kadar medyanın 14 günlük tam kopyası diski hızla doldurur; gerekirse ayrı karar.
+>   not). 5 GB'a kadar medyanın 14 günlük tam kopyası diski hızla doldurur. Karar (18.11.2026): şimdilik
+>   yedeklenmeyecek.
 > - Kota uyarısı Ayarlar → Veri saklama'da (kullanım, %90 ve dolu uyarısı) ve sohbet balonunda.
 > - Medyanın kimin tarafından görüntülendiği kaydedilmez (yalnızca oturum ve çalışma alanı denetimi).
 

@@ -84,27 +84,31 @@ const sonMedya = (ctx: TenantContext, n: Numara, leadId: string) => mesajlar(ctx
 const medyaIste = (id: string, sorgu = "") => medyaRotasi.GET(new Request(`https://crm.ornek.test/api/medya/${id}${sorgu}`), { params: Promise.resolve({ id }) });
 
 describe("webhook", () => {
-  it("fotoğraf, belge ve seste 'bekliyor' satırı ekler, Meta'ya istek yapmaz; video ve konumda medya satırı yok", async () => {
+  it("fotoğraf, belge, ses ve videoda 'bekliyor' satırı ekler, Meta'ya istek yapmaz; konumda medya satırı yok", async () => {
     const { ctx, n, tel, leadId } = await alan("Webhook");
     mockWhatsapp.sonBaglanti = null; // numara eklenirken yapılan doğrulama çağrısı
     await medyaGonder(n, tel, "image", { id: "1001", mime_type: "image/jpeg", sha256: "abc", caption: "Daire" });
     await medyaGonder(n, tel, "document", { id: "1002", mime_type: "application/pdf", filename: "tapu.pdf" });
     await medyaGonder(n, tel, "audio", { id: "1003", mime_type: "audio/ogg; codecs=opus", voice: true });
     await medyaGonder(n, tel, "video", { id: "1004", mime_type: "video/mp4" });
+    await bildirim(n, { contacts: [{ profile: { name: "Müşteri" }, wa_id: tel }], messages: [{ from: tel, id: `wamid.KONUM${++sayac}`, timestamp: String(Math.floor(Date.now() / 1000)), type: "location", location: { latitude: 38.4, longitude: 27.1 } }] });
     const m = mesajlar(ctx, n, leadId);
     expect(m.map((x) => [x.tur, x.medya?.durum ?? null, x.medya?.mime ?? null, x.medya?.dosyaAdi ?? null])).toEqual([
       ["image", "bekliyor", "image/jpeg", null],
       ["document", "bekliyor", "application/pdf", "tapu.pdf"],
       ["audio", "bekliyor", "audio/ogg; codecs=opus", null],
-      ["video", null, null, null],
+      ["video", "bekliyor", "video/mp4", null],
+      ["location", null, null, null],
     ]);
     expect(m[0].medya!.metaSha256).toBe("abc");
     expect(mockWhatsapp.medyaIndirmeleri).toEqual([]);
     expect(mockWhatsapp.sonBaglanti).toBeNull(); // webhook hiçbir Graph çağrısı yapmadı
-    // DTO: indirilene kadar "Yükleniyor"; videoda medya bilgisi yok (arayüz "telefondan bakın" der).
+    expect(m[4]).toMatchObject({ tur: "location", medya: null });
+    // DTO: indirilene kadar "Yükleniyor".
     const dto = m.map(servis.mesajDto);
     expect(dto[0].medya).toMatchObject({ durum: "bekliyor", gorunum: "gorsel", neden: "Yükleniyor…" });
-    expect(dto[3].medya).toBeNull();
+    expect(dto[3].medya).toMatchObject({ durum: "bekliyor", gorunum: "video", neden: "Yükleniyor…" });
+    expect(dto[4].medya).toBeNull();
   });
 });
 
@@ -156,6 +160,68 @@ describe("işçi indirir", () => {
     expect(ys.headers.get("content-type")).toBe("audio/ogg");
     expect(ys.headers.get("content-disposition")).toMatch(/^attachment; filename="whatsapp-[0-9a-f]{8}\.ogg"/);
     expect(servis.mesajDto(mesajlar(ctx, n, leadId)[1]).medya).toMatchObject({ gorunum: "ses", boyut: 3000 });
+  });
+
+  it("video (MP4, 3GP) iner ve dosya olarak sunulur; parça (Range) isteği 206, karşılanamayan 416; 16 MB sınırı; başka video türü reddedilir", async () => {
+    const { ctx, n, tel, leadId } = await alan("Video");
+    const mp4 = Uint8Array.from({ length: 10_000 }, (_, i) => i % 251);
+    const ucgp = icerik(4000, 9);
+    const sinir = MEDYA_AZAMI_BAYT.video;
+    expect(sinir).toBe(16 * 1024 * 1024);
+    mockWhatsapp.medyalar.set("2201", { icerik: mp4, mime: "video/mp4" });
+    mockWhatsapp.medyalar.set("2202", { icerik: ucgp, mime: "video/3gpp" });
+    mockWhatsapp.medyalar.set("2203", { icerik: icerik(10), mime: "video/mp4", boyut: sinir + 1 });
+    mockWhatsapp.medyalar.set("2204", { icerik: icerik(sinir + 1), mime: "video/mp4", boyut: 1000, sha256: null, akisBoyutu: null });
+    mockWhatsapp.medyalar.set("2205", { icerik: icerik(10), mime: "video/quicktime" });
+    await medyaGonder(n, tel, "video", { id: "2201", mime_type: "video/mp4", caption: "Daire turu" });
+    await medyaGonder(n, tel, "video", { id: "2202", mime_type: "video/3gpp" });
+    await medyaGonder(n, tel, "video", { id: "2203", mime_type: "video/mp4" });
+    await medyaGonder(n, tel, "video", { id: "2204", mime_type: "video/mp4" });
+    await medyaGonder(n, tel, "video", { id: "2205", mime_type: "video/quicktime" });
+    expect(await medyalariIndir()).toMatchObject({ indirilen: 2, reddedilen: 3 });
+    const [v, g, buyuk, yalanci, mov] = mesajlar(ctx, n, leadId).map((x) => x.medya!);
+    expect(v).toMatchObject({ durum: "indirildi", mime: "video/mp4", boyut: 10_000 });
+    expect(g).toMatchObject({ durum: "indirildi", mime: "video/3gpp" });
+    expect(buyuk.neden).toBe("Dosya çok büyük (17 MB; sınır 16 MB); telefondan bakın");
+    expect(yalanci.neden).toBe("Dosya çok büyük (sınır 16 MB); indirme kesildi, telefondan bakın");
+    expect(mov).toMatchObject({ durum: "reddedildi", yol: null, neden: "Desteklenmeyen dosya türü (video/quicktime); telefondan bakın" });
+    expect(servis.mesajDto(mesajlar(ctx, n, leadId)[0]).medya).toMatchObject({ durum: "indirildi", gorunum: "video", boyut: 10_000 });
+
+    const y = await medyaIste(v.id);
+    expect(y.status).toBe(200);
+    expect(y.headers.get("content-type")).toBe("video/mp4");
+    expect(y.headers.get("accept-ranges")).toBe("bytes");
+    expect(y.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(y.headers.get("content-disposition")).toMatch(/^attachment; filename="whatsapp-[0-9a-f]{8}.mp4"/);
+    expect(new Uint8Array(await y.arrayBuffer())).toEqual(mp4);
+    expect((await medyaIste(g.id)).headers.get("content-disposition")).toMatch(/.3gp"/);
+
+    const parca = async (range: string) =>
+      medyaRotasi.GET(new Request(`https://crm.ornek.test/api/medya/${v.id}`, { headers: { range } }), { params: Promise.resolve({ id: v.id }) });
+    const p = await parca("bytes=100-199");
+    expect(p.status).toBe(206);
+    expect(p.headers.get("content-range")).toBe("bytes 100-199/10000");
+    expect(p.headers.get("content-length")).toBe("100");
+    expect(p.headers.get("content-type")).toBe("video/mp4");
+    expect(new Uint8Array(await p.arrayBuffer())).toEqual(mp4.slice(100, 200));
+    const acik = await parca("bytes=9990-");
+    expect(acik.headers.get("content-range")).toBe("bytes 9990-9999/10000");
+    expect(new Uint8Array(await acik.arrayBuffer())).toEqual(mp4.slice(9990));
+    const son = await parca("bytes=-5");
+    expect(son.headers.get("content-range")).toBe("bytes 9995-9999/10000");
+    expect(new Uint8Array(await son.arrayBuffer())).toEqual(mp4.slice(9995));
+    const tasan = await parca("bytes=0-99999");
+    expect(tasan.headers.get("content-range")).toBe("bytes 0-9999/10000");
+    for (const kotu of ["bytes=10000-", "bytes=50-10", "bytes=-0", "items=0-5"]) {
+      const k = await parca(kotu);
+      expect(k.status, kotu).toBe(416);
+      expect(k.headers.get("content-range")).toBe("bytes */10000");
+    }
+    // Çok parçalı istek desteklenmez: tüm dosya 200 ile gelir.
+    expect((await parca("bytes=0-5,10-20")).status).toBe(200);
+    // Başka çalışma alanı parça isteğiyle de erişemez.
+    oturum.ctx = (await alan("Video yabanci")).ctx;
+    expect((await parca("bytes=0-10")).status).toBe(404);
   });
 });
 

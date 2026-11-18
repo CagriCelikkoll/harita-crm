@@ -33,7 +33,7 @@ export type SohbetMesajTuru = (typeof SOHBET_MESAJ_TURLERI)[number];
 export const sohbetMesajTuru = (t: string | undefined): SohbetMesajTuru =>
   (SOHBET_MESAJ_TURLERI as readonly string[]).includes(t ?? "") ? (t as SohbetMesajTuru) : "unsupported";
 
-/** Medya türleri. İndirilenler MEDYA_INDIRILEN_TURLER; video indirilmez ("telefondan bakın"). */
+/** Medya türleri; hepsi işçi tarafından indirilir (MEDYA_INDIRILEN_TURLER). */
 export const MEDYA_TURLERI: readonly SohbetMesajTuru[] = ["image", "video", "document", "audio", "sticker"];
 
 /** İşçinin indirdiği medya türleri ve her birinin en büyük boyutu (WhatsApp'ın kendi sınırları). */
@@ -41,6 +41,7 @@ export const MEDYA_AZAMI_BAYT = {
   image: 5 * 1024 * 1024,
   sticker: 1024 * 1024,
   audio: 16 * 1024 * 1024,
+  video: 16 * 1024 * 1024,
   document: 100 * 1024 * 1024,
 } as const;
 export type IndirilenMedyaTuru = keyof typeof MEDYA_AZAMI_BAYT;
@@ -58,8 +59,8 @@ export const MEDYA_KOTA_BAYT = 5 * 1024 * 1024 * 1024;
 export const MEDYA_DURUMLARI = ["bekliyor", "indirildi", "hata", "reddedildi", "silindi"] as const;
 export type MedyaDurumu = (typeof MEDYA_DURUMLARI)[number];
 
-/** Gösterim biçimi: görseller satır içi, ses oynatıcıyla (dosya olarak iner), belge indirme bağlantısıyla. */
-export type MedyaGorunumu = "gorsel" | "ses" | "belge";
+/** Gösterim biçimi: görseller satır içi, ses ve video oynatıcıyla (dosya olarak iner), belge indirme bağlantısıyla. */
+export type MedyaGorunumu = "gorsel" | "ses" | "video" | "belge";
 
 /**
  * MIME beyaz listesi (Content-Type bu listeden verilir, dosyanın içeriğinden değil). SVG, HTML ve betik içerebilecek
@@ -74,6 +75,8 @@ export const MEDYA_MIME_TURLERI: Record<string, { gorunum: MedyaGorunumu; uzanti
   "audio/mp4": { gorunum: "ses", uzanti: "m4a" },
   "audio/aac": { gorunum: "ses", uzanti: "aac" },
   "audio/amr": { gorunum: "ses", uzanti: "amr" },
+  "video/mp4": { gorunum: "video", uzanti: "mp4" },
+  "video/3gpp": { gorunum: "video", uzanti: "3gp" },
   "application/pdf": { gorunum: "belge", uzanti: "pdf" },
   "text/plain": { gorunum: "belge", uzanti: "txt" },
   "application/msword": { gorunum: "belge", uzanti: "doc" },
@@ -178,7 +181,7 @@ export type SohbetMesajiDto = {
   metin: string | null;
   /** Metin saklama süresi dolduğu için boşaltıldı. */
   icerikSilindi: boolean;
-  /** Fotoğraf, belge, ses: indirme durumu. Video ve medyasız iletide null. */
+  /** Fotoğraf, video, belge, ses: indirme durumu. Medyasız iletide null. */
   medya: MedyaDto | null;
   gonderen: string | null;
   kampanyaId: string | null;
