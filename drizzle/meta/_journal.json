@@ -162,6 +162,13 @@
       "when": 1794948041709,
       "tag": "0022_sohbet_medyalari",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1794986890880,
+      "tag": "0023_hazir_cevaplar",
+      "breakpoints": true
     }
   ]
 }

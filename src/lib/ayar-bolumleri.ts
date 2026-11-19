@@ -1,6 +1,6 @@
 // Ayarlar'ın sol menüsü: gruplar ve bölümler (her bölüm ayrı rota, /ayarlar/<yol>).
 // Üye yalnızca kendini ilgilendiren bölümleri görür (Çalışma alanı, Ekip, Kullanım, Saatler ve sınırlar, WhatsApp
-// listesi). Kanal kimlik bilgileri, Gönderen bilgileri ve Veri saklama yalnızca yöneticiye görünür. Bu yalnızca
+// listesi, Hazır cevaplar; Hazır cevaplar'ı yalnızca yönetici değiştirir). Kanal kimlik bilgileri, Gönderen bilgileri ve Veri saklama yalnızca yöneticiye görünür. Bu yalnızca
 // gezinmedir: sunucu tarafı yetki denetimleri ayrıca yapılır.
 import type { Rol } from "./sabitler";
 
@@ -27,6 +27,7 @@ export const AYAR_GRUPLARI: { ad: string; bolumler: AyarBolumuTanimi[] }[] = [
       { yol: "gonderen", ad: "Gönderen bilgileri", yalnizcaYonetici: true },
       { yol: "saatler", ad: "Saatler ve sınırlar", yalnizcaYonetici: false },
       { yol: "whatsapp-listesi", ad: "WhatsApp listesi", yalnizcaYonetici: false },
+      { yol: "hazir-cevaplar", ad: "Hazır cevaplar", yalnizcaYonetici: false },
     ],
   },
   {

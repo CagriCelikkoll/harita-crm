@@ -102,6 +102,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "neden", "deneme", "sonraki_deneme", "indirme_tarihi", "silinme_tarihi", "olusturma_tarihi",
   ],
   gelen_kutusu_surumu: ["tenant_id", "surum"],
+  // Hazır cevaplar: ekibin yazdığı yanıt metinleri (kullanıcı verisi); baslik_anahtari benzersizlik içindir.
+  hazir_cevaplar: ["id", "tenant_id", "baslik", "baslik_anahtari", "metin", "olusturan", "olusturma_tarihi", "guncelleme_tarihi"],
   // Gönderim işçisi kilidi (kiracı verisi yok).
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [

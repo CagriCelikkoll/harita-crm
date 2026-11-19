@@ -749,6 +749,28 @@ export const sohbetMesajlari = sqliteTable(
   ],
 );
 
+/**
+ * Gelen kutusunun hazır cevapları (ekibin ortak yanıt metinleri). baslik_anahtari: Türkçe küçük harfe çevrilmiş başlık
+ * (SQLite lower() Türkçe harfleri çevirmez); aynı çalışma alanında aynı başlık iki kez olamaz.
+ */
+export const hazirCevaplar = sqliteTable(
+  "hazir_cevaplar",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    baslik: text("baslik").notNull(),
+    baslikAnahtari: text("baslik_anahtari").notNull(),
+    metin: text("metin").notNull(),
+    olusturan: text("olusturan").references(() => user.id, { onDelete: "set null" }),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
+  },
+  (t) => [uniqueIndex("hazir_cevaplar_baslik_uq").on(t.tenantId, t.baslikAnahtari)],
+);
+export type HazirCevap = typeof hazirCevaplar.$inferSelect;
+
 /** İç notlar: yalnızca ekip görür, Meta'ya hiçbir koşulda gitmez. */
 export const sohbetNotlari = sqliteTable(
   "sohbet_notlari",

@@ -26,6 +26,7 @@ import * as waBaglantilari from "@/server/repo/whatsapp-baglantilari";
 import * as waSablonlari from "@/server/repo/whatsapp-sablonlari";
 import * as waGelen from "@/server/repo/whatsapp-gelen";
 import * as gelenKutusu from "@/server/repo/gelen-kutusu";
+import * as hazirCevaplar from "@/server/repo/hazir-cevaplar";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -55,6 +56,7 @@ let bMedya: gelenKutusu.SohbetMedyasi;
 let bSohbetMesajlari: gelenKutusu.SohbetMesajiSatiri[];
 let bSohbetNotlari: ReturnType<typeof gelenKutusu.notlariListele>;
 let bGelenKutusuSurumu: number;
+let bHazirCevap: ReturnType<typeof hazirCevaplar.hazirCevapEkle>;
 const B_SABLON: waSablonlari.SenkronSablonu = {
   metaId: "b-1",
   ad: "b_sablon",
@@ -128,6 +130,7 @@ beforeAll(() => {
   bSohbetMesajlari = gelenKutusu.sohbetMesajlariGetir(B, bSohbet.id);
   bSohbetNotlari = gelenKutusu.notlariListele(B, bSohbet.id);
   bGelenKutusuSurumu = gelenKutusu.gelenKutusuSurumuGetir(B);
+  bHazirCevap = hazirCevaplar.hazirCevapEkle(B, { baslik: "B fiyat", metin: "B'nin metni" });
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -161,6 +164,7 @@ function bDegismedi() {
   expect(gelenKutusu.notlariListele(B, bSohbet.id)).toEqual(bSohbetNotlari);
   expect(gelenKutusu.gelenKutusuSurumuGetir(B)).toBe(bGelenKutusuSurumu);
   expect(gelenKutusu.medyaGetir(B, bMedya.id)).toEqual(bMedya);
+  expect(hazirCevaplar.hazirCevaplariListele(B)).toEqual([bHazirCevap]);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -794,6 +798,28 @@ const waGelenTestleri: Record<keyof typeof waGelen, () => void> = {
   },
 };
 
+const hazirCevapTestleri: Record<keyof typeof hazirCevaplar, () => void> = {
+  hazirCevaplariListele: () => {
+    expect(hazirCevaplar.hazirCevaplariListele(A).map((c) => c.id)).not.toContain(bHazirCevap.id);
+  },
+  hazirCevapGetir: () => {
+    expect(hazirCevaplar.hazirCevapGetir(A, bHazirCevap.id)).toBeNull();
+  },
+  hazirCevapEkle: () => {
+    // B'deki başlık A'da serbest; kayıt A'ya yazılır.
+    const c = hazirCevaplar.hazirCevapEkle(A, { baslik: bHazirCevap.baslik, metin: "A" });
+    expect(c.tenantId).toBe(A.tenantId);
+    expect(hazirCevaplar.hazirCevapGetir(B, c.id)).toBeNull();
+    hazirCevaplar.hazirCevapSil(A, c.id);
+  },
+  hazirCevapGuncelle: () => {
+    expect(hazirCevaplar.hazirCevapGuncelle(A, bHazirCevap.id, { baslik: "Ele geçir", metin: "x" })).toBeNull();
+  },
+  hazirCevapSil: () => {
+    expect(hazirCevaplar.hazirCevapSil(A, bHazirCevap.id)).toBe(false);
+  },
+};
+
 const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
   gelenKutusuSurumuGetir: () => {
     expect(gelenKutusu.gelenKutusuSurumuGetir(A)).not.toBe(bGelenKutusuSurumu);
@@ -881,6 +907,7 @@ const MODULLER = {
   "whatsapp-sablonlari": [waSablonlari, waSablonTestleri],
   "whatsapp-gelen": [waGelen, waGelenTestleri],
   "gelen-kutusu": [gelenKutusu, gelenKutusuTestleri],
+  "hazir-cevaplar": [hazirCevaplar, hazirCevapTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

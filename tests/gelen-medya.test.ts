@@ -112,7 +112,8 @@ describe("webhook", () => {
   });
 });
 
-describe("işçi indirir", () => {
+// İşçi turu ilk çağrıda işçinin tüm modüllerini yükler (tek başına ~3,5 sn); tam takım paralel koşarken 5 sn'yi aşabiliyor.
+describe("işçi indirir", { timeout: 30_000 }, () => {
   it("işçi turu bekleyeni indirir: dosya diskte, özet doğru, durum 'indirildi', sohbet canlı yenilenir; dosya beyaz listedeki türle sunulur", async () => {
     const { ctx, n, tel, leadId } = await alan("Indir");
     const foto = icerik(200_000, 3);

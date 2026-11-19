@@ -23,8 +23,10 @@ import {
   type SohbetNotuDto,
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
+import { yanitaEkle } from "@/lib/hazir-cevaplar";
 import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
+import { HazirCevapSecici } from "./hazir-cevap-secici";
 
 type Filtre = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; q: string };
 
@@ -597,6 +599,21 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
   const [kimlik, setKimlik] = useState(yeniKimlik);
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [sablonAcik, setSablonAcik] = useState(false);
+  const [hazirAcik, setHazirAcik] = useState(false);
+  const yanitRef = useRef<HTMLTextAreaElement>(null);
+
+  // Hazır cevap yanıt kutusuna konur (gönderilmez); imleç sona gider.
+  const hazirCevapSec = (secilen: string) => {
+    const yeni = yanitaEkle(metin, secilen);
+    setMetin(yeni);
+    setHazirAcik(false);
+    requestAnimationFrame(() => {
+      const t = yanitRef.current;
+      if (!t) return;
+      t.focus();
+      t.setSelectionRange(yeni.length, yeni.length);
+    });
+  };
 
   const gonder = async (govde: Record<string, unknown>) => {
     setGonderiliyor(true);
@@ -657,7 +674,9 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
           if (await gonder({ tur: "metin", metin })) setMetin("");
         }}
       >
+        {hazirAcik && <HazirCevapSecici onSec={hazirCevapSec} onKapat={() => { setHazirAcik(false); yanitRef.current?.focus(); }} />}
         <textarea
+          ref={yanitRef}
           className="girdi min-h-20"
           aria-label="Yanıtınız"
           placeholder="Yanıtınızı yazın"
@@ -676,6 +695,9 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
             Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"} · Enter gönderir, Shift+Enter satır
           </span>
           <div className="flex gap-2">
+            <button type="button" className="dugme-kucuk" aria-expanded={hazirAcik} onClick={() => setHazirAcik((x) => !x)}>
+              {hazirAcik ? "Hazır cevabı kapat" : "Hazır cevap"}
+            </button>
             {s.izin === "var" && (
               <button type="button" className="dugme-kucuk" onClick={() => setSablonAcik((x) => !x)}>
                 {sablonAcik ? "Şablonu kapat" : "Şablon gönder"}
