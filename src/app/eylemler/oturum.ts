@@ -4,11 +4,21 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { AKTIF_ALAN_CEREZI, baglamGetir, oturumGetir } from "@/server/oturum";
+import { pushAdresiniBirak } from "@/server/repo/sistem/bildirim";
 import { calismaAlaniKur, davetKabulEt, kullaniciUyelikleri } from "@/server/repo/sistem/uyelik";
 
 const CEREZ_AYARI = { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 } as const;
 
-export async function cikisYap() {
+/**
+ * Çıkış. Form bu cihazın bildirim adresini (varsa) gönderir: aboneliği silinir, çıkıştan sonra bu cihaza bildirim
+ * gitmez. Tarayıcıdaki abonelik kalır; aynı kişi yeniden girince uygulama onu kendiliğinden yeniden kaydeder.
+ */
+export async function cikisYap(formData?: FormData) {
+  const pushAdresi = formData?.get("pushAdresi");
+  if (typeof pushAdresi === "string" && pushAdresi) {
+    const oturum = await oturumGetir();
+    if (oturum) pushAdresiniBirak(pushAdresi.slice(0, 2048), oturum.user.id);
+  }
   await auth.api.signOut({ headers: await headers() });
   (await cookies()).delete(AKTIF_ALAN_CEREZI);
   redirect("/giris");

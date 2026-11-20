@@ -132,9 +132,9 @@ describe("Ayarlar: bölümler ve erişim (Grup 2)", () => {
 
   it("yönetici bütün bölümleri, üye yalnızca kendini ilgilendirenleri görür", () => {
     expect(yollar("yonetici")).toEqual([
-      "calisma-alani", "ekip", "kullanim", "gonderen", "saatler", "whatsapp-listesi", "hazir-cevaplar", "whatsapp", "sms", "eposta", "veri",
+      "calisma-alani", "ekip", "kullanim", "bildirimler", "gonderen", "saatler", "whatsapp-listesi", "hazir-cevaplar", "whatsapp", "sms", "eposta", "veri",
     ]);
-    expect(yollar("uye")).toEqual(["calisma-alani", "ekip", "kullanim", "saatler", "whatsapp-listesi", "hazir-cevaplar"]);
+    expect(yollar("uye")).toEqual(["calisma-alani", "ekip", "kullanim", "bildirimler", "saatler", "whatsapp-listesi", "hazir-cevaplar"]);
     expect(ayarGruplari("uye").map((g) => g.ad)).toEqual(["Genel", "Gönderim"]); // Kanallar ve Veri grupları gizli
     for (const yol of ["gonderen", "whatsapp", "sms", "eposta", "veri"]) {
       expect(ayarBolumuAcikMi(yol, "uye"), yol).toBe(false);

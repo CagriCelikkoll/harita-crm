@@ -423,6 +423,7 @@ class Isleyici {
           medyaId: medya?.id ?? null,
           medya: medya ? { mime: medya.mime_type ?? null, dosyaAdi: medya.filename ?? null, metaSha256: medya.sha256 ?? null } : null,
           metaZamani: zaman(m.timestamp, this.simdi),
+          profilAdi: kisi?.profile?.name ?? null,
         },
         this.simdi,
       );

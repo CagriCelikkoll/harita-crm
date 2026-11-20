@@ -27,6 +27,7 @@ import * as waSablonlari from "@/server/repo/whatsapp-sablonlari";
 import * as waGelen from "@/server/repo/whatsapp-gelen";
 import * as gelenKutusu from "@/server/repo/gelen-kutusu";
 import * as hazirCevaplar from "@/server/repo/hazir-cevaplar";
+import * as pushAbonelikleri from "@/server/repo/push-abonelikleri";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -57,6 +58,8 @@ let bSohbetMesajlari: gelenKutusu.SohbetMesajiSatiri[];
 let bSohbetNotlari: ReturnType<typeof gelenKutusu.notlariListele>;
 let bGelenKutusuSurumu: number;
 let bHazirCevap: ReturnType<typeof hazirCevaplar.hazirCevapEkle>;
+let bPushCihazi: pushAbonelikleri.PushCihazi;
+const B_PUSH = { endpoint: "https://fcm.googleapis.com/fcm/send/b-cihazi", keys: { p256dh: `B${"A".repeat(86)}`, auth: "B".repeat(22) } };
 const B_SABLON: waSablonlari.SenkronSablonu = {
   metaId: "b-1",
   ad: "b_sablon",
@@ -131,6 +134,7 @@ beforeAll(() => {
   bSohbetNotlari = gelenKutusu.notlariListele(B, bSohbet.id);
   bGelenKutusuSurumu = gelenKutusu.gelenKutusuSurumuGetir(B);
   bHazirCevap = hazirCevaplar.hazirCevapEkle(B, { baslik: "B fiyat", metin: "B'nin metni" });
+  bPushCihazi = pushAbonelikleri.pushAboneligiKaydet(B, B_PUSH, "B cihazı");
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -165,6 +169,10 @@ function bDegismedi() {
   expect(gelenKutusu.gelenKutusuSurumuGetir(B)).toBe(bGelenKutusuSurumu);
   expect(gelenKutusu.medyaGetir(B, bMedya.id)).toEqual(bMedya);
   expect(hazirCevaplar.hazirCevaplariListele(B)).toEqual([bHazirCevap]);
+  expect(pushAbonelikleri.pushCihazlariListele(B)).toEqual([bPushCihazi]);
+  expect(db.$client.prepare("select user_id, tenant_id, p256dh from push_abonelikleri where endpoint = ? and tenant_id = ?").all(B_PUSH.endpoint, B.tenantId)).toEqual([
+    { user_id: B.userId, tenant_id: B.tenantId, p256dh: B_PUSH.keys.p256dh },
+  ]);
   if (bKampanya) bMesajlasmaDegismedi();
 }
 
@@ -820,6 +828,25 @@ const hazirCevapTestleri: Record<keyof typeof hazirCevaplar, () => void> = {
   },
 };
 
+const pushAbonelikTestleri: Record<keyof typeof pushAbonelikleri, () => void> = {
+  pushAboneligiKaydet: () => {
+    // Aynı adres A'da ayrı satır olur; B'nin satırı (kullanıcı, anahtarlar) değişmez.
+    const a = pushAbonelikleri.pushAboneligiKaydet(A, { ...B_PUSH, keys: { p256dh: `B${"Q".repeat(86)}`, auth: "Q".repeat(22) } }, "A");
+    expect(pushAbonelikleri.pushCihazlariListele(A).map((c) => c.id)).toContain(a.id);
+    expect(a.id).not.toBe(bPushCihazi.id);
+    pushAbonelikleri.pushCihaziKaldir(A, a.id);
+  },
+  pushAboneligiSil: () => {
+    expect(pushAbonelikleri.pushAboneligiSil(A, B_PUSH.endpoint)).toBe(false);
+  },
+  pushCihazlariListele: () => {
+    expect(pushAbonelikleri.pushCihazlariListele(A).map((c) => c.id)).not.toContain(bPushCihazi.id);
+  },
+  pushCihaziKaldir: () => {
+    expect(pushAbonelikleri.pushCihaziKaldir(A, bPushCihazi.id)).toBe(false);
+  },
+};
+
 const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
   gelenKutusuSurumuGetir: () => {
     expect(gelenKutusu.gelenKutusuSurumuGetir(A)).not.toBe(bGelenKutusuSurumu);
@@ -908,6 +935,7 @@ const MODULLER = {
   "whatsapp-gelen": [waGelen, waGelenTestleri],
   "gelen-kutusu": [gelenKutusu, gelenKutusuTestleri],
   "hazir-cevaplar": [hazirCevaplar, hazirCevapTestleri],
+  "push-abonelikleri": [pushAbonelikleri, pushAbonelikTestleri],
 } as const;
 
 for (const [modulAdi, [, testler]] of Object.entries(MODULLER)) {

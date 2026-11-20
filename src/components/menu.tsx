@@ -8,6 +8,7 @@ import { aktifAlanSec, cikisYap } from "@/app/eylemler/oturum";
 import { Simge, type SimgeAdi } from "@/components/arayuz/simge";
 import { KullanimGostergesi } from "@/components/kullanim-gostergesi";
 import { basHarfler, type KullanimOzeti } from "@/lib/arayuz";
+import { useBildirimAdresi } from "@/lib/bildirim-istemci";
 import { googleOnbellekleriniTemizle } from "@/lib/google-onbellegi";
 
 const BAGLANTILAR: { href: string; ad: string; simge: SimgeAdi }[] = [
@@ -33,6 +34,7 @@ export function Menu(props: {
 }) {
   const yol = usePathname();
   const [acik, setAcik] = useState(false);
+  const pushAdresi = useBildirimAdresi();
 
   return (
     <aside className="bg-menu text-[#e8ece9] md:sticky md:top-0 md:flex md:h-screen md:w-58 md:shrink-0 md:flex-col md:gap-7 md:px-4 md:py-6">
@@ -117,8 +119,10 @@ export function Menu(props: {
               </span>
             </div>
           </div>
-          {/* Çıkışta Google bilgilerinin bellek önbelleği silinir (lib/google-onbellegi.ts). */}
+          {/* Çıkışta Google bilgilerinin bellek önbelleği silinir (lib/google-onbellegi.ts); bu cihazın bildirim
+              aboneliği sunucuda silinir (lib/bildirim-istemci.ts). */}
           <form action={cikisYap} onSubmit={googleOnbellekleriniTemizle}>
+            <input type="hidden" name="pushAdresi" value={pushAdresi} />
             <button type="submit" className="text-xs text-menu-metin underline hover:text-white">
               Çıkış yap
             </button>

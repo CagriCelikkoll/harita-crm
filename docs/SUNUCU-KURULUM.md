@@ -195,9 +195,10 @@ sudo -u harita -H bash -c 'cd /opt/harita-crm && npm run --silent anahtar:uret -
 > `/opt/harita-crm` yalnızca `harita` kullanıcısına açıktır (750); yönetici kullanıcı oraya `cd` yapamaz. Bu yüzden
 > bu rehberdeki komutlar tam yol kullanır ya da klasöre `harita` (veya `sudo`) olarak geçer.
 
-`npm ci` birkaç dakika sürer. Son komut üç gizli anahtarı (`BETTER_AUTH_SECRET`, `ILETI_SIFRELEME_ANAHTARI`,
-`ILETI_IMZA_ANAHTARI`) üretip dosyaya yazar. **Değerleri ekrana yazmaz**, dolu olanların üzerine de yazmaz. Ekranda
-üç `✓` görünmeli.
+`npm ci` birkaç dakika sürer. Son komut gizli anahtarları (`BETTER_AUTH_SECRET`, `ILETI_SIFRELEME_ANAHTARI`,
+`ILETI_IMZA_ANAHTARI`) ve gelen kutusu bildirimlerinin anahtar çiftini (`VAPID_ACIK_ANAHTAR`, `VAPID_GIZLI_ANAHTAR`;
+bkz. 15a) üretip dosyaya yazar. **Değerleri ekrana yazmaz**, dolu olanların üzerine de yazmaz. Ekranda beş `✓`
+görünmeli.
 
 Dosyayı düzenleyin:
 
@@ -212,6 +213,7 @@ Doldurulacaklar:
 | `ILK_YONETICI_EPOSTASI` | İlk yönetici hesabının e-postası. Kayıt yalnızca davetle açık (`KAYIT_KIPI=davetle`); hiç kullanıcı yokken yalnızca bu adres kayıt olabilir. |
 | `GOOGLE_PLACES_API_KEY` | Google Cloud'da **Places API (New)** ile ve sunucunun IP adresiyle (`SUNUCU_IP`) kısıtlı anahtar. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Ayrı tarayıcı anahtarı: yalnızca **Maps JavaScript API** ve HTTP referrer `https://deneme.bursalidagitim.com/*`. |
+| `VAPID_ILETISIM` | Bildirim sunucularının (Google, Apple, Mozilla, Microsoft) sorun olursa ulaşacağı adres: `mailto:siz@alanadiniz.com`. Boş kalırsa site adresi kullanılır. |
 
 Diğer değerler canlı için hazır gelir: veritabanı yolu, yedek klasörü, alan adı, `PLACES_MOCK=false`. Kaydedip çıkın
 (nano: `Ctrl+O`, `Enter`, `Ctrl+X`).
@@ -387,6 +389,46 @@ Canlıya **tek numarayla** çıkılır; diğer iki numara sonra taşınır.
   uygulama doğru numaraya işler. Diğer numaraların "Bildirim adresi" adımı, o numaradan gönderilen ilk test mesajının
   imzalı teslim bildirimiyle tamamlanır. Meta'da numara başına ayrı adres (override) girmek de çalışır.
 
+## 15a. Gelen kutusu bildirimleri (Web Push)
+
+Gelen kutusuna yeni WhatsApp mesajı düşünce, izin veren kullanıcının telefonunda ya da bilgisayarında bildirim çıkar.
+Bildirimde **mesajın içeriği yoktur**: yalnızca `Yeni WhatsApp mesajı – <kişi adı>`. Kişi adı kayıttaki addır; yoksa
+WhatsApp profil adı, o da yoksa numaranın son 4 hanesi. Sohbet birine atanmışsa yalnızca ona, atanmamışsa ekipteki
+herkese gider. Bildirimleri işçi gönderir (`harita-worker`); webhook hiçbir dış istek yapmaz. Aynı sohbetten art arda
+gelen mesajlar tek bildirimde birleşir; işçi bir saatten uzun durduysa eski bildirimler gönderilmez.
+
+**Anahtarlar.** `VAPID_ACIK_ANAHTAR` ve `VAPID_GIZLI_ANAHTAR` bir çifttir; `anahtar:uret` ikisini birlikte üretir
+(8. adım). Sunucu daha önce kurulduysa bu sürüme güncelledikten sonra bir kez çalıştırın; yalnızca eksik olanları ekler,
+diğer anahtarlara dokunmaz:
+
+```bash
+sudo -u harita -H bash -c 'cd /opt/harita-crm && npm run --silent anahtar:uret -- .env.production.local'
+sudo systemctl restart harita-web harita-worker
+```
+
+- Ekranda `✓ VAPID_ACIK_ANAHTAR` ve `✓ VAPID_GIZLI_ANAHTAR` görünmeli.
+- Dosyada yalnızca biri doluysa betik hiçbir şey yazmadan hata verir: doğru çifti geri koyun ya da ikisini de boşaltıp
+  yeniden çalıştırın.
+- Anahtarlar boşsa bildirimler kapalıdır (Ayarlar → Bildirimler bunu söyler); uygulamanın geri kalanı etkilenmez.
+- **Anahtar çiftini değiştirmeyin.** Değişirse cihazlardaki abonelikler geçersiz olur (sunucu bunları kendisi siler) ve
+  herkesin bildirimi Ayarlar → Bildirimler'den yeniden açması gerekir. Çifti, `.env.production.local`'in sunucu
+  dışındaki kopyasıyla birlikte saklayın.
+
+**Kontrol:** `sudo -u harita grep -c '^VAPID_GIZLI_ANAHTAR=.\+' /opt/harita-crm/.env.production.local` → `1`.
+
+**Kullanıcı tarafı.** Bildirimler yalnızca https'te çalışır. Her kullanıcı kendi cihazında **Ayarlar → Bildirimler →
+Bildirimleri aç**'a basar; tarayıcı izin sorar (izin sayfa açılınca istenmez, yalnızca düğmeyle). Aynı ekranda bildirim
+alan cihazlar listelenir; kaybolan cihaz oradan kaldırılır. Çıkış yapınca o cihaza bildirim gitmez; aynı kişi yeniden
+girince kendiliğinden açılır. Aynı tarayıcıda başka biri oturum açarsa bildirimler ona geçer.
+
+> **iPhone ve iPad:** bildirimler **yalnızca iOS 16.4 ve üstünde, ana ekrana eklenmiş uygulamada** çalışır; Safari
+> sekmesinde çalışmaz. Safari'de siteyi açın → Paylaş → **Ana Ekrana Ekle**. Ana ekrandaki Harita CRM simgesinden açıp
+> Ayarlar → Bildirimler → Bildirimleri aç. Android, Windows ve Mac'te tarayıcıda (Chrome, Edge, Firefox, Safari) çalışır;
+> Android'de de "Ana ekrana ekle" ile uygulama gibi kullanılabilir.
+
+**Sorun olursa:** önce telefonun "Rahatsız etme"/odak kipine ve tarayıcının site izinlerine bakın. Ayarlar →
+Bildirimler'de cihazın "Son bildirim" zamanı görünür. İşçi logu: `journalctl -u harita-worker -n 100 --no-pager`.
+
 ## 16. Güncelleme (her yeni sürümde)
 
 ```bash
@@ -427,6 +469,7 @@ Hata durumları:
 - [ ] Davetsiz kayıt reddediliyor (14. adım)
 - [ ] Bir tarama (az sayıda sonuçla) ve bir kayıt içe aktarma denendi
 - [ ] `PLACES_MOCK=false`; `WHATSAPP_API_MOCK` tanımlı değil
+- [ ] VAPID anahtarları dolu (15a); bir telefonda Ayarlar → Bildirimler → Bildirimleri aç, test numarasından gelen mesajla bildirim geldi
 
 ## Sorun giderme
 

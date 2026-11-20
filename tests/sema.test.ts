@@ -104,6 +104,13 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   gelen_kutusu_surumu: ["tenant_id", "surum"],
   // Hazır cevaplar: ekibin yazdığı yanıt metinleri (kullanıcı verisi); baslik_anahtari benzersizlik içindir.
   hazir_cevaplar: ["id", "tenant_id", "baslik", "baslik_anahtari", "metin", "olusturan", "olusturma_tarihi", "guncelleme_tarihi"],
+  // Gelen kutusu bildirimi (Web Push): kullanıcının cihaz aboneliği (push sunucusu adresi ve tarayıcının açık
+  // anahtarları; mesaj içeriği yok) ve gönderilecek bildirim kuyruğu (sohbet başına bir satır; WhatsApp profil adı).
+  push_abonelikleri: [
+    "id", "tenant_id", "user_id", "endpoint", "p256dh", "auth", "cihaz",
+    "olusturma_tarihi", "son_kayit_tarihi", "son_basari_tarihi", "ardisik_hata",
+  ],
+  bildirim_kuyrugu: ["tenant_id", "sohbet_id", "profil_adi", "olusturma_tarihi"],
   // Gönderim işçisi kilidi (kiracı verisi yok).
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [

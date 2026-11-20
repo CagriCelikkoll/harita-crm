@@ -771,6 +771,60 @@ export const hazirCevaplar = sqliteTable(
 );
 export type HazirCevap = typeof hazirCevaplar.$inferSelect;
 
+/**
+ * Gelen kutusu bildirimi (Web Push) abonelikleri: kullanıcının izin verdiği her tarayıcı/cihaz bir satır. endpoint
+ * yalnızca izinli push sunucularından biri (src/lib/bildirim.ts); p256dh ve auth tarayıcının açık anahtarı ve sırrıdır
+ * (gizli değil ama yalnızca bildirimi şifrelemek için). Kullanıcı çalışma alanından çıkarılınca satırlar silinir.
+ * ardisik_hata: üst üste geçici hata sayısı (sınırı aşınca abonelik silinir).
+ */
+export const pushAbonelikleri = sqliteTable(
+  "push_abonelikleri",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    /** Kısa cihaz açıklaması (ör. "iPhone · Safari"); yalnızca listede gösterim için. */
+    cihaz: text("cihaz"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+    sonKayitTarihi: zaman("son_kayit_tarihi").notNull().default(simdi),
+    sonBasariTarihi: zaman("son_basari_tarihi"),
+    ardisikHata: integer("ardisik_hata").notNull().default(0),
+  },
+  (t) => [
+    foreignKey({ columns: [t.userId, t.tenantId], foreignColumns: [memberships.userId, memberships.tenantId] }).onDelete("cascade"),
+    uniqueIndex("push_abonelikleri_adres_uq").on(t.tenantId, t.endpoint),
+    index("push_abonelikleri_kullanici_idx").on(t.tenantId, t.userId),
+  ],
+);
+export type PushAboneligi = typeof pushAbonelikleri.$inferSelect;
+
+/**
+ * Gönderilecek bildirimler: webhook yeni gelen mesajda sohbet başına bir satır yazar (ağ isteği yapmaz); aynı sohbetten
+ * art arda gelen mesajlar tek satırda birleşir. İşçi turu gönderir ve satırı siler. profil_adi: WhatsApp profil adı
+ * (kayıtta ad yoksa bildirimde kullanılır). Mesaj içeriği burada tutulmaz.
+ */
+export const bildirimKuyrugu = sqliteTable(
+  "bildirim_kuyrugu",
+  {
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    sohbetId: text("sohbet_id").notNull(),
+    profilAdi: text("profil_adi"),
+    olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.sohbetId] }),
+    foreignKey({ columns: [t.tenantId, t.sohbetId], foreignColumns: [sohbetler.tenantId, sohbetler.id] }).onDelete("cascade"),
+    index("bildirim_kuyrugu_tarih_idx").on(t.olusturmaTarihi),
+  ],
+);
+
 /** İç notlar: yalnızca ekip görür, Meta'ya hiçbir koşulda gitmez. */
 export const sohbetNotlari = sqliteTable(
   "sohbet_notlari",

@@ -5,7 +5,7 @@
 // Dosya önceden var olmalı (.env.production.example'dan kopyalanır). Yazdıktan sonra izin 0600 yapılır.
 import fs from "node:fs";
 import path from "node:path";
-import { anahtarlariEkle } from "./anahtar-uret-yardimci";
+import { anahtarlariEkle, VapidCiftiHatasi } from "./anahtar-uret-yardimci";
 
 const hedef = process.argv.slice(2).find((a) => !a.startsWith("--"));
 if (!hedef) {
@@ -18,7 +18,14 @@ if (!fs.existsSync(dosya)) {
   process.exit(1);
 }
 
-const sonuc = anahtarlariEkle(fs.readFileSync(dosya, "utf8"));
+let sonuc: ReturnType<typeof anahtarlariEkle>;
+try {
+  sonuc = anahtarlariEkle(fs.readFileSync(dosya, "utf8"));
+} catch (hata) {
+  if (!(hata instanceof VapidCiftiHatasi)) throw hata;
+  console.error(`✗ ${hata.message}`);
+  process.exit(1);
+}
 if (sonuc.eklenen.length) {
   fs.writeFileSync(dosya, sonuc.metin, { mode: 0o600 });
 }

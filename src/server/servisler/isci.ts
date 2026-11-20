@@ -35,6 +35,7 @@ import { saglayiciAl, type SaglayiciSecenekleri } from "./saglayici";
 import { suresiDolanIceAktarmalariKapat, temizlikYap } from "../repo/sistem/bakim";
 import { eskiYedekleriSil } from "../yedek-saklama";
 import { placesTelefonuGetir } from "./telefon";
+import { bildirimleriGonder, type BildirimTurSonucu } from "./bildirim";
 import { medyalariIndir, type MedyaTurSonucu } from "./medya";
 import { medyaBakimi } from "./medya-dosyalari";
 import { whatsappMesajIsle } from "./whatsapp-gonderici";
@@ -68,6 +69,8 @@ export type TurSonucu = {
   atlanan: number;
   /** Gelen medya indirmesi (kampanya gönderiminden sonra, aynı kilit altında). */
   medya: MedyaTurSonucu;
+  /** Gelen kutusu bildirimleri (Web Push; medyadan sonra, aynı kilit altında). */
+  bildirim: BildirimTurSonucu;
 };
 
 type Sonuc = "gonderildi" | "bekletildi" | "haric" | "basarisiz" | "atlandi";
@@ -86,6 +89,7 @@ export async function isciTuru(s: IsciSecenekleri = {}): Promise<TurSonucu> {
     basarisiz: 0,
     atlanan: 0,
     medya: { indirilen: 0, reddedilen: 0, hata: 0, bekletilen: 0 },
+    bildirim: { gonderilen: 0, silinen: 0, hata: 0, eskiyen: 0 },
   };
   const kimlik = s.isciKimligi ?? crypto.randomUUID();
   const sure = s.kilitSuresiMs ?? Math.max(10, Number(process.env.ISCI_KILIT_SN ?? 120)) * 1000;
@@ -131,6 +135,8 @@ export async function isciTuru(s: IsciSecenekleri = {}): Promise<TurSonucu> {
     sonuc.tamamlananKampanya = bitenKampanyalariKapat(simdi());
     // Gelen medya: kampanyadan sonra; kilit kaybedildiyse başka işçi indirir.
     if (!kilitKaybedildi && isciKilidiYenile(kimlik, sure)) sonuc.medya = await medyalariIndir({ simdi });
+    // Yeni mesaj bildirimleri: kilit kaybedildiyse başka işçi gönderir (kuyruk satırı alınırken silinir: iki kez gitmez).
+    if (!kilitKaybedildi && isciKilidiYenile(kimlik, sure)) sonuc.bildirim = await bildirimleriGonder({ simdi: simdi() });
     return sonuc;
   } finally {
     clearInterval(nabiz);

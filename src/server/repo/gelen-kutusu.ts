@@ -14,6 +14,7 @@ import {
 } from "@/lib/gelen-kutusu";
 import { db } from "../db";
 import {
+  bildirimKuyrugu,
   gelenKutusuSurumu,
   leads,
   memberships,
@@ -81,12 +82,15 @@ export type GelenMesajGirdisi = {
   medya?: { mime: string | null; dosyaAdi: string | null; metaSha256: string | null } | null;
   /** Meta'nın bildirdiği yazılma anı; yoksa simdi. */
   metaZamani: Date | null;
+  /** WhatsApp profil adı: kayıtta ad yoksa bildirimde gösterilir (bildirim kuyruğuna yazılır). */
+  profilAdi?: string | null;
 };
 
 /**
  * Müşterinin yazdığı mesaj: sohbeti (yoksa) açar, kapalıysa yeniden açar, okunmamışı artırır, 24 saat penceresini
  * (son_gelen_tarihi) ilerletir. Aynı wamid ikinci kez yazılmaz (null döner). Fotoğraf, belge ve seste aynı transaction'da
- * "bekliyor" medya satırı eklenir (indirme işçide; webhook ağ isteği yapmaz).
+ * "bekliyor" medya satırı eklenir (indirme işçide; webhook ağ isteği yapmaz). Aynı transaction'da sohbet bildirim
+ * kuyruğuna yazılır (sohbet başına tek satır: art arda gelen mesajlar tek bildirimde birleşir; gönderim işçide).
  */
 export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = new Date()): { sohbetId: string; mesajId: string } | null {
   return db.transaction(() => {
@@ -137,6 +141,11 @@ export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = 
         surum,
       })
       .where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, sohbet.id)))
+      .run();
+    const profilAdi = g.profilAdi?.slice(0, 120) ?? null;
+    db.insert(bildirimKuyrugu)
+      .values({ tenantId: ctx.tenantId, sohbetId: sohbet.id, profilAdi, olusturmaTarihi: simdi })
+      .onConflictDoUpdate({ target: [bildirimKuyrugu.tenantId, bildirimKuyrugu.sohbetId], set: { profilAdi } })
       .run();
     return { sohbetId: sohbet.id, mesajId: mesaj.id };
   });

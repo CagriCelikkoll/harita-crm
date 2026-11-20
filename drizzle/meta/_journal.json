@@ -169,6 +169,13 @@
       "when": 1794986890880,
       "tag": "0023_hazir_cevaplar",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1795110262310,
+      "tag": "0024_bildirimler",
+      "breakpoints": true
     }
   ]
 }
