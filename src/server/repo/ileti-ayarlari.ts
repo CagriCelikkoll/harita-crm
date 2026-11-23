@@ -1,9 +1,14 @@
 // Çalışma alanının ticari ileti bilgileri ve gönderim kuralları (ileti_ayarlari, kiracı başına tek satır).
 import { eq } from "drizzle-orm";
 import { VARSAYILAN_MEDYA_SAKLAMA_GUN, VARSAYILAN_MESAJ_SAKLAMA_GUN } from "@/lib/gelen-kutusu";
-import { VARSAYILAN_GONDERIM_BASLANGIC_DK, VARSAYILAN_GONDERIM_BITIS_DK } from "@/lib/mesajlasma";
+import {
+  DENETIM_IYS_KONTROLU,
+  IYS_KAPATMA_ONAY_METNI,
+  VARSAYILAN_GONDERIM_BASLANGIC_DK,
+  VARSAYILAN_GONDERIM_BITIS_DK,
+} from "@/lib/mesajlasma";
 import { db } from "../db";
-import { iletiAyarlari, type IletiAyarlari } from "../db/schema";
+import { denetimKayitlari, iletiAyarlari, user, type IletiAyarlari } from "../db/schema";
 import { yoneticiOlmali, type TenantContext } from "./baglam";
 
 export type { IletiAyarlari };
@@ -27,6 +32,7 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   mesajSaklamaGun: VARSAYILAN_MESAJ_SAKLAMA_GUN,
   medyaSaklamaGun: VARSAYILAN_MEDYA_SAKLAMA_GUN,
   okunduBildirimi: true,
+  iysKontrolu: true,
   guncellemeTarihi: new Date(0),
 });
 
@@ -76,4 +82,36 @@ export function iletiAyarlariGuncelle(ctx: TenantContext, d: IletiAyarDegisiklig
     .onConflictDoUpdate({ target: iletiAyarlari.tenantId, set: degerler })
     .returning()
     .get();
+}
+
+/**
+ * İYS kontrolünü açar / kapatır (yalnızca yönetici). Kapatmak, IYS_KAPATMA_ONAY_METNI'nin onayını ister (onay: true).
+ * Değer gerçekten değiştiyse ayar ve denetim kaydı (kim, ne zaman, ne yaptı) tek işlemde yazılır; değişmediyse hiçbir
+ * şey yazılmaz. Değişti mi döner.
+ */
+export function iysKontroluDegistir(ctx: TenantContext, g: { acik: boolean; onay?: boolean }, simdi = new Date()): boolean {
+  yoneticiOlmali(ctx);
+  if (!g.acik && g.onay !== true) throw new Error("İYS kontrolünü kapatmak için sorumluluk beyanı onaylanmalı.");
+  return db.transaction((tx) => {
+    const mevcut = tx.select({ iysKontrolu: iletiAyarlari.iysKontrolu }).from(iletiAyarlari).where(eq(iletiAyarlari.tenantId, ctx.tenantId)).get();
+    if ((mevcut?.iysKontrolu ?? true) === g.acik) return false;
+    tx.insert(iletiAyarlari)
+      .values({ ...varsayilan(ctx.tenantId), iysKontrolu: g.acik, guncellemeTarihi: simdi, tenantId: ctx.tenantId })
+      .onConflictDoUpdate({ target: iletiAyarlari.tenantId, set: { iysKontrolu: g.acik, guncellemeTarihi: simdi } })
+      .run();
+    const ad = tx.select({ ad: user.name }).from(user).where(eq(user.id, ctx.userId)).get()?.ad ?? null;
+    tx.insert(denetimKayitlari)
+      .values({
+        id: crypto.randomUUID(),
+        tenantId: ctx.tenantId,
+        kullaniciId: ctx.userId || null,
+        kullaniciAdi: ad,
+        olay: DENETIM_IYS_KONTROLU,
+        deger: g.acik ? "acik" : "kapali",
+        aciklama: g.acik ? "İYS kontrolü açıldı." : `İYS kontrolü kapatıldı. Onaylanan beyan: "${IYS_KAPATMA_ONAY_METNI}"`,
+        tarih: simdi,
+      })
+      .run();
+    return true;
+  });
 }

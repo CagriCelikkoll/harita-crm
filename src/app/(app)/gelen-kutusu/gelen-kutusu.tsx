@@ -24,6 +24,7 @@ import {
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
 import { yanitaEkle } from "@/lib/hazir-cevaplar";
+import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
 import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
 import { HazirCevapSecici } from "./hazir-cevap-secici";
@@ -429,14 +430,17 @@ function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: Sohb
   const [iys, setIys] = useState(false);
   const [bekliyor, setBekliyor] = useState(false);
   if (s.retVerdi) return null;
-  const iysEksik = s.izin === "var" && s.bireysel && !s.iysBeyani;
+  // İYS kontrolü kapalıysa İYS beyanı aranmaz: eksik sayılmaz (uyarı gösterilir).
+  const iysEksik = s.iysKontrolu && s.izin === "var" && s.bireysel && !s.iysBeyani;
+  const iysUyarisi = !s.iysKontrolu && <p className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">{IYS_KAPALI_UYARISI}</p>;
   if (s.izin === "var" && !iysEksik) {
     return (
       <aside className="kart flex flex-col gap-1 text-[13px]" aria-label="Pazarlama izni">
         <h2 className="text-sm font-semibold">Pazarlama izni</h2>
+        {iysUyarisi}
         <p>
           WhatsApp izni var{s.izinKaynagi ? ` (${s.izinKaynagi})` : ""}
-          {s.bireysel ? " · İYS beyanı var" : ""}.
+          {s.bireysel ? (s.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok") : ""}.
         </p>
       </aside>
     );
@@ -452,6 +456,7 @@ function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: Sohb
   return (
     <aside className="kart flex flex-col gap-2 text-[13px]" aria-label="Pazarlama izni">
       <h2 className="text-sm font-semibold">Pazarlama izni</h2>
+      {iysUyarisi}
       {iysEksik ? (
         <p className="text-uyari">
           WhatsApp izni var{s.izinKaynagi ? ` (${s.izinKaynagi})` : ""} ama İYS beyanı yok: bireysel kişiye kampanya ve şablon gitmez.
@@ -465,7 +470,7 @@ function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: Sohb
       {s.bireysel && (
         <label className="flex items-start gap-2">
           <input type="checkbox" className="mt-1" checked={iys} onChange={(e) => setIys(e.target.checked)} />
-          <span>İzin İYS&apos;ye kaydedildi{iysEksik ? "" : " (işaretlenmezse bireysel kişiye kampanya ve şablon gitmez)"}</span>
+          <span>İzin İYS&apos;ye kaydedildi{iysEksik || !s.iysKontrolu ? "" : " (işaretlenmezse bireysel kişiye kampanya ve şablon gitmez)"}</span>
         </label>
       )}
       <button type="button" className="dugme-kucuk self-start" disabled={bekliyor || (iysEksik && !iys)} onClick={() => void kaydet()}>

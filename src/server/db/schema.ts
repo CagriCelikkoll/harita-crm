@@ -373,8 +373,32 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   mesajSaklamaGun: integer("mesaj_saklama_gun").notNull().default(VARSAYILAN_MESAJ_SAKLAMA_GUN),
   medyaSaklamaGun: integer("medya_saklama_gun").notNull().default(VARSAYILAN_MEDYA_SAKLAMA_GUN),
   okunduBildirimi: integer("okundu_bildirimi", { mode: "boolean" }).notNull().default(true),
+  // İYS kontrolü (0027): kapalıyken WhatsApp kampanya / şablonunda bireysel alıcı için İYS beyanı aranmaz (izin, ret,
+  // engel, test modu, saat ve limit aynen). Değişiklikler denetim_kayitlari'na yazılır.
+  iysKontrolu: integer("iys_kontrolu", { mode: "boolean" }).notNull().default(true),
   guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
 });
+
+/**
+ * Çalışma alanı düzeyinde denetim kaydı (0027): kim, ne zaman, hangi ayarı neye çevirdi. Yalnızca eklenir; kullanıcı
+ * silinirse satır kalır (kullanici_id boşalır, ad anlık kopyadır). İlk olay: İYS kontrolünün açılıp kapatılması.
+ */
+export const denetimKayitlari = sqliteTable(
+  "denetim_kayitlari",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    kullaniciId: text("kullanici_id").references(() => user.id, { onDelete: "set null" }),
+    kullaniciAdi: text("kullanici_adi"),
+    olay: text("olay").notNull(),
+    deger: text("deger"),
+    aciklama: text("aciklama"),
+    tarih: zaman("tarih").notNull().default(simdi),
+  },
+  (t) => [index("denetim_kayitlari_tenant_idx").on(t.tenantId, t.olay, t.tarih)],
+);
 
 /**
  * Sağlayıcı kimlik bilgileri (SMTP, SMS). sifreli_veri: AES-256-GCM, anahtar ILETI_SIFRELEME_ANAHTARI,
@@ -912,6 +936,7 @@ export type Tarama = typeof scans.$inferSelect;
 export type Kayit = typeof leads.$inferSelect;
 export type KayitOlayi = typeof leadEvents.$inferSelect;
 export type IletiAyarlari = typeof iletiAyarlari.$inferSelect;
+export type DenetimKaydi = typeof denetimKayitlari.$inferSelect;
 export type Kampanya = typeof kampanyalar.$inferSelect;
 export type KuyrukMesaji = typeof messageQueue.$inferSelect;
 export type WhatsappKisisi = typeof whatsappKisileri.$inferSelect;

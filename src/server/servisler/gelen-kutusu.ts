@@ -189,6 +189,7 @@ function ayrintiDto(ctx: TenantContext, id: string, simdi: Date): SohbetAyrintiD
     izinKaynagi: !retVerdi && wa?.izin === "var" && wa.izinKaynagi ? WHATSAPP_IZIN_KAYNAK_ADLARI[wa.izinKaynagi] : null,
     bireysel: kayit.aliciTuru === "bireysel",
     iysBeyani: Boolean(wa?.iysBeyanTarihi),
+    iysKontrolu: iletiAyarlariGetir(ctx).iysKontrolu,
     reklamdan: kayit.kaynak === "meta_reklam",
     retVerdi,
     pencereBitis: pencereAcik(satir.sonGelenTarihi, simdi) ? (pencereBitisi(satir.sonGelenTarihi)?.toISOString() ?? null) : null,
@@ -450,6 +451,7 @@ async function gonder(
     const karar = aliciDegerlendir({ ...kayit, whatsapp: wa }, "whatsapp_api", engelSorgusuOlustur(ctx, [kayit]), {
       simdi,
       testNumaralari: c.baglanti.testModu ? new Set(c.gizli.testNumaralari) : undefined,
+      iysKontrolu: iletiAyarlariGetir(ctx).iysKontrolu,
     });
     if (!karar.uygun) throw new GelenKutusuHatasi(`Bu kişiye şablon gönderilemez: ${HARIC_NEDEN_ADLARI[karar.neden]}.`, 403);
     if (karar.adres === null) throw new GelenKutusuHatasi("Kişinin WhatsApp numarası yok.", 400);

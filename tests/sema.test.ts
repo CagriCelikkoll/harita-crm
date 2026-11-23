@@ -48,7 +48,10 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "gunluk_whatsapp_api_siniri",
     "whatsapp_sablonu", "whatsapp_gunluk_sinir",
     "mesaj_saklama_gun", "medya_saklama_gun", "okundu_bildirimi", // gelen kutusu (0020)
+    "iys_kontrolu", // 0027
   ],
+  // Denetim kaydı (0027): ayar değişikliğinin kim / ne zaman / ne (kullanıcı adı anlık kopya).
+  denetim_kayitlari: ["id", "tenant_id", "kullanici_id", "kullanici_adi", "olay", "deger", "aciklama", "tarih"],
   saglayici_ayarlari: ["tenant_id", "kanal", "saglayici", "sifreli_veri", "webhook_ozeti", "guncelleyen", "guncelleme_tarihi"],
   engel_listesi: ["id", "tenant_id", "tur", "ozet", "kaynak", "lead_id", "tarih"],
   kampanyalar: [

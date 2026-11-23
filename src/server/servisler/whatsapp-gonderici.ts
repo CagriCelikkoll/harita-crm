@@ -1,7 +1,8 @@
 // İşçinin WhatsApp (Cloud API) gönderim adımı. isci.ts kampanya durumunu ve gönderim saatini denetledikten sonra
 // her whatsapp_api mesajı için çağırır. Sırayla:
 //  1. Alıcı kuralları YENİDEN (izin, ret, engel, İYS beyanı, WhatsApp yok) — kampanya sonrası gelen ret yakalanır.
-//     Test modunda test numaralarına İYS beyanı aranmaz; test modu sonradan kapatıldıysa yeniden aranır.
+//     Test modunda test numaralarına İYS beyanı aranmaz; test modu sonradan kapatıldıysa yeniden aranır. Çalışma
+//     alanının İYS kontrolü kapalıysa İYS beyanı hiç aranmaz (izin, ret, engel aynen).
 //  2. Şablon hâlâ kullanılabilir mi (değilse kampanya duraklar) ve değişken değerleri (boşsa hariç).
 //  3. Sandbox kampanyası: Meta'ya gidilmez, metin kaydedilir.
 //  4. Kampanyanın gönderen numarası (kampanyalar.baglanti_id; silinmişse kampanya duraklar). Meta hesap kilidi varsa
@@ -109,6 +110,7 @@ export async function whatsappMesajIsle(
   const karar = aliciDegerlendir({ ...kayit, whatsapp: wa }, "whatsapp_api", engelSorgusuOlustur(ctx, [kayit]), {
     simdi,
     testNumaralari: testBaglantisi?.baglanti.testModu ? new Set(testBaglantisi.gizli.testNumaralari) : undefined,
+    iysKontrolu: ayar.iysKontrolu,
   });
   if (!karar.uygun) {
     mesajBirak(ctx, mesaj.id, { durum: "haric", neden: karar.neden });

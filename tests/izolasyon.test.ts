@@ -29,6 +29,7 @@ import * as gelenKutusu from "@/server/repo/gelen-kutusu";
 import * as hazirCevaplar from "@/server/repo/hazir-cevaplar";
 import * as pushAbonelikleri from "@/server/repo/push-abonelikleri";
 import * as kampanyaGorselleri from "@/server/repo/kampanya-gorselleri";
+import * as denetim from "@/server/repo/denetim";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -62,6 +63,7 @@ let bHazirCevap: ReturnType<typeof hazirCevaplar.hazirCevapEkle>;
 let bPushCihazi: pushAbonelikleri.PushCihazi;
 let bGorsel: kampanyaGorselleri.KampanyaGorseli;
 let bGorselliKampanya: kampanyalar.Kampanya;
+let bDenetim: denetim.DenetimKaydi;
 const B_PUSH = { endpoint: "https://fcm.googleapis.com/fcm/send/b-cihazi", keys: { p256dh: `B${"A".repeat(86)}`, auth: "B".repeat(22) } };
 const B_SABLON: waSablonlari.SenkronSablonu = {
   metaId: "b-1",
@@ -101,6 +103,8 @@ beforeAll(() => {
 
   // Mesajlaşma verisi
   iletiAyarlari.iletiAyarlariGuncelle(B, { gonderenUnvani: "B Ltd.", iysNo: "B-IYS", sorumlulukOnayi: true });
+  iletiAyarlari.iysKontroluDegistir(B, { acik: false, onay: true });
+  bDenetim = denetim.denetimKayitlariListele(B)[0];
   saglayicilar.saglayiciKaydet(B, "eposta", "smtp", "v1:B-gizli");
   B_ENGEL.ozet = adresOzeti(B.tenantId, "eposta", "engel-b@ornek.test");
   engelListesi.engelEkle(B, [B_ENGEL], "abonelik");
@@ -155,6 +159,8 @@ beforeAll(() => {
 function bMesajlasmaDegismedi() {
   expect(iletiAyarlari.iletiAyarlariGetir(B)).toMatchObject({ gonderenUnvani: "B Ltd.", iysNo: "B-IYS" });
   expect(iletiAyarlari.iletiAyarlariGetir(B).sorumlulukOnayTarihi).not.toBeNull();
+  expect(iletiAyarlari.iletiAyarlariGetir(B).iysKontrolu).toBe(false);
+  expect(denetim.denetimKayitlariListele(B)).toEqual([bDenetim]);
   expect(saglayicilar.saglayiciSifreliGetir(B, "eposta")).toMatchObject({ saglayici: "smtp", sifreliVeri: "v1:B-gizli" });
   expect(engelListesi.engelliOzetler(B, [B_ENGEL.ozet]).has(B_ENGEL.ozet)).toBe(true);
   expect(gonderimSayaci.sayacDegeri(B, "eposta", "2026-10-12")).toBe(1);
@@ -450,6 +456,20 @@ const iletiAyarlariTestleri: Record<keyof typeof iletiAyarlari, () => void> = {
     const a = iletiAyarlari.iletiAyarlariGuncelle(A, { gonderenUnvani: "A Ltd.", sorumlulukOnayi: false });
     expect(a.tenantId).toBe(A.tenantId);
     expect(iletiAyarlari.iletiAyarlariGetir(B).gonderenUnvani).toBe("B Ltd.");
+  },
+  iysKontroluDegistir: () => {
+    // A'nın açıp kapatması B'nin ayarını ve denetim kaydını değiştirmez (B'de kapalı, tek kayıt).
+    expect(iletiAyarlari.iysKontroluDegistir(A, { acik: false, onay: true })).toBe(true);
+    expect(iletiAyarlari.iletiAyarlariGetir(A).iysKontrolu).toBe(false);
+    expect(iletiAyarlari.iysKontroluDegistir(A, { acik: true })).toBe(true);
+    expect(denetim.denetimKayitlariListele(A).every((d) => d.tenantId === A.tenantId)).toBe(true);
+  },
+};
+
+const denetimTestleri: Record<keyof typeof denetim, () => void> = {
+  denetimKayitlariListele: () => {
+    expect(denetim.denetimKayitlariListele(A).map((d) => d.id)).not.toContain(bDenetim.id);
+    expect(denetim.denetimKayitlariListele(A, { olay: "iys_kontrolu" }).map((d) => d.id)).not.toContain(bDenetim.id);
   },
 };
 
@@ -964,6 +984,7 @@ const kampanyaGorselTestleri: Record<keyof typeof kampanyaGorselleri, () => void
 
 const MODULLER = {
   "kampanya-gorselleri": [kampanyaGorselleri, kampanyaGorselTestleri],
+  denetim: [denetim, denetimTestleri],
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
   olaylar: [olaylar, olayTestleri],

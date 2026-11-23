@@ -2,7 +2,7 @@
 // Ayarlar → Gönderen bilgileri, Saatler ve sınırlar, WhatsApp listesi, SMS ve E-posta bölümleri.
 // Her bölüm ayrı sayfadadır; API'ler değişmedi (/api/ayarlar/ileti, /api/ayarlar/saglayicilar/*).
 // Sağlayıcı kimlik bilgileri sunucudan hiçbir zaman geri gelmez: yalnızca "tanımlı / tanımlı değil".
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { IstatistikKutusu } from "@/components/arayuz/gosterge";
 import { AyarSatiri, Kart, KaydetCubugu } from "@/components/arayuz/kart";
 import { BilgiNotu } from "@/components/arayuz/not";
@@ -11,6 +11,8 @@ import { SonucMesaji } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import {
+  IYS_KAPALI_UYARISI,
+  IYS_KAPATMA_ONAY_METNI,
   pencereDakikasi,
   pencereSaati,
   SMTP_IZINLI_PORTLAR,
@@ -125,6 +127,95 @@ export function GonderenAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
           </button>
         </KaydetCubugu>
       </form>
+    </Kart>
+  );
+}
+
+/**
+ * "İYS kontrolü" anahtarı (yalnızca yönetici; sunucu da denetler). Açmak tek tıktır; kapatmak açıklama ve zorunlu
+ * onay kutusu olan pencereden geçer. Son değişiklik (kim, ne zaman) denetim kaydından gösterilir.
+ */
+export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: boolean }) {
+  const { a, mesaj, mesgul, gonder } = useAyarlar(props.ilk);
+  const pencere = useRef<HTMLDialogElement>(null);
+  const baslikId = useId();
+  const [onay, setOnay] = useState(false);
+  const son = a.iysKontroluSonDegisiklik;
+  const kapat = () => {
+    pencere.current?.close();
+    setOnay(false);
+  };
+  return (
+    <Kart>
+      <AyarSatiri
+        baslik="İYS kontrolü"
+        aciklama={
+          son
+            ? `Son değişiklik: ${son.acik ? "açıldı" : "kapatıldı"} · ${son.kullanici ?? "Silinmiş kullanıcı"} · ${tarihYaz(son.tarih)}`
+            : "Açıkken bireysel kişilere WhatsApp kampanyası ve şablonu yalnızca İYS beyanı varsa gider."
+        }
+      >
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-checked={a.iysKontrolu}
+            checked={a.iysKontrolu}
+            disabled={!props.yonetici || mesgul}
+            onChange={(e) => {
+              if (e.target.checked) void gonder("/api/ayarlar/iys-kontrolu", "POST", { acik: true });
+              else pencere.current?.showModal();
+            }}
+            className="size-5 shrink-0 accent-ana"
+          />
+          <span>{a.iysKontrolu ? "Açık" : "Kapalı"}</span>
+          {!a.iysKontrolu && <DurumRozeti ton="uyari">Kapalı</DurumRozeti>}
+        </label>
+      </AyarSatiri>
+      {!a.iysKontrolu && (
+        <div className="px-7 pb-4">
+          <BilgiNotu ton="uyari">{IYS_KAPALI_UYARISI}</BilgiNotu>
+        </div>
+      )}
+      {!props.yonetici && <p className="px-7 pb-4 text-[13px] text-soluk">{SALT_OKUNUR}</p>}
+      <MesajSatiri mesaj={mesaj} />
+      <dialog
+        ref={pencere}
+        aria-labelledby={baslikId}
+        onClose={() => setOnay(false)}
+        className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-lg border border-kenar bg-white p-5 text-sm shadow-lg backdrop:bg-black/40"
+      >
+        <div className="flex flex-col gap-3">
+          <h2 id={baslikId} className="text-base font-semibold">
+            İYS kontrolü kapatılsın mı?
+          </h2>
+          <p>
+            Kapalıyken bireysel kişilere WhatsApp kampanyası ve şablonu İYS beyanı aranmadan gönderilir. WhatsApp izni,
+            ret / engel listesi, test modu, gönderim saatleri ve limitler aynen uygulanır. Bu değişiklik adınız ve tarihle
+            denetim kaydına yazılır.
+          </p>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" checked={onay} onChange={(e) => setOnay(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-ana" />
+            <span>{IYS_KAPATMA_ONAY_METNI}</span>
+          </label>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="dugme" autoFocus onClick={kapat}>
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              className="dugme-tehlike"
+              disabled={!onay || mesgul}
+              onClick={() => {
+                kapat();
+                void gonder("/api/ayarlar/iys-kontrolu", "POST", { acik: false, onay: true });
+              }}
+            >
+              İYS kontrolünü kapat
+            </button>
+          </div>
+        </div>
+      </dialog>
     </Kart>
   );
 }

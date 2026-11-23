@@ -201,6 +201,8 @@ export type SohbetAyrintiDto = SohbetOzetiDto & {
   bireysel: boolean;
   /** Bireysel alıcıda izin İYS'ye kaydedildi beyanı. */
   iysBeyani: boolean;
+  /** Çalışma alanının İYS kontrolü; kapalıysa İYS beyanı aranmaz ve panelde uyarı gösterilir. */
+  iysKontrolu: boolean;
   /** Kayıt Click-to-WhatsApp reklamından açıldı ("Reklamdan yazdı"). */
   reklamdan: boolean;
   retVerdi: boolean;

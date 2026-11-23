@@ -182,6 +182,17 @@ export const SMTP_IZINLI_PORTLAR = [25, 465, 587, 2525] as const;
 export const ZORUNLU_ONAY_METNI =
   "Ticari elektronik ileti gönderimlerinde İYS kaydı ve 6563 sayılı Kanun kapsamındaki yükümlülüklerin sorumluluğu çalışma alanımıza aittir.";
 
+/**
+ * Çalışma alanı düzeyinde "İYS kontrolü" (ileti_ayarlari.iys_kontrolu, varsayılan açık). Kapalıyken WhatsApp kampanya
+ * ve şablon gönderiminde bireysel alıcı için İYS beyanı ARANMAZ; WhatsApp izni (opt-in), ret / engel listesi, test
+ * modu, gönderim saati ve limitler aynen uygulanır. Yalnızca yönetici değiştirir; kapatmak bu beyanın onayını ister ve
+ * her değişiklik denetim kaydına yazılır.
+ */
+export const IYS_KAPATMA_ONAY_METNI = "Ticari elektronik iletiler için İYS kaydı ve alıcı onaylarından işletmemiz sorumludur.";
+export const IYS_KAPALI_UYARISI = "İYS kontrolü kapalı; yasal sorumluluk işletmenizdedir.";
+/** Denetim kaydının olay adı. */
+export const DENETIM_IYS_KONTROLU = "iys_kontrolu";
+
 export const dakikadanSaate = (dk: number) =>
   `${String(Math.floor(dk / 60)).padStart(2, "0")}:${String(dk % 60).padStart(2, "0")}`;
 

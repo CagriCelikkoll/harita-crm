@@ -1,6 +1,7 @@
 // Mesajlaşma ayarlarının istemciye giden biçimi. Sağlayıcı kimlik bilgileri YOKTUR: yalnızca "tanımlı mı".
-import { KANALLAR, type Kanal } from "@/lib/mesajlasma";
+import { DENETIM_IYS_KONTROLU, KANALLAR, type Kanal } from "@/lib/mesajlasma";
 import type { TenantContext } from "../repo/baglam";
+import { denetimKayitlariListele } from "../repo/denetim";
 import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { saglayiciDurumlari } from "../repo/saglayicilar";
 import { gunlukSinir, ticariIletiEksikleri } from "./ileti";
@@ -18,6 +19,9 @@ export type MesajlasmaAyarlariDto = {
   whatsappSinirOzel: number | null;
   sorumlulukOnayi: boolean;
   sorumlulukOnayTarihi: string | null;
+  /** Çalışma alanının İYS kontrolü (varsayılan açık) ve son değişikliğin denetim kaydı (kim, ne zaman). */
+  iysKontrolu: boolean;
+  iysKontroluSonDegisiklik: { acik: boolean; kullanici: string | null; tarih: string } | null;
   gonderimBaslangicDk: number;
   gonderimBitisDk: number;
   gunlukSinirlar: Record<Kanal, number>;
@@ -41,6 +45,10 @@ export function mesajlasmaAyarlariDto(ctx: TenantContext): MesajlasmaAyarlariDto
     whatsappSinirOzel: a.whatsappGunlukSinir,
     sorumlulukOnayi: Boolean(a.sorumlulukOnayTarihi),
     sorumlulukOnayTarihi: a.sorumlulukOnayTarihi?.toISOString() ?? null,
+    iysKontrolu: a.iysKontrolu,
+    iysKontroluSonDegisiklik: ((d) => (d ? { acik: d.deger === "acik", kullanici: d.kullaniciAdi, tarih: d.tarih.toISOString() } : null))(
+      denetimKayitlariListele(ctx, { olay: DENETIM_IYS_KONTROLU, limit: 1 })[0],
+    ),
     gonderimBaslangicDk: a.gonderimBaslangicDk,
     gonderimBitisDk: a.gonderimBitisDk,
     gunlukSinirlar: Object.fromEntries(KANALLAR.map((k) => [k, gunlukSinir(a, k)])) as Record<Kanal, number>,

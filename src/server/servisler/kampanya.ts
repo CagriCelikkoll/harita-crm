@@ -141,6 +141,8 @@ export type KampanyaOzeti = {
   toplamAday: number;
   gonderilecek: number;
   haricler: Record<HaricNedeni, number>;
+  /** Çalışma alanının İYS kontrolü; kapalıysa özet ve sihirbaz IYS_KAPALI_UYARISI'nı gösterir. */
+  iysKontrolu: boolean;
   /** Uygun alıcılardan işletme adı girilmemiş olanlar ({isletme} boş isim hitabıyla dolar / kaldırılır). */
   isletmeAdiEksik: number;
   /** Başlangıç gününün kalan sınırını aşan alıcılar sonraki günlere kalır. */
@@ -187,11 +189,13 @@ function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: Kamp
   const testNumaralari = new Set(c?.gizli.testNumaralari ?? []);
   const waBilgisi = whatsappKisileriGetir(ctx, adaylar.map((k) => k.id));
   const engelli = engelSorgusuOlustur(ctx, adaylar);
+  const iysKontrolu = iletiAyarlariGetir(ctx).iysKontrolu;
   const kararlar: Karar[] = adaylar.map((kayit) => {
     // Test modunda test numaralarına İYS beyanı aranmaz (alici-kurallari.ts); sandbox ve test modu kapalıyken aranır.
     let karar = aliciDegerlendir({ ...kayit, whatsapp: waBilgisi.get(kayit.id) ?? null }, "whatsapp_api", engelli, {
       simdi,
       testNumaralari: testModu ? testNumaralari : undefined,
+      iysKontrolu,
     });
     if (karar.uygun && testModu && (karar.kaynak !== "kayit" || !testNumaralari.has(karar.adres!))) {
       karar = { uygun: false, neden: "test_modu" };
@@ -285,6 +289,7 @@ function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
     gonderilecek,
     haricler,
     isletmeAdiEksik,
+    iysKontrolu: ayar.iysKontrolu,
     gunlukSinir: sinir,
     bugunKalan,
     sonrakiGunlereKalacak: Math.max(0, gonderilecek - bugunKalan),
