@@ -1,9 +1,9 @@
 // Gelen medya: işçinin indirme kuyruğu ve günlük bakım (çalışma alanları arası; HTTP'den çağrılmaz). Durum değişikliği
 // mesajın ve sohbetin sürümünü artırır: açık sohbet canlı yenilemeyle "indirildi"yi görür.
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, notExists, or, sql } from "drizzle-orm";
 import { VARSAYILAN_MEDYA_SAKLAMA_GUN, type SohbetMesajTuru } from "@/lib/gelen-kutusu";
 import { db } from "../../db";
-import { gelenKutusuSurumu, sohbetler, sohbetMedyalari, sohbetMesajlari, type SohbetMedyasi } from "../../db/schema";
+import { gelenKutusuSurumu, kampanyalar, sohbetler, sohbetMedyalari, sohbetMesajlari, type SohbetMedyasi } from "../../db/schema";
 import { _baglamDamgala, type TenantContext } from "../baglam";
 
 const GUN_MS = 24 * 3600_000;
@@ -78,7 +78,7 @@ export function medyaGuncelle(m: Pick<SohbetMedyasi, "id" | "tenantId" | "mesajI
       .returning({ id: sohbetMedyalari.id })
       .all();
     if (r.length === 0) return false;
-    surumArtir(m.tenantId, [m.mesajId]);
+    surumArtir(m.tenantId, m.mesajId ? [m.mesajId] : []);
     return true;
   });
 }
@@ -105,7 +105,7 @@ export function saklamasiDolanMedyalariIsaretle(simdi: Date): string[] {
         .run();
     }
     const tenantlar = new Map<string, string[]>();
-    for (const d of dolanlar) tenantlar.set(d.tenantId, [...(tenantlar.get(d.tenantId) ?? []), d.mesajId]);
+    for (const d of dolanlar) if (d.mesajId) tenantlar.set(d.tenantId, [...(tenantlar.get(d.tenantId) ?? []), d.mesajId]);
     for (const [tenantId, mesajlar] of tenantlar) {
       for (let i = 0; i < mesajlar.length; i += 500) surumArtir(tenantId, mesajlar.slice(i, i + 500));
     }
@@ -122,4 +122,32 @@ export function medyaYoluKayitli(yol: string): boolean {
       .where(and(eq(sohbetMedyalari.yol, yol), eq(sohbetMedyalari.durum, "indirildi")))
       .get(),
   );
+}
+
+/** Yüklenip bu süre içinde hiçbir kampanyaya bağlanmayan kampanya görseli silinir (sihirbaz yarıda bırakıldı). */
+export const SAHIPSIZ_GORSEL_SURE_MS = 24 * 3600_000;
+
+/**
+ * Kampanya görselleri (mesaj_id boş) içinde SAHIPSIZ_GORSEL_SURE_MS'den eski ve hiçbir kampanyanın gorsel_medya_id'si
+ * olmayanların satırı silinir; dosyası silinecek göreli yollar döner. Kampanyaya bağlı görsel kampanya durdukça kalır
+ * (kampanya silinmez; görsel kotaya sayılır).
+ */
+export function sahipsizKampanyaGorselleriniSil(simdi: Date): string[] {
+  return db
+    .delete(sohbetMedyalari)
+    .where(
+      and(
+        isNull(sohbetMedyalari.mesajId),
+        lt(sohbetMedyalari.olusturmaTarihi, new Date(simdi.getTime() - SAHIPSIZ_GORSEL_SURE_MS)),
+        notExists(
+          db
+            .select({ id: kampanyalar.id })
+            .from(kampanyalar)
+            .where(and(eq(kampanyalar.tenantId, sohbetMedyalari.tenantId), eq(kampanyalar.gorselMedyaId, sohbetMedyalari.id))),
+        ),
+      ),
+    )
+    .returning({ yol: sohbetMedyalari.yol })
+    .all()
+    .flatMap((r) => (r.yol ? [r.yol] : []));
 }

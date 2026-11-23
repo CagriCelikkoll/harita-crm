@@ -28,6 +28,7 @@ import * as waGelen from "@/server/repo/whatsapp-gelen";
 import * as gelenKutusu from "@/server/repo/gelen-kutusu";
 import * as hazirCevaplar from "@/server/repo/hazir-cevaplar";
 import * as pushAbonelikleri from "@/server/repo/push-abonelikleri";
+import * as kampanyaGorselleri from "@/server/repo/kampanya-gorselleri";
 import { adresOzeti } from "@/server/messaging/adres";
 import * as kayitlar from "@/server/repo/kayitlar";
 import * as konumlar from "@/server/repo/konumlar";
@@ -59,6 +60,8 @@ let bSohbetNotlari: ReturnType<typeof gelenKutusu.notlariListele>;
 let bGelenKutusuSurumu: number;
 let bHazirCevap: ReturnType<typeof hazirCevaplar.hazirCevapEkle>;
 let bPushCihazi: pushAbonelikleri.PushCihazi;
+let bGorsel: kampanyaGorselleri.KampanyaGorseli;
+let bGorselliKampanya: kampanyalar.Kampanya;
 const B_PUSH = { endpoint: "https://fcm.googleapis.com/fcm/send/b-cihazi", keys: { p256dh: `B${"A".repeat(86)}`, auth: "B".repeat(22) } };
 const B_SABLON: waSablonlari.SenkronSablonu = {
   metaId: "b-1",
@@ -68,6 +71,7 @@ const B_SABLON: waSablonlari.SenkronSablonu = {
   durum: "APPROVED",
   parametreBicimi: null,
   bilesenler: [{ type: "BODY", text: "B" }],
+  baslikBicimi: null,
   degiskenler: [],
   abonelikButonu: false,
   destekNedeni: null,
@@ -135,6 +139,14 @@ beforeAll(() => {
   bGelenKutusuSurumu = gelenKutusu.gelenKutusuSurumuGetir(B);
   bHazirCevap = hazirCevaplar.hazirCevapEkle(B, { baslik: "B fiyat", metin: "B'nin metni" });
   bPushCihazi = pushAbonelikleri.pushAboneligiKaydet(B, B_PUSH, "B cihazı");
+  // Görselli WhatsApp kampanyası: görsel (mesajsız medya satırı) ve Meta'ya yüklenmiş kimliği.
+  bGorsel = kampanyaGorselleri.kampanyaGorseliEkle(B, { yol: `${B.tenantId}/2026-11/b-gorsel`, mime: "image/png", boyut: 99, sha256: "b".repeat(64), dosyaAdi: "b.png" });
+  bGorselliKampanya = kampanyalar.kampanyaOlustur(
+    B,
+    { kanal: "whatsapp_api", ad: "B görselli", konu: null, sablon: "S", bosIsimHitabi: null, filtre: {}, sandbox: true, planlananTarih: null, gorselMedyaId: bGorsel.id },
+    [],
+  );
+  kampanyaGorselleri.kampanyaMetaGorselYaz(B, bGorselliKampanya.id, { metaId: "B-META-1", numara: "900002", tarih: new Date("2026-11-20T00:00:00Z") });
   // İşçinin aldığı (gönderilmekte olan) mesajı taklit et.
   db.$client.prepare("update message_queue set durum = 'gonderiliyor', kilit_zamani = ? where id = ?").run(Date.now(), bMesajId);
 });
@@ -149,6 +161,12 @@ function bMesajlasmaDegismedi() {
   expect(kampanyalar.kampanyaGetir(B, bKampanya.id)).toMatchObject({ durum: "calisiyor", sayilar: { gonderiliyor: 1 } });
   expect(kuyruk.mesajGetir(B, bMesajId)).toMatchObject({ durum: "gonderiliyor" });
   expect(whatsapp.ogeGetir(B, bOgeId)).toMatchObject({ durum: "bekliyor", adresOzeti: null, leadId: bKayit.id });
+  expect(kampanyaGorselleri.kampanyaGorseliGetir(B, bGorsel.id)).toEqual(bGorsel);
+  expect(kampanyaGorselleri.kampanyaGorselAlanlari(B, bGorselliKampanya.id)).toMatchObject({
+    gorselMedyaId: bGorsel.id,
+    metaGorselId: "B-META-1",
+    metaGorselNumarasi: "900002",
+  });
 }
 
 /** B'nin verisinin hiç değişmediğini doğrular. */
@@ -914,12 +932,38 @@ const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
     expect(gelenKutusu.medyaGetir(A, bMedya.id)).toBeNull();
   },
   medyaKullanimi: () => {
-    expect(gelenKutusu.medyaKullanimi(B)).toEqual({ bayt: 1234, adet: 1 });
+    // B'nin gelen fotoğrafı (1234) + kampanya görseli (99): ortak medya kotası.
+    expect(gelenKutusu.medyaKullanimi(B)).toEqual({ bayt: 1333, adet: 2 });
     expect(gelenKutusu.medyaKullanimi(A)).toEqual({ bayt: 0, adet: 0 });
   },
 };
 
+const kampanyaGorselTestleri: Record<keyof typeof kampanyaGorselleri, () => void> = {
+  kampanyaGorseliEkle: () => {
+    const g = kampanyaGorselleri.kampanyaGorseliEkle(A, { yol: `${A.tenantId}/2026-11/a-gorsel`, mime: "image/jpeg", boyut: 10, sha256: "a".repeat(64), dosyaAdi: "a.jpg" });
+    expect(g.tenantId).toBe(A.tenantId);
+    expect(kampanyaGorselleri.kampanyaGorseliGetir(B, g.id)).toBeNull();
+    db.$client.prepare("delete from sohbet_medyalari where id = ?").run(g.id);
+  },
+  kampanyaGorseliGetir: () => {
+    // B'nin kampanya görseli de, B'nin gelen medyası da A'ya dönmez (önizleme adresi /api/medya de medyaGetir ile).
+    expect(kampanyaGorselleri.kampanyaGorseliGetir(A, bGorsel.id)).toBeNull();
+    expect(kampanyaGorselleri.kampanyaGorseliGetir(A, bMedya.id)).toBeNull();
+    expect(gelenKutusu.medyaGetir(A, bGorsel.id)).toBeNull();
+    // Gelen medya satırı kampanya görseli sayılmaz (B için bile).
+    expect(kampanyaGorselleri.kampanyaGorseliGetir(B, bMedya.id)).toBeNull();
+  },
+  kampanyaGorselAlanlari: () => {
+    expect(kampanyaGorselleri.kampanyaGorselAlanlari(A, bGorselliKampanya.id)).toBeNull();
+  },
+  kampanyaMetaGorselYaz: () => {
+    expect(kampanyaGorselleri.kampanyaMetaGorselYaz(A, bGorselliKampanya.id, { metaId: "ele-gecirildi", numara: "1", tarih: new Date() })).toBe(false);
+    expect(kampanyaGorselleri.kampanyaMetaGorselYaz(A, bGorselliKampanya.id, null)).toBe(false);
+  },
+};
+
 const MODULLER = {
+  "kampanya-gorselleri": [kampanyaGorselleri, kampanyaGorselTestleri],
   taramalar: [taramalar, taramaTestleri],
   kayitlar: [kayitlar, kayitTestleri],
   olaylar: [olaylar, olayTestleri],

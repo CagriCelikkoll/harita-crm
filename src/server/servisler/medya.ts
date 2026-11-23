@@ -57,6 +57,11 @@ async function indir(m: IndirilecekMedya, simdi: Date): Promise<keyof MedyaTurSo
     medyaGuncelle(m, { neden: "Medya için ayrılan disk alanı doldu", sonrakiDeneme: new Date(simdi.getTime() + KOTA_BEKLEME_MS) });
     return "bekletilen";
   }
+  if (!m.metaMedyaId) {
+    medyaGuncelle(m, { durum: "hata", neden: "Meta medya kimliği yok; telefondan bakın" });
+    return "hata";
+  }
+  const metaMedyaId = m.metaMedyaId;
   const c = whatsappBaglantisiCoz(m.ctx, m.baglantiId);
   if (!c) {
     medyaGuncelle(m, { durum: "hata", neden: "Numara kaldırılmış ya da doğrulanmamış; telefondan bakın" });
@@ -67,7 +72,7 @@ async function indir(m: IndirilecekMedya, simdi: Date): Promise<keyof MedyaTurSo
   let gecici: string | null = null;
   let parcaYolu: string | null = null;
   try {
-    const bilgi = await istemci.medyaBilgisi(m.metaMedyaId);
+    const bilgi = await istemci.medyaBilgisi(metaMedyaId);
     const mime = medyaMimeSadelestir(bilgi.mime ?? m.mime);
     if (!mime) throw new Ret(`Desteklenmeyen dosya türü (${(bilgi.mime ?? m.mime ?? "bilinmiyor").slice(0, 60)}); telefondan bakın`);
     if (bilgi.boyut !== null && bilgi.boyut > sinir) throw new Ret(`Dosya çok büyük (${MB(bilgi.boyut)}; sınır ${MB(sinir)}); telefondan bakın`);

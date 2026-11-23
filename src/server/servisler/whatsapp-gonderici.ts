@@ -10,6 +10,9 @@
 //     sorumluluk onayı) tam olmalı; test modunda aranmaz.
 //  5. Kalite (15 dakikadan eskiyse Meta'dan yenilenir; numara sahipliği de yeniden denetlenir, reddedilirse kampanya
 //     duraklar): RED → bu numaranın kampanyaları duraklar (diğer numaralar sürer).
+//     Görselli (IMAGE başlıklı) şablon: kampanyanın görseli bu numarayla Meta'ya yüklenmiş ve kimliği taze değilse
+//     yüklenir (kampanya-gorseli.ts); kimlik sonraki alıcılarda yeniden kullanılır. Yükleme reddedilirse "Son hata"
+//     yazılır ve yalnızca bu kampanya duraklar (gorsel_hatasi); dosya yoksa gorsel_yok; geçici hata yeniden denenir.
 //  6. Günlük sınır (atomik sayaç, çalışma alanının bütün numaralarının toplamı) ve Meta mesajlaşma limitinin bu
 //     uygulamaya ayrılan payı (kayan 24 saat; portföy limiti numaralarca paylaşıldığı için yine bütün numaraların
 //     toplamı sayılır; gelen kutusundan gönderilen şablonlar da sayılır); dolarsa ertesi günün gönderim başlangıcına kalır.
@@ -17,10 +20,16 @@
 //     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bu WABA'daki numaraları kilitler ve onların
 //     kampanyalarını duraklatır; mesaj kuyrukta beklemeye döner (deneme sayılmaz, kendiliğinden tekrar denenmez).
 //     Numara Cloud API'ye kayıtlı değilse (133010) yalnızca bu numaranın kampanyaları duraklar ("Son hata" yazılır).
+//     Medya hatası (131053, 131052): yalnızca bu kampanya duraklar, Meta görsel kimliği silinir (devamda yeniden
+//     yüklenir), "Son hata" yazılır.
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
 import {
+  baslikBicimiBul,
   degiskenDegerleri,
+  GORSEL_BASLIK,
+  gorselHataMesaji,
   hesapKilidiNedeni,
+  medyaHataKoduMu,
   metaLimitPayi,
   numaraKayitsizGonderimMesaji,
   numaraKayitsizKoduMu,
@@ -35,12 +44,14 @@ import { retIsle } from "../repo/engel-listesi";
 import { sayacAyir, sayacIade } from "../repo/gonderim-sayaci";
 import type { IletiAyarlari } from "../repo/ileti-ayarlari";
 import { whatsappKampanyalariniDuraklat, type Kampanya } from "../repo/kampanyalar";
+import { kampanyaGorselAlanlari, kampanyaMetaGorselYaz } from "../repo/kampanya-gorselleri";
 import { kayitGetir } from "../repo/kayitlar";
 import { mesajBirak, mesajGonderildi, whatsappSon24Saat, type KuyrukMesaji } from "../repo/kuyruk";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { ayniWabaBaglantilari, hesapKilidiYaz, sonHataYaz } from "../repo/whatsapp-baglantilari";
 import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
+import { GorselDosyasiHatasi, metaGorselHazirla } from "./kampanya-gorseli";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
 import { baglantiyiTestEt, whatsappBaglantisiCoz } from "./whatsapp-api";
 
@@ -110,6 +121,8 @@ export async function whatsappMesajIsle(
   // 2) Şablon ve değişkenler.
   const sablon = kampanya.sablonId ? sablonGetir(ctx, kampanya.sablonId) : null;
   if (!sablon || sablon.destekNedeni !== null) return duraklat(ctx, mesaj, "sablon_kullanilamaz");
+  const gorselli = baslikBicimiBul(sablon.bilesenler) === GORSEL_BASLIK;
+  if (gorselli && !kampanya.gorselMedyaId) return duraklat(ctx, mesaj, "gorsel_yok");
   const degerler = degiskenDegerleri(sablon.degiskenler, kampanya.degiskenEslem ?? {}, kayit);
   if (!degerler) {
     mesajBirak(ctx, mesaj.id, { durum: "haric", neden: "degisken_bos" });
@@ -161,6 +174,25 @@ export async function whatsappMesajIsle(
     c = yeni;
   }
   if (c.baglanti.kalite === "RED") return duraklat(ctx, mesaj, "kalite_dusuk", [baglantiId]);
+  const istemci = whatsappApiIstemcisi({
+    wabaId: c.baglanti.wabaId,
+    phoneNumberId: c.baglanti.phoneNumberId,
+    erisimAnahtari: c.gizli.erisimAnahtari,
+  });
+
+  // 5b) Görselli şablon: Meta medya kimliği (taze değilse görsel bu numarayla yüklenir; alıcı başına yüklenmez).
+  let gorsel: { metaId: string } | null = null;
+  if (gorselli) {
+    // Aynı turdaki önceki mesaj kampanyayı duraklattıysa (ör. görsel reddedildi) Meta'ya yeniden yüklenmez.
+    const durdu = s.gonderimOncesi(() => {});
+    if (durdu) return durdu;
+    try {
+      const alanlar = kampanyaGorselAlanlari(ctx, kampanya.id) ?? kampanya;
+      gorsel = { metaId: await metaGorselHazirla(ctx, alanlar, c.baglanti.phoneNumberId, istemci, simdi) };
+    } catch (hata) {
+      return gorselHataIsle(ctx, mesaj, baglantiId, hata, s, simdi);
+    }
+  }
 
   // 6) Günlük sınır ve Meta limitinin payı.
   const gun = gunAnahtari(simdi);
@@ -182,17 +214,12 @@ export async function whatsappMesajIsle(
   await hizSiniri(s.aralikMs ?? Math.ceil(1000 / Math.max(1, Number(process.env.WHATSAPP_SANIYE_BASI ?? 20))));
   const durdu = s.gonderimOncesi(iade);
   if (durdu) return durdu;
-  const istemci = whatsappApiIstemcisi({
-    wabaId: c.baglanti.wabaId,
-    phoneNumberId: c.baglanti.phoneNumberId,
-    erisimAnahtari: c.gizli.erisimAnahtari,
-  });
   try {
     const yanit = await istemci.mesajGonder({
       alici: { tur: karar.kaynak === "bsuid" ? "bsuid" : "telefon", deger: karar.adres },
       sablonAdi: sablon.ad,
       dil: sablon.dil,
-      bilesenler: sablonParametreleri(sablon.degiskenler, degerler, sablon.parametreBicimi === "NAMED"),
+      bilesenler: sablonParametreleri(sablon.degiskenler, degerler, sablon.parametreBicimi === "NAMED", gorsel),
     });
     mesajGonderildi(
       ctx,
@@ -212,6 +239,33 @@ export async function whatsappMesajIsle(
   } catch (hata) {
     return hataIsle(ctx, mesaj, baglantiId, kayit.id, ozet, engelTuru, hata, iade, s, simdi);
   }
+}
+
+/**
+ * Görselin Meta'ya aktarılamaması (gönderimden önce; ileti gitmedi, sayaç ayrılmadı). Hesap kilidi, kayıtsız numara ve
+ * yetki hataları gönderimdeki gibi; diğer kalıcı ret yalnızca bu kampanyayı duraklatır ve "Son hata"ya yazılır.
+ */
+function gorselHataIsle(
+  ctx: TenantContext,
+  mesaj: KuyrukMesaji,
+  baglantiId: string,
+  hata: unknown,
+  s: WhatsappGondericiSecenekleri,
+  simdi: Date,
+): WhatsappSonucu {
+  if (hata instanceof GorselDosyasiHatasi) return duraklat(ctx, mesaj, "gorsel_yok");
+  const e = hata instanceof GraphHatasi ? hata : null;
+  const metin = (e?.message ?? (hata as Error).message ?? "Bilinmeyen hata").slice(0, 300);
+  if (!e || e.gecici || e.http === 429) return s.geciciHata(`Görsel Meta'ya yüklenemedi: ${metin}`);
+  const kilit = hesapKilidiNedeni(e.kod);
+  if (kilit) return duraklat(ctx, mesaj, kilit, hesapKilidiYaz(ctx, baglantiId, e.kod!, simdi));
+  if (numaraKayitsizKoduMu(e.kod)) {
+    sonHataYaz(ctx, baglantiId, numaraKayitsizGonderimMesaji(e.kod!));
+    return duraklat(ctx, mesaj, "numara_kayitsiz", [baglantiId]);
+  }
+  if (e.yetkiHatasi) return duraklat(ctx, mesaj, "yetki");
+  sonHataYaz(ctx, baglantiId, gorselHataMesaji(e.kod, e.message));
+  return duraklat(ctx, mesaj, "gorsel_hatasi");
 }
 
 /** Meta hata kodu → sonuç. https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes */
@@ -248,6 +302,13 @@ function hataIsle(
     // numaralar ve gelen kutusu etkilenmez); mesaj kuyrukta bekler. Neden bağlantının "Son hata" satırına yazılır.
     sonHataYaz(ctx, baglantiId, numaraKayitsizGonderimMesaji(e.kod!));
     return duraklat(ctx, mesaj, "numara_kayitsiz", [baglantiId]);
+  }
+  if (medyaHataKoduMu(e.kod)) {
+    // Görsel işlenemedi (131053) / indirilemedi (131052): sonraki alıcılar da düşerdi. Yalnızca bu kampanya duraklar;
+    // kimlik silinir, devam ettirilince görsel yeniden yüklenir.
+    kampanyaMetaGorselYaz(ctx, mesaj.kampanyaId, null);
+    sonHataYaz(ctx, baglantiId, gorselHataMesaji(e.kod, e.message));
+    return duraklat(ctx, mesaj, "gorsel_hatasi");
   }
   switch (e.kod) {
     case 131026: // teslim edilemez (alıcıda WhatsApp yok vb.)

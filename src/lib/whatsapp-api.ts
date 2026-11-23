@@ -188,24 +188,45 @@ const DEGISKEN_VAR = /\{\{\s*[A-Za-z0-9_]+\s*\}\}/;
 export type SablonCozumu = {
   degiskenler: SablonDegiskeni[];
   abonelikButonu: boolean;
+  /** HEADER biçimi (TEXT, IMAGE, VIDEO, DOCUMENT, LOCATION); başlık yoksa null. */
+  baslikBicimi: string | null;
   /** null: kampanyada kullanılabilir; değilse nedeni. */
   destekNedeni: string | null;
 };
 
+/** Kampanyada desteklenen tek medya başlık biçimi (tek görsel). */
+export const GORSEL_BASLIK = "IMAGE";
+
+const bicimi = (b: MetaSablonBileseni) => (b.format ?? "TEXT").toUpperCase();
+
+/** Bileşenlerden HEADER biçimi (başlık yoksa null): 0026 öncesi satırda baslik_bicimi boş kalsa da doğru gösterilir. */
+export function baslikBicimiBul(bilesenler: MetaSablonBileseni[]): string | null {
+  const b = bilesenler.find((x) => x.type.toUpperCase() === "HEADER");
+  return b ? bicimi(b) : null;
+}
+
+/** Şablon listesindeki rozet: görselli (IMAGE), desteklenmeyen medya başlık (video, belge, konum) ya da yok. */
+export function medyaBaslikRozeti(baslikBicimi: string | null | undefined): { etiket: string; ton: "ana" | "uyari" } | null {
+  if (!baslikBicimi || baslikBicimi === "TEXT") return null;
+  return baslikBicimi === GORSEL_BASLIK ? { etiket: "Görselli", ton: "ana" } : { etiket: "Desteklenmiyor", ton: "uyari" };
+}
+
 /**
- * Şablonu kampanya açısından çözümler. İlk sürümde (K11) yalnızca metin başlık ve gövde değişkenleri desteklenir;
- * medya başlık, konum, dinamik URL butonu, kopyalanabilir kod, katalog/akış gibi parametre isteyen bileşenler
- * desteklenmez. Pazarlama şablonunda abonelikten çıkma butonu zorunludur (kapatılamaz).
+ * Şablonu kampanya açısından çözümler. Metin başlık ve gövde değişkenleri ile tek görselli (IMAGE) başlık desteklenir
+ * (görsel kampanyada yüklenir); video/belge başlık, konum, dinamik URL butonu, kopyalanabilir kod, katalog/akış gibi
+ * parametre isteyen bileşenler desteklenmez. Pazarlama şablonunda abonelikten çıkma butonu zorunludur (kapatılamaz).
  */
 export function sablonCozumle(s: { kategori: string; durum: string; bilesenler: MetaSablonBileseni[] }): SablonCozumu {
   const degiskenler: SablonDegiskeni[] = [];
   const nedenler: string[] = [];
   let abonelikButonu = false;
+  let baslikBicimi: string | null = null;
   for (const b of s.bilesenler) {
     const tur = b.type.toUpperCase();
     if (tur === "HEADER") {
-      const bicim = (b.format ?? "TEXT").toUpperCase();
-      if (bicim !== "TEXT") nedenler.push(`Medya başlık (${bicim}) desteklenmiyor`);
+      const bicim = bicimi(b);
+      baslikBicimi = bicim;
+      if (bicim !== "TEXT" && bicim !== GORSEL_BASLIK) nedenler.push(`Medya başlık (${bicim}) desteklenmiyor`);
       for (const m of (b.text ?? "").matchAll(DEGISKEN_DESENI)) degiskenler.push({ bilesen: "header", ad: m[1] });
     } else if (tur === "BODY") {
       for (const m of (b.text ?? "").matchAll(DEGISKEN_DESENI)) {
@@ -226,7 +247,63 @@ export function sablonCozumle(s: { kategori: string; durum: string; bilesenler: 
     nedenler.unshift("Pazarlama şablonunda abonelikten çıkma (hızlı yanıt) butonu yok");
   }
   if (s.durum.toUpperCase() !== "APPROVED") nedenler.unshift(`Şablon onaylı değil (${s.durum})`);
-  return { degiskenler, abonelikButonu, destekNedeni: nedenler.length ? [...new Set(nedenler)].join("; ") : null };
+  return { degiskenler, abonelikButonu, baslikBicimi, destekNedeni: nedenler.length ? [...new Set(nedenler)].join("; ") : null };
+}
+
+// --- Görselli kampanya: görsel dosyası ve Meta medya kimliği ---
+
+/** Kampanya görseli: yalnızca JPEG ve PNG, en fazla 5 MB (WhatsApp'ın görsel sınırı). */
+export const KAMPANYA_GORSEL_AZAMI_BAYT = 5 * 1024 * 1024;
+export const KAMPANYA_GORSEL_MIME = ["image/jpeg", "image/png"] as const;
+export type KampanyaGorselMime = (typeof KAMPANYA_GORSEL_MIME)[number];
+
+const PNG_IMZASI = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * Dosyanın türü İMZASINDAN (ilk baytlar) belirlenir; dosya adı, uzantı ve tarayıcının bildirdiği tür dikkate alınmaz.
+ * JPEG: FF D8 FF; PNG: 89 50 4E 47 0D 0A 1A 0A. Başka her şey null.
+ */
+export function gorselImzasi(b: Uint8Array): KampanyaGorselMime | null {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.length >= PNG_IMZASI.length && PNG_IMZASI.every((x, i) => b[i] === x)) return "image/png";
+  return null;
+}
+
+/**
+ * Meta'ya /media ile yüklenen dosyanın kimliği yaklaşık 30 gün geçerlidir. Bu süreden eski kimlik kullanılmaz, görsel
+ * yeniden yüklenir (uzun süren kampanyada süre dolmadan önce pay bırakılır).
+ */
+export const META_GORSEL_YENILEME_MS = 25 * 24 * 3600_000;
+
+/**
+ * Medya kaynaklı Meta hata kodları (gönderim yanıtında ya da teslim bildiriminde):
+ *  - 131053 "Media upload error": iletideki medya yüklenemedi / işlenemedi (tür, boyut ya da süresi dolmuş kimlik).
+ *  - 131052 "Media download error": medya indirilemedi.
+ * Kampanyanın görselinden kaynaklanır: yalnızca o kampanya duraklar (sonraki alıcılar da aynı hatayla düşerdi), Meta
+ * medya kimliği silinir; devam ettirilince görsel yeniden yüklenir.
+ */
+export const MEDYA_HATA_KODLARI: ReadonlySet<number> = new Set([131052, 131053]);
+export const medyaHataKoduMu = (kod: number | null | undefined) => kod != null && MEDYA_HATA_KODLARI.has(kod);
+
+/** Görselin Meta'ya yüklenmesi (/media) ya da gönderimde işlenmesi başarısız: bağlantının "Son hata" satırı. */
+export function gorselHataMesaji(kod: number | null, ayrinti?: string | null): string {
+  const neden =
+    kod === 131052
+      ? "Meta kampanya görselini indiremedi"
+      : kod === 131053
+        ? "Meta kampanya görselini işleyemedi"
+        : "Kampanya görseli Meta'ya yüklenemedi";
+  const meta = kod != null ? ` (Meta ${kod})` : "";
+  const ek = ayrinti ? `: ${ayrinti.slice(0, 160)}` : "";
+  return `${neden}${meta}${ek}. Görselin JPEG ya da PNG ve en fazla 5 MB olduğunu kontrol edin; kampanyayı devam ettirince görsel yeniden yüklenir.`;
+}
+
+/** Kampanya ayrıntısında teslim hata kodunun kısa açıklaması (bilinmiyorsa null). */
+export function teslimHataAciklamasi(kod: number | null | undefined): string | null {
+  if (kod === 131053) return "görsel işlenemedi";
+  if (kod === 131052) return "görsel indirilemedi";
+  if (kod === 133010) return "numara Cloud API'ye kayıtlı değil";
+  return null;
 }
 
 // --- Kampanya: şablon değişkenlerinin değerleri ---
@@ -274,7 +351,8 @@ export function sablonMetni(bilesenler: MetaSablonBileseni[], degerler: Record<s
   const parcalar: string[] = [];
   for (const b of bilesenler) {
     const tur = b.type.toUpperCase();
-    if (tur === "HEADER" && b.text) parcalar.push(`*${doldur("header", b.text)}*`);
+    if (tur === "HEADER" && bicimi(b) === GORSEL_BASLIK) parcalar.push("[Görsel]");
+    else if (tur === "HEADER" && b.text) parcalar.push(`*${doldur("header", b.text)}*`);
     else if (tur === "BODY" && b.text) parcalar.push(doldur("body", b.text));
     else if (tur === "FOOTER" && b.text) parcalar.push(`_${b.text}_`);
     else if (tur === "BUTTONS") parcalar.push((b.buttons ?? []).map((x) => `[${x.text ?? x.type}]`).join(" "));
@@ -282,16 +360,26 @@ export function sablonMetni(bilesenler: MetaSablonBileseni[], degerler: Record<s
   return parcalar.join("\n\n");
 }
 
-/** Cloud API template.components (yalnızca metin parametreleri; konumsal ya da adlandırılmış). */
+export type MetinParametresi = { type: "text"; text: string; parameter_name?: string };
+export type GorselParametresi = { type: "image"; image: { id: string } };
+export type SablonBileseniParametreleri = { type: "header" | "body"; parameters: (MetinParametresi | GorselParametresi)[] };
+
+/**
+ * Cloud API template.components: metin parametreleri (konumsal ya da adlandırılmış). Görselli şablonda başlık
+ * parametresi Meta'ya yüklenmiş görselin kimliğidir: { type: "header", parameters: [{ type: "image", image: { id } }] }.
+ */
 export function sablonParametreleri(
   degiskenler: SablonDegiskeni[],
   degerler: Record<string, string>,
   adlandirilmis: boolean,
-): { type: "header" | "body"; parameters: { type: "text"; text: string; parameter_name?: string }[] }[] {
-  const sonuc = [];
+  gorsel?: { metaId: string } | null,
+): SablonBileseniParametreleri[] {
+  const sonuc: SablonBileseniParametreleri[] = [];
+  if (gorsel) sonuc.push({ type: "header", parameters: [{ type: "image", image: { id: gorsel.metaId } }] });
   for (const bilesen of ["header", "body"] as const) {
     const liste = degiskenler.filter((d) => d.bilesen === bilesen);
-    if (!liste.length) continue;
+    // Görsel başlıkta metin değişkeni olmaz (Meta IMAGE başlığa metin koymaz).
+    if (!liste.length || (bilesen === "header" && gorsel)) continue;
     const sirali = adlandirilmis ? liste : [...liste].sort((a, b) => Number(a.ad) - Number(b.ad));
     sonuc.push({
       type: bilesen,
@@ -336,7 +424,7 @@ export const pencereAcikMi = (bitis: Date | null | undefined, simdi = new Date()
 
 /** Şablon metninin parçaları (değişkenler ayrı): kampanya formunda tam metni, değişkenleri vurgulayarak göstermek için. */
 export type SablonParcasi = { metin: string } | { degisken: SablonDegiskeni };
-export type SablonBolumu = { tur: "baslik" | "govde" | "altbilgi" | "butonlar"; parcalar: SablonParcasi[] };
+export type SablonBolumu = { tur: "gorsel" | "baslik" | "govde" | "altbilgi" | "butonlar"; parcalar: SablonParcasi[] };
 
 export function sablonParcalari(bilesenler: MetaSablonBileseni[]): SablonBolumu[] {
   const bol = (bilesen: "header" | "body", metin: string): SablonParcasi[] => {
@@ -353,7 +441,8 @@ export function sablonParcalari(bilesenler: MetaSablonBileseni[]): SablonBolumu[
   const sonuc: SablonBolumu[] = [];
   for (const b of bilesenler) {
     const tur = b.type.toUpperCase();
-    if (tur === "HEADER" && b.text) sonuc.push({ tur: "baslik", parcalar: bol("header", b.text) });
+    if (tur === "HEADER" && bicimi(b) === GORSEL_BASLIK) sonuc.push({ tur: "gorsel", parcalar: [{ metin: "[Görsel]" }] });
+    else if (tur === "HEADER" && b.text) sonuc.push({ tur: "baslik", parcalar: bol("header", b.text) });
     else if (tur === "BODY" && b.text) sonuc.push({ tur: "govde", parcalar: bol("body", b.text) });
     else if (tur === "FOOTER" && b.text) sonuc.push({ tur: "altbilgi", parcalar: [{ metin: b.text }] });
     else if (tur === "BUTTONS") {

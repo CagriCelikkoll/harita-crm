@@ -70,6 +70,12 @@ export const mockWhatsapp = {
   >(),
   /** İndirilen medya adresleri (sırasıyla). */
   medyaIndirmeleri: [] as string[],
+  /** /media ile yüklenen dosyalar (kampanya görselleri; sırasıyla) ve dönen kimlikler. */
+  medyaYuklemeleri: [] as { phoneNumberId: string; mime: string; dosyaAdi: string; boyut: number; sha256: string; id: string }[],
+  /** Doluysa her /media yüklemesi bu hatayla başarısız olur (kalıcı; sıfırlanana kadar). */
+  yuklemeHatasi: null as GraphHatasi | null,
+  /** /media çağrısı sayısı (başarısızlar dahil). */
+  yuklemeDenemesi: 0,
 };
 
 export function mockWhatsappSifirla() {
@@ -86,6 +92,9 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.wabaNumaralari = null;
   mockWhatsapp.medyalar = new Map();
   mockWhatsapp.medyaIndirmeleri = [];
+  mockWhatsapp.medyaYuklemeleri = [];
+  mockWhatsapp.yuklemeHatasi = null;
+  mockWhatsapp.yuklemeDenemesi = 0;
 }
 
 const mockMedyaAdresi = (id: string) => `https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=${id}`;
@@ -103,6 +112,21 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
     if (b.erisimAnahtari === "gecersiz") throw new GraphHatasi("Invalid OAuth access token", 401, 190);
   };
   return {
+    async medyaYukle(y) {
+      cagri();
+      mockWhatsapp.yuklemeDenemesi++;
+      if (mockWhatsapp.yuklemeHatasi) throw mockWhatsapp.yuklemeHatasi;
+      const id = `${9000000000 + mockWhatsapp.medyaYuklemeleri.length + 1}`;
+      mockWhatsapp.medyaYuklemeleri.push({
+        phoneNumberId: b.phoneNumberId,
+        mime: y.mime,
+        dosyaAdi: y.dosyaAdi,
+        boyut: y.icerik.byteLength,
+        sha256: createHash("sha256").update(y.icerik).digest("hex"),
+        id,
+      });
+      return id;
+    },
     async medyaBilgisi(medyaId) {
       cagri();
       const m = mockWhatsapp.medyalar.get(medyaId);

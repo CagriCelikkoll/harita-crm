@@ -152,6 +152,9 @@ export const DURAKLATMA_NEDEN_ADLARI: Record<string, string> = {
   baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",
   numara_kayitsiz:
     "Numara Meta Cloud API'ye kayıtlı değil (Meta 133010). WhatsApp Manager'da numarayı doğrulayıp kaydedin (register + 6 haneli PIN), Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
+  gorsel_hatasi:
+    "Kampanya görseli Meta'ya yüklenemedi ya da Meta görseli işleyemedi (ayrıntı: Ayarlar → WhatsApp → numaranın \"Son hata\" satırı). Sorun giderilince yönetici devam ettirebilir; görsel yeniden yüklenir.",
+  gorsel_yok: "Kampanya görselinin dosyası bulunamadı ya da bozulmuş. Kampanyayı iptal edip görseli yeniden yükleyerek yeni kampanya oluşturun.",
   meta_hesap_kilitli:
     "Meta WhatsApp hesabınızı kilitledi. Kilit kalkınca Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
   meta_odeme_sorunu:

@@ -13,6 +13,7 @@ import {
   META_BAGLI,
   numaraEtiketi,
   numaraKayitsizMesaji,
+  baslikBicimiBul,
   sablonCozumle,
   TEST_NUMARASI_AZAMI,
   type Kalite,
@@ -519,6 +520,7 @@ export async function sablonlariSenkronizeEt(ctx: TenantContext, baglantiId: str
         degiskenler: c.degiskenler,
         abonelikButonu: c.abonelikButonu,
         destekNedeni: c.destekNedeni,
+        baslikBicimi: c.baslikBicimi,
         kalite: s.quality_score?.score ?? null,
       };
     }),
@@ -529,7 +531,11 @@ export async function sablonlariSenkronizeEt(ctx: TenantContext, baglantiId: str
 export type SablonDto = Pick<
   WhatsappSablonu,
   "id" | "ad" | "dil" | "kategori" | "durum" | "degiskenler" | "abonelikButonu" | "destekNedeni" | "kalite" | "bilesenler"
-> & { kullanilabilir: boolean };
+> & {
+  kullanilabilir: boolean;
+  /** HEADER biçimi (TEXT, IMAGE, VIDEO, DOCUMENT…); başlık yoksa null. IMAGE: görselli (kampanyada görsel yüklenir). */
+  baslikBicimi: string | null;
+};
 
 export const sablonDto = (s: WhatsappSablonu): SablonDto => ({
   id: s.id,
@@ -543,6 +549,7 @@ export const sablonDto = (s: WhatsappSablonu): SablonDto => ({
   kalite: s.kalite,
   bilesenler: s.bilesenler,
   kullanilabilir: s.destekNedeni === null,
+  baslikBicimi: s.baslikBicimi ?? baslikBicimiBul(s.bilesenler),
 });
 
 /** Bu numaranın (WABA'sının) şablonları; numara bu çalışma alanında yoksa boş. */

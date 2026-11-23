@@ -21,6 +21,9 @@ export type SihirbazTaslagi = {
   baglantiId?: string;
   sablonId: string;
   sabitDegerler: string[];
+  /** WhatsApp: seçili şablon görselli (IMAGE başlık) mı ve yüklenen görselin kimliği. */
+  gorselGerekli?: boolean;
+  gorselId?: string | null;
   /** Alıcılar adımındaki canlı sayım (WhatsApp'ta ve sayım gelmeden null). */
   aliciSayisi: number | null;
   /** Gönder adımının özeti alındı mı. */
@@ -42,6 +45,7 @@ export function adimEngeli(adim: AdimNo, t: SihirbazTaslagi): string | null {
   if (adim === 3) {
     if (t.kanal === "whatsapp_api") {
       if (!t.sablonId) return "WhatsApp şablonu seçin.";
+      if (t.gorselGerekli && !t.gorselId) return "Bu şablon görselli: JPEG ya da PNG bir görsel yükleyin (en fazla 5 MB).";
       if (t.sabitDegerler.some((d) => !d.trim())) return "Sabit metinli değişkenlerin metnini girin.";
       return null;
     }

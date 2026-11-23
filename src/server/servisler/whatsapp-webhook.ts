@@ -16,7 +16,9 @@
 // İşlenenler:
 //  - statuses: kuyruk satırının ve gelen kutusu mesajının teslim durumu (yalnızca ileri), hata kodu, ücret; 131026 → "WhatsApp yok",
 //    131050 → ret; hesap düzeyi hata (131031, 368, 131042; value.errors'ta da) → bu WABA'daki numaralar kilitlenir ve
-//    onların WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler). Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
+//    onların WhatsApp kampanyaları duraklar (hesap bilgisidir: başka aracın iletisinin bildirimi de kilitler); medya
+//    hatası (131053, 131052) kampanya iletisindeyse o kampanya duraklar, Meta görsel kimliği silinir (devamda yeniden
+//    yüklenir) ve numaranın "Son hata" satırına anlaşılır metin yazılır. Test modu kilidinin ikinci koşulunu YALNIZCA bizim gönderdiğimiz (sandbox olmayan), bağlantının
 //    mevcut numarasından giden bir iletinin imzalı durum bildirimi sağlar; başka aracın bildirimleri sağlamaz.
 //  - messages: kişi eşleştirme önce BSUID (user_id), yoksa telefon (wa_id), yoksa bu BSUID'e gönderim yapılmış
 //    kuyruk satırı; Click-to-WhatsApp reklamı (referral) → kişi yoksa 'meta_reklam' kaydı ("Reklamdan yazdı", izin YOK),
@@ -30,11 +32,12 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { telefonNormallestir } from "@/lib/adres-normal";
-import { cikisYanitiMi, hesapKilidiNedeni, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
+import { cikisYanitiMi, gorselHataMesaji, hesapKilidiNedeni, medyaHataKoduMu, retMetniMi, UCRETSIZ_PENCERE_SAAT } from "@/lib/whatsapp-api";
 import { adresOzeti } from "../messaging/adres";
 import type { TenantContext } from "../repo/baglam";
 import { retIsle } from "../repo/engel-listesi";
 import { telefonlaKayitlar } from "../repo/kayitlar";
+import { kampanyaMetaGorselYaz } from "../repo/kampanya-gorselleri";
 import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { adreseGonderilenKayitlar, teslimDurumuIsle } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
@@ -46,7 +49,7 @@ import {
   webhookNumaralari,
   webhookOrtakAdresleDogrulandi,
 } from "../repo/sistem/whatsapp-webhook";
-import { hesapKilidiYaz, limitKatmaniYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
+import { hesapKilidiYaz, limitKatmaniYaz, sonHataYaz, type WhatsappBaglantisi } from "../repo/whatsapp-baglantilari";
 import { gelenIletiKaydet } from "../repo/whatsapp-gelen";
 import {
   bsuidAta,
@@ -338,6 +341,12 @@ class Isleyici {
     if (d.status === "failed" && kod === 131026) whatsappYokIsaretle(this.ctx, sonuc.leadId, this.simdi);
     if (d.status === "failed" && kod === 131050) {
       this.ret(sonuc.leadId, d.recipient_user_id, d.recipient_id, "Kişi WhatsApp'ta bu işletmeden pazarlama iletilerini durdurmuş (Meta 131050)");
+    }
+    if (d.status === "failed" && medyaHataKoduMu(kod)) {
+      // Görselli kampanyanın görseli Meta'da işlenemedi: kalan alıcılar harcanmasın diye yalnızca bu kampanya duraklar.
+      kampanyaMetaGorselYaz(this.ctx, sonuc.kampanyaId, null);
+      sonHataYaz(this.ctx, this.baglanti.id, gorselHataMesaji(kod));
+      whatsappKampanyalariniDuraklat(this.ctx, "gorsel_hatasi", { kampanyaId: sonuc.kampanyaId });
     }
   }
 

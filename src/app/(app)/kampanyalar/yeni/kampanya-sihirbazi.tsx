@@ -29,6 +29,8 @@ import {
   DEGISKEN_KAYNAK_ADLARI,
   DEGISKEN_KAYNAKLARI,
   degiskenAnahtari,
+  GORSEL_BASLIK,
+  KAMPANYA_GORSEL_AZAMI_BAYT,
   KALITE_ADLARI,
   SABLON_KATEGORI_ADLARI,
   sablonParcalari,
@@ -40,6 +42,7 @@ import { sablonDoldur } from "@/lib/sablon";
 import { smsUzunlugu, type SmsKodlama } from "@/lib/sms-uzunluk";
 import type { MesajlasmaAyarlariDto } from "@/server/servisler/ayarlar-dto";
 import type { KampanyaOzeti } from "@/server/servisler/kampanya";
+import type { KampanyaGorselDto } from "@/server/servisler/kampanya-gorseli";
 import type { NumaraOzeti, SablonDto } from "@/server/servisler/whatsapp-api";
 
 /** Yalnızca WhatsApp kanalında anlamlı olan hariç tutma nedenleri. */
@@ -82,6 +85,8 @@ export function KampanyaSihirbazi(props: {
   );
   const [sablonId, setSablonId] = useState("");
   const [eslem, setEslem] = useState<DegiskenEslemi>({});
+  // Görselli şablon: yüklenen kampanya görseli (sunucuda doğrulanmış; önizleme adresiyle).
+  const [gorsel, setGorsel] = useState<KampanyaGorselDto | null>(null);
   const [ad, setAd] = useState("");
   const [konu, setKonu] = useState("");
   const [sablon, setSablon] = useState(ORNEK_SABLON);
@@ -113,7 +118,10 @@ export function KampanyaSihirbazi(props: {
   };
 
   const secilenSablon = numaraSablonlari.find((x) => x.id === sablonId) ?? null;
+  const gorselGerekli = secilenSablon?.baslikBicimi === GORSEL_BASLIK;
   const taslak: SihirbazTaslagi = {
+    gorselGerekli,
+    gorselId: gorsel?.id ?? null,
     kanal,
     baglantiId,
     ad,
@@ -140,7 +148,7 @@ export function KampanyaSihirbazi(props: {
     konu: kanal === "eposta" ? konu : undefined,
     sablon: wa ? undefined : sablon,
     bosIsimHitabi: !wa && bosHitap ? bosHitap : undefined,
-    ...(wa ? { baglantiId, sablonId, degiskenEslem: eslem } : {}),
+    ...(wa ? { baglantiId, sablonId, degiskenEslem: eslem, ...(gorselGerekli && gorsel ? { gorselId: gorsel.id } : {}) } : {}),
     filtre,
     testModu,
     planlananTarih: zamanla && tarih ? new Date(tarih).toISOString() : null,
@@ -379,6 +387,11 @@ export function KampanyaSihirbazi(props: {
                   onEslem={(e) => {
                     setOzet(null);
                     setEslem(e);
+                  }}
+                  gorsel={gorsel}
+                  onGorsel={(g) => {
+                    setOzet(null);
+                    setGorsel(g);
                   }}
                 />
               )}
@@ -661,8 +674,11 @@ function WhatsappSablonSecimi(props: {
   eslem: DegiskenEslemi;
   onSablon: (id: string) => void;
   onEslem: (e: DegiskenEslemi) => void;
+  gorsel: KampanyaGorselDto | null;
+  onGorsel: (g: KampanyaGorselDto | null) => void;
 }) {
   const sablon = props.sablonlar.find((x) => x.id === props.sablonId) ?? null;
+  const gorselli = sablon?.baslikBicimi === GORSEL_BASLIK;
   const ayar = (anahtar: string, degisiklik: Partial<DegiskenEslemi[string]>) =>
     props.onEslem({
       ...props.eslem,
@@ -683,13 +699,15 @@ function WhatsappSablonSecimi(props: {
             <option value="">Seçin</option>
             {props.sablonlar.map((x) => (
               <option key={x.id} value={x.id}>
-                {x.ad} ({x.dil}, {SABLON_KATEGORI_ADLARI[x.kategori] ?? x.kategori})
+                {x.ad} ({x.dil}, {SABLON_KATEGORI_ADLARI[x.kategori] ?? x.kategori}
+                {x.baslikBicimi === GORSEL_BASLIK ? ", görselli" : ""})
               </option>
             ))}
           </select>
         </label>
       )}
-      {sablon && <SablonMetni bilesenler={sablon.bilesenler} eslem={props.eslem} />}
+      {gorselli && <GorselYukleme gorsel={props.gorsel} onGorsel={props.onGorsel} />}
+      {sablon && <SablonMetni bilesenler={sablon.bilesenler} eslem={props.eslem} gorselAdresi={gorselli ? (props.gorsel?.adres ?? null) : null} />}
       {sablon?.degiskenler.map((dg) => {
         const anahtar = degiskenAnahtari(dg);
         const a = props.eslem[anahtar] ?? { kaynak: "isletme_adi" as DegiskenKaynagi };
@@ -746,16 +764,95 @@ function WhatsappSablonSecimi(props: {
   );
 }
 
-const BOLUM_ADLARI = { baslik: "Başlık", govde: "Gövde", altbilgi: "Altbilgi", butonlar: "Butonlar" } as const;
+/**
+ * Görselli şablonun başlık görseli: seçilen dosya sunucuya yüklenir (tür imzadan doğrulanır, sha256 alınır); boyut
+ * burada da önceden denetlenir. Meta'ya yükleme kampanya başlarken işçide, bir kez yapılır.
+ */
+function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: KampanyaGorselDto | null) => void }) {
+  const [hata, setHata] = useState<string | null>(null);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  async function sec(dosya: File | undefined) {
+    setHata(null);
+    if (!dosya) return;
+    if (dosya.size > KAMPANYA_GORSEL_AZAMI_BAYT) {
+      setHata("Görsel en fazla 5 MB olabilir.");
+      return;
+    }
+    setYukleniyor(true);
+    const form = new FormData();
+    form.set("dosya", dosya);
+    try {
+      const yanit = await fetch("/api/kampanyalar/gorsel", { method: "POST", body: form, cache: "no-store" });
+      const veri = (await yanit.json().catch(() => ({}))) as { gorsel?: KampanyaGorselDto; hata?: string };
+      if (!yanit.ok || !veri.gorsel) setHata(veri.hata ?? "Görsel yüklenemedi.");
+      else props.onGorsel(veri.gorsel);
+    } catch {
+      setHata("Sunucuya ulaşılamadı.");
+    } finally {
+      setYukleniyor(false);
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-kenar p-3">
+      <label className="etiket">
+        Başlık görseli (zorunlu)
+        <input
+          type="file"
+          accept="image/jpeg,image/png"
+          disabled={yukleniyor}
+          onChange={(e) => {
+            void sec(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+          className="girdi"
+        />
+      </label>
+      <p className="text-xs text-soluk">
+        Bu şablonun başlığında tek görsel var. Yalnızca JPEG ya da PNG, en fazla 5 MB. Aynı görsel bütün alıcılara gider;
+        Meta&apos;ya kampanya başlarken bir kez yüklenir.
+      </p>
+      {yukleniyor && <p className="text-sm text-soluk">Yükleniyor…</p>}
+      {hata && (
+        <p role="alert" className="text-sm text-tehlike">
+          {hata}
+        </p>
+      )}
+      {props.gorsel && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz */}
+          <img src={props.gorsel.adres} alt="Kampanya görseli" className="h-20 w-20 rounded-md object-cover" />
+          <span>
+            {props.gorsel.dosyaAdi} · {sayiYaz(Math.ceil(props.gorsel.boyut / 1024))} KB
+          </span>
+          <button type="button" className="text-tehlike underline" onClick={() => props.onGorsel(null)}>
+            Kaldır
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BOLUM_ADLARI = { gorsel: "Görsel", baslik: "Başlık", govde: "Gövde", altbilgi: "Altbilgi", butonlar: "Butonlar" } as const;
 /** Önizlemede değişken yerine konan örnek değer (kaynak kayıtsa örnek; sabitse girilen metin). */
 const ornekDeger = (a: DegiskenEslemi[string] | undefined) =>
   a?.kaynak === "sabit" ? a.deger || "…" : a?.kaynak === "yetkili_adi" ? "Örnek Yetkili" : "Örnek İşletme";
 
 /** Şablonun tam metni: değişkenler vurgulu ({{1}} …); altında örnek değerlerle önizleme (yerleri görünür). */
-function SablonMetni(props: { bilesenler: SablonDto["bilesenler"]; eslem: DegiskenEslemi }) {
+function SablonMetni(props: { bilesenler: SablonDto["bilesenler"]; eslem: DegiskenEslemi; gorselAdresi?: string | null }) {
   const bolumler = sablonParcalari(props.bilesenler);
   const yaz = (onizleme: boolean) =>
-    bolumler.map((b, i) => (
+    bolumler.map((b, i) =>
+      onizleme && b.tur === "gorsel" ? (
+        props.gorselAdresi ? (
+          // eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz
+          <img key={i} src={props.gorselAdresi} alt="Kampanya görseli" className="max-h-48 w-full rounded-md object-cover" />
+        ) : (
+          <p key={i} className="rounded-md bg-zemin p-3 text-center text-xs text-soluk">
+            Görsel yüklenince burada görünür
+          </p>
+        )
+      ) : (
       <p key={i} className={b.tur === "baslik" ? "font-semibold" : b.tur === "altbilgi" ? "text-xs text-soluk" : ""}>
         {!onizleme && <span className="mr-1 text-xs text-soluk">{BOLUM_ADLARI[b.tur]}:</span>}
         {b.parcalar.map((x, j) =>
@@ -770,7 +867,8 @@ function SablonMetni(props: { bilesenler: SablonDto["bilesenler"]; eslem: Degisk
           ),
         )}
       </p>
-    ));
+      ),
+    );
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <div className="flex flex-col gap-1 rounded-md bg-zemin p-2 text-sm">
@@ -832,6 +930,13 @@ function WhatsappOzetKutusu({ ozet }: { ozet: KampanyaOzeti }) {
             Meta ücreti doğrudan WhatsApp hesabınızdan keser, Harita CRM fatura kesmez.
           </span>
         </p>
+      )}
+      {w.gorsel && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs font-medium text-soluk">Başlık görseli (bütün alıcılara aynı)</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz */}
+          <img src={w.gorsel.adres} alt="Kampanya görseli" className="max-h-56 max-w-xs rounded-md object-cover" />
+        </div>
       )}
       {w.onizlemeler.map((m, i) => (
         <div key={i} className="rounded-md bg-zemin p-3">

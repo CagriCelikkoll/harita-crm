@@ -454,6 +454,14 @@ export const kampanyalar = sqliteTable(
     // Yalnızca WhatsApp: gönderen numara (whatsapp_baglantilari.id). Yabancı anahtar yok: bağlantı silinse de kampanya
     // geçmişi kalır ("silinmiş numara"); çalışan kampanya bağlantı bulunamayınca duraklar. Kiracı denetimi serviste.
     baglantiId: text("baglanti_id"),
+    // Yalnızca WhatsApp, görselli (IMAGE başlıklı) şablon (0026): görselin dosyası sohbet_medyalari satırıdır (mesaj_id
+    // boş, aynı medya klasörü ve kota). Meta'ya gönderen numaranın Phone Number ID'siyle /media üzerinden yüklenince dönen
+    // media id, hangi numarayla ve ne zaman yüklendiği burada tutulur; süresi (~30 gün) dolmadan ve numara değişmediyse
+    // her alıcıda yeniden kullanılır. Görselsiz kampanyalarda hepsi null.
+    gorselMedyaId: text("gorsel_medya_id"),
+    metaGorselId: text("meta_gorsel_id"),
+    metaGorselNumarasi: text("meta_gorsel_numarasi"),
+    metaGorselTarihi: zaman("meta_gorsel_tarihi"),
   },
   (t) => [
     uniqueIndex("kampanyalar_tenant_id_uq").on(t.tenantId, t.id),
@@ -647,6 +655,9 @@ export const whatsappSablonlari = sqliteTable(
     abonelikButonu: integer("abonelik_butonu", { mode: "boolean" }).notNull(),
     // null: kampanyada kullanılabilir.
     destekNedeni: text("destek_nedeni"),
+    // HEADER bileşeninin biçimi (0026): TEXT | IMAGE | VIDEO | DOCUMENT | LOCATION; başlık yoksa null. Kampanyada yalnızca
+    // IMAGE (görselli) medya başlık desteklenir.
+    baslikBicimi: text("baslik_bicimi"),
     kalite: text("kalite"),
     senkronTarihi: zaman("senkron_tarihi").notNull().default(simdi),
   },
@@ -859,8 +870,10 @@ export const sohbetMedyalari = sqliteTable(
     tenantId: text("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    mesajId: text("mesaj_id").notNull(),
-    metaMedyaId: text("meta_medya_id").notNull(),
+    // Gelen medyada dolu. Boşsa (0026) kampanya görseli: yönetici yükler, kampanyalar.gorsel_medya_id bağlar; Meta
+    // kimliği yoktur (Meta'ya yüklenen kimlik kampanyada tutulur). Kampanyaya bağlanmayan görsel günlük bakımda silinir.
+    mesajId: text("mesaj_id"),
+    metaMedyaId: text("meta_medya_id"),
     mime: text("mime"),
     boyut: integer("boyut"),
     sha256: text("sha256"),

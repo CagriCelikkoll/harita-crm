@@ -55,6 +55,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "id", "tenant_id", "olusturan", "kanal", "ad", "konu", "sablon", "bos_isim_hitabi", "filtre", "sandbox", "durum",
     "planlanan_tarih", "olusturma_tarihi", "baslama_tarihi", "tamamlanma_tarihi",
     "sablon_id", "degisken_eslem", "duraklatma_nedeni", "baglanti_id", // WhatsApp (Cloud API); baglanti_id: gönderen numara
+    // Görselli şablon (0026): görselin medya satırı ve Meta'ya yüklenmiş kimliği (numara, tarih).
+    "gorsel_medya_id", "meta_gorsel_id", "meta_gorsel_numarasi", "meta_gorsel_tarihi",
   ],
   message_queue: [
     "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",
@@ -116,7 +118,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   isci_kilitleri: ["ad", "sahip", "bitis", "son_nabiz"],
   whatsapp_sablonlari: [
     "id", "tenant_id", "waba_id", "meta_id", "ad", "dil", "kategori", "durum", "parametre_bicimi", "bilesenler", "degiskenler",
-    "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi",
+    "abonelik_butonu", "destek_nedeni", "kalite", "senkron_tarihi", "baslik_bicimi",
   ],
   // satirlar: içe aktarılan dosyanın satırları (kullanıcı verisi), geçici; tamamlanınca/süresi dolunca silinir.
   ice_aktarmalar: [

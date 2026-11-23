@@ -31,7 +31,9 @@ import {
 } from "@/lib/gelen-kutusu";
 import { HARIC_NEDEN_ADLARI, WHATSAPP_IZIN_KAYNAK_ADLARI } from "@/lib/mesajlasma";
 import {
+  baslikBicimiBul,
   degiskenDegerleri,
+  GORSEL_BASLIK,
   hesapKilidiMesaji,
   hesapKilidiNedeni,
   metaLimitPayi,
@@ -206,7 +208,8 @@ export function sohbetAyrintisi(ctx: TenantContext, id: string, simdi = new Date
     dahaEski: mesajlar.length >= MESAJ_SAYFA_BOYUTU,
     notlar: notlariDto(ctx, id),
     uyeler: atanabilirUyeler(ctx),
-    sablonlar: sablonlar(ctx, sohbet.baglantiId).filter((s) => s.kullanilabilir),
+    // Görselli şablon yalnızca kampanyadan gönderilir (görsel kampanyada yüklenir); gelen kutusunda listelenmez.
+    sablonlar: sablonlar(ctx, sohbet.baglantiId).filter((s) => s.kullanilabilir && s.baslikBicimi !== GORSEL_BASLIK),
     surum,
   };
 }
@@ -453,6 +456,9 @@ async function gonder(
     const sablon = sablonGetir(ctx, g.sablonId);
     if (!sablon || sablon.wabaId !== c.baglanti.wabaId) throw new GelenKutusuHatasi("Bu şablon bu numaranın WhatsApp hesabında yok.", 400);
     if (sablon.destekNedeni !== null) throw new GelenKutusuHatasi("Bu şablon şu an kullanılamaz.", 400);
+    if (baslikBicimiBul(sablon.bilesenler) === GORSEL_BASLIK) {
+      throw new GelenKutusuHatasi("Görselli şablon gelen kutusundan gönderilemez; kampanya olarak gönderin.", 400);
+    }
     const eslem: DegiskenEslemi = Object.fromEntries(Object.entries(g.degiskenler).map(([k, v]) => [k, { kaynak: "sabit" as const, deger: v }]));
     const degerler = degiskenDegerleri(sablon.degiskenler, eslem, kayit);
     if (!degerler) throw new GelenKutusuHatasi("Şablonun bütün değişkenlerini doldurun.", 400);

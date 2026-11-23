@@ -66,6 +66,7 @@ describe("sabitler ve şablon çözümleme", () => {
         { bilesen: "body", ad: "2" },
       ],
       abonelikButonu: true,
+      baslikBicimi: null,
       destekNedeni: null,
     });
     expect(
@@ -84,8 +85,11 @@ describe("sabitler ve şablon çözümleme", () => {
       degiskenler: [{ bilesen: "body", ad: "ad" }],
       destekNedeni: null,
     });
-    const medya = sablonCozumle({ kategori: "UTILITY", durum: "APPROVED", bilesenler: [{ type: "HEADER", format: "IMAGE" }, govde] });
-    expect(medya.destekNedeni).toMatch(/Medya başlık/);
+    // Medya başlık: yalnızca tek görsel (IMAGE) desteklenir; video ve belge başlık desteklenmez.
+    const gorselli = sablonCozumle({ kategori: "UTILITY", durum: "APPROVED", bilesenler: [{ type: "HEADER", format: "IMAGE" }, govde] });
+    expect(gorselli).toMatchObject({ baslikBicimi: "IMAGE", destekNedeni: null });
+    const medya = sablonCozumle({ kategori: "UTILITY", durum: "APPROVED", bilesenler: [{ type: "HEADER", format: "VIDEO" }, govde] });
+    expect(medya.destekNedeni).toBe("Medya başlık (VIDEO) desteklenmiyor");
     const url = sablonCozumle({
       kategori: "UTILITY",
       durum: "APPROVED",

@@ -5,7 +5,7 @@
 // girdisinden üretilmez: "<tenant>/<yyyy-mm>/<uuid>".
 import fs from "node:fs";
 import path from "node:path";
-import { medyaYoluKayitli, saklamasiDolanMedyalariIsaretle } from "../repo/sistem/medya";
+import { medyaYoluKayitli, sahipsizKampanyaGorselleriniSil, saklamasiDolanMedyalariIsaretle } from "../repo/sistem/medya";
 
 /** İndirme yarıda kalırsa ".part" kalır; artakalan dosyalar bu süreden eskiyse silinir (süren indirmeye dokunulmaz). */
 const ARTAKALAN_SURE_MS = 3600_000;
@@ -66,10 +66,19 @@ function dosyalar(kok: string): { goreli: string; tam: string; mtimeMs: number }
 }
 
 /**
- * Günlük bakım: saklama süresi dolan medyanın dosyası silinir (satır "silindi"); hiçbir indirilmiş medya satırına ait
- * olmayan dosyalar (mesajı ya da kaydı silinmiş, yarıda kalmış indirme) bir saatten eskiyse silinir.
+ * Günlük bakım: saklama süresi dolan medyanın dosyası silinir (satır "silindi"); 24 saatte kampanyaya bağlanmayan
+ * kampanya görselinin satırı ve dosyası silinir (sahipsizGorsel); hiçbir indirilmiş medya satırına ait olmayan dosyalar
+ * (mesajı ya da kaydı silinmiş, yarıda kalmış indirme) bir saatten eskiyse silinir.
  */
-export function medyaBakimi(simdi = new Date()): { suresiDolan: number; artakalan: number } {
+export function medyaBakimi(simdi = new Date()): { suresiDolan: number; artakalan: number; sahipsizGorsel: number } {
+  let sahipsizGorsel = 0;
+  for (const yol of sahipsizKampanyaGorselleriniSil(simdi)) {
+    try {
+      if (sessizSil(medyaTamYolu(yol))) sahipsizGorsel++;
+    } catch {
+      // geçersiz yol: satır zaten silindi
+    }
+  }
   let suresiDolan = 0;
   for (const yol of saklamasiDolanMedyalariIsaretle(simdi)) {
     try {
@@ -87,7 +96,7 @@ export function medyaBakimi(simdi = new Date()): { suresiDolan: number; artakala
     if (!d.goreli.endsWith(".part") && medyaYoluKayitli(d.goreli)) continue;
     if (sessizSil(d.tam)) artakalan++;
   }
-  return { suresiDolan, artakalan };
+  return { suresiDolan, artakalan, sahipsizGorsel };
 }
 
 /** "bytes=a-b", "bytes=a-", "bytes=-n" → kapalı aralık; başlık yoksa ya da çok parçalıysa null (tüm dosya); karşılanamazsa "gecersiz". */

@@ -55,6 +55,8 @@ export type YeniKampanya = Pick<Kampanya, "kanal" | "ad" | "konu" | "sablon" | "
   degiskenEslem?: Kampanya["degiskenEslem"];
   /** Yalnızca WhatsApp: gönderen numara (bu çalışma alanının bağlantısı; servis denetler). */
   baglantiId?: string | null;
+  /** Yalnızca görselli WhatsApp şablonu: kampanya görseli (bu çalışma alanının; servis denetler). */
+  gorselMedyaId?: string | null;
 };
 export type KuyrukGirdisi = { leadId: string; haric?: HaricNedeni };
 

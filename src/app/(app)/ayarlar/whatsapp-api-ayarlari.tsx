@@ -18,6 +18,7 @@ import {
   KALITE_ADLARI,
   kurulumAdimlari,
   limitKatmaniAdi,
+  medyaBaslikRozeti,
   metaDurumuRozeti,
   SABLON_KATEGORI_ADLARI,
   TEST_NUMARASI_AZAMI,
@@ -296,7 +297,9 @@ export function WhatsappApiAyarlari(props: {
             <p className="border-t border-cizgi px-7 py-4 text-soluk">Henüz şablon yok.</p>
           ) : (
             <ul>
-              {sablonlar.map((s) => (
+              {sablonlar.map((s) => {
+                const medya = medyaBaslikRozeti(s.baslikBicimi);
+                return (
                 <li key={s.id} className="flex flex-wrap items-center gap-4 border-t border-cizgi px-7 py-4">
                   <div className="min-w-0 flex-[1_1_200px]">
                     <p className="font-semibold">{s.ad}</p>
@@ -305,9 +308,26 @@ export function WhatsappApiAyarlari(props: {
                       {s.destekNedeni ?? (s.degiskenler.length ? `${s.degiskenler.length} değişken` : "değişken yok")}
                     </p>
                   </div>
-                  {s.destekNedeni ? <DurumRozeti ton="uyari">Kullanılamaz</DurumRozeti> : <DurumRozeti>Kullanılabilir</DurumRozeti>}
+                  {medya && (
+                    <DurumRozeti
+                      ton={medya.ton}
+                      title={
+                        medya.etiket === "Görselli"
+                          ? "Başlıkta tek görsel var: kampanyada JPEG ya da PNG görsel yüklenir."
+                          : `Başlık biçimi ${s.baslikBicimi}: yalnızca görselli (IMAGE) başlık desteklenir; kampanyada seçilemez.`
+                      }
+                    >
+                      {medya.etiket}
+                    </DurumRozeti>
+                  )}
+                  {medya?.etiket === "Desteklenmiyor" ? null : s.destekNedeni ? (
+                    <DurumRozeti ton="uyari">Kullanılamaz</DurumRozeti>
+                  ) : (
+                    <DurumRozeti>Kullanılabilir</DurumRozeti>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </Kart>

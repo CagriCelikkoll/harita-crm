@@ -22,6 +22,7 @@ import {
   MESAJ_DURUMLARI,
   type MesajDurumu,
 } from "@/lib/mesajlasma";
+import { teslimHataAciklamasi } from "@/lib/whatsapp-api";
 import { GOOGLE_ADSIZ } from "@/lib/sabitler";
 import type { KampanyaDto, MesajDto } from "@/server/servisler/kampanya-dto";
 
@@ -366,7 +367,13 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
                       <li key={`${t.durum}-${t.kod}`} className="flex justify-between gap-3 border-b border-cizgi py-1.5 last:border-0">
                         <span>
                           {TESLIM_ADLARI[t.durum ?? ""] ?? t.durum}
-                          {t.kod !== null && <span className="text-xs text-soluk"> (hata {t.kod})</span>}
+                          {t.kod !== null && (
+                            <span className="text-xs text-soluk">
+                              {" "}
+                              (hata {t.kod}
+                              {teslimHataAciklamasi(t.kod) ? `: ${teslimHataAciklamasi(t.kod)}` : ""})
+                            </span>
+                          )}
                         </span>
                         <span className="tabular-nums">{sayiYaz(t.n)}</span>
                       </li>

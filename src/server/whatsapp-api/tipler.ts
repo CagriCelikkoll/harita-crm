@@ -1,5 +1,5 @@
 // WhatsApp Cloud API (Graph API) istemcisinin arayüzü. Gerçek istemci: istemci.ts; sahte: mock.ts.
-import type { MetaSablonBileseni } from "@/lib/whatsapp-api";
+import type { MetaSablonBileseni, SablonBileseniParametreleri } from "@/lib/whatsapp-api";
 
 /** İstemcinin ihtiyaç duyduğu bağlantı bilgisi (çözülmüş). Erişim anahtarı hiçbir yere yazılmaz/loglanmaz. */
 export type GraphBaglantisi = { wabaId: string; phoneNumberId: string; erisimAnahtari: string };
@@ -41,8 +41,12 @@ export type SablonGonderimi = {
   alici: { tur: "telefon" | "bsuid"; deger: string };
   sablonAdi: string;
   dil: string;
-  bilesenler: { type: "header" | "body"; parameters: { type: "text"; text: string; parameter_name?: string }[] }[];
+  /** Metin parametreleri; görselli şablonda başlık { type: "image", image: { id } } (Meta'ya yüklenmiş görsel). */
+  bilesenler: SablonBileseniParametreleri[];
 };
+
+/** POST /{phone-number-id}/media (multipart): kampanya görseli. Dönen kimlik ~30 gün geçerlidir. */
+export type MedyaYuklemesi = { icerik: Uint8Array; mime: string; dosyaAdi: string };
 
 /** POST /{phone-number-id}/messages, type "text": 24 saat penceresinde serbest metin (gelen kutusu yanıtı). */
 export type MetinGonderimi = { alici: { tur: "telefon" | "bsuid"; deger: string }; metin: string };
@@ -61,6 +65,8 @@ export interface WhatsappApiIstemcisi {
   medyaBilgisi(medyaId: string): Promise<MedyaBilgisi>;
   /** Adres Meta'nın medya alanında olmalı (metaMedyaAdresiGecerli); yönlendirme izlenmez. */
   medyaAkisi(url: string): Promise<MedyaAkisi>;
+  /** POST /{phone-number-id}/media: dosyayı gönderen numaranın adına Meta'ya yükler; medya kimliğini döner. */
+  medyaYukle(y: MedyaYuklemesi): Promise<string>;
   mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
   metinGonder(g: MetinGonderimi): Promise<GonderimYaniti>;
   /** POST /{phone-number-id}/messages { status: "read", message_id }: gelen iletiyi okundu işaretler. */

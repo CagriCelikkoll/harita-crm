@@ -183,6 +183,13 @@
       "when": 1795428659110,
       "tag": "0025_numara_meta_durumu",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1795439380350,
+      "tag": "0026_gorselli_kampanya",
+      "breakpoints": true
     }
   ]
 }

@@ -48,6 +48,11 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
     } catch (hata) {
       throw new GraphHatasi(`Meta'ya ulaşılamadı: ${(hata as Error).name === "TimeoutError" ? "zaman aşımı" : "ağ hatası"}`, 0);
     }
+    return yanitCoz<T>(yanit);
+  }
+
+  /** Graph hata gövdesini GraphHatasi'na çevirir (istek ile aynı kural). */
+  async function yanitCoz<T>(yanit: Response): Promise<T> {
     const govde = (await yanit.json().catch(() => null)) as
       | (T & { error?: { message?: string; code?: number; error_subcode?: number } })
       | null;
@@ -59,6 +64,30 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
   }
 
   return {
+    async medyaYukle(y) {
+      // multipart/form-data: messaging_product, type (MIME) ve dosya. Content-Type'ı (sınır çizgisiyle) fetch koyar.
+      const form = new FormData();
+      form.set("messaging_product", "whatsapp");
+      form.set("type", y.mime);
+      form.set("file", new Blob([new Uint8Array(y.icerik)], { type: y.mime }), y.dosyaAdi);
+      let yanit: Response;
+      try {
+        yanit = await fetch(new URL(`${adres}/${surum}/${b.phoneNumberId}/media`), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${b.erisimAnahtari}`, "User-Agent": "HaritaCRM/1.0" },
+          body: form,
+          signal: AbortSignal.timeout(MEDYA_ZAMAN_ASIMI_MS),
+          redirect: "error",
+          cache: "no-store",
+        });
+      } catch (hata) {
+        throw new GraphHatasi(`Meta'ya ulaşılamadı: ${(hata as Error).name === "TimeoutError" ? "zaman aşımı" : "ağ hatası"}`, 0);
+      }
+      const v = await yanitCoz<{ id?: string }>(yanit);
+      if (!v.id) throw new GraphHatasi("Meta yanıtında medya kimliği yok.", 0);
+      return String(v.id);
+    },
+
     async medyaBilgisi(medyaId) {
       if (!/^\d{1,30}$/.test(medyaId)) throw new GraphHatasi("Medya kimliği geçersiz.", 400);
       const v = await istek<{ url?: string; mime_type?: string; sha256?: string; file_size?: number | string }>(medyaId, {

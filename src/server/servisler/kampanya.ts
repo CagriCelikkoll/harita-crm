@@ -1,7 +1,9 @@
 // Kampanya özeti ve oluşturma. Alıcı kuralları (aliciDegerlendir) burada, kuyruğa eklemeden önce uygulanır;
 // işçi her mesajdan hemen önce aynı fonksiyonla YENİDEN kontrol eder.
 // WhatsApp (Cloud API): onaylı şablon + değişken eşleme; test modu açıksa yalnızca test numaraları; tahmini Meta
-// ücreti (bilgi amaçlı); yalnızca yönetici başlatır (K12).
+// ücreti (bilgi amaçlı); yalnızca yönetici başlatır (K12). Görselli (IMAGE başlıklı) şablonda kampanya görseli
+// zorunludur (bu çalışma alanının, kampanya-gorseli.ts ile yüklenmiş); alıcı, izin, İYS, test modu, saat ve limit
+// kuralları görselsiz kampanyayla aynıdır.
 import { z } from "zod";
 import {
   ALICI_TURLERI,
@@ -13,8 +15,10 @@ import {
 } from "@/lib/mesajlasma";
 import { birimFiyat, WHATSAPP_FIYATLARI } from "@/lib/whatsapp-fiyatlar";
 import {
+  baslikBicimiBul,
   DEGISKEN_KAYNAKLARI,
   degiskenDegerleri,
+  GORSEL_BASLIK,
   hesapKilidiMesaji,
   limitKatmaniSayisi,
   numaraEtiketi,
@@ -40,10 +44,12 @@ import {
   type KampanyaAdayi,
 } from "../repo/kampanyalar";
 import { whatsappSon24Saat } from "../repo/kuyruk";
+import { kampanyaGorseliGetir } from "../repo/kampanya-gorselleri";
 import { baglantiGetir } from "../repo/whatsapp-baglantilari";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { whatsappKisileriGetir } from "../repo/whatsapp-kisileri";
 import type { AliciKarari } from "../messaging/alici-kurallari";
+import { kampanyaGorselDto, type KampanyaGorselDto } from "./kampanya-gorseli";
 import { baglantiyiTestEt, whatsappBaglantisiCoz } from "./whatsapp-api";
 import { saglayiciDurumlari } from "../repo/saglayicilar";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
@@ -66,6 +72,8 @@ export const KampanyaGirdisi = z
     /** Yalnızca WhatsApp: gönderen numara (bu çalışma alanının bağlantısı), senkronize şablonun kimliği ve değişken eşlemesi. */
     baglantiId: z.string().max(100).optional(),
     sablonId: z.string().max(100).optional(),
+    /** Yalnızca görselli WhatsApp şablonu: yüklenen kampanya görselinin kimliği (POST /api/kampanyalar/gorsel). */
+    gorselId: z.string().max(100).optional(),
     degiskenEslem: z
       .record(
         z.string().max(80),
@@ -109,6 +117,8 @@ export type WhatsappOzeti = {
   sablonAdi: string;
   dil: string;
   kategori: string;
+  /** Görselli şablon: kampanya görseli (önizleme adresiyle); görselsizse null. */
+  gorsel: KampanyaGorselDto | null;
   baglantiVar: boolean;
   /** Bağlantının test modu: yalnızca test numaraları. */
   testModu: boolean;
@@ -164,6 +174,13 @@ function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: Kamp
   // Şablon WABA'ya aittir: başka WABA'daki numara bu şablonla gönderemez.
   if (sablon.wabaId !== numara.wabaId) throw new KampanyaHatasi(`Bu şablon ${numaraEtiketi(numara)} numarasının WhatsApp hesabında yok.`);
   if (sablon.destekNedeni) throw new KampanyaHatasi(`Bu şablon kampanyada kullanılamaz: ${sablon.destekNedeni}`);
+  // Görselli şablon: görsel zorunlu ve bu çalışma alanının olmalı (başka çalışma alanının görseli "bulunamadı").
+  let gorsel = null;
+  if (baslikBicimiBul(sablon.bilesenler) === GORSEL_BASLIK) {
+    if (!g.gorselId) throw new KampanyaHatasi("Bu şablon görselli: Mesaj adımında JPEG ya da PNG bir görsel yükleyin.");
+    gorsel = kampanyaGorseliGetir(ctx, g.gorselId);
+    if (!gorsel) throw new KampanyaHatasi("Kampanya görseli bulunamadı; görseli yeniden yükleyin.");
+  }
   const eslem: DegiskenEslemi = g.degiskenEslem ?? {};
   const c = whatsappBaglantisiCoz(ctx, numara.id);
   const testModu = !g.testModu && (c?.baglanti.testModu ?? true);
@@ -182,7 +199,7 @@ function whatsappKararlari(ctx: TenantContext, g: KampanyaGirdisi, adaylar: Kamp
     if (karar.uygun && !degiskenDegerleri(sablon.degiskenler, eslem, kayit)) karar = { uygun: false, neden: "degisken_bos" };
     return { kayit, karar };
   });
-  return { numara, sablon, eslem, c, testModu, kararlar };
+  return { numara, sablon, eslem, c, testModu, kararlar, gorsel };
 }
 
 function whatsappOzeti(
@@ -199,6 +216,7 @@ function whatsappOzeti(
     sablonAdi: sablon.ad,
     dil: sablon.dil,
     kategori: sablon.kategori,
+    gorsel: w.gorsel ? kampanyaGorselDto(w.gorsel) : null,
     baglantiVar: Boolean(c),
     testModu: w.testModu,
     kalite: (c?.baglanti.kalite as Kalite | null) ?? null,
@@ -327,6 +345,7 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
       sablonId: sablon?.id ?? null,
       degiskenEslem: sablon ? (g.degiskenEslem ?? {}) : null,
       baglantiId: ozet.whatsapp?.numara.id ?? null,
+      gorselMedyaId: ozet.whatsapp?.gorsel?.id ?? null,
       filtre: g.filtre,
       sandbox: ozet.sandbox,
       planlananTarih: g.planlananTarih ? new Date(g.planlananTarih) : null,
