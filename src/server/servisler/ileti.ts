@@ -8,12 +8,16 @@ import { adresOzeti } from "../messaging/adres";
 import type { AliciKaydi, EngelSorgusu } from "../messaging/alici-kurallari";
 import { epostaNormallestir, telefonNormallestir } from "../messaging/adres";
 
-/** Sandbox dışı kampanya için eksik olanlar (boşsa hazır). SMS'te ret numarası da gerekir. */
+/**
+ * Sandbox dışı kampanya için eksik olanlar (boşsa hazır). SMS'te ret numarası da gerekir. Çalışma alanının İYS kontrolü
+ * kapalıysa İYS kayıt numarası aranmaz (unvan, iletişim bilgisi ve sorumluluk onayı yine zorunlu). Kampanya özeti ve
+ * oluşturma, işçinin gönderim öncesi kontrolü, gelen kutusu ve Ayarlar'daki "eksik" uyarısı bu fonksiyonu kullanır.
+ */
 export function ticariIletiEksikleri(a: IletiAyarlari, kanal?: KuyrukKanali): string[] {
   const eksik: string[] = [];
   if (!a.gonderenUnvani?.trim()) eksik.push("gönderen unvanı");
   if (!a.iletisimBilgisi?.trim()) eksik.push("iletişim bilgisi");
-  if (!a.iysNo?.trim()) eksik.push("İYS kayıt numarası");
+  if (a.iysKontrolu && !a.iysNo?.trim()) eksik.push("İYS kayıt numarası");
   if (!a.sorumlulukOnayTarihi) eksik.push("İYS / 6563 sorumluluk onayı");
   if (kanal === "sms" && !a.smsRetNumarasi?.trim()) eksik.push("SMS ret numarası");
   return eksik;

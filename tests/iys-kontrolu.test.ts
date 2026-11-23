@@ -19,6 +19,7 @@ const gk = await import("@/server/repo/gelen-kutusu");
 const { adresOzeti } = await import("@/server/messaging/adres");
 const { aliciDegerlendir } = await import("@/server/messaging/alici-kurallari");
 const { mesajlasmaAyarlariDto } = await import("@/server/servisler/ayarlar-dto");
+const { ticariIletiEksikleri } = await import("@/server/servisler/ileti");
 const { isciTuru } = await import("@/server/servisler/isci");
 const { KampanyaGirdisi, kampanyaBaslat, kampanyaOzeti } = await import("@/server/servisler/kampanya");
 const gelenKutusu = await import("@/server/servisler/gelen-kutusu");
@@ -240,5 +241,57 @@ describe("kampanya ve şablon gönderimi", { timeout: 30_000 }, () => {
     expect(denetimKayitlariListele(b.ctx)).toEqual([]);
     expect(denetimKayitlariListele(a.ctx)).toHaveLength(1);
     expect(baglantiGetir(b.ctx, a.n.id)).toBeNull();
+  });
+});
+
+/** Tacir / esnaf kişiler (İYS beyanı aranmaz): yalnızca gönderen bilgilerinin etkisi görülsün. */
+function tacirler(ctx: TenantContext, etiket: string, telefonlar: string[]) {
+  const eklenen = kisileriEkle(
+    ctx,
+    telefonlar.map((t) => ({ kaynak: "elle" as const, ekTelefon: t, isletmeAdi: "Esnaf", etiketler: [etiket], aliciTuru: "tacir_esnaf" as const })),
+    "test",
+  );
+  for (const k of eklenen) whatsappIzniAyarla(ctx, k.id, { izin: "var", kaynak: "form" });
+  return eklenen;
+}
+
+describe("İYS numarası: gerçek gönderimde yalnızca İYS kontrolü açıkken zorunlu", { timeout: 30_000 }, () => {
+  it("açık: İYS numarası boşsa eksik (Ayarlar, özet), kampanya başlatılamaz, işçi göndermez", async () => {
+    const { ctx, n } = await alan("IysNoAcik");
+    const [kisi] = tacirler(ctx, "noacik", ["0532 400 00 01"]);
+    // Önce numarayla kampanya kurulur, sonra numara silinir: işçi gönderimden hemen önce yeniden bakar.
+    const k = kampanyaBaslat(ctx, girdi(ctx, n, "noacik"), SIMDI);
+    iletiAyarlariGuncelle(ctx, { iysNo: null });
+    expect(mesajlasmaAyarlariDto(ctx).eksikAyarlar).toEqual(["İYS kayıt numarası"]);
+    expect(kampanyaOzeti(ctx, girdi(ctx, n, "noacik"), SIMDI).eksikAyarlar).toEqual(["İYS kayıt numarası"]);
+    expect(() => kampanyaBaslat(ctx, girdi(ctx, n, "noacik"), SIMDI)).toThrow(/Ticari ileti bölümünü tamamlayın: İYS kayıt numarası/);
+    await tur();
+    expect(mockWhatsapp.gonderilenler).toHaveLength(0);
+    expect(durumlar(k.id, kisi.id)).toEqual({ durum: "basarisiz", neden: "ayar_eksik" });
+  });
+
+  it("kapalı: İYS numarası boş kalabilir (eksik sayılmaz, kampanya başlar, işçi gönderir); unvan, iletişim ve sorumluluk onayı zorunlu kalır", async () => {
+    const { ctx, n } = await alan("IysNoKapali");
+    const [kisi] = tacirler(ctx, "nokapali", ["0532 410 00 01"]);
+    iysKontroluDegistir(ctx, { acik: false, onay: true });
+    iletiAyarlariGuncelle(ctx, { iysNo: null });
+    expect(mesajlasmaAyarlariDto(ctx).eksikAyarlar).toEqual([]);
+    expect(kampanyaOzeti(ctx, girdi(ctx, n, "nokapali"), SIMDI).eksikAyarlar).toEqual([]);
+    const k = kampanyaBaslat(ctx, girdi(ctx, n, "nokapali"), SIMDI);
+    await tur();
+    expect(durumlar(k.id, kisi.id).durum).toBe("gonderildi");
+
+    iletiAyarlariGuncelle(ctx, { gonderenUnvani: null, iletisimBilgisi: null, sorumlulukOnayi: false });
+    expect(mesajlasmaAyarlariDto(ctx).eksikAyarlar).toEqual(["gönderen unvanı", "iletişim bilgisi", "İYS / 6563 sorumluluk onayı"]);
+    expect(() => kampanyaBaslat(ctx, girdi(ctx, n, "nokapali"), SIMDI)).toThrow("Ticari ileti bölümünü tamamlayın: gönderen unvanı, iletişim bilgisi, İYS / 6563 sorumluluk onayı.");
+  });
+
+  it("aynı kural e-posta / SMS için de (işçinin genel kontrolü aynı fonksiyonu kullanır); SMS ret numarası yine zorunlu", () => {
+    const { ctx } = kiraciOlustur("IysNoKanal");
+    iletiAyarlariGuncelle(ctx, { gonderenUnvani: "U", iletisimBilgisi: "I", sorumlulukOnayi: true });
+    expect(ticariIletiEksikleri(iletiAyarlariGetir(ctx), "sms")).toEqual(["İYS kayıt numarası", "SMS ret numarası"]);
+    iysKontroluDegistir(ctx, { acik: false, onay: true });
+    expect(ticariIletiEksikleri(iletiAyarlariGetir(ctx), "sms")).toEqual(["SMS ret numarası"]);
+    expect(ticariIletiEksikleri(iletiAyarlariGetir(ctx), "eposta")).toEqual([]);
   });
 });

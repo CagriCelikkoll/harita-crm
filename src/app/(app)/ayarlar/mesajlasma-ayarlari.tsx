@@ -102,7 +102,15 @@ export function GonderenAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
           <AyarSatiri baslik="İletişim bilgisi" aciklama="Adres, telefon veya web sitesi; alıcılar size buradan ulaşır." alanId="tc-iletisim">
             <input id="tc-iletisim" name="iletisimBilgisi" defaultValue={a.iletisimBilgisi ?? ""} maxLength={300} className="girdi" />
           </AyarSatiri>
-          <AyarSatiri baslik="İYS numarası" aciklama="İleti Yönetim Sistemi'ndeki kayıt numaranız." alanId="tc-iys">
+          <AyarSatiri
+            baslik="İYS numarası"
+            aciklama={
+              a.iysKontrolu
+                ? "İleti Yönetim Sistemi'ndeki kayıt numaranız."
+                : "İleti Yönetim Sistemi'ndeki kayıt numaranız. İYS kontrolü kapalı olduğu için gerçek gönderimde zorunlu değil."
+            }
+            alanId="tc-iys"
+          >
             <input id="tc-iys" name="iysNo" defaultValue={a.iysNo ?? ""} maxLength={40} className="girdi" />
           </AyarSatiri>
           <AyarSatiri
