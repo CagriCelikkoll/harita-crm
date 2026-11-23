@@ -16,8 +16,17 @@
 //  7. Hız (WHATSAPP_SANIYE_BASI); gönderimden hemen önce satır kilidi ve kampanya durumu yeniden denetlenir;
 //     gönderim; Meta hata kodlarına göre sonuç. Hesap düzeyi hata kodu bu WABA'daki numaraları kilitler ve onların
 //     kampanyalarını duraklatır; mesaj kuyrukta beklemeye döner (deneme sayılmaz, kendiliğinden tekrar denenmez).
+//     Numara Cloud API'ye kayıtlı değilse (133010) yalnızca bu numaranın kampanyaları duraklar ("Son hata" yazılır).
 // Belirsiz sonuç (ağ kesildi, 5xx, bilinmeyen hata) tekrar denenmez: ileti iki kez gitmez.
-import { degiskenDegerleri, hesapKilidiNedeni, metaLimitPayi, sablonMetni, sablonParametreleri } from "@/lib/whatsapp-api";
+import {
+  degiskenDegerleri,
+  hesapKilidiNedeni,
+  metaLimitPayi,
+  numaraKayitsizGonderimMesaji,
+  numaraKayitsizKoduMu,
+  sablonMetni,
+  sablonParametreleri,
+} from "@/lib/whatsapp-api";
 import { gunAnahtari, gunEkle, istanbulAni } from "@/lib/zaman";
 import { adresOzeti } from "../messaging/adres";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
@@ -29,7 +38,7 @@ import { whatsappKampanyalariniDuraklat, type Kampanya } from "../repo/kampanyal
 import { kayitGetir } from "../repo/kayitlar";
 import { mesajBirak, mesajGonderildi, whatsappSon24Saat, type KuyrukMesaji } from "../repo/kuyruk";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
-import { ayniWabaBaglantilari, hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
+import { ayniWabaBaglantilari, hesapKilidiYaz, sonHataYaz } from "../repo/whatsapp-baglantilari";
 import { whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
@@ -232,6 +241,13 @@ function hataIsle(
   if (kilit) {
     // Hesap düzeyi (131031 kilit, 368 politika, 131042 ödeme): bu WABA'daki numaralar kilitlenir, kampanyaları durur.
     return duraklat(ctx, mesaj, kilit, hesapKilidiYaz(ctx, baglantiId, e.kod!, simdi));
+  }
+  if (numaraKayitsizKoduMu(e.kod)) {
+    // Numara Cloud API'ye kayıtlı değil (133010): bu numaradan sonraki her mesaj da aynı hatayla düşer. Liste "başarısız"
+    // diye tükenmesin diye yalnızca BU numaranın kampanyaları duraklar (hesap kilidi değil: aynı WABA'daki diğer
+    // numaralar ve gelen kutusu etkilenmez); mesaj kuyrukta bekler. Neden bağlantının "Son hata" satırına yazılır.
+    sonHataYaz(ctx, baglantiId, numaraKayitsizGonderimMesaji(e.kod!));
+    return duraklat(ctx, mesaj, "numara_kayitsiz", [baglantiId]);
   }
   switch (e.kod) {
     case 131026: // teslim edilemez (alıcıda WhatsApp yok vb.)

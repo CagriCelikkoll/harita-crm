@@ -161,6 +161,8 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
           kalite: "GREEN",
           limitKatmani: "TIER_10K",
           gonderimDurumu: "AVAILABLE",
+          metaDurumu: "CONNECTED",
+          kodDogrulamaDurumu: "VERIFIED",
         }
       );
     },

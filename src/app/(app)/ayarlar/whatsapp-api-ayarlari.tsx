@@ -18,6 +18,7 @@ import {
   KALITE_ADLARI,
   kurulumAdimlari,
   limitKatmaniAdi,
+  metaDurumuRozeti,
   SABLON_KATEGORI_ADLARI,
   TEST_NUMARASI_AZAMI,
   type Kalite,
@@ -77,6 +78,7 @@ export function WhatsappApiAyarlari(props: {
   }
 
   const n = b.numara;
+  const meta = metaDurumuRozeti(n.metaDurumu);
   const [adim1, adim2, adim3, adim4] = kurulumAdimlari(b);
   const testModuKapat = () => {
     if (confirm("Test modu kapatılınca kampanyalar gerçek alıcılara gider. Devam edilsin mi?")) {
@@ -108,6 +110,11 @@ export function WhatsappApiAyarlari(props: {
               ) : (
                 <DurumRozeti ton="tehlike">Numara doğrulanmadı</DurumRozeti>
               )}
+              {meta && (
+                <DurumRozeti ton={meta.ton} title="Numaranın Meta'daki durumu (son bağlantı testi). Mesaj göndermek için Bağlı olmalı.">
+                  {meta.etiket}
+                </DurumRozeti>
+              )}
               {n.kalite && <DurumRozeti ton={KALITE_TONU[n.kalite]}>Kalite: {KALITE_ADLARI[n.kalite]}</DurumRozeti>}
               {n.limitKatmani && (
                 <DurumRozeti ton="notr" title="24 saat içinde mesaj başlatılabilecek farklı kişi sayısı; işletme portföyünüzdeki tüm numaralarca paylaşılır.">
@@ -138,16 +145,22 @@ export function WhatsappApiAyarlari(props: {
           )}
         </div>
         {b.tanimli && (
-          <button type="button" className="dugme" disabled={mesgul} onClick={() =>
-              calistir(
+          <button type="button" className="dugme" disabled={mesgul} onClick={async () => {
+              const v = await calistir(
                 `${temel}/test`,
                 "POST",
                 undefined,
                 b.hesapKilidi
                   ? "Bağlantı çalışıyor; Meta hesap kilidi kalktı. Duraklatılan kampanyaları kampanya ayrıntısından devam ettirin."
                   : "Bağlantı çalışıyor.",
-              )
-            }>
+              );
+              // Başarısız test de Meta durumunu ve son hatayı kaydeder: hata mesajı kalır, kart güncellenir.
+              if (!v) {
+                const s = await apiIstek<{ baglantilar: BaglantiDto[] }>("/api/ayarlar/whatsapp-api");
+                const guncel = s.ok ? s.veri.baglantilar.find((x) => x.id === b.id) : undefined;
+                if (guncel) setB(guncel);
+              }
+            }}>
             Bağlantıyı test et
           </button>
         )}
@@ -451,7 +464,15 @@ function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul:
               className="dugme-tehlike"
               disabled={mesgul}
               onClick={() => {
-                if (confirm(`${b.etiket} numarasının bağlantısı ve kayıtlı gizli bilgileri silinecek. Bu numaradan gönderen çalışan kampanyalar duraklatılır.`)) {
+                const ortak = b.ortakUygulamaNumaralari;
+                const ortakUyari = ortak.length
+                  ? `\n\nÖNEMLİ: Bu numara aynı Meta uygulamasını (App Secret) şu numaralarla paylaşıyor: ${ortak.map((o) => o.ad).join(", ")}. ` +
+                    `Meta'da uygulama başına tek Callback URL vardır. Meta'daki Callback URL bu numaranın adresiyse, silmeden önce ` +
+                    `Meta'daki Callback URL'yi önce diğer numaranın adresine çevirin:\n${ortak[0].webhookAdresi}\n` +
+                    `ve o numaranın doğrulama anahtarını girin (elinizde yoksa o numarada "Yenile"). Aksi halde diğer numaraların ` +
+                    `mesaj ve teslim bildirimleri kesilir.`
+                  : "";
+                if (confirm(`${b.etiket} numarasının bağlantısı ve kayıtlı gizli bilgileri silinecek. Bu numaradan gönderen çalışan kampanyalar duraklatılır.${ortakUyari}`)) {
                   void calistir(temel!, "DELETE", undefined, "Numara kaldırıldı.");
                 }
               }}
@@ -515,6 +536,7 @@ function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul:
           <li>Business Settings → Kullanıcılar → System users → Ekle (Employee rolü yeterli).</li>
           <li>&quot;Varlık ata&quot;: yalnızca ilgili WhatsApp hesabı (tam kontrol) ve bu uygulama.</li>
           <li>&quot;Token oluştur&quot;: uygulamayı seçin, süre &quot;Hiçbir zaman&quot;, izinler yalnızca whatsapp_business_messaging ve whatsapp_business_management.</li>
+          <li>Yeni numara: WhatsApp Manager → Hesap araçları → Telefon numaraları → Numara ekle; SMS ya da sesli aramayla gelen kodla numarayı doğrulayın, sonra numarayı Cloud API&apos;ye kaydedin (register + 6 haneli PIN: POST /{"{phone-number-id}"}/register, messaging_product &quot;whatsapp&quot; ve pin). Numaranın durumu &quot;Bağlı&quot; (CONNECTED) olmadan mesaj gönderilemez; &quot;Bağlantıyı test et&quot; bu durumu denetler. PIN&apos;i güvenli bir yerde saklayın: iki adımlı doğrulama PIN&apos;idir.</li>
           <li>WABA ID ve Phone Number ID: WhatsApp Manager → Hesap araçları → Telefon numaraları (ya da uygulamadaki API kurulumu sayfası).</li>
           <li>Bu formu kaydedin; gösterilen doğrulama anahtarını ve bildirim adresini uygulamanızın Use cases → Customize → Configuration (eski arayüzde WhatsApp → Configuration) bölümündeki Webhook alanına girin; messages, message_template_status_update, phone_number_quality_update, business_capability_update ve user_preferences alanlarına abone olun.</li>
           <li>&quot;Aboneliği etkinleştir&quot; ve &quot;Bağlantıyı test et&quot;; ardından test modunda kendi numaranıza bir kampanya gönderin.</li>

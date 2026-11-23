@@ -54,6 +54,52 @@ export function hesapKilidiMesaji(kod: number): string {
 }
 
 /**
+ * Numaranın Meta'daki durumu (GET /{phone-number-id} status): CONNECTED, PENDING, OFFLINE, DISCONNECTED, FLAGGED,
+ * RATE_LIMITED, RESTRICTED, BANNED, UNVERIFIED… Numara WhatsApp Manager'da doğrulanıp Cloud API'ye kaydedilmeden
+ * (register + 6 haneli PIN) CONNECTED olmaz ve mesaj gönderemez. "Bağlantıyı test et" CONNECTED dışındaki her durumda
+ * başarısız olur; Meta alanı döndürmezse (null) durum bilinmiyor sayılır, test bu yüzden başarısız olmaz.
+ */
+export const META_BAGLI = "CONNECTED";
+
+/** Bağlantı kartındaki Meta durumu rozeti; durum hiç okunmadıysa null. */
+export function metaDurumuRozeti(durum: string | null | undefined): { etiket: string; ton: "ana" | "uyari" | "tehlike" } | null {
+  if (!durum) return null;
+  switch (durum) {
+    case META_BAGLI:
+      return { etiket: "Meta: Bağlı", ton: "ana" };
+    case "PENDING":
+      return { etiket: "Meta: Beklemede", ton: "uyari" };
+    case "OFFLINE":
+    case "DISCONNECTED":
+      return { etiket: "Meta: Çevrimdışı", ton: "tehlike" };
+    default:
+      return { etiket: `Meta: ${durum}`, ton: "tehlike" };
+  }
+}
+
+/** Bağlantı testinde numara CONNECTED değil. kodDogrulama: code_verification_status (VERIFIED değilse eklenir). */
+export function numaraKayitsizMesaji(durum: string, kodDogrulama?: string | null): string {
+  const kod = kodDogrulama && kodDogrulama !== "VERIFIED" ? ` Numara doğrulama durumu: ${kodDogrulama}.` : "";
+  return (
+    `Numara Meta'da henüz kayıtlı değil (durum: ${durum}). WhatsApp Manager'da numarayı doğrulayıp Cloud API'ye ` +
+    `kaydedin (register + 6 haneli PIN), sonra tekrar test edin.${kod}`
+  );
+}
+
+/**
+ * Gönderimde numaranın Cloud API'ye kayıtlı olmadığını bildiren Meta hata kodları (133010 "Account not registered").
+ * Numara düzeyidir: yalnızca bu numaranın kampanyaları duraklar. Hesap kilidi (HESAP_KILIDI_KODLARI) DEĞİLDİR; o, aynı
+ * WABA'daki bütün numaraları ve gelen kutusunu kilitler ve kaldırılması hesap durumuna bağlıdır.
+ */
+export const NUMARA_KAYITSIZ_KODLARI: ReadonlySet<number> = new Set([133010]);
+export const numaraKayitsizKoduMu = (kod: number | null | undefined) => kod != null && NUMARA_KAYITSIZ_KODLARI.has(kod);
+
+/** Gönderim 133010 ile reddedildi: bağlantının "Son hata" satırı. */
+export const numaraKayitsizGonderimMesaji = (kod: number) =>
+  `Meta gönderimi reddetti: numara Cloud API'ye kayıtlı değil (Meta ${kod}). WhatsApp Manager'da numarayı doğrulayıp ` +
+  `Cloud API'ye kaydedin (register + 6 haneli PIN), sonra "Bağlantıyı test et"e basın ve duraklatılan kampanyaları devam ettirin.`;
+
+/**
  * whatsapp_business_manager_messaging_limit değeri → 24 saatte benzersiz alıcı sayısı. Meta belgesindeki örnek
  * "TIER_250"; diğer katmanlar aynı kalıpla (TIER_2K, TIER_10K, TIER_100K, TIER_UNLIMITED) okunur. Tanınmayan değerde
  * null döner; çağıran en düşük katmanı (250) varsayar.

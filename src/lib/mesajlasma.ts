@@ -150,6 +150,8 @@ export const DURAKLATMA_NEDEN_ADLARI: Record<string, string> = {
   spam_siniri: "Meta bu numaradan gönderimi kısıtladı (spam sınırı). Kaliteyi WhatsApp Manager'da kontrol edin.",
   yetki: "Meta erişimi reddetti; Ayarlar'da erişim anahtarını kontrol edin.",
   baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",
+  numara_kayitsiz:
+    "Numara Meta Cloud API'ye kayıtlı değil (Meta 133010). WhatsApp Manager'da numarayı doğrulayıp kaydedin (register + 6 haneli PIN), Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
   meta_hesap_kilitli:
     "Meta WhatsApp hesabınızı kilitledi. Kilit kalkınca Ayarlar'da \"Bağlantıyı test et\", sonra yönetici devam ettirebilir.",
   meta_odeme_sorunu:

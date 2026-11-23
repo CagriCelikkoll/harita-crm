@@ -209,7 +209,7 @@ export function uygulamaPayiAyarla(ctx: TenantContext, id: string, yuzde: number
 export function numaraBilgisiYaz(
   ctx: TenantContext,
   id: string,
-  b: Partial<Pick<WhatsappBaglantisi, "gorunenNumara" | "dogrulanmisAd" | "kalite" | "limitKatmani">> & {
+  b: Partial<Pick<WhatsappBaglantisi, "gorunenNumara" | "dogrulanmisAd" | "kalite" | "limitKatmani" | "metaDurumu">> & {
     sonHata: string | null;
   },
   simdi = new Date(),
@@ -221,6 +221,16 @@ export function numaraBilgisiYaz(
       .where(bu(ctx, id))
       .returning({ id: whatsappBaglantilari.id })
       .get(),
+  );
+}
+
+/**
+ * Yalnızca "Son hata" satırını yazar (gönderimde Meta'nın numara düzeyi hatası). sonKontrol'e dokunmaz: kalite bilgisi
+ * taze sayılmasın, işçi bir sonraki gönderimde numarayı yeniden test etsin.
+ */
+export function sonHataYaz(ctx: TenantContext, id: string, sonHata: string): boolean {
+  return Boolean(
+    db.update(whatsappBaglantilari).set({ sonHata }).where(bu(ctx, id)).returning({ id: whatsappBaglantilari.id }).get(),
   );
 }
 

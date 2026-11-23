@@ -605,6 +605,8 @@ export const whatsappBaglantilari = sqliteTable(
     dogrulanmisAd: text("dogrulanmis_ad"),
     kalite: text("kalite"),
     limitKatmani: text("limit_katmani"),
+    // Numaranın Meta'daki durumu (status: CONNECTED, PENDING, OFFLINE…); null: henüz okunmadı (0025 öncesi satırlar da).
+    metaDurumu: text("meta_durumu"),
     sonKontrol: zaman("son_kontrol"),
     sonHata: text("son_hata"),
     // Meta hesap düzeyi hata kodu (131031, 368, 131042; lib/whatsapp-api HESAP_KILIDI_KODLARI): doluyken hiçbir mesaj

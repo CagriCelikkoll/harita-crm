@@ -36,6 +36,8 @@ import {
   hesapKilidiNedeni,
   metaLimitPayi,
   numaraEtiketi,
+  numaraKayitsizGonderimMesaji,
+  numaraKayitsizKoduMu,
   sablonMetni,
   sablonParametreleri,
   type DegiskenEslemi,
@@ -69,7 +71,7 @@ import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { kayitGetir } from "../repo/kayitlar";
 import { whatsappSon24Saat } from "../repo/kuyruk";
 import { sistemOlayiEkle } from "../repo/olaylar";
-import { baglantiGetir, baglantilariListele, hesapKilidiYaz } from "../repo/whatsapp-baglantilari";
+import { baglantiGetir, baglantilariListele, hesapKilidiYaz, sonHataYaz } from "../repo/whatsapp-baglantilari";
 import { whatsappIzniAyarla, whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
@@ -528,6 +530,13 @@ async function gonder(
     if (kilit) {
       whatsappKampanyalariniDuraklat(ctx, kilit, { baglantiIdler: hesapKilidiYaz(ctx, sohbet.baglantiId, e.kod!, simdi) });
       throw new GelenKutusuHatasi(hesapKilidiMesaji(e.kod!), 409);
+    }
+    if (numaraKayitsizKoduMu(e.kod)) {
+      // Numara Cloud API'ye kayıtlı değil (133010): kampanya işçisiyle aynı davranış, yalnızca bu numara.
+      const metin = numaraKayitsizGonderimMesaji(e.kod!);
+      sonHataYaz(ctx, sohbet.baglantiId, metin);
+      whatsappKampanyalariniDuraklat(ctx, "numara_kayitsiz", { baglantiIdler: [sohbet.baglantiId] });
+      throw new GelenKutusuHatasi(metin, 409);
     }
     switch (e.kod) {
       case 131047:

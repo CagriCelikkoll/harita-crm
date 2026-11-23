@@ -18,6 +18,10 @@ export type NumaraBilgisi = {
    * null: alan dönmedi. https://developers.facebook.com/documentation/business-messaging/whatsapp/support/health-status
    */
   gonderimDurumu?: string | null;
+  /** status: CONNECTED | PENDING | OFFLINE | … (lib/whatsapp-api META_BAGLI); null: alan dönmedi. */
+  metaDurumu?: string | null;
+  /** code_verification_status: VERIFIED | NOT_VERIFIED | EXPIRED; null: alan dönmedi. */
+  kodDogrulamaDurumu?: string | null;
 };
 
 /** GET /{waba-id}/message_templates öğesi (kullandığımız alanlar). */

@@ -1,0 +1,1 @@
+ALTER TABLE `whatsapp_baglantilari` ADD `meta_durumu` text;

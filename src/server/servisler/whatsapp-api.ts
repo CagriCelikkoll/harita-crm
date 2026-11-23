@@ -10,7 +10,9 @@ import {
   hesapKilidiNedeni,
   KALITE_DEGERLERI,
   limitKatmaniSayisi,
+  META_BAGLI,
   numaraEtiketi,
+  numaraKayitsizMesaji,
   sablonCozumle,
   TEST_NUMARASI_AZAMI,
   type Kalite,
@@ -150,7 +152,25 @@ function hesapKilidiDto(b: WhatsappBaglantisi): BaglantiDto["hesapKilidi"] {
 
 const kaliteDegeri = (k: string | null): Kalite | null => KALITE_DEGERLERI.find((x) => x === k) ?? null;
 
-function dto(ctx: TenantContext, b: WhatsappBaglantisi): BaglantiDto {
+/**
+ * Aynı çalışma alanında aynı App Secret'ı kullanan diğer numaralar (webhook POST'u bunların imzasını da doğrular ve
+ * bildirimlerini yönlendirir; servisler/whatsapp-webhook.ts). Gizli bilgisi çözülemeyen numara atlanır.
+ */
+function ortakUygulamaNumaralari(ctx: TenantContext, b: WhatsappBaglantisi, gizli: Gizli | null, tumu: WhatsappBaglantisi[]) {
+  if (!gizli?.appSecret) return [];
+  return tumu
+    .filter((x) => {
+      if (x.id === b.id) return false;
+      try {
+        return gizliCoz(x).appSecret === gizli.appSecret;
+      } catch {
+        return false;
+      }
+    })
+    .map((x) => ({ ad: x.ad, webhookAdresi: webhookAdresi(x) }));
+}
+
+function dto(ctx: TenantContext, b: WhatsappBaglantisi, tumu: WhatsappBaglantisi[] = baglantilariListele(ctx)): BaglantiDto {
   let gizli: Gizli | null = null;
   try {
     gizli = gizliCoz(b);
@@ -184,10 +204,12 @@ function dto(ctx: TenantContext, b: WhatsappBaglantisi): BaglantiDto {
       dogrulanmisAd: b.dogrulanmisAd,
       kalite: kaliteDegeri(b.kalite),
       limitKatmani: b.limitKatmani,
+      metaDurumu: b.metaDurumu,
       limit: limit === Number.POSITIVE_INFINITY ? null : limit,
       sonKontrol: b.sonKontrol?.toISOString() ?? null,
       sonHata: b.sonHata,
     },
+    ortakUygulamaNumaralari: ortakUygulamaNumaralari(ctx, b, gizli, tumu),
     sablonSenkronTarihi: b.sablonSenkronTarihi?.toISOString() ?? null,
   };
 }
@@ -200,7 +222,10 @@ export function baglantiDurumu(ctx: TenantContext, baglantiId: string): Baglanti
 }
 
 /** Çalışma alanının bütün numaralarının ayrıntılı durumu (yalnızca yönetici ekranı). */
-export const baglantilarDurumu = (ctx: TenantContext): BaglantiDto[] => baglantilariListele(ctx).map((b) => dto(ctx, b));
+export function baglantilarDurumu(ctx: TenantContext): BaglantiDto[] {
+  const tumu = baglantilariListele(ctx);
+  return tumu.map((b) => dto(ctx, b, tumu));
+}
 
 /** Numara kimliği → "Merkez · …4567" (kampanya listesi ve ayrıntısı). */
 export const numaraEtiketleri = (ctx: TenantContext): Map<string, string> =>
@@ -436,6 +461,9 @@ export async function baglantiyiTestEt(ctx: TenantContext, baglantiId: string, s
     throw new WhatsappApiHatasi(mesaj, 502);
   }
   const engelli = n.gonderimDurumu === "BLOCKED";
+  // Meta durumu dönmediyse (null) bilinmiyor sayılır; döndüyse CONNECTED dışındaki her durum (PENDING, OFFLINE…) başarısız.
+  const metaDurumu = n.metaDurumu ?? null;
+  const kayitsiz = metaDurumu !== null && metaDurumu !== META_BAGLI ? numaraKayitsizMesaji(metaDurumu, n.kodDogrulamaDurumu) : null;
   numaraBilgisiYaz(
     ctx,
     baglantiId,
@@ -444,11 +472,14 @@ export async function baglantiyiTestEt(ctx: TenantContext, baglantiId: string, s
       dogrulanmisAd: n.dogrulanmisAd,
       kalite: n.kalite,
       limitKatmani: n.limitKatmani,
-      sonHata: engelli ? GONDERIM_ENGELLI : null,
+      metaDurumu,
+      sonHata: engelli ? GONDERIM_ENGELLI : kayitsiz,
     },
     simdi,
   );
   if (engelli) throw new WhatsappApiHatasi(GONDERIM_ENGELLI, 409);
+  // Kayıtsız numarada hesap kilidi de kaldırılmaz: test başarılı sayılmaz.
+  if (kayitsiz) throw new WhatsappApiHatasi(kayitsiz, 409);
   hesapKilidiKaldir(ctx, baglantiId);
   return baglantiDurumu(ctx, baglantiId);
 }

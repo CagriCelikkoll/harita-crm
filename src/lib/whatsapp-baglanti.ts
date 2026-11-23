@@ -38,11 +38,18 @@ export type BaglantiDto = {
     dogrulanmisAd: string | null;
     kalite: Kalite | null;
     limitKatmani: string | null;
+    /** Meta'daki durum (CONNECTED, PENDING, OFFLINE…); null: henüz okunmadı. */
+    metaDurumu: string | null;
     /** 24 saatte benzersiz alıcı (portföy); null: bilinmiyor. */
     limit: number | null;
     sonKontrol: string | null;
     sonHata: string | null;
   };
+  /**
+   * Bu çalışma alanında aynı App Secret'ı (aynı Meta uygulamasını) kullanan DİĞER numaralar. Meta'da uygulama başına tek
+   * Callback URL olduğundan bunların bildirimleri bu numaranın adresine geliyor olabilir: numara silinmeden önce uyarılır.
+   */
+  ortakUygulamaNumaralari: { ad: string; webhookAdresi: string }[];
   sablonSenkronTarihi: string | null;
 };
 
@@ -82,7 +89,17 @@ export function bosBaglantiDto(ad = ""): BaglantiDto {
     testNumaralari: [],
     uygulamaPayi: 0,
     hesapKilidi: null,
-    numara: { gorunenNumara: null, dogrulanmisAd: null, kalite: null, limitKatmani: null, limit: null, sonKontrol: null, sonHata: null },
+    numara: {
+      gorunenNumara: null,
+      dogrulanmisAd: null,
+      kalite: null,
+      limitKatmani: null,
+      metaDurumu: null,
+      limit: null,
+      sonKontrol: null,
+      sonHata: null,
+    },
+    ortakUygulamaNumaralari: [],
     sablonSenkronTarihi: null,
   };
 }

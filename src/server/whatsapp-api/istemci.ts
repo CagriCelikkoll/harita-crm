@@ -164,8 +164,13 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
         quality_rating?: string;
         whatsapp_business_manager_messaging_limit?: string;
         health_status?: { can_send_message?: string };
+        status?: string;
+        code_verification_status?: string;
       }>(b.phoneNumberId, {
-        sorgu: { fields: "id,display_phone_number,verified_name,quality_rating,whatsapp_business_manager_messaging_limit,health_status" },
+        sorgu: {
+          fields:
+            "id,display_phone_number,verified_name,quality_rating,whatsapp_business_manager_messaging_limit,health_status,status,code_verification_status",
+        },
       });
       return {
         id: v.id,
@@ -174,6 +179,8 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
         kalite: v.quality_rating ?? null,
         limitKatmani: v.whatsapp_business_manager_messaging_limit ?? null,
         gonderimDurumu: v.health_status?.can_send_message ?? null,
+        metaDurumu: v.status ?? null,
+        kodDogrulamaDurumu: v.code_verification_status ?? null,
       } satisfies NumaraBilgisi;
     },
 

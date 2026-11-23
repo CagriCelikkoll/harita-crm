@@ -748,7 +748,12 @@ const waBaglantiTestleri: Record<keyof typeof waBaglantilari, () => void> = {
     expect(waBaglantilari.uygulamaPayiAyarla(A, bWaBaglanti.id, 100)).toBe(false);
   },
   numaraBilgisiYaz: () => {
-    expect(waBaglantilari.numaraBilgisiYaz(A, bWaBaglanti.id, { kalite: "RED", sonHata: "x" })).toBe(false);
+    expect(waBaglantilari.numaraBilgisiYaz(A, bWaBaglanti.id, { kalite: "RED", sonHata: "x", metaDurumu: "OFFLINE" })).toBe(false);
+  },
+  sonHataYaz: () => {
+    // A, B'nin numarasının "Son hata" satırını yazamaz.
+    expect(waBaglantilari.sonHataYaz(A, bWaBaglanti.id, "ele geçirildi")).toBe(false);
+    expect(waBaglantilari.baglantiGetir(B, bWaBaglanti.id)?.sonHata).not.toBe("ele geçirildi");
   },
   numaraDogrulamaYaz: () => {
     // A, B'nin numarasının doğrulamasını kaldıramaz.
