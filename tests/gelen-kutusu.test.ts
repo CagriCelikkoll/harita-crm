@@ -23,7 +23,7 @@ const { KampanyaGirdisi, kampanyaBaslat } = await import("@/server/servisler/kam
 const servis = await import("@/server/servisler/gelen-kutusu");
 const wa = await import("@/server/servisler/whatsapp-api");
 const { GraphHatasi } = await import("@/server/whatsapp-api");
-const { mockWhatsapp, mockWhatsappSifirla } = await import("@/server/whatsapp-api/mock");
+const { mockWhatsapp, mockWhatsappSifirla, ornekSablonlariKimlikli } = await import("@/server/whatsapp-api/mock");
 const webhook = await import("@/app/api/whatsapp/webhook/[kimlik]/route");
 const listeRotasi = await import("@/app/api/sohbetler/route");
 const sohbetRotasi = await import("@/app/api/sohbetler/[id]/route");
@@ -252,6 +252,7 @@ describe("RET ve izin (K4, B3)", () => {
 describe("24 saat penceresi ve şablon", () => {
   it("23 sa 59 dk'da metin gider, 24 saat 1 sn'de 400; pencere dışında izinli kişiye şablon gider; başka WABA'nın şablonu 400", async () => {
     const { ctx, n } = await alan("Pencere");
+    mockWhatsapp.wabaSablonlari.set("499999", ornekSablonlariKimlikli("499999-")); // Meta'da şablon kimliği WABA'ya özgüdür
     const n2 = await numaraEkle(ctx, "Şube", "499999");
     await wa.sablonlariSenkronizeEt(ctx, n2.id);
     const k = kisi(ctx, "0532 300 00 01");

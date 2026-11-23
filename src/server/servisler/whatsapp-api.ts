@@ -40,7 +40,7 @@ import {
   type WhatsappBaglantisi,
 } from "../repo/whatsapp-baglantilari";
 import { sablonlariListele, sablonlariSenkronla, type WhatsappSablonu } from "../repo/whatsapp-sablonlari";
-import { GraphHatasi, whatsappApiIstemcisi, type WhatsappApiIstemcisi } from "../whatsapp-api";
+import { GraphHatasi, whatsappApiIstemcisi, type MetaSablon, type WhatsappApiIstemcisi } from "../whatsapp-api";
 import { bosBaglantiDto, type BaglantiDto, type NumaraOzeti } from "@/lib/whatsapp-baglanti";
 import { ticariIletiEksikleri } from "./ileti";
 
@@ -496,37 +496,75 @@ export async function webhookAboneligiEtkinlestir(ctx: TenantContext, baglantiId
   }
 }
 
-/** Numaranın WABA'sının şablonlarını Meta'dan senkronize eder (aynı WABA'daki numaralar ortak kullanır). */
-export async function sablonlariSenkronizeEt(ctx: TenantContext, baglantiId: string, simdi = new Date()) {
-  const { baglanti, istemci: i } = istemci(ctx, baglantiId);
-  let meta;
+/** Meta şablonu → senkron satırı (kullanılabilirlik çözümlemesiyle). */
+function senkronSatiri(s: MetaSablon) {
+  const c = sablonCozumle({ kategori: s.category, durum: s.status, bilesenler: s.components ?? [] });
+  return {
+    metaId: String(s.id),
+    ad: s.name,
+    dil: s.language,
+    kategori: s.category,
+    durum: s.status,
+    parametreBicimi: s.parameter_format ?? null,
+    bilesenler: s.components ?? [],
+    degiskenler: c.degiskenler,
+    abonelikButonu: c.abonelikButonu,
+    destekNedeni: c.destekNedeni,
+    baslikBicimi: c.baslikBicimi,
+    kalite: s.quality_score?.score ?? null,
+  };
+}
+
+/** Bir WABA'nın şablonlarını o WABA'nın (doğrulanmış) bağlantısıyla Meta'dan okur. WABA tek değişkendir. */
+async function wabaSablonlariniOku(c: { baglanti: WhatsappBaglantisi; gizli: Gizli }): Promise<{ wabaId: string; meta: MetaSablon[] }> {
+  const wabaId = c.baglanti.wabaId;
   try {
-    meta = await i.sablonlar();
+    const meta = await whatsappApiIstemcisi({ wabaId, phoneNumberId: c.baglanti.phoneNumberId, erisimAnahtari: c.gizli.erisimAnahtari }).sablonlar();
+    return { wabaId, meta };
   } catch (hata) {
     throw new WhatsappApiHatasi(graphMesaji(hata), 502);
   }
-  return sablonlariSenkronla(
-    ctx,
-    baglanti.wabaId,
-    meta.map((s) => {
-      const c = sablonCozumle({ kategori: s.category, durum: s.status, bilesenler: s.components ?? [] });
-      return {
-        metaId: s.id,
-        ad: s.name,
-        dil: s.language,
-        kategori: s.category,
-        durum: s.status,
-        parametreBicimi: s.parameter_format ?? null,
-        bilesenler: s.components ?? [],
-        degiskenler: c.degiskenler,
-        abonelikButonu: c.abonelikButonu,
-        destekNedeni: c.destekNedeni,
-        baslikBicimi: c.baslikBicimi,
-        kalite: s.quality_score?.score ?? null,
-      };
-    }),
-    simdi,
-  );
+}
+
+/**
+ * Numaranın WABA'sının şablonlarını Meta'dan senkronize eder (aynı WABA'daki numaralar ortak kullanır).
+ * WABA tek değişkendir: Meta'ya hangi WABA için istek atıldıysa (wabaSablonlariniOku → wabaId) yanıt yalnızca onun
+ * altına yazılır. Meta şablon kimliği tekildir; yanıttaki bir kimlik çalışma alanında BAŞKA bir WABA'da kayıtlıysa:
+ *  - o WABA kendi bağlantısıyla Meta'dan yeniden okunur; kimlik orada yoksa oradaki satırlar yanlıştır (ör. 17:12
+ *    olayı: 1485'in listesi 1609 altına yazılmış) ve o WABA kendi gerçek listesiyle düzeltilir, sonra bu WABA yazılır;
+ *  - kimlik orada da varsa (Meta iki WABA için aynı listeyi döndürüyor) ya da o WABA'nın doğrulanmış numarası yoksa
+ *    hiçbir şey yazılmaz, son yenileme değişmez, anlaşılır hata döner.
+ */
+export async function sablonlariSenkronizeEt(ctx: TenantContext, baglantiId: string, simdi = new Date()) {
+  const c = whatsappBaglantisiCoz(ctx, baglantiId);
+  if (!c) {
+    if (baglantiGetir(ctx, baglantiId)) throw new WhatsappApiHatasi('Numara sahipliği doğrulanmadı: önce "Bağlantıyı test et".', 409);
+    throw new WhatsappApiHatasi(BAGLANTI_YOK, 404);
+  }
+  const { wabaId, meta } = await wabaSablonlariniOku(c);
+  const kimlikler = new Set(meta.map((s) => String(s.id)));
+  const cakisanlar = sablonlariListele(ctx).filter((s) => s.wabaId !== wabaId && kimlikler.has(s.metaId));
+  const duzeltilecek: { wabaId: string; meta: MetaSablon[] }[] = [];
+  for (const digerWaba of new Set(cakisanlar.map((s) => s.wabaId))) {
+    const adlar = [...new Set(cakisanlar.filter((s) => s.wabaId === digerWaba).map((s) => s.ad))].slice(0, 5).join(", ");
+    const reddet = (neden: string) =>
+      new WhatsappApiHatasi(
+        `Meta'nın bu numara (WABA ${wabaId}) için döndürdüğü şablonlar başka bir WhatsApp hesabına (WABA ${digerWaba}) ait: ${adlar}. ` +
+          `${neden} Hiçbir şey yazılmadı. Bu numaranın WABA ID'sini, Phone Number ID'sini ve erişim anahtarını Meta'da kontrol edin.`,
+        409,
+      );
+    const digerBaglanti = baglantilariListele(ctx)
+      .filter((b) => b.wabaId === digerWaba)
+      .map((b) => whatsappBaglantisiCoz(ctx, b.id))
+      .find((x) => x !== null);
+    if (!digerBaglanti) throw reddet("O hesabın doğrulanmış numarası olmadığından hangisinin doğru olduğu denetlenemedi.");
+    const diger = await wabaSablonlariniOku(digerBaglanti);
+    if (diger.meta.some((s) => kimlikler.has(String(s.id)))) throw reddet("Meta iki hesap için de aynı şablonları döndürüyor.");
+    duzeltilecek.push(diger);
+  }
+  // Önce yanlış satırları taşıyan WABA'lar kendi gerçek listeleriyle, sonra bu WABA yazılır.
+  for (const d of duzeltilecek) sablonlariSenkronla(ctx, d.wabaId, d.meta.map(senkronSatiri), simdi);
+  return sablonlariSenkronla(ctx, wabaId, meta.map(senkronSatiri), simdi);
 }
 
 export type SablonDto = Pick<

@@ -256,3 +256,65 @@ describe("migration 0028 (veri temizliği)", () => {
     expect(adlar(ctx, a.id)).toEqual(["hello_world"]); // bağlı WABA'nın geçerli şablonu kalır
   });
 });
+
+describe("sunucudaki olay (17:12): 1609 isteğine 1485'in şablonları döndü", () => {
+  it("Meta'nın döndürdüğü şablonlar başka WABA'da kayıtlıysa hiçbir şey yazılmaz; son yenileme değişmez; anlaşılır hata", async () => {
+    const { ctx, a, b } = await ikiNumara("Olay");
+    // 17:06: Yeni Tisotti No (1485) yenilendi.
+    const t1706 = new Date("2026-11-23T14:06:00Z");
+    await wa.sablonlariSenkronizeEt(ctx, b.id, t1706);
+    // 17:12: Tisotti Deneme (1609) için yapılan istekte yanıt, 1485'in şablonlarıydı (aynı Meta şablon kimlikleri).
+    mockWhatsapp.wabaSablonlari.set(WABA_ESKI, mockWhatsapp.wabaSablonlari.get(WABA_YENI)!);
+    await expect(wa.sablonlariSenkronizeEt(ctx, a.id, new Date("2026-11-23T14:12:00Z"))).rejects.toMatchObject({
+      durum: 409,
+      message: expect.stringMatching(/başka bir WhatsApp hesabına \(WABA 1485651723697727\) ait.*Hiçbir şey yazılmadı/),
+    });
+    expect(sablonlariListele(ctx, WABA_ESKI)).toEqual([]);
+    expect(senkron(ctx, a.id)).toBeNull();
+    expect(senkron(ctx, b.id)).toEqual(t1706);
+    expect(adlar(ctx, b.id)).toEqual(["eski_musteri_ozel_firsat", "hello_world", "jaspers_market_order_confirmation"]);
+  });
+
+  it("yanlış duran satırlar: Meta 1609 için yalnızca hello_world döndürünce bir sonraki yenilemede silinir", async () => {
+    const { ctx, a } = await ikiNumara("OlayTemizlik");
+    const yanlis = (ad: string, metaId: string) =>
+      db.$client
+        .prepare("insert into whatsapp_sablonlari (id, tenant_id, waba_id, meta_id, ad, dil, kategori, durum, bilesenler, degiskenler, abonelik_butonu, senkron_tarihi) values (?, ?, ?, ?, ?, 'tr', 'UTILITY', 'APPROVED', '[]', '[]', 0, ?)")
+        .run(crypto.randomUUID(), ctx.tenantId, WABA_ESKI, metaId, ad, Date.now());
+    yanlis("eski_musteri_ozel_firsat", `${WABA_YENI}-2`);
+    yanlis("jaspers_market_order_confirmation", `${WABA_YENI}-3`);
+    yanlis("hello_world", `${WABA_YENI}-1`);
+    await wa.sablonlariSenkronizeEt(ctx, a.id, SIMDI); // Meta 1609 → yalnızca hello_world (kendi kimliğiyle)
+    expect(sablonlariListele(ctx, WABA_ESKI).map((s) => [s.ad, s.metaId])).toEqual([["hello_world", `${WABA_ESKI}-1`]]);
+  });
+});
+
+describe("sunucudaki mevcut yanlış satırlar", () => {
+  it("1609 altında 1485'in kimlikleriyle duran satırlar varken 'Yeni Tisotti No' yenilenirse: 1609 Meta'dan yeniden okunur ve düzeltilir, 1485 eksiksiz yazılır", async () => {
+    const { ctx, a, b } = await ikiNumara("SunucuVerisi");
+    // Sunucudaki tablo: 1485 → hello_world (17:06), 1609 → 1485'in listesi (17:12, 1485'in Meta kimlikleriyle).
+    const satir = (waba: string, ad: string, metaId: string) =>
+      db.$client
+        .prepare("insert into whatsapp_sablonlari (id, tenant_id, waba_id, meta_id, ad, dil, kategori, durum, bilesenler, degiskenler, abonelik_butonu, senkron_tarihi) values (?, ?, ?, ?, ?, 'tr', 'UTILITY', 'APPROVED', '[]', '[]', 0, ?)")
+        .run(crypto.randomUUID(), ctx.tenantId, waba, metaId, ad, Date.now());
+    satir(WABA_YENI, "hello_world", `${WABA_YENI}-1`);
+    satir(WABA_ESKI, "hello_world", `${WABA_YENI}-1`);
+    satir(WABA_ESKI, "eski_musteri_ozel_firsat", `${WABA_YENI}-2`);
+    satir(WABA_ESKI, "jaspers_market_order_confirmation", `${WABA_YENI}-3`);
+    const t = new Date("2026-11-24T09:00:00Z");
+    await wa.sablonlariSenkronizeEt(ctx, b.id, t);
+    expect(mockWhatsapp.sablonIstekleri).toEqual([WABA_YENI, WABA_ESKI]);
+    expect(sablonlariListele(ctx, WABA_ESKI).map((s) => [s.ad, s.metaId])).toEqual([["hello_world", `${WABA_ESKI}-1`]]);
+    expect(adlar(ctx, b.id)).toEqual(["eski_musteri_ozel_firsat", "hello_world", "jaspers_market_order_confirmation"]);
+    expect([senkron(ctx, a.id), senkron(ctx, b.id)]).toEqual([t, t]);
+  });
+
+  it("diğer WABA'nın doğrulanmış numarası yoksa denetlenemez: hiçbir şey yazılmaz", async () => {
+    const { ctx, b } = await ikiNumara("NumarasizWaba");
+    db.$client
+      .prepare("insert into whatsapp_sablonlari (id, tenant_id, waba_id, meta_id, ad, dil, kategori, durum, bilesenler, degiskenler, abonelik_butonu, senkron_tarihi) values (?, ?, '777777777', ?, 'eski_musteri_ozel_firsat', 'tr', 'UTILITY', 'APPROVED', '[]', '[]', 0, ?)")
+      .run(crypto.randomUUID(), ctx.tenantId, `${WABA_YENI}-2`, Date.now());
+    await expect(wa.sablonlariSenkronizeEt(ctx, b.id, SIMDI)).rejects.toThrow(/WABA 777777777.*doğrulanmış numarası olmadığından/);
+    expect(sablonlariListele(ctx, WABA_YENI)).toEqual([]);
+  });
+});

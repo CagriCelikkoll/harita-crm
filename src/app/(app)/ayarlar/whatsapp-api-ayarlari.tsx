@@ -289,13 +289,14 @@ export function WhatsappApiAyarlari(props: {
                 const v = await calistir<{ sablonlar: SablonDto[]; baglanti: BaglantiDto }>(
                   `/api/whatsapp/sablonlar?baglanti=${encodeURIComponent(b.id!)}`,
                   "POST",
-                  undefined,
-                  "Şablonlar yenilendi.",
                 );
                 if (v) {
                   const waba = v.baglanti.wabaId ?? b.wabaId ?? "";
-                  setSablonlar(v.sablonlar.filter((s) => s.wabaId === waba));
+                  const liste = v.sablonlar.filter((s) => s.wabaId === waba);
+                  setSablonlar(liste);
                   props.onSablonlar(waba, v.sablonlar);
+                  // Hangi numaranın ve WABA'nın yenilendiği açıkça yazılır (yanlış sekmede basılırsa hemen görünür).
+                  setMesaj({ tur: "tamam", metin: `Şablonlar yenilendi: ${v.baglanti.etiket} (WABA ${waba}), ${liste.length} şablon.` });
                 }
               }}
             >

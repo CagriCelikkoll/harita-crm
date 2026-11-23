@@ -39,6 +39,12 @@ const ornekSablonlar = (): MetaSablon[] => [
   },
 ];
 
+/**
+ * Örnek şablonların başka bir WABA'daki karşılığı: Meta'da şablon kimliği tekildir, iki WABA aynı kimliği taşımaz.
+ * İki WABA'lı testlerde ikinci WABA için: mockWhatsapp.wabaSablonlari.set(waba, ornekSablonlariKimlikli(`${waba}-`)).
+ */
+export const ornekSablonlariKimlikli = (onek: string): MetaSablon[] => ornekSablonlar().map((s) => ({ ...s, id: `${onek}${s.id}` }));
+
 export const mockWhatsapp = {
   numara: null as NumaraBilgisi | null,
   sablonlar: ornekSablonlar(),

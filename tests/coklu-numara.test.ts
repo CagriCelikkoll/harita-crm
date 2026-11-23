@@ -26,7 +26,7 @@ const { isciTuru } = await import("@/server/servisler/isci");
 const { KampanyaHatasi, KampanyaGirdisi, kampanyaBaslat, kampanyaOzeti } = await import("@/server/servisler/kampanya");
 const wa = await import("@/server/servisler/whatsapp-api");
 const { GraphHatasi } = await import("@/server/whatsapp-api");
-const { mockWhatsapp, mockWhatsappSifirla } = await import("@/server/whatsapp-api/mock");
+const { mockWhatsapp, mockWhatsappSifirla, ornekSablonlariKimlikli } = await import("@/server/whatsapp-api/mock");
 const webhook = await import("@/app/api/whatsapp/webhook/[kimlik]/route");
 const listeRotasi = await import("@/app/api/ayarlar/whatsapp-api/route");
 const numaraRotasi = await import("@/app/api/ayarlar/whatsapp-api/[id]/route");
@@ -156,6 +156,7 @@ describe("şablonlar WABA'ya aittir", () => {
     const ctx = alan("Sablon");
     const n1 = await numaraEkle(ctx, "Merkez", "300201");
     const n2 = await numaraEkle(ctx, "Şube", "300201");
+    mockWhatsapp.wabaSablonlari.set("300202", ornekSablonlariKimlikli("300202-")); // Meta'da şablon kimliği WABA'ya özgüdür
     const n3 = await numaraEkle(ctx, "Diğer Hesap", "300202");
     await wa.sablonlariSenkronizeEt(ctx, n1.id);
     expect(wa.sablonlar(ctx, n2.id).map((s) => s.ad)).toEqual(wa.sablonlar(ctx, n1.id).map((s) => s.ad));
@@ -226,6 +227,7 @@ describe("gönderim numara başına", () => {
     const ctx = alan("Kilit");
     const n1 = await numaraEkle(ctx, "Merkez", "300501");
     const n2 = await numaraEkle(ctx, "Şube", "300501");
+    mockWhatsapp.wabaSablonlari.set("300502", ornekSablonlariKimlikli("300502-")); // Meta'da şablon kimliği WABA'ya özgüdür
     const n3 = await numaraEkle(ctx, "Diğer Hesap", "300502");
     await wa.sablonlariSenkronizeEt(ctx, n1.id);
     await wa.sablonlariSenkronizeEt(ctx, n3.id);
@@ -427,6 +429,7 @@ describe("webhook: ortak bildirim adresi", () => {
     const ctx = alan("WabaBildirim");
     const n1 = await numaraEkle(ctx, "Merkez", "302201");
     const n2 = await numaraEkle(ctx, "Şube", "302201");
+    mockWhatsapp.wabaSablonlari.set("302202", ornekSablonlariKimlikli("302202-")); // Meta'da şablon kimliği WABA'ya özgüdür
     const n3 = await numaraEkle(ctx, "Diğer Hesap", "302202");
     await wa.sablonlariSenkronizeEt(ctx, n1.id);
     await wa.sablonlariSenkronizeEt(ctx, n3.id);
