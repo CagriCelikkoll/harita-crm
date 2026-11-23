@@ -47,7 +47,10 @@ export function WhatsappApiAyarlari(props: {
   ilkVerifyToken: string | null;
   /** Numara listesi değişti (ekleme, silme, ad, kilidin aynı WABA'dan kalkması); gecilecek: seçilecek numara. */
   onListe: (liste: BaglantiDto[], gecilecek?: string | null, verifyToken?: string | null) => void;
-  onSablonlar: (baglantiId: string, sablonlar: SablonDto[]) => void;
+  /** Bu karttaki bağlantı sunucudan güncel haliyle döndü (son yenileme, test sonucu…). */
+  onBaglanti?: (b: BaglantiDto) => void;
+  /** Bu numaranın WABA'sının şablonları yenilendi (aynı WABA'daki numaralar ortak kullanır). */
+  onSablonlar: (wabaId: string, sablonlar: SablonDto[]) => void;
 }) {
   const [b, setB] = useState(props.ilk);
   const [sablonlar, setSablonlar] = useState(props.ilkSablonlar);
@@ -71,7 +74,10 @@ export function WhatsappApiAyarlari(props: {
       return null;
     }
     const v = s.veri as { baglanti?: BaglantiDto; baglantilar?: BaglantiDto[]; verifyToken?: string | null };
-    if (v.baglanti) setB(v.baglanti);
+    if (v.baglanti) {
+      setB(v.baglanti);
+      if (v.baglanti.id) props.onBaglanti?.(v.baglanti);
+    }
     if (v.verifyToken) setVerifyToken(v.verifyToken);
     if (v.baglantilar) props.onListe(v.baglantilar, v.baglanti?.id ?? null, v.verifyToken ?? null);
     if (tamamMetni) setMesaj({ tur: "tamam", metin: tamamMetni });
@@ -79,6 +85,8 @@ export function WhatsappApiAyarlari(props: {
   }
 
   const n = b.numara;
+  // Kart yalnızca bu numaranın WABA'sının şablonlarını gösterir.
+  const wabaSablonlari = sablonlar.filter((s) => s.wabaId === b.wabaId);
   const meta = metaDurumuRozeti(n.metaDurumu);
   const [adim1, adim2, adim3, adim4] = kurulumAdimlari(b);
   const testModuKapat = () => {
@@ -278,26 +286,27 @@ export function WhatsappApiAyarlari(props: {
               className="dugme dugme-kucuk"
               disabled={mesgul}
               onClick={async () => {
-                const v = await calistir<{ sablonlar: SablonDto[] }>(
+                const v = await calistir<{ sablonlar: SablonDto[]; baglanti: BaglantiDto }>(
                   `/api/whatsapp/sablonlar?baglanti=${encodeURIComponent(b.id!)}`,
                   "POST",
                   undefined,
                   "Şablonlar yenilendi.",
                 );
                 if (v) {
-                  setSablonlar(v.sablonlar);
-                  props.onSablonlar(b.id!, v.sablonlar);
+                  const waba = v.baglanti.wabaId ?? b.wabaId ?? "";
+                  setSablonlar(v.sablonlar.filter((s) => s.wabaId === waba));
+                  props.onSablonlar(waba, v.sablonlar);
                 }
               }}
             >
               Meta&apos;dan yenile
             </button>
           </KartBaslik>
-          {sablonlar.length === 0 ? (
+          {wabaSablonlari.length === 0 ? (
             <p className="border-t border-cizgi px-7 py-4 text-soluk">Henüz şablon yok.</p>
           ) : (
             <ul>
-              {sablonlar.map((s) => {
+              {wabaSablonlari.map((s) => {
                 const medya = medyaBaslikRozeti(s.baslikBicimi);
                 return (
                 <li key={s.id} className="flex flex-wrap items-center gap-4 border-t border-cizgi px-7 py-4">

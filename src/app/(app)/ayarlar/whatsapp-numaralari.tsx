@@ -75,15 +75,19 @@ export function WhatsappNumaralari(props: { ilk: BaglantiDto[]; ilkSablonlar: Re
           ilkSablonlar={(b.id && sablonlar[b.id]) || []}
           ilkVerifyToken={verifyToken && verifyToken.id === b.id ? verifyToken.deger : null}
           onListe={listeyiGuncelle}
-          onSablonlar={(id, s) =>
-            // Aynı WABA'daki numaralar ortak şablon kullanır: hepsinin listesi güncellenir.
+          // Kartta değişen bağlantı (son yenileme, test sonucu) listeye de yazılır: sekme değişip kart yeniden
+          // kurulunca eski bilgi geri gelmesin.
+          onBaglanti={(g) => setListe((eski) => eski.map((x) => (x.id === g.id ? g : x)))}
+          onSablonlar={(wabaId, s) => {
+            // Aynı WABA'daki numaralar ortak şablon kullanır: yalnızca o WABA'nın numaralarının listesi ve son yenileme
+            // zamanı güncellenir. WABA sunucunun yanıtından gelir; başka WABA'nın şablonu hiçbir karta yazılmaz.
+            const ayni = s.filter((x) => x.wabaId === wabaId);
             setSablonlar((eski) => {
-              const waba = liste.find((x) => x.id === id)?.wabaId;
               const yeni = { ...eski };
-              for (const n of liste) if (n.id && n.wabaId === waba) yeni[n.id] = s;
+              for (const n of liste) if (n.id && n.wabaId === wabaId) yeni[n.id] = ayni;
               return yeni;
-            })
-          }
+            });
+          }}
         />
       )}
     </>

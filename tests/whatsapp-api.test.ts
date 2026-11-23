@@ -365,7 +365,8 @@ describe("Graph API (sahte istemci)", () => {
     mockWhatsapp.sablonlar[0].status = "PAUSED";
     expect(await svc.sablonlariSenkronizeEt(ctx, id)).toEqual({ eklenen: 0, guncellenen: 2, silinen: 1 });
     const ikinci = Object.fromEntries(sablonlariListele(ctx).map((s) => [s.ad, s]));
-    expect(ikinci.randevu_hatirlatma.durum).toBe("SILINDI");
+    // Meta'da silinen ve kampanyada kullanılmamış şablon satırı silinir (kullanılmışsa SILINDI kalır: sablon-waba.test.ts).
+    expect(ikinci.randevu_hatirlatma).toBeUndefined();
     expect(ikinci.kampanya_tanitim.destekNedeni).toMatch(/onaylı değil \(PAUSED\)/);
     expect(await svc.sablonlariSenkronizeEt(ctx, id)).toEqual({ eklenen: 0, guncellenen: 2, silinen: 0 });
   });

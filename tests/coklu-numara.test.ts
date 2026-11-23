@@ -167,14 +167,16 @@ describe("şablonlar WABA'ya aittir", () => {
     // n3'ün WABA'sında aynı adlı şablonlar ayrı satırdır; n1'in senkronu onlara dokunmaz.
     await wa.sablonlariSenkronizeEt(ctx, n3.id);
     expect(sablonlariListele(ctx)).toHaveLength(6);
-    mockWhatsapp.sablonlar = [];
-    await wa.sablonlariSenkronizeEt(ctx, n1.id);
-    expect(wa.sablonlar(ctx, n1.id).every((s) => s.durum === "SILINDI")).toBe(true);
-    expect(wa.sablonlar(ctx, n3.id).every((s) => s.durum !== "SILINDI")).toBe(true);
-
     kisiler(ctx, "sab", ["0532 900 00 01"]);
     const n1Sablonu = sablonlariListele(ctx, n1.waba).find((s) => s.ad === "randevu_hatirlatma")!;
     expect(() => kampanyaOzeti(ctx, { ...girdi(ctx, n3, "sab"), sablonId: n1Sablonu.id }, SIMDI)).toThrow(/WhatsApp hesabında yok/);
+
+    // n1'in WABA'sında Meta'da şablon kalmadı: kampanyada kullanılmamış satırlar silinir; n3'ün WABA'sına dokunulmaz.
+    mockWhatsapp.sablonlar = [];
+    await wa.sablonlariSenkronizeEt(ctx, n1.id);
+    expect(sablonlariListele(ctx, n1.waba)).toEqual([]);
+    expect(wa.sablonlar(ctx, n1.id)).toEqual([]);
+    expect(wa.sablonlar(ctx, n3.id)).toHaveLength(3);
   });
 
   it("kampanyada gönderen numara zorunlu; başka çalışma alanının numarası kullanılamaz", async () => {
@@ -484,10 +486,9 @@ describe("migration 0019", () => {
     expect(b).toHaveLength(1);
     expect(b[0]).toMatchObject({ ad: "Numara 1", sira: 0, webhook_kimligi: "eski-kimlik-0123456789abcdef", test_modu: 0, son_imzali_durum_tarihi: 1 });
     expect(b[0].id).toMatch(/^[0-9a-f]{32}$/);
-    expect(s.prepare("select id, waba_id from whatsapp_sablonlari order by id").all()).toEqual([
-      { id: "s1", waba_id: "400001" },
-      { id: "s2", waba_id: "" },
-    ]);
+    // s2: bağlantısı olmayan çalışma alanının şablonu (waba_id ''); 0028 numarası olmayan WABA'nın kampanyada
+    // kullanılmamış şablonunu siler.
+    expect(s.prepare("select id, waba_id from whatsapp_sablonlari order by id").all()).toEqual([{ id: "s1", waba_id: "400001" }]);
     expect(s.prepare("select id, baglanti_id from kampanyalar order by id").all()).toEqual([
       { id: "ke", baglanti_id: null },
       { id: "kw", baglanti_id: b[0].id },

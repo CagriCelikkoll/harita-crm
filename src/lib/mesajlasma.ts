@@ -147,6 +147,8 @@ export const BEKLEME_NEDEN_ADLARI: Record<string, string> = {
 export const DURAKLATMA_NEDEN_ADLARI: Record<string, string> = {
   kalite_dusuk: "Numaranın kalite puanı düşük (kırmızı). Kalite düzelince yönetici devam ettirebilir.",
   sablon_kullanilamaz: "Şablon artık kullanılamıyor (duraklatıldı, devre dışı ya da silindi).",
+  sablon_baska_waba:
+    "Şablon, gönderen numaranın WhatsApp hesabına (WABA) ait değil (numara ya da WABA değişmiş). Kampanyayı iptal edip bu numaranın şablonlarından biriyle yeniden oluşturun.",
   spam_siniri: "Meta bu numaradan gönderimi kısıtladı (spam sınırı). Kaliteyi WhatsApp Manager'da kontrol edin.",
   yetki: "Meta erişimi reddetti; Ayarlar'da erişim anahtarını kontrol edin.",
   baglanti_yok: "WhatsApp Business bağlantısı tanımlı değil.",

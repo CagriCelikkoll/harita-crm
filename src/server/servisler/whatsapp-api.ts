@@ -243,6 +243,7 @@ export function numaraOzetleri(ctx: TenantContext): NumaraOzeti[] {
     id: b.id,
     ad: b.ad,
     etiket: numaraEtiketi(b),
+    wabaId: b.wabaId,
     gorunenNumara: b.gorunenNumara,
     numaraDogrulandi: Boolean(b.numaraDogrulamaTarihi),
     testModu: b.testModu,
@@ -532,6 +533,8 @@ export type SablonDto = Pick<
   WhatsappSablonu,
   "id" | "ad" | "dil" | "kategori" | "durum" | "degiskenler" | "abonelikButonu" | "destekNedeni" | "kalite" | "bilesenler"
 > & {
+  /** Şablonun ait olduğu WhatsApp hesabı (WABA): kart ve sihirbaz yalnızca numaranın WABA'sınınkini gösterir. */
+  wabaId: string;
   kullanilabilir: boolean;
   /** HEADER biçimi (TEXT, IMAGE, VIDEO, DOCUMENT…); başlık yoksa null. IMAGE: görselli (kampanyada görsel yüklenir). */
   baslikBicimi: string | null;
@@ -539,6 +542,7 @@ export type SablonDto = Pick<
 
 export const sablonDto = (s: WhatsappSablonu): SablonDto => ({
   id: s.id,
+  wabaId: s.wabaId,
   ad: s.ad,
   dil: s.dil,
   kategori: s.kategori,
@@ -552,8 +556,11 @@ export const sablonDto = (s: WhatsappSablonu): SablonDto => ({
   baslikBicimi: s.baslikBicimi ?? baslikBicimiBul(s.bilesenler),
 });
 
-/** Bu numaranın (WABA'sının) şablonları; numara bu çalışma alanında yoksa boş. */
+/**
+ * Bu numaranın (WABA'sının) şablonları; numara bu çalışma alanında yoksa boş. Meta'da silinmiş (SILINDI) şablon
+ * yalnızca kampanya geçmişi için saklanır, listelenmez.
+ */
 export function sablonlar(ctx: TenantContext, baglantiId: string): SablonDto[] {
   const b = baglantiGetir(ctx, baglantiId);
-  return b ? sablonlariListele(ctx, b.wabaId).map(sablonDto) : [];
+  return b ? sablonlariListele(ctx, b.wabaId).filter((s) => s.durum !== "SILINDI").map(sablonDto) : [];
 }

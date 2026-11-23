@@ -149,6 +149,9 @@ export async function whatsappMesajIsle(
   const baglantiId = kampanya.baglantiId;
   let c = baglantiId ? whatsappBaglantisiCoz(ctx, baglantiId) : null;
   if (!baglantiId || !c) return duraklat(ctx, mesaj, "baglanti_yok");
+  // Şablon WABA'ya aittir: gönderen numaranın WABA'sı şablonunkinden farklıysa (numara ya da WABA sonradan değişti)
+  // Meta başka hesabın şablonunu kabul etmez; liste harcanmasın diye kampanya duraklar.
+  if (sablon.wabaId !== c.baglanti.wabaId) return duraklat(ctx, mesaj, "sablon_baska_waba");
   const kilit = hesapKilidiNedeni(c.baglanti.hesapKilidiKodu);
   if (kilit) return duraklat(ctx, mesaj, kilit, ayniWabaBaglantilari(ctx, baglantiId));
   if (c.baglanti.testModu && (karar.kaynak !== "kayit" || !c.gizli.testNumaralari.includes(karar.adres))) {

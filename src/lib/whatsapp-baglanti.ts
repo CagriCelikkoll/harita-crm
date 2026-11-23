@@ -58,6 +58,8 @@ export type NumaraOzeti = {
   id: string;
   ad: string;
   etiket: string;
+  /** Numaranın WhatsApp hesabı: sihirbaz yalnızca bu WABA'nın şablonlarını listeler. */
+  wabaId: string;
   gorunenNumara: string | null;
   numaraDogrulandi: boolean;
   testModu: boolean;

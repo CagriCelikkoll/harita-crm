@@ -109,7 +109,8 @@ export function KampanyaSihirbazi(props: {
   const saglayiciTanimli = (k: KuyrukKanali) =>
     k === "whatsapp_api" ? props.whatsapp.numaralar.some((n) => n.numaraDogrulandi) : props.saglayicilar[k].tanimli;
   const secilenNumara = props.whatsapp.numaralar.find((n) => n.id === baglantiId) ?? null;
-  const numaraSablonlari = secilenNumara?.sablonlar ?? [];
+  // Yalnızca seçilen gönderen numaranın WABA'sının şablonları (sunucu ayrıca denetler).
+  const numaraSablonlari = (secilenNumara?.sablonlar ?? []).filter((x) => x.wabaId === secilenNumara?.wabaId);
   const degisti = <T,>(ayarla: (v: T) => void) => (v: T) => {
     ayarla(v);
     setOzet(null); // taslak değişince özet geçersiz

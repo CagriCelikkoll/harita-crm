@@ -42,6 +42,10 @@ const ornekSablonlar = (): MetaSablon[] => [
 export const mockWhatsapp = {
   numara: null as NumaraBilgisi | null,
   sablonlar: ornekSablonlar(),
+  /** WABA'ya özel şablon listesi (Meta'da her WABA'nın şablonu ayrıdır); WABA burada yoksa `sablonlar` döner. */
+  wabaSablonlari: new Map<string, MetaSablon[]>(),
+  /** /message_templates istenen WABA kimlikleri (sırasıyla). */
+  sablonIstekleri: [] as string[],
   /** Doluysa bir sonraki çağrı bu hatayla başarısız olur (tek seferlik). */
   hata: null as GraphHatasi | null,
   abonelikSayisi: 0,
@@ -81,6 +85,8 @@ export const mockWhatsapp = {
 export function mockWhatsappSifirla() {
   mockWhatsapp.numara = null;
   mockWhatsapp.sablonlar = ornekSablonlar();
+  mockWhatsapp.wabaSablonlari = new Map();
+  mockWhatsapp.sablonIstekleri = [];
   mockWhatsapp.hata = null;
   mockWhatsapp.abonelikSayisi = 0;
   mockWhatsapp.sonBaglanti = null;
@@ -196,7 +202,8 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
     },
     async sablonlar() {
       cagri();
-      return structuredClone(mockWhatsapp.sablonlar);
+      mockWhatsapp.sablonIstekleri.push(b.wabaId);
+      return structuredClone(mockWhatsapp.wabaSablonlari.get(b.wabaId) ?? mockWhatsapp.sablonlar);
     },
     async uygulamayiAboneEt() {
       cagri();
