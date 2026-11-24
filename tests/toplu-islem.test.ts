@@ -153,7 +153,7 @@ describe("toplu işlem: alıcı türü, RET ve engel listesi", () => {
     expect(s).toEqual({
       hedef: 8,
       degisen: 2, // normal, waIzinli
-      atlanan: { ayni: 2, ret: 3, engelli: 1, meta_reklam: 0, etiket_siniri: 0 },
+      atlanan: { ayni: 2, ret: 3, engelli: 1, whatsapp_yok: 0, meta_reklam: 0, etiket_siniri: 0 },
       bulunamayan: 0,
     });
     expect(kayitlar.kayitGetir(ctx, normal.id)!.aliciTuru).toBe("bireysel");

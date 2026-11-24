@@ -22,7 +22,7 @@ const Izin = z.discriminatedUnion("izin", [
   z.object({ izin: z.literal("yok"), not: z.string().trim().max(1000).nullish() }).strict(),
   // Ret geri alınamaz: arayüzdeki onay penceresinde onaylanmış olmalı.
   z.object({ izin: z.literal("ret"), retOnayi: z.literal(true, RET_ONAYI_GEREKLI) }).strict(),
-]);
+]).refine((d) => d.izin !== "var" || d.kaynak !== "diger" || Boolean(d.not), { message: '"Diğer" izin kaynağı için not yazın.' });
 
 export async function PUT(istek: Request, { params }: RouteContext<"/api/kayitlar/[id]/whatsapp-izni">) {
   if (!ayniKaynakMi(istek)) return yasak();

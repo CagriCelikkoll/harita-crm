@@ -1,28 +1,40 @@
 "use client";
 // Kayıtlar listesinde toplu işlem çubuğu (yalnızca yönetici görür; sunucu da 403 verir): seçili kayıt sayısı,
-// "filtreye uyan tümünü seç", işlem (etiket ekle / kaldır, alıcı türü) ve onay penceresi. Sonuç özeti (kaç kayıt
-// değişti, kaçı neden atlandı) üst bileşende gösterilir. Pencere document.body'ye taşınır (ret-onayi.tsx ile aynı).
+// "filtreye uyan tümünü seç", işlem (etiket ekle / kaldır, alıcı türü, WhatsApp iznini kaydet) ve onay penceresi.
+// WhatsApp izninde pencerede izin kaynağı ("Diğer" ise açıklama) ve beyan onay kutusu zorunludur. En fazla
+// TOPLU_ISLEM_AZAMI kayıt: fazlası seçiliyse uyarı gösterilir, işlem başlatılamaz (sunucu da 400 verir). Sonuç özeti
+// (kaç kayıt değişti, kaçı neden atlandı) üst bileşende gösterilir. Pencere document.body'ye taşınır (ret-onayi.tsx).
 import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { apiIstek } from "@/lib/api-istemci";
 import { sayiYaz } from "@/lib/bicim";
-import { ALICI_TURLERI, ALICI_TURU_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
-import { TOPLU_ATLAMA_NEDENLERI, type TopluAtlamaNedeni } from "@/lib/sabitler";
+import {
+  ALICI_TURLERI,
+  ALICI_TURU_ADLARI,
+  TOPLU_IZIN_KAYNAKLARI,
+  WHATSAPP_IZIN_KAYNAK_ADLARI,
+  WHATSAPP_TOPLU_IZIN_BEYANI,
+  type AliciTuru,
+} from "@/lib/mesajlasma";
+import { TOPLU_ATLAMA_NEDENLERI, TOPLU_ISLEM_AZAMI, TOPLU_ISLEM_SINIRI_METNI, type TopluAtlamaNedeni } from "@/lib/sabitler";
 import type { TopluSonuc } from "@/server/repo/kayitlar";
 
 export type TopluSecimGovdesi = { tur: "idler"; idler: string[] } | { tur: "filtre"; sorgu: string; beklenenToplam: number };
 
-type IslemTuru = "etiket_ekle" | "etiket_kaldir" | "alici_turu";
+type IslemTuru = "etiket_ekle" | "etiket_kaldir" | "alici_turu" | "whatsapp_izni";
 const ISLEM_ADLARI: Record<IslemTuru, string> = {
   etiket_ekle: "Etiket ekle",
   etiket_kaldir: "Etiket kaldır",
   alici_turu: "Alıcı türünü değiştir",
+  whatsapp_izni: "WhatsApp iznini kaydet",
 };
+type IzinKaynagi = (typeof TOPLU_IZIN_KAYNAKLARI)[number];
 
 const ATLAMA_ADLARI: Record<TopluAtlamaNedeni, string> = {
   ayni: "zaten aynıydı",
   ret: "RET vermiş",
   engelli: "engel listesinde",
+  whatsapp_yok: "numarada WhatsApp yok (Meta bildirdi)",
   meta_reklam: "Meta reklamından gelen bireysel kişi (tek tek, açıklamayla değiştirilir)",
   etiket_siniri: "etiket sınırı (20) dolu",
 };
@@ -58,6 +70,9 @@ export function TopluIslemCubugu(props: {
   const [tur, setTur] = useState<IslemTuru>("etiket_ekle");
   const [etiket, setEtiket] = useState("");
   const [aliciTuru, setAliciTuru] = useState<AliciTuru | "">("");
+  const [izinKaynagi, setIzinKaynagi] = useState<IzinKaynagi | "">("");
+  const [izinAciklamasi, setIzinAciklamasi] = useState("");
+  const [beyan, setBeyan] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const pencere = useRef<HTMLDialogElement>(null);
@@ -67,24 +82,40 @@ export function TopluIslemCubugu(props: {
 
   // Sunucu ve tek kayıt düzenlemesiyle aynı biçim (trim + küçük harf).
   const temizEtiket = etiket.trim().toLowerCase();
-  const hazir = tur === "alici_turu" ? aliciTuru !== "" : temizEtiket.length > 0 && temizEtiket.length <= 40;
+  const sinirAsildi = props.sayi > TOPLU_ISLEM_AZAMI;
+  const hazir =
+    !sinirAsildi &&
+    (tur === "whatsapp_izni" ? true : tur === "alici_turu" ? aliciTuru !== "" : temizEtiket.length > 0 && temizEtiket.length <= 40);
+  // WhatsApp izni: kaynak, "Diğer" ise açıklama ve beyan onay penceresinde zorunlu.
+  const izinHazir = izinKaynagi !== "" && (izinKaynagi !== "diger" || izinAciklamasi.trim().length > 0) && beyan;
+  const onaylanabilir = tur !== "whatsapp_izni" || izinHazir;
   const n = sayiYaz(props.sayi);
   const onayMetni =
     tur === "etiket_ekle"
       ? `${n} kayda "${temizEtiket}" etiketi eklenecek.`
       : tur === "etiket_kaldir"
         ? `${n} kayıttan "${temizEtiket}" etiketi kaldırılacak.`
-        : `${n} kaydın alıcı türü "${aliciTuru ? ALICI_TURU_ADLARI[aliciTuru] : ""}" olarak değiştirilecek.`;
+        : tur === "whatsapp_izni"
+          ? `${n} kayıt için WhatsApp izni kaydedilecek.`
+          : `${n} kaydın alıcı türü "${aliciTuru ? ALICI_TURU_ADLARI[aliciTuru] : ""}" olarak değiştirilecek.`;
 
   async function uygula() {
+    if (!onaylanabilir) return;
     pencere.current?.close();
     setGonderiliyor(true);
     setHata(null);
-    const islem = tur === "alici_turu" ? { tur, aliciTuru } : { tur, etiket: temizEtiket };
+    const islem =
+      tur === "whatsapp_izni"
+        ? { tur, kaynak: izinKaynagi, aciklama: izinAciklamasi.trim() || null, beyan }
+        : tur === "alici_turu"
+          ? { tur, aliciTuru }
+          : { tur, etiket: temizEtiket };
     const y = await apiIstek<{ sonuc: TopluSonuc }>("/api/kayitlar/toplu", { method: "POST", govde: { secim: props.secim, islem } });
     setGonderiliyor(false);
     if (y.ok) {
       setEtiket("");
+      setIzinAciklamasi("");
+      setBeyan(false);
       props.onTamam(y.veri.sonuc);
       return;
     }
@@ -111,7 +142,9 @@ export function TopluIslemCubugu(props: {
         className="flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (hazir && !gonderiliyor) pencere.current?.showModal();
+          if (!hazir || gonderiliyor) return;
+          setBeyan(false); // beyan her işlemde yeniden onaylanır
+          pencere.current?.showModal();
         }}
       >
         <label className="etiket">
@@ -124,7 +157,7 @@ export function TopluIslemCubugu(props: {
             ))}
           </select>
         </label>
-        {tur === "alici_turu" ? (
+        {tur === "whatsapp_izni" ? null : tur === "alici_turu" ? (
           <label className="etiket">
             Yeni alıcı türü
             <select className="girdi" value={aliciTuru} onChange={(e) => setAliciTuru(e.target.value as AliciTuru | "")}>
@@ -154,6 +187,17 @@ export function TopluIslemCubugu(props: {
       {tur === "alici_turu" && (
         <p className="text-xs text-soluk">RET vermiş ve engel listesindeki kayıtlar atlanır. WhatsApp izni ve ret bilgileri değişmez.</p>
       )}
+      {tur === "whatsapp_izni" && (
+        <p className="text-xs text-soluk">
+          RET vermiş, engel listesinde, ileti reddi olan ve numarasında WhatsApp olmadığı bildirilen kayıtlar atlanır; izni zaten
+          kayıtlı olanlara dokunulmaz. İYS beyanı değişmez. Kaynak ve beyan onay penceresinde istenir.
+        </p>
+      )}
+      {sinirAsildi && (
+        <p role="alert" className="text-sm text-uyari">
+          {sayiYaz(props.sayi)} kayıt seçili. {TOPLU_ISLEM_SINIRI_METNI}
+        </p>
+      )}
       {hata && (
         <p role="alert" className="text-sm text-tehlike">
           {hata}
@@ -172,11 +216,52 @@ export function TopluIslemCubugu(props: {
               </h2>
               <p>{onayMetni}</p>
               {tur === "alici_turu" && <p className="text-soluk">RET vermiş ve engel listesindeki kayıtlara dokunulmaz.</p>}
+              {tur === "whatsapp_izni" && (
+                <>
+                  <label className="etiket">
+                    İzin kaynağı
+                    <select
+                      className="girdi"
+                      required
+                      value={izinKaynagi}
+                      onChange={(e) => setIzinKaynagi(e.target.value as IzinKaynagi | "")}
+                    >
+                      <option value="">Seçin</option>
+                      {TOPLU_IZIN_KAYNAKLARI.map((k) => (
+                        <option key={k} value={k}>
+                          {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {izinKaynagi === "diger" && (
+                    <label className="etiket">
+                      Açıklama (zorunlu)
+                      <textarea
+                        className="girdi"
+                        rows={2}
+                        maxLength={500}
+                        required
+                        value={izinAciklamasi}
+                        onChange={(e) => setIzinAciklamasi(e.target.value)}
+                      />
+                    </label>
+                  )}
+                  <label className="flex items-start gap-2">
+                    <input type="checkbox" className="mt-0.5 size-4 accent-ana" checked={beyan} onChange={(e) => setBeyan(e.target.checked)} />
+                    <span>{WHATSAPP_TOPLU_IZIN_BEYANI}</span>
+                  </label>
+                  <p className="text-soluk">
+                    Her kayda izin tarihi (şimdi), kaynak ve işlemi yapan kullanıcı yazılır; RET vermiş ve engel listesindeki kayıtlar
+                    atlanır.
+                  </p>
+                </>
+              )}
               <div className="flex justify-end gap-2">
                 <button type="button" className="dugme" autoFocus onClick={() => pencere.current?.close()}>
                   Vazgeç
                 </button>
-                <button type="button" className="dugme-ana" onClick={uygula}>
+                <button type="button" className="dugme-ana" disabled={!onaylanabilir} onClick={uygula}>
                   Onayla
                 </button>
               </div>

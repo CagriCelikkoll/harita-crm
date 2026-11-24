@@ -76,7 +76,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   // Kaydın WhatsApp izni ve kanıtı, BSUID, reklam kaynağı. Gelen mesaj METNİ yok.
   whatsapp_kisileri: [
     "tenant_id", "lead_id", "bsuid", "wa_kullanici_adi", "izin", "izin_tarihi", "izin_kaynagi", "izin_notu",
-    "izin_ice_aktarma_id", "iys_beyan_tarihi", "whatsapp_yok_tarihi", "reklam_kimligi", "reklam_basligi", "ctwa_clid",
+    "izin_ice_aktarma_id", "izin_kaydeden_id", "iys_beyan_tarihi", "whatsapp_yok_tarihi", "reklam_kimligi", "reklam_basligi", "ctwa_clid",
     "pencere_bitis", "olusturma_tarihi", "guncelleme_tarihi",
   ],
   // Çalışma alanının kendi WhatsApp numarası; erişim anahtarı / App Secret / verify token / test numaraları şifreli.

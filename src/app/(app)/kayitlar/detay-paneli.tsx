@@ -852,7 +852,7 @@ function WhatsappIzinBolumu(props: {
                   <option value="" disabled>
                     Seçin
                   </option>
-                  {WHATSAPP_IZIN_KAYNAKLARI.map((k) => (
+                  {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => k !== "diger" || w.izinKaynagi === "diger").map((k) => (
                     <option key={k} value={k}>
                       {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
                     </option>

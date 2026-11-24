@@ -119,10 +119,14 @@ export type KayitSirasi = (typeof KAYIT_SIRALARI)[number];
 export const KAYIT_SIRA_ADLARI: Record<KayitSirasi, string> = { son: "Son işlem", ad: "Ad / işletme adı (A-Z)" };
 /** Bir kayıtta en fazla etiket (tek kayıt düzenleme ve toplu etiket ekleme aynı sınırı uygular). */
 export const KAYIT_ETIKET_AZAMI = 20;
-/** Toplu işlemde id ile gönderilebilecek en fazla kayıt (sayfa seçimi); daha fazlası "filtreye uyan tümü" ile. */
-export const TOPLU_ISLEM_AZAMI_ID = 500;
-/** Toplu işlemde kaydın atlanma nedenleri: zaten aynı, RET vermiş, engel listesinde, Meta reklamı kaynaklı bireysel, etiket sınırı. */
-export const TOPLU_ATLAMA_NEDENLERI = ["ayni", "ret", "engelli", "meta_reklam", "etiket_siniri"] as const;
+/** Bir toplu işlemde en fazla kayıt (sayfa seçimi ve "filtreye uyan tümü" dahil); fazlası için filtre daraltılır. */
+export const TOPLU_ISLEM_AZAMI = 500;
+export const TOPLU_ISLEM_SINIRI_METNI = `Toplu işlem en fazla ${TOPLU_ISLEM_AZAMI} kayıtta yapılabilir; filtreyi daraltın ya da daha az kayıt seçin.`;
+/**
+ * Toplu işlemde kaydın atlanma nedenleri: zaten aynı, RET vermiş (ileti reddi ya da WhatsApp reddi), engel listesinde,
+ * Meta "numarada WhatsApp yok" bildirdi, Meta reklamı kaynaklı bireysel, etiket sınırı.
+ */
+export const TOPLU_ATLAMA_NEDENLERI = ["ayni", "ret", "engelli", "whatsapp_yok", "meta_reklam", "etiket_siniri"] as const;
 export type TopluAtlamaNedeni = (typeof TOPLU_ATLAMA_NEDENLERI)[number];
 export const YARICAP_MIN_KM = 1;
 export const YARICAP_MAX_KM = 25;

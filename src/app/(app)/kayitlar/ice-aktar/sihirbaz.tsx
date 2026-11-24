@@ -325,7 +325,7 @@ export function IceAktarmaSihirbazi() {
                 onChange={(e) => secenek("varsayilanIzinKaynagi", (e.target.value || null) as WhatsappIzinKaynagi | null)}
               >
                 <option value="">{izinEslendi ? "— yok (satır hatalı sayılır) —" : "Seçin"}</option>
-                {WHATSAPP_IZIN_KAYNAKLARI.map((k) => (
+                {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => k !== "diger").map((k) => (
                   <option key={k} value={k}>
                     {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
                   </option>

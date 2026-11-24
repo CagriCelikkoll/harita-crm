@@ -78,6 +78,7 @@ export function whatsappIzniAyarla(ctx: TenantContext, leadId: string, g: Whatsa
       izinKaynagi: g.izin === "var" ? (g.kaynak ?? null) : null,
       izinNotu: g.not ?? null,
       izinIceAktarmaId: g.iceAktarmaId ?? null,
+      izinKaydedenId: g.izin === "var" ? ctx.userId || null : null,
       iysBeyanTarihi: g.izin === "var" && g.iysBeyani ? (eski?.iysBeyanTarihi ?? simdi) : null,
       guncellemeTarihi: simdi,
     };

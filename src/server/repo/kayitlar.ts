@@ -6,6 +6,8 @@ import {
   KAYIT_SAYFA_BOYUTLARI,
   SAYFA_BOYUTU,
   TOPLU_ATLAMA_NEDENLERI,
+  TOPLU_ISLEM_AZAMI,
+  TOPLU_ISLEM_SINIRI_METNI,
   type KayitSayfaBoyutu,
   type TopluAtlamaNedeni,
   type KayitSirasi,
@@ -20,7 +22,15 @@ import {
 import { db } from "../db";
 import { denetimKayitlari, engelListesi, leadEvents, leads, scans, taramaSonuclari, user, whatsappKisileri, type Kayit } from "../db/schema";
 import { telefonNormallestir } from "../messaging/adres";
-import { ALICI_TURU_ADLARI, type AliciTuru, type WhatsappIzni } from "@/lib/mesajlasma";
+import {
+  ALICI_TURU_ADLARI,
+  WHATSAPP_IZIN_KAYNAK_ADLARI,
+  WHATSAPP_TOPLU_IZIN_BEYANI,
+  type AliciTuru,
+  type TOPLU_IZIN_KAYNAKLARI,
+  type WhatsappIzni,
+} from "@/lib/mesajlasma";
+import { WHATSAPP_YOK_GUN } from "../messaging/alici-kurallari";
 import { KayitKuraliHatasi, likeKacir, TopluSecimDegistiHatasi, yoneticiOlmali, type TenantContext } from "./baglam";
 import { engelliKayitlar, retliKayitAdresleriniEngelle } from "./engel-listesi";
 
@@ -534,7 +544,9 @@ export function incelenmemisSayilari(ctx: TenantContext, scanIdler: string[]): M
 export type TopluIslem =
   | { tur: "etiket_ekle"; etiket: string }
   | { tur: "etiket_kaldir"; etiket: string }
-  | { tur: "alici_turu"; aliciTuru: AliciTuru };
+  | { tur: "alici_turu"; aliciTuru: AliciTuru }
+  /** beyan: WHATSAPP_TOPLU_IZIN_BEYANI onaylandı (zorunlu). kaynak "diger" ise açıklama zorunlu; açıklama izin_notu olur. */
+  | { tur: "whatsapp_izni"; kaynak: (typeof TOPLU_IZIN_KAYNAKLARI)[number]; aciklama?: string | null; beyan: boolean };
 
 /**
  * Seçim: sayfada işaretlenen id'ler ya da "filtreye uyan tümü" (süzgeç sunucuda yeniden uygulanır; sayfa, sıra ve
@@ -561,10 +573,21 @@ const DENETIM_TOPLU_KAYIT = "toplu_kayit_islemi";
  *    (KAYIT_ETIKET_AZAMI) dolu kayıt "etiket_siniri" olarak atlanır.
  *  - alici_turu: yalnızca `alici_turu` alanı. RET vermiş (ileti izni ya da WhatsApp izni 'ret') ve engel listesindeki
  *    kayıtlara dokunulmaz; Meta reklamından gelen bireysel kişi tacir/esnaf yapılmaz (tek tek, açıklamayla yapılır).
- * Hiçbir işlem ileti izni, WhatsApp izni / ret alanlarını ya da engel listesini değiştirmez.
+ *  - whatsapp_izni: yalnızca WhatsApp izni (izin 'var', izin tarihi = işlem anı, kaynak, açıklama, kaydeden kullanıcı).
+ *    Beyan ve ("diger" kaynağında) açıklama zorunlu (KayitKuraliHatasi 400). RET vermiş (ileti reddi ya da WhatsApp
+ *    reddi), engel listesindeki ve son WHATSAPP_YOK_GUN günde "WhatsApp yok" bildirilmiş kayıtlar atlanır; izni zaten
+ *    'var' olan kayıt "ayni" (kanıtı ezilmez). 'ret' satırı hiçbir koşulda güncellenmez; İYS beyanı alanına dokunulmaz.
+ * Diğer işlemler WhatsApp izni / ret alanlarını değiştirmez; hiçbir işlem ileti iznini ya da engel listesini
+ * değiştirmez. Seçim TOPLU_ISLEM_AZAMI kaydı aşarsa hiçbir şey yazılmaz (400).
  */
 export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, islem: TopluIslem): TopluSonuc {
   yoneticiOlmali(ctx);
+  const izinAciklamasi = islem.tur === "whatsapp_izni" ? islem.aciklama?.trim() || null : null;
+  if (islem.tur === "whatsapp_izni") {
+    if (islem.beyan !== true) throw new KayitKuraliHatasi("WhatsApp izni için beyan onay kutusunu işaretleyin.", 400);
+    if (islem.kaynak === "diger" && !izinAciklamasi) throw new KayitKuraliHatasi('"Diğer" izin kaynağı için açıklama yazın.', 400);
+  }
+  if ("idler" in secim && new Set(secim.idler).size > TOPLU_ISLEM_AZAMI) throw new KayitKuraliHatasi(TOPLU_ISLEM_SINIRI_METNI, 400);
   return db.transaction((tx) => {
     const kolonlar = {
       id: leads.id,
@@ -595,20 +618,25 @@ export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, is
         throw new TopluSecimDegistiHatasi(hedefler.length);
       }
     }
+    if (hedefler.length > TOPLU_ISLEM_AZAMI) throw new KayitKuraliHatasi(TOPLU_ISLEM_SINIRI_METNI, 400);
 
     const atlanan = Object.fromEntries(TOPLU_ATLAMA_NEDENLERI.map((n) => [n, 0])) as Record<TopluAtlamaNedeni, number>;
     const idler = hedefler.map((h) => h.id);
     const waIzinleri = new Map<string, WhatsappIzni>();
+    const waYok = new Set<string>();
     const engelli = new Set<string>();
-    if (islem.tur === "alici_turu" && idler.length) {
+    const simdi = new Date();
+    if ((islem.tur === "alici_turu" || islem.tur === "whatsapp_izni") && idler.length) {
       for (let i = 0; i < idler.length; i += 500) {
         const parca = idler.slice(i, i + 500);
         for (const w of tx
-          .select({ leadId: whatsappKisileri.leadId, izin: whatsappKisileri.izin })
+          .select({ leadId: whatsappKisileri.leadId, izin: whatsappKisileri.izin, whatsappYokTarihi: whatsappKisileri.whatsappYokTarihi })
           .from(whatsappKisileri)
           .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), inArray(whatsappKisileri.leadId, parca)))
           .all()) {
           waIzinleri.set(w.leadId, w.izin);
+          // Gönderim kuralıyla aynı pencere (alici-kurallari.ts): Meta son 90 günde "numarada WhatsApp yok" dedi.
+          if (w.whatsappYokTarihi && simdi.getTime() - w.whatsappYokTarihi.getTime() < WHATSAPP_YOK_GUN * 86_400_000) waYok.add(w.leadId);
         }
         // Engel listesine bu kayıt adına yazılmış adres (ret akışı) ...
         for (const e of tx
@@ -623,7 +651,6 @@ export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, is
       for (const id of engelliKayitlar(ctx, hedefler)) engelli.add(id);
     }
 
-    const simdi = new Date();
     const olaylar: { leadId: string; tur: OlayTuru; aciklama: string }[] = [];
     for (const h of hedefler) {
       const kosul = and(eq(leads.id, h.id), eq(leads.tenantId, ctx.tenantId));
@@ -646,13 +673,55 @@ export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, is
         });
         continue;
       }
-      // alici_turu: önce ret / engel (aynı türde olsa da "ret" / "engelli" sayılır: dokunulmayan kayıt nedeniyle görünür).
+      // alici_turu / whatsapp_izni: önce ret / engel (aynı değerde olsa da "ret" / "engelli" sayılır: dokunulmayan kayıt
+      // nedeniyle görünür).
       if (h.iletiIzni === "ret" || waIzinleri.get(h.id) === "ret") {
         atlanan.ret++;
         continue;
       }
       if (engelli.has(h.id)) {
         atlanan.engelli++;
+        continue;
+      }
+      if (islem.tur === "whatsapp_izni") {
+        if (waYok.has(h.id)) {
+          atlanan.whatsapp_yok++;
+          continue;
+        }
+        if (waIzinleri.get(h.id) === "var") {
+          atlanan.ayni++;
+          continue;
+        }
+        const alanlar = {
+          izin: "var" as const,
+          izinTarihi: simdi,
+          izinKaynagi: islem.kaynak,
+          izinNotu: izinAciklamasi,
+          izinIceAktarmaId: null,
+          izinKaydedenId: ctx.userId || null,
+          guncellemeTarihi: simdi,
+        };
+        // İYS beyanı (iys_beyan_tarihi) alanlarda yok: dokunulmaz. 'ret' satırı koşulla da korunur.
+        const yazilan = tx
+          .insert(whatsappKisileri)
+          .values({ tenantId: ctx.tenantId, leadId: h.id, ...alanlar })
+          .onConflictDoUpdate({
+            target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
+            set: alanlar,
+            setWhere: sql`${whatsappKisileri.izin} <> 'ret'`,
+          })
+          .returning({ leadId: whatsappKisileri.leadId })
+          .get();
+        if (!yazilan) {
+          atlanan.ret++;
+          continue;
+        }
+        tx.update(leads).set({ guncellemeTarihi: simdi }).where(kosul).run();
+        olaylar.push({
+          leadId: h.id,
+          tur: "izin",
+          aciklama: `Toplu işlem: WhatsApp izni kaydedildi (${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? `: ${izinAciklamasi}` : ""})`,
+        });
         continue;
       }
       if (h.aliciTuru === islem.aliciTuru) {
@@ -694,7 +763,11 @@ export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, is
 
     const sonuc: TopluSonuc = { hedef: hedefler.length, degisen: olaylar.length, atlanan, bulunamayan };
     const islemMetni =
-      islem.tur === "alici_turu" ? `alıcı türü → ${ALICI_TURU_ADLARI[islem.aliciTuru]}` : `"${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "ekleme" : "kaldırma"}`;
+      islem.tur === "alici_turu"
+        ? `alıcı türü → ${ALICI_TURU_ADLARI[islem.aliciTuru]}`
+        : islem.tur === "whatsapp_izni"
+          ? `WhatsApp izni kaydı; kaynak: ${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? ` (${izinAciklamasi})` : ""}`
+          : `"${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "ekleme" : "kaldırma"}`;
     const atlananMetni = TOPLU_ATLAMA_NEDENLERI.filter((n) => atlanan[n]).map((n) => `${n}: ${atlanan[n]}`);
     tx.insert(denetimKayitlari)
       .values({
@@ -706,7 +779,9 @@ export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, is
         deger: islem.tur,
         aciklama: `Toplu işlem (${"idler" in secim ? "seçilen kayıtlar" : "filtreye uyan tümü"}): ${islemMetni}. ${sonuc.hedef} kayıt, ${
           sonuc.degisen
-        } değişti${atlananMetni.length ? `; atlanan ${atlananMetni.join(", ")}` : ""}.`,
+        } değişti${atlananMetni.length ? `; atlanan ${atlananMetni.join(", ")}` : ""}.${
+          islem.tur === "whatsapp_izni" ? ` İzin kaydedilen kişi sayısı: ${sonuc.degisen}. Onaylanan beyan: "${WHATSAPP_TOPLU_IZIN_BEYANI}"` : ""
+        }`,
         tarih: simdi,
       })
       .run();

@@ -226,6 +226,8 @@ export const whatsappKisileri = sqliteTable(
     izinKaynagi: text("izin_kaynagi", { enum: WHATSAPP_IZIN_KAYNAKLARI }),
     izinNotu: text("izin_notu"),
     izinIceAktarmaId: text("izin_ice_aktarma_id"),
+    // İzni kaydeden kullanıcı (elle / toplu işlem); sistem akışlarında ve eski satırlarda boş.
+    izinKaydedenId: text("izin_kaydeden_id").references(() => user.id, { onDelete: "set null" }),
     // Bireysel alıcı: izinin İYS'ye kaydedildiğine dair çalışma alanının beyanı (tarih).
     iysBeyanTarihi: zaman("iys_beyan_tarihi"),
     // Meta "alıcıda WhatsApp yok / teslim edilemez" bildirdiğinde.

@@ -31,7 +31,20 @@ export const ENGEL_KAYNAKLARI = ["abonelik", "kayit_ret", "sms_ret", "iys_ret", 
 /** Kanal bazlı WhatsApp (Cloud API) izni. Genel ileti izninden (ileti_izni) ayrıdır; ikisinden biri 'ret' ise gönderilmez. */
 export const WHATSAPP_IZINLERI = ["yok", "var", "ret"] as const;
 /** whatsapp_sohbeti: kişi gelen kutusundaki sohbette pazarlama iletisi istedi; temsilci sohbet ekranından kaydetti. */
-export const WHATSAPP_IZIN_KAYNAKLARI = ["form", "sozlesme", "sozlu", "kendisi_yazdi", "reklam", "whatsapp_sohbeti"] as const;
+// mevcut_musteri / siparis / diger: Kayıtlar > toplu "WhatsApp iznini kaydet" (diger açıklama ister; açıklama izin_notu).
+export const WHATSAPP_IZIN_KAYNAKLARI = [
+  "form",
+  "sozlesme",
+  "sozlu",
+  "kendisi_yazdi",
+  "reklam",
+  "whatsapp_sohbeti",
+  "mevcut_musteri",
+  "siparis",
+  "diger",
+] as const;
+/** Toplu "WhatsApp iznini kaydet"te seçilebilen kaynaklar (reklam ve kişinin kendisinin yazması sistemden gelir). */
+export const TOPLU_IZIN_KAYNAKLARI = ["mevcut_musteri", "siparis", "form", "sozlesme", "sozlu", "diger"] as const;
 
 export type AliciTuru = (typeof ALICI_TURLERI)[number];
 export type WhatsappIzni = (typeof WHATSAPP_IZINLERI)[number];
@@ -99,7 +112,14 @@ export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = 
   kendisi_yazdi: "WhatsApp'tan kendisi yazdı",
   reklam: "Reklam",
   whatsapp_sohbeti: "WhatsApp sohbeti",
+  mevcut_musteri: "Mevcut müşteri – WhatsApp yazışması",
+  siparis: "Sipariş sırasında numara verdi",
+  diger: "Diğer",
 };
+
+/** Toplu "WhatsApp iznini kaydet" beyanı: onay penceresinde zorunlu onay kutusu; metin denetim kaydına aynen yazılır. */
+export const WHATSAPP_TOPLU_IZIN_BEYANI =
+  "Bu kişilerin işletmemizden WhatsApp mesajı almayı kabul ettiğini beyan ederim; beyanın doğruluğundan işletmemiz sorumludur.";
 
 export const KANAL_ADLARI: Record<KuyrukKanali, string> = { eposta: "E-posta", sms: "SMS", whatsapp_api: "WhatsApp (API)" };
 

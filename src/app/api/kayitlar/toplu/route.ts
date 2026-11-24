@@ -1,14 +1,15 @@
-// Kayıtlar listesinde toplu işlem: etiket ekle / kaldır, alıcı türünü değiştir. Yalnızca yönetici (403).
+// Kayıtlar listesinde toplu işlem: etiket ekle / kaldır, alıcı türünü değiştir, WhatsApp iznini kaydet. Yalnızca yönetici
+// (403). En fazla TOPLU_ISLEM_AZAMI kayıt (filtreye uyan tümü dahil; aşarsa 400).
 // Seçim: sayfada işaretlenen id'ler ya da "filtreye uyan tümü" (süzgeç sorgusu sunucuda yeniden ayrıştırılır; istemciden
 // gelen tenant ya da kayıt listesine güvenilmez). Kurallar ve özet repo/kayitlar.ts > kayitlariTopluGuncelle.
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { kayitFiltresiCoz, topluSuzgec } from "@/lib/kayit-filtresi";
-import { ALICI_TURLERI } from "@/lib/mesajlasma";
-import { TOPLU_ISLEM_AZAMI_ID } from "@/lib/sabitler";
+import { ALICI_TURLERI, TOPLU_IZIN_KAYNAKLARI } from "@/lib/mesajlasma";
+import { TOPLU_ISLEM_AZAMI, TOPLU_ISLEM_SINIRI_METNI } from "@/lib/sabitler";
 import { ayniKaynakMi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
-import { TopluSecimDegistiHatasi, YetkiHatasi } from "@/server/repo/baglam";
+import { KayitKuraliHatasi, TopluSecimDegistiHatasi, YetkiHatasi } from "@/server/repo/baglam";
 import { kayitlariTopluGuncelle, type TopluSecim } from "@/server/repo/kayitlar";
 
 const BASLIK = { "Cache-Control": "no-store" };
@@ -20,7 +21,7 @@ const TopluIstek = z
     secim: z.discriminatedUnion("tur", [
       z.object({
         tur: z.literal("idler"),
-        idler: z.array(z.string().min(1).max(64)).min(1, "Kayıt seçin.").max(TOPLU_ISLEM_AZAMI_ID, `En fazla ${TOPLU_ISLEM_AZAMI_ID} kayıt seçilebilir.`),
+        idler: z.array(z.string().min(1).max(64)).min(1, "Kayıt seçin.").max(TOPLU_ISLEM_AZAMI, TOPLU_ISLEM_SINIRI_METNI),
       }),
       z.object({
         tur: z.literal("filtre"),
@@ -34,6 +35,14 @@ const TopluIstek = z
       z.object({ tur: z.literal("etiket_ekle"), etiket }),
       z.object({ tur: z.literal("etiket_kaldir"), etiket }),
       z.object({ tur: z.literal("alici_turu"), aliciTuru: z.enum(ALICI_TURLERI, "Alıcı türünü seçin.") }),
+      z.object({
+        tur: z.literal("whatsapp_izni"),
+        kaynak: z.enum(TOPLU_IZIN_KAYNAKLARI, "İzin kaynağını seçin."),
+        // "Diğer" kaynağında zorunlu (repo denetler); kaydın izin notuna yazılır.
+        aciklama: z.string().trim().max(500, "Açıklama en fazla 500 karakter olabilir.").nullish(),
+        // Onay penceresindeki zorunlu beyan kutusu.
+        beyan: z.literal(true, "WhatsApp izni için beyan onay kutusunu işaretleyin."),
+      }),
     ]),
   })
   .strict();
@@ -57,6 +66,7 @@ export async function POST(istek: Request) {
     return NextResponse.json({ sonuc: kayitlariTopluGuncelle(ctx, secim, islem) }, { headers: BASLIK });
   } catch (h) {
     if (h instanceof YetkiHatasi) return yasak(h.message);
+    if (h instanceof KayitKuraliHatasi) return NextResponse.json({ hata: h.message }, { status: h.durum, headers: BASLIK });
     if (h instanceof TopluSecimDegistiHatasi) {
       return NextResponse.json({ hata: h.message, guncelToplam: h.guncelToplam }, { status: 409, headers: BASLIK });
     }
