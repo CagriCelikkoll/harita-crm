@@ -12,6 +12,11 @@ export default defineConfig({
   test: {
     environment: "node",
     pool: "forks",
+    // Varsayılan 5 sn, makine yüklüyken (paralel işçiler, alt süreç başlatan betik testleri, ilk dönüştürme) normalde
+    // 1-2 sn süren testleri ara sıra düşürüyordu. Takılan test yine yakalanır; daha uzun sınır isteyen testler kendi
+    // sınırını verir.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     setupFiles: ["tests/yardimci/kurulum.ts"],
   },
 });

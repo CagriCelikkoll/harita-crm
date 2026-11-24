@@ -9,6 +9,7 @@ import { BilgiNotu } from "@/components/arayuz/not";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { SonucMesaji } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
+import { pencereDisinaTiklaninca } from "@/lib/disari-tiklama";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import {
   IYS_KAPALI_UYARISI,
@@ -189,6 +190,7 @@ export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: 
       <MesajSatiri mesaj={mesaj} />
       <dialog
         ref={pencere}
+        onClick={pencereDisinaTiklaninca}
         aria-labelledby={baslikId}
         onClose={() => setOnay(false)}
         className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-lg border border-kenar bg-white p-5 text-sm shadow-lg backdrop:bg-black/40"

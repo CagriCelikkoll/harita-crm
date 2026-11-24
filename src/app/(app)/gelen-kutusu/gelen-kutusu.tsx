@@ -6,15 +6,20 @@
 // Dosya gönderme (ekler.tsx): ataş menüsü, sürükle-bırak, yapıştırma; her dosya ayrı mesaj, açıklama ilkine. Bir mesajın
 // "Yanıtla"sı gönderimde context.message_id olur; alıntı kutusu gelen ve giden yanıtlarda görünür. Gönderilemeyen medya
 // mesajında "Tekrar dene".
+// Liste süzgeci (numara, Açık / Kapalı, atama; arama hariç) adreste ve kullanıcı + çalışma alanı başına tercih olarak
+// tutulur (lib/liste-tercihi): adreste süzgeç yoksa kayıtlı tercih uygulanır.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { bildir } from "@/components/bildirim";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { Simge } from "@/components/arayuz/simge";
 import { apiIstek } from "@/lib/api-istemci";
+import { useDisariTiklama } from "@/lib/disari-tiklama";
 import { boyutYaz, tarihYaz } from "@/lib/bicim";
 import {
   ACIKLAMA_AZAMI,
+  gelenKutusuFiltresiCoz,
+  gelenKutusuTercihi,
   MEDYA_TURLERI,
   MESAJ_TUR_ADLARI,
   mesajOzeti,
@@ -23,19 +28,21 @@ import {
   RET_UYARISI,
   TESLIM_ADLARI,
   YANIT_AZAMI,
+  type GelenKutusuFiltresi,
   type MedyaDto,
   type SohbetMesajiDto,
   type SohbetNotuDto,
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
 import { yanitaEkle } from "@/lib/hazir-cevaplar";
+import { GELEN_KUTUSU_TERCIH_ALANLARI, tarayiciDeposu, tercihAnahtari, tercihOku, tercihYaz } from "@/lib/liste-tercihi";
 import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
 import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
 import { EkDugmesi, ekGonder, EkSeridi, panoDosyalari, useEkler } from "./ekler";
 import { HazirCevapSecici } from "./hazir-cevap-secici";
 
-type Filtre = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; q: string };
+type Filtre = GelenKutusuFiltresi;
 
 const sorgu = (f: Filtre, ek: Record<string, string> = {}) => {
   const p = new URLSearchParams();
@@ -75,8 +82,17 @@ function mesajlariBirlestir(eski: SohbetMesajiDto[], yeni: SohbetMesajiDto[]) {
   return [...harita.values()].sort((a, b) => a.tarih.localeCompare(b.tarih));
 }
 
-export function GelenKutusu(props: { ilk: SohbetListesi; ilkSohbet: string | null; kullaniciId: string }) {
-  const [filtre, setFiltre] = useState<Filtre>({ numara: "", durum: "acik", atanan: "", q: "" });
+export function GelenKutusu(props: {
+  ilk: SohbetListesi;
+  ilkSohbet: string | null;
+  kullaniciId: string;
+  tenantId: string;
+  /** Adresten çözülen süzgeç (ilk liste bununla geldi). */
+  ilkFiltre: Filtre;
+  /** Adreste süzgeç parametresi vardı: kayıtlı tercih uygulanmaz. */
+  adresteFiltre: boolean;
+}) {
+  const [filtre, setFiltre] = useState<Filtre>(props.ilkFiltre);
   const [liste, setListe] = useState(props.ilk);
   const [seciliId, setSeciliId] = useState<string | null>(props.ilkSohbet);
   const [ayrinti, setAyrinti] = useState<SohbetAyrintisi | null>(null);
@@ -137,6 +153,36 @@ export function GelenKutusu(props: { ilk: SohbetListesi; ilkSohbet: string | nul
       iptal = true;
     };
   }, [props.ilkSohbet, okundu]);
+
+  // Liste tercihi: ilk açılışta (adreste süzgeç yoksa) kayıtlı tercih uygulanır; sonra her değişiklik kaydedilir ve
+  // adrese yazılır (?sohbet= gibi diğer parametreler korunur).
+  const tercihHazir = useRef(false);
+  const { tenantId, kullaniciId, adresteFiltre } = props;
+  const numaraIdleri = props.ilk.numaralar.map((n) => n.id).join(",");
+  useEffect(() => {
+    const depo = tarayiciDeposu();
+    const anahtar = tercihAnahtari("gelen-kutusu", tenantId, kullaniciId);
+    const f = { numara: filtre.numara, durum: filtre.durum, atanan: filtre.atanan, q: "" };
+    if (!tercihHazir.current) {
+      tercihHazir.current = true;
+      const kayitli = adresteFiltre ? null : tercihOku(depo, anahtar, GELEN_KUTUSU_TERCIH_ALANLARI);
+      if (kayitli) {
+        const k = gelenKutusuFiltresiCoz((a) => kayitli[a], numaraIdleri ? numaraIdleri.split(",") : []);
+        if (k.numara !== f.numara || k.durum !== f.durum || k.atanan !== f.atanan) {
+          // Kayıtlı tercih bir kez, açılışta uygulanır; değişiklik bir sonraki çizimde kaydedilir.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- tarayıcı depolaması yalnızca istemcide okunur
+          setFiltre((x) => ({ ...k, q: x.q }));
+          return;
+        }
+      }
+    }
+    const t = gelenKutusuTercihi(f);
+    tercihYaz(depo, anahtar, t);
+    const adres = new URL(window.location.href);
+    for (const a of GELEN_KUTUSU_TERCIH_ALANLARI) adres.searchParams.delete(a);
+    for (const [a, d] of Object.entries(t)) adres.searchParams.set(a, d);
+    if (adres.href !== window.location.href) window.history.replaceState(null, "", adres);
+  }, [filtre.numara, filtre.durum, filtre.atanan, tenantId, kullaniciId, adresteFiltre, numaraIdleri]);
 
   // Süzgeç değişince liste hemen yenilenir.
   const ilkRender = useRef(true);
@@ -688,6 +734,14 @@ function YazmaAlani(props: {
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [sablonAcik, setSablonAcik] = useState(false);
   const [hazirAcik, setHazirAcik] = useState(false);
+  const hazirPanel = useRef<HTMLDivElement>(null);
+  const hazirDugme = useRef<HTMLButtonElement>(null);
+  const hazirKapat = () => {
+    setHazirAcik(false);
+    yanitRef.current?.focus();
+  };
+  // Hazır cevap seçici dışarı tıklayınca da kapanır (Esc arama kutusunda zaten kapatır; başka yerdeyken de kapatır).
+  useDisariTiklama(hazirAcik, [hazirPanel, hazirDugme], (neden) => (neden === "esc" ? hazirKapat() : setHazirAcik(false)));
   const [surukleniyor, setSurukleniyor] = useState(false);
   const yanitRef = useRef<HTMLTextAreaElement>(null);
   const ek = useEkler((m) => bildir(m, "hata"));
@@ -852,7 +906,11 @@ function YazmaAlani(props: {
           </div>
         )}
         <EkSeridi ekler={ek.ekler} gonderiliyor={gonderiliyor} onKaldir={ek.kaldir} onTekrar={tekrarDene} />
-        {hazirAcik && <HazirCevapSecici onSec={hazirCevapSec} onKapat={() => { setHazirAcik(false); yanitRef.current?.focus(); }} />}
+        {hazirAcik && (
+          <div ref={hazirPanel}>
+            <HazirCevapSecici onSec={hazirCevapSec} onKapat={hazirKapat} />
+          </div>
+        )}
         <textarea
           ref={yanitRef}
           className="girdi min-h-20"
@@ -881,7 +939,7 @@ function YazmaAlani(props: {
           </span>
           <div className="flex flex-wrap gap-2">
             <EkDugmesi disabled={gonderiliyor} onDosyalar={ek.ekle} />
-            <button type="button" className="dugme-kucuk" aria-expanded={hazirAcik} onClick={() => setHazirAcik((x) => !x)}>
+            <button ref={hazirDugme} type="button" className="dugme-kucuk" aria-expanded={hazirAcik} onClick={() => setHazirAcik((x) => !x)}>
               {hazirAcik ? "Hazır cevabı kapat" : "Hazır cevap"}
             </button>
             {s.izin === "var" && (

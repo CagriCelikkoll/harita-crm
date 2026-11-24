@@ -1,9 +1,12 @@
 // Kayıtlar süzgecinin adres (URL) biçimi: Kayıtlar sayfası ve CSV dışa aktarma aynı ayrıştırıcıyı kullanır.
 // grup: ilgi | incelenmemis | tum (sekme), durum, izin, kaynak, wa_izin, etiket, q (arama), ad=bos (adı girilmemiş
 // Google kayıtları), inceleme (eski bağlantılar ve sekme verilmediğinde), sira (son | ad), boyut (50 | 100 | 200), sayfa.
-import { WHATSAPP_IZINLERI, type WhatsappIzni } from "./mesajlasma";
+import { WHATSAPP_IZINLERI, WHATSAPP_IZNI_ADLARI, type WhatsappIzni } from "./mesajlasma";
 import {
   ILETI_IZINLERI,
+  ILETI_IZNI_ADLARI,
+  KAYIT_DURUM_ADLARI,
+  KAYIT_KAYNAK_ADLARI,
   INCELEME_DURUMLARI,
   KAYIT_DURUMLARI,
   KAYIT_SAYFA_BOYUTLARI,
@@ -77,3 +80,15 @@ export function topluSuzgec(f: KayitFiltresi): Omit<KayitFiltresi, "sayfa" | "si
 /** Filtreler panelinde seçili süzgeç sayısı (düğmedeki rozet). */
 export const etkinSuzgecSayisi = (f: KayitFiltresi) =>
   [f.durum, f.iletiIzni, f.kaynak, f.whatsappIzni, f.etiket, f.adsizGoogle].filter(Boolean).length;
+
+/** Etkin süzgeçlerin okunur hâli ("Etiket = parti-1"): listenin üstündeki "Filtre aktif" şeridi. */
+export function etkinSuzgecEtiketleri(f: KayitFiltresi): string[] {
+  return [
+    f.durum && `Durum = ${KAYIT_DURUM_ADLARI[f.durum]}`,
+    f.iletiIzni && `İleti izni = ${ILETI_IZNI_ADLARI[f.iletiIzni]}`,
+    f.kaynak && `Kaynak = ${KAYIT_KAYNAK_ADLARI[f.kaynak]}`,
+    f.whatsappIzni && `WhatsApp izni = ${WHATSAPP_IZNI_ADLARI[f.whatsappIzni]}`,
+    f.etiket && `Etiket = ${f.etiket}`,
+    f.adsizGoogle && "Yalnızca adı girilmemiş Google kayıtları",
+  ].filter((x): x is string => !!x);
+}

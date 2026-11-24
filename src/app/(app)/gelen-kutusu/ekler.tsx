@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Simge } from "@/components/arayuz/simge";
 import { boyutYaz } from "@/lib/bicim";
+import { useDisariTiklama } from "@/lib/disari-tiklama";
 import {
   BELGE_ACCEPT,
   EK_AZAMI,
@@ -110,19 +111,26 @@ export function useEkler(uyari: (metin: string) => void) {
   return { ekler, ref, ekle, kaldir, guncelle };
 }
 
-/** Ataş düğmesi: Fotoğraf/Video (telefonda kamera / galeri) ve Belge; çoklu seçim. */
+/** Ataş düğmesi: Fotoğraf/Video (telefonda kamera / galeri) ve Belge; çoklu seçim. Dışarı tıklayınca / Esc ile kapanır. */
 export function EkDugmesi(props: { disabled?: boolean; onDosyalar: (d: File[]) => void }) {
   const [acik, setAcik] = useState(false);
   const gorsel = useRef<HTMLInputElement>(null);
   const belge = useRef<HTMLInputElement>(null);
+  const kok = useRef<HTMLDivElement>(null);
+  const dugme = useRef<HTMLButtonElement>(null);
+  useDisariTiklama(acik, [kok], (neden) => {
+    setAcik(false);
+    if (neden === "esc") dugme.current?.focus();
+  });
   const sec = (e: React.ChangeEvent<HTMLInputElement>) => {
     props.onDosyalar([...(e.target.files ?? [])]);
     e.target.value = "";
     setAcik(false);
   };
   return (
-    <div className="relative">
+    <div ref={kok} className="relative">
       <button
+        ref={dugme}
         type="button"
         className="dugme-kucuk"
         aria-haspopup="menu"

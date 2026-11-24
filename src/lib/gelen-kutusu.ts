@@ -299,3 +299,29 @@ export function mesajOzeti(m: { tur: SohbetMesajTuru; metin: string | null; icer
   if (m.metin) return m.metin.length > 120 ? `${m.metin.slice(0, 117)}…` : m.metin;
   return `[${MESAJ_TUR_ADLARI[m.tur]}]`;
 }
+
+/** Gelen kutusu liste süzgeci (arama hariç adreste ve liste tercihinde tutulur; lib/liste-tercihi). */
+export type GelenKutusuFiltresi = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; q: string };
+export const VARSAYILAN_GELEN_KUTUSU_FILTRESI: GelenKutusuFiltresi = { numara: "", durum: "acik", atanan: "", q: "" };
+
+/**
+ * Adres / tercih biçiminden süzgeç: durum=acik|kapali|tum, atanan=ben|yok, numara=<bağlantı>. Numara yalnızca
+ * çalışma alanında hâlâ varsa ve birden çok numara varsa (sekmeler yalnızca o zaman görünür) uygulanır: görünmeyen bir
+ * süzgeç listeyi sessizce daraltmasın.
+ */
+export function gelenKutusuFiltresiCoz(al: (ad: string) => string | null | undefined, numaralar: readonly string[]): GelenKutusuFiltresi {
+  const numara = al("numara") ?? "";
+  const durum = al("durum");
+  const atanan = al("atanan");
+  return {
+    numara: numaralar.length > 1 && numaralar.includes(numara) ? numara : "",
+    durum: durum === "kapali" ? "kapali" : durum === "tum" ? "" : "acik",
+    atanan: atanan === "ben" || atanan === "yok" ? atanan : "",
+    q: "",
+  };
+}
+
+/** Süzgecin adres / tercih biçimi (arama hariç). Durum her zaman yazılır: adres hiçbir zaman "tercihsiz" görünmez. */
+export function gelenKutusuTercihi(f: GelenKutusuFiltresi): Record<string, string> {
+  return { ...(f.numara ? { numara: f.numara } : {}), durum: f.durum || "tum", ...(f.atanan ? { atanan: f.atanan } : {}) };
+}

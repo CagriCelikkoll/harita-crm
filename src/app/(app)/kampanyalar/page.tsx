@@ -3,8 +3,10 @@ import Link from "next/link";
 import { IlerlemeCubugu } from "@/components/arayuz/gosterge";
 import { DurumRozeti, type RozetTonu } from "@/components/arayuz/rozet";
 import { SekmeGrubu } from "@/components/arayuz/sekmeler";
+import { ListeTercihi } from "@/components/liste-tercihi";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
+import { KAMPANYA_TERCIH_ALANLARI } from "@/lib/liste-tercihi";
 import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI, whatsappDonusMetni, type KampanyaDurumu } from "@/lib/mesajlasma";
 import { sayfaBaglami } from "@/server/oturum";
 import { kampanyalariListele } from "@/server/repo/kampanyalar";
@@ -23,7 +25,8 @@ const DURUM_TONU: Partial<Record<KampanyaDurumu, RozetTonu>> = {
 };
 
 // Kampanyalar: kampanya listesi ve WhatsApp günlük liste (?sekme=whatsapp). Yeni kampanya adım adım sihirbazla
-// (/kampanyalar/yeni) oluşturulur.
+// (/kampanyalar/yeni) oluşturulur. Seçilen sekme hatırlanır (components/liste-tercihi): sekme bağlantıları ?sekme=
+// parametresini her zaman açıkça taşır; parametresiz adres (menüden gelindi) kayıtlı sekmeyi açar.
 export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/kampanyalar">) {
   const p = await searchParams;
   const tek = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -34,6 +37,14 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
 
   return (
     <>
+      <ListeTercihi
+        liste="kampanyalar"
+        tenantId={ctx.tenantId}
+        kullaniciId={ctx.userId}
+        yol="/kampanyalar"
+        arama={new URLSearchParams(Object.entries(p).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString()}
+        alanlar={KAMPANYA_TERCIH_ALANLARI}
+      />
       <SayfaBasligi
         baslik="Kampanyalar"
         aciklama="E-posta, SMS ve WhatsApp kampanyaları ile WhatsApp günlük listeniz; ret ve izin kuralları her mesajdan önce yeniden kontrol edilir."
@@ -48,7 +59,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
           etiket="Kampanya görünümü"
           secili={sekme}
           secenekler={[
-            { deger: "kampanyalar", ad: "Kampanyalar", href: "/kampanyalar" },
+            { deger: "kampanyalar", ad: "Kampanyalar", href: "/kampanyalar?sekme=kampanyalar" },
             { deger: "whatsapp", ad: "WhatsApp günlük liste", href: "/kampanyalar?sekme=whatsapp" },
           ]}
         />

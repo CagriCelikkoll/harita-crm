@@ -5,7 +5,10 @@ import { BilgiNotu } from "@/components/arayuz/not";
 import { SekmeGrubu } from "@/components/arayuz/sekmeler";
 import { Simge } from "@/components/arayuz/simge";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
-import { etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } from "@/lib/kayit-filtresi";
+import { AcilirPanel } from "@/components/arayuz/acilir-panel";
+import { ListeTercihi } from "@/components/liste-tercihi";
+import { etkinSuzgecEtiketleri, etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } from "@/lib/kayit-filtresi";
+import { KAYIT_TERCIH_ALANLARI } from "@/lib/liste-tercihi";
 import { WHATSAPP_IZINLERI, WHATSAPP_IZNI_ADLARI, whatsappDonusMetni } from "@/lib/mesajlasma";
 import {
   ILETI_IZINLERI,
@@ -33,6 +36,12 @@ import { KayitlarEkrani } from "./kayitlar-ekrani";
 export const metadata: Metadata = { title: "Kayıtlar" };
 
 const tek = (d: string | string[] | undefined) => (Array.isArray(d) ? d[0] : d);
+/** Gelen adres sorgusunun metni (liste tercihi için). */
+const adresSorgusu = (p: Record<string, string | string[] | undefined>) => {
+  const s = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) for (const d of Array.isArray(v) ? v : v === undefined ? [] : [v]) s.append(k, d);
+  return s.toString();
+};
 
 // Kayıtlar (docs/tasarim/Kayitlar.dc.html): sekmeler (İlgilendiklerim / İncelenmemiş / Tümü), arama, Filtreler,
 // tablo ve sağda ayrıntı paneli. Bu sunucu sayfası Places'a GİTMEZ. Adı girilmemiş Google kayıtlarının adı ve adresi
@@ -77,6 +86,9 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
     return adres(s);
   };
   const suzgecSayisi = etkinSuzgecSayisi(filtre);
+  // Sekme, arama, sıra ve boyut korunur; yalnızca süzgeçler temizlenir.
+  const temizAdres = adres(kayitSorgusu({ grup: filtre.grup, arama: filtre.arama, sira: filtre.sira, boyut: filtre.boyut }));
+  const etkinSuzgecler = etkinSuzgecEtiketleri(filtre);
   // Arama ve Filtreler formları sekmeyi ve diğer süzgeci korur.
   const gizliAlanlar = (haric: string[]) =>
     [...sorgu.entries()].filter(([k]) => !haric.includes(k)).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />);
@@ -84,6 +96,14 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
 
   return (
     <>
+      <ListeTercihi
+        liste="kayitlar"
+        tenantId={ctx.tenantId}
+        kullaniciId={ctx.userId}
+        yol="/kayitlar"
+        arama={adresSorgusu(p)}
+        alanlar={KAYIT_TERCIH_ALANLARI}
+      />
       <SayfaBasligi baslik="Kayıtlar" aciklama="İlgilendiğiniz işletmeler ve kişiler. Bir satıra tıklayınca ayrıntılar sağda açılır.">
         <Link href="/kayitlar/ice-aktar" className="dugme">
           İçe aktar
@@ -131,16 +151,16 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
             Ara
           </button>
         </form>
-        <details className="group relative">
-          <summary className="dugme list-none [&::-webkit-details-marker]:hidden">
-            <Simge ad="filtre" boyut={16} />
-            Filtreler{suzgecSayisi > 0 && <span className="rozet ml-1">{suzgecSayisi}</span>}
-          </summary>
-          <form
-            key={`suzgec-${sorgu}`}
-            method="get"
-            className="absolute right-0 z-20 mt-2 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3 rounded-kart border border-kenar bg-white p-5 shadow-lg"
-          >
+        <AcilirPanel
+          dugme={
+            <>
+              <Simge ad="filtre" boyut={16} />
+              Filtreler{suzgecSayisi > 0 && <span className="rozet ml-1">{suzgecSayisi}</span>}
+            </>
+          }
+          panelSinifi="absolute right-0 z-20 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-kart border border-kenar bg-white p-5 shadow-lg"
+        >
+          <form key={`suzgec-${sorgu}`} method="get" className="flex flex-col gap-3">
             {gizliAlanlar(["durum", "izin", "kaynak", "wa_izin", "etiket", "ad"])}
             <label className="etiket">
               Durum
@@ -206,7 +226,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
                 Uygula
               </button>
               {suzgecSayisi > 0 && (
-                <Link href={adres(kayitSorgusu({ grup: filtre.grup, arama: filtre.arama }))} className="dugme">
+                <Link href={temizAdres} className="dugme">
                   Temizle
                 </Link>
               )}
@@ -228,8 +248,20 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
               aranamaz.
             </p>
           </form>
-        </details>
+        </AcilirPanel>
       </div>
+
+      {etkinSuzgecler.length > 0 && (
+        // Süzgeçler hatırlandığı için (lib/liste-tercihi) etkin süzgeç her zaman açıkça görünür.
+        <p role="status" className="-mt-3 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-uyari-acik px-3 py-2 text-sm text-uyari">
+          <span className="font-semibold">Filtre aktif:</span>
+          <span>{etkinSuzgecler.join(" · ")}</span>
+          <span aria-hidden="true">·</span>
+          <Link href={temizAdres} className="font-semibold underline">
+            Temizle
+          </Link>
+        </p>
+      )}
 
       <KayitlarEkrani
         key={sayfaBaglantisi(liste.sayfa)}

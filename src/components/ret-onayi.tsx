@@ -6,6 +6,7 @@
 import { useId, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { RET_ONAY_METNI } from "@/lib/mesajlasma";
+import { pencereDisinaTiklaninca } from "@/lib/disari-tiklama";
 
 const bosAbone = () => () => {};
 
@@ -23,6 +24,7 @@ export function RetDugmesi(props: { ad: string; etiket: string; disabled?: boole
         createPortal(
           <dialog
             ref={pencere}
+            onClick={pencereDisinaTiklaninca}
             aria-labelledby={baslikId}
             className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-kenar bg-white p-5 text-sm shadow-lg backdrop:bg-black/40"
           >

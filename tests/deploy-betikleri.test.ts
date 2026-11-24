@@ -87,8 +87,8 @@ exec bash "$(yol "$BETIK")"`;
   return { durum: r.status, cikti: r.stdout + r.stderr, satirlar };
 }
 
-// Windows'ta (Git Bash) her süreç başlatma yavaştır; tam test koşusunda varsayılan 5 sn yetmez.
-const SURE = 60_000;
+// Windows'ta (Git Bash) her süreç başlatma yavaştır: normalde ~10 sn süren test, makine yüklüyken 60 sn'yi aşabiliyordu.
+const SURE = 180_000;
 
 describe("deploy betikleri", { timeout: SURE }, () => {
   it.skipIf(!bashVar).each(BETIKLER)("%s sözdizimi geçerli (bash -n)", (ad) => {

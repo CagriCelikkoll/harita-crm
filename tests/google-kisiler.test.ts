@@ -211,13 +211,18 @@ describe("sınırlar ve süre", () => {
 
     const { ctx } = kiraciOlustur("GoogleBuyuk");
     const tam = [baslik, ...Array.from({ length: 20_000 }, (_, i) => satir(i))].join("\n");
+    // Bütçe bu sürecin CPU süresiyle ölçülür: duvar saati paralel test işçileri ve makinedeki diğer işler yüzünden
+    // şişer (yük altında 13 sn'lik iş 30 sn'yi aşıyordu); CPU süresi işin kendi maliyetidir.
     const bas = performance.now();
+    const cpuBas = process.cpuUsage();
     const o = await svc.iceAktarmaBaslat(ctx, "buyuk.csv", metin(tam));
     const r = svc.iceAktarmaTamamla(ctx, o.id, o.onerilenEslem, SECENEK, false);
+    const cpu = process.cpuUsage(cpuBas);
+    const cpuSure = (cpu.user + cpu.system) / 1000;
     const sure = performance.now() - bas;
     expect(r).toMatchObject({ toplam: 20_000, yeni: 20_000, eklenen: 20_000, hatali: 0 });
     expect((db.$client.prepare("select count(*) n from leads where tenant_id = ?").get(ctx.tenantId) as { n: number }).n).toBe(20_000);
-    console.info(`20 000 satır Google içe aktarma: ${Math.round(sure)} ms`);
-    expect(sure).toBeLessThan(30_000);
+    console.info(`20 000 satır Google içe aktarma: ${Math.round(sure)} ms (CPU ${Math.round(cpuSure)} ms)`);
+    expect(cpuSure).toBeLessThan(30_000);
   }, 120_000);
 });

@@ -1,7 +1,7 @@
 "use client";
 // Ana menü (docs/tasarim/): 232 px koyu sütun; logo, simgeli 44 px bağlantılar, altta "Bu ayki kullanım" göstergesi
-// ve kullanıcı kartı. Telefon genişliğinde üst çubuk + açılır menü.
-import { useState } from "react";
+// ve kullanıcı kartı. Telefon genişliğinde üst çubuk + açılır menü (dışarı tıklayınca / Esc ile kapanır).
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { aktifAlanSec, cikisYap } from "@/app/eylemler/oturum";
@@ -9,6 +9,7 @@ import { Simge, type SimgeAdi } from "@/components/arayuz/simge";
 import { KullanimGostergesi } from "@/components/kullanim-gostergesi";
 import { basHarfler, type KullanimOzeti } from "@/lib/arayuz";
 import { useBildirimAdresi } from "@/lib/bildirim-istemci";
+import { useDisariTiklama } from "@/lib/disari-tiklama";
 import { googleOnbellekleriniTemizle } from "@/lib/google-onbellegi";
 
 const BAGLANTILAR: { href: string; ad: string; simge: SimgeAdi }[] = [
@@ -34,10 +35,16 @@ export function Menu(props: {
 }) {
   const yol = usePathname();
   const [acik, setAcik] = useState(false);
+  const kok = useRef<HTMLElement>(null);
+  const dugme = useRef<HTMLButtonElement>(null);
+  useDisariTiklama(acik, [kok], (neden) => {
+    setAcik(false);
+    if (neden === "esc") dugme.current?.focus();
+  });
   const pushAdresi = useBildirimAdresi();
 
   return (
-    <aside className="bg-menu text-[#e8ece9] md:sticky md:top-0 md:flex md:h-screen md:w-58 md:shrink-0 md:flex-col md:gap-7 md:px-4 md:py-6">
+    <aside ref={kok} className="bg-menu text-[#e8ece9] md:sticky md:top-0 md:flex md:h-screen md:w-58 md:shrink-0 md:flex-col md:gap-7 md:px-4 md:py-6">
       <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-2 md:py-0">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-ana text-white">
@@ -46,6 +53,7 @@ export function Menu(props: {
           <span className="truncate text-base font-bold">Harita CRM</span>
         </div>
         <button
+          ref={dugme}
           type="button"
           className="min-h-10 rounded-lg px-3 text-sm text-menu-metin ring-1 ring-white/20 md:hidden"
           aria-expanded={acik}
