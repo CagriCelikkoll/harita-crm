@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   // Places içeriği hiçbir katmanda önbelleğe alınmamalıdır.
   serverExternalPackages: ["better-sqlite3", "exceljs", "web-push"],
   poweredByHeader: false,
+  // proxy.ts her istekte çalışır; Next gövdeyi bu sınıra kadar tamponlar, aşanı SESSİZCE keser (varsayılan 10 MB).
+  // Gelen kutusundan dosya gönderme (belge 20 MB) için Caddy'nin gövde sınırıyla (deploy/Caddyfile, 25 MB) aynı.
+  experimental: { proxyClientMaxBodySize: "25mb" },
   // Geliştirme simgesi sol alttaki "Çıkış yap"ın üstüne biniyordu; menü solda olduğu için sağ alta alınır.
   devIndicators: { position: "bottom-right" },
   // Eski adresler (yeni düzen): İletişim → Kampanyalar. Geçici (307); sorgu parametreleri hedefe aynen geçer.

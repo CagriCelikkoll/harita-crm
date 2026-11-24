@@ -7,6 +7,9 @@
 //  - Elle serbest METİN: yalnızca 24 saat penceresinde (kişinin bu numaraya son yazdığı andan itibaren). Bu müşteri
 //    hizmeti yanıtıdır: WhatsApp izni "yok" olsa da (B3) ya da kişi RET vermiş olsa da (K4) gönderilebilir, çünkü
 //    müşteri kendisi yazdı. RET'li kişiye her yanıt olay geçmişine "RET'li kişiye hizmet yanıtı" olarak yazılır.
+//  - Elle MEDYA (görsel, video, belge): metinle aynı kurallar; dosya içerikten doğrulanır (giden-medya.ts), medya kotasına
+//    sayılır, gelen medyanın klasörüne yazılır ve Meta'ya yüklenip gönderilir. Meta reddederse mesaj "failed" ve
+//    nedeniyle yazılır, aynı dosyayla yeniden denenebilir. Metin ve medya bir mesaja yanıt olabilir (context.message_id).
 //  - ŞABLON (her kategori): kampanya alıcı kurallarının tamamı (WhatsApp izni, RET, engel listesi, bireyselde İYS
 //    beyanı, WhatsApp yok). RET'li ya da engelli kişiye şablon HİÇBİR koşulda gitmez (403). Şablon numaranın WABA'sında
 //    ve kullanılabilir olmalı; test modu kapalıyken gönderen bilgileri tam olmalı; günlük WhatsApp sınırına ve Meta
@@ -15,9 +18,17 @@
 //    durum belirsiz" olarak yazılır. Aynı istemci kimliğiyle ikinci istek ilk mesajı döner (çift gönderim yok).
 //  - Bot ve kampanya bu yoldan geçmez (kampanya işçide, bot C grubunda).
 import "server-only";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 import {
+  ACIKLAMA_AZAMI,
+  MEDYA_KOTA_BAYT,
+  medyaGonderimHataMetni,
   MESAJ_SAYFA_BOYUTU,
+  MESAJ_TUR_ADLARI,
+  type GidenMedyaTuru,
   NOT_AZAMI,
   pencereAcik,
   pencereBitisi,
@@ -54,7 +65,9 @@ import {
   degisenSohbetler,
   gelenKutusuSurumuGetir,
   gidenMesajYaz,
+  gidenMesajSonucuYaz,
   istemciMesajiBul,
+  mesajSatiriGetir,
   notEkle,
   notlariListele,
   okunduIsaretle,
@@ -68,6 +81,7 @@ import {
   type SohbetSatiri,
 } from "../repo/gelen-kutusu";
 import { sayacAyir, sayacIade } from "../repo/gonderim-sayaci";
+import { medyaKotaKullanimi } from "../repo/sistem/medya";
 import { iletiAyarlariGetir } from "../repo/ileti-ayarlari";
 import { whatsappKampanyalariniDuraklat } from "../repo/kampanyalar";
 import { kayitGetir } from "../repo/kayitlar";
@@ -77,8 +91,10 @@ import { baglantiGetir, baglantilariListele, hesapKilidiYaz, sonHataYaz } from "
 import { whatsappIzniAyarla, whatsappKisisiGetir, whatsappYokIsaretle } from "../repo/whatsapp-kisileri";
 import { sablonGetir } from "../repo/whatsapp-sablonlari";
 import { GraphHatasi, whatsappApiIstemcisi } from "../whatsapp-api";
+import { GidenMedyaHatasi, gidenMedyaDogrula } from "./giden-medya";
 import { engelSorgusuOlustur, gunlukSinir, ticariIletiEksikleri } from "./ileti";
 import { medyaDto } from "./medya";
+import { medyaTamYolu, yeniMedyaYolu } from "./medya-dosyalari";
 import { sablonlar, whatsappBaglantisiCoz, type SablonDto } from "./whatsapp-api";
 
 export class GelenKutusuHatasi extends Error {
@@ -126,6 +142,14 @@ export function mesajDto(m: SohbetMesajiSatiri): SohbetMesajiDto {
     kampanyaId: m.kampanyaId,
     teslimDurumu: m.teslimDurumu,
     teslimHataKodu: m.teslimHataKodu,
+    hataMetni: m.hataMetni ?? (m.teslimDurumu === "failed" ? medyaGonderimHataMetni(m.teslimHataKodu) : null),
+    tekrarDenenebilir:
+      m.yon === "giden" && m.kaynak === "temsilci" && m.teslimDurumu === "failed" && m.medya?.durum === "indirildi" && Boolean(m.medya.yol),
+    yanit: m.yanitWamid
+      ? m.yanitlanan
+        ? { id: m.yanitlanan.id, yon: m.yanitlanan.yon, ozet: mesajOzeti(m.yanitlanan) }
+        : { id: null, yon: null, ozet: "Önceki bir mesaj" }
+      : null,
     tarih: m.tarih.toISOString(),
     surum: m.surum,
   };
@@ -346,11 +370,14 @@ export function pazarlamaIzniKaydet(ctx: TenantContext, sohbetId: string, g: { i
 // --- Gönderme ---
 
 const istemciKimligi = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, "Geçersiz istemci kimliği.");
+/** Yanıtlanan mesaj (bu sohbetin, wamid'i olan): gönderimde context.message_id. */
+const yanitlananId = z.string().min(1).max(64).nullish();
 export const MesajGirdisi = z.discriminatedUnion("tur", [
   z
     .object({
       tur: z.literal("metin"),
       metin: z.string().trim().min(1, "Mesaj boş olamaz.").max(YANIT_AZAMI, `Mesaj en fazla ${YANIT_AZAMI} karakter olabilir.`),
+      yanitlananId,
       istemciKimligi,
     })
     .strict(),
@@ -366,36 +393,63 @@ export const MesajGirdisi = z.discriminatedUnion("tur", [
 ]);
 export type MesajGirdisi = z.infer<typeof MesajGirdisi>;
 
-/** Aynı istemci kimliğiyle eşzamanlı ikinci istek (ilk henüz bitmeden): çift gönderim olmasın. */
+/** Medya gönderiminin dosya dışındaki alanları (multipart; rota ayrıştırır). Açıklama görsel, video ve belgeye eklenir. */
+export const MedyaGirdisi = z
+  .object({
+    aciklama: z
+      .string()
+      .trim()
+      .max(ACIKLAMA_AZAMI, `Açıklama en fazla ${ACIKLAMA_AZAMI} karakter olabilir.`)
+      .transform((s) => s || null)
+      .nullish(),
+    yanitlananId,
+    istemciKimligi,
+  })
+  .strict();
+export type MedyaGirdisi = z.infer<typeof MedyaGirdisi>;
+
+export const MEDYA_KOTASI_DOLU = "Medya için ayrılan disk alanı doldu; dosya gönderilemedi. Ayarlar'dan saklama süresini kısaltabilirsiniz.";
+
+/** Aynı istemci kimliğiyle (ya da aynı mesajın yeniden denenmesiyle) eşzamanlı ikinci istek: çift gönderim olmasın. */
 const isleniyor = new Set<string>();
 
-export type GonderimSonucu = { mesaj: SohbetMesajiDto; tekrar: boolean; uyari: string | null };
-
-export async function sohbetMesajiGonder(ctx: TenantContext, sohbetId: string, g: MesajGirdisi, simdi = new Date()): Promise<GonderimSonucu> {
-  const sohbet = sohbetGetir(ctx, sohbetId);
-  if (!sohbet) throw new GelenKutusuHatasi("Sohbet bulunamadı.", 404);
-
-  const onceki = istemciMesajiBul(ctx, g.istemciKimligi);
-  if (onceki) {
-    if (onceki.sohbetId !== sohbetId) throw new GelenKutusuHatasi("Geçersiz istemci kimliği.", 400);
-    return { mesaj: mesajDto({ ...onceki, gonderenAd: null, medya: null }), tekrar: true, uyari: null };
-  }
-  const anahtar = `${ctx.tenantId}|${g.istemciKimligi}`;
+async function tekSeferde<T>(anahtar: string, fn: () => Promise<T>): Promise<T> {
   if (isleniyor.has(anahtar)) throw new GelenKutusuHatasi("Bu mesaj zaten gönderiliyor.", 409);
   isleniyor.add(anahtar);
   try {
-    return await gonder(ctx, sohbet, g, simdi);
+    return await fn();
   } finally {
     isleniyor.delete(anahtar);
   }
 }
 
-async function gonder(
+export type GonderimSonucu = { mesaj: SohbetMesajiDto; tekrar: boolean; uyari: string | null };
+
+type SohbetKaydi = NonNullable<ReturnType<typeof sohbetGetir>>;
+
+/** Sohbet bu çalışma alanının olmalı; aynı istemci kimliğiyle yazılmış mesaj varsa o döner (ikinci kez gönderilmez). */
+async function istemciKimligiyle(
   ctx: TenantContext,
-  sohbet: NonNullable<ReturnType<typeof sohbetGetir>>,
-  g: MesajGirdisi,
-  simdi: Date,
+  sohbetId: string,
+  kimlik: string,
+  fn: (sohbet: SohbetKaydi) => Promise<GonderimSonucu>,
 ): Promise<GonderimSonucu> {
+  const sohbet = sohbetGetir(ctx, sohbetId);
+  if (!sohbet) throw new GelenKutusuHatasi("Sohbet bulunamadı.", 404);
+  const onceki = istemciMesajiBul(ctx, kimlik);
+  if (onceki) {
+    if (onceki.sohbetId !== sohbetId) throw new GelenKutusuHatasi("Geçersiz istemci kimliği.", 400);
+    return { mesaj: mesajDto(mesajSatiriGetir(ctx, onceki.id)!), tekrar: true, uyari: null };
+  }
+  return tekSeferde(`${ctx.tenantId}|${kimlik}`, () => fn(sohbet));
+}
+
+export async function sohbetMesajiGonder(ctx: TenantContext, sohbetId: string, g: MesajGirdisi, simdi = new Date()): Promise<GonderimSonucu> {
+  return istemciKimligiyle(ctx, sohbetId, g.istemciKimligi, (sohbet) => gonder(ctx, sohbet, g, simdi));
+}
+
+/** Her gönderimin ön koşulları: numara bağlı ve doğrulanmış, hesap kilidi yok, kalite kırmızı değil, test modu kuralı. */
+function numaraHazirla(ctx: TenantContext, sohbet: SohbetKaydi) {
   const c = whatsappBaglantisiCoz(ctx, sohbet.baglantiId);
   if (!c) throw new GelenKutusuHatasi("Bu sohbetin WhatsApp numarası kaldırılmış ya da doğrulanmamış.", 409);
   const kilitKodu = c.baglanti.hesapKilidiKodu;
@@ -410,41 +464,112 @@ async function gonder(
   if (c.baglanti.testModu && (!telefon || !c.gizli.testNumaralari.includes(telefon))) {
     throw new GelenKutusuHatasi("Bu numaranın test modu açık: yalnızca Ayarlar'daki test numaralarına gönderilebilir.", 403);
   }
-  const numara = c.baglanti.ad;
   const istemci = whatsappApiIstemcisi({ wabaId: c.baglanti.wabaId, phoneNumberId: c.baglanti.phoneNumberId, erisimAnahtari: c.gizli.erisimAnahtari });
+  return { c, kayit, wa, retVerdi, telefon, numara: c.baglanti.ad, istemci };
+}
+type NumaraHazir = ReturnType<typeof numaraHazirla>;
+type Alici = { tur: "telefon" | "bsuid"; deger: string };
+
+/**
+ * Serbest (metin ve medya) gönderim: müşteri hizmeti yanıtı, yalnızca 24 saat penceresinde; WhatsApp izni ve RET
+ * aranmaz (K4, B3: kişi kendisi yazdı). Alıcı: telefon, yoksa BSUID.
+ */
+function serbestAlici(sohbet: SohbetKaydi, h: NumaraHazir, simdi: Date): Alici {
+  if (!pencereAcik(sohbet.sonGelenTarihi, simdi)) {
+    throw new GelenKutusuHatasi(
+      h.retVerdi
+        ? "RET verdi; yalnızca kendisi yazarsa 24 saat içinde yanıt verebilirsiniz."
+        : "24 saatlik pencere kapalı: serbest metin gönderilemez, onaylı bir şablon seçin.",
+      400,
+    );
+  }
+  const alici = h.telefon ? { tur: "telefon" as const, deger: h.telefon } : h.wa?.bsuid ? { tur: "bsuid" as const, deger: h.wa.bsuid } : null;
+  if (!alici) throw new GelenKutusuHatasi("Kişinin WhatsApp numarası ya da kimliği yok.", 400);
+  return alici;
+}
+
+/** Yanıtlanan mesajın wamid'i: aynı sohbette olmalı ve WhatsApp'a ulaşmış (wamid'li) olmalı. */
+function yanitWamidBul(ctx: TenantContext, sohbet: SohbetKaydi, id: string | null | undefined): string | null {
+  if (!id) return null;
+  const m = mesajSatiriGetir(ctx, id);
+  if (!m || m.sohbetId !== sohbet.id || !m.wamid) throw new GelenKutusuHatasi("Yanıtlanan mesaj bulunamadı ya da WhatsApp'a ulaşmamış.", 400);
+  return m.wamid;
+}
+
+const serbestOlay = (h: NumaraHazir) =>
+  h.retVerdi ? `RET'li kişiye hizmet yanıtı (${h.numara} numarası)` : `WhatsApp yanıtı gönderildi (${h.numara} numarası)`;
+
+/** Gidip gitmediği bilinmeyen sonuç (ağ, zaman aşımı, 5xx, 131000): tekrar denenmez. */
+const belirsizMi = (hata: unknown) => {
+  const e = hata instanceof GraphHatasi ? hata : null;
+  return !e || e.http === 0 || e.http >= 500 || e.kod === 131000;
+};
+
+/**
+ * Kesin Meta hatası (gönderim reddedildi): yan etkiler (hesap kilidi → kampanyalar durur; numara kayıtsız; WhatsApp yok
+ * işareti; 131050 → ret akışı) uygulanır, kullanıcıya gösterilecek hata döner.
+ */
+function metaHatasi(ctx: TenantContext, sohbet: SohbetKaydi, kayitId: string, alici: Alici, e: GraphHatasi, simdi: Date): GelenKutusuHatasi {
+  const kilit = hesapKilidiNedeni(e.kod);
+  if (kilit) {
+    whatsappKampanyalariniDuraklat(ctx, kilit, { baglantiIdler: hesapKilidiYaz(ctx, sohbet.baglantiId, e.kod!, simdi) });
+    return new GelenKutusuHatasi(hesapKilidiMesaji(e.kod!), 409);
+  }
+  if (numaraKayitsizKoduMu(e.kod)) {
+    // Numara Cloud API'ye kayıtlı değil (133010): kampanya işçisiyle aynı davranış, yalnızca bu numara.
+    const metin = numaraKayitsizGonderimMesaji(e.kod!);
+    sonHataYaz(ctx, sohbet.baglantiId, metin);
+    whatsappKampanyalariniDuraklat(ctx, "numara_kayitsiz", { baglantiIdler: [sohbet.baglantiId] });
+    return new GelenKutusuHatasi(metin, 409);
+  }
+  switch (e.kod) {
+    case 131026:
+      whatsappYokIsaretle(ctx, kayitId, simdi);
+      break;
+    case 131050: {
+      const engelTuru = alici.tur === "bsuid" ? "wa_kimlik" : "telefon";
+      retIsle(ctx, {
+        leadId: kayitId,
+        adresler: [{ tur: engelTuru, ozet: adresOzeti(ctx.tenantId, engelTuru, alici.deger) }],
+        kaynak: "whatsapp_ret",
+        aciklama: "Kişi WhatsApp'ta bu işletmeden pazarlama iletilerini durdurmuş (Meta 131050)",
+      });
+      return new GelenKutusuHatasi("Kişi bu işletmeden pazarlama iletilerini durdurmuş; şablon gönderilemez.", 403);
+    }
+  }
+  const medyaMetni = medyaGonderimHataMetni(e.kod);
+  if (medyaMetni) return new GelenKutusuHatasi(medyaMetni, 400);
+  if (e.http === 429 || e.kod === 130429 || e.kod === 131056) return new GelenKutusuHatasi("Meta hız sınırı: biraz sonra tekrar deneyin.", 429);
+  return new GelenKutusuHatasi(`Meta gönderimi reddetti: ${e.message.slice(0, 200)}`, 502);
+}
+
+async function gonder(ctx: TenantContext, sohbet: SohbetKaydi, g: MesajGirdisi, simdi: Date): Promise<GonderimSonucu> {
+  const hz = numaraHazirla(ctx, sohbet);
+  const { kayit, wa, c } = hz;
 
   // Gönderim ve sonuç (her iki tür için ortak).
   type Hazir = {
-    alici: { tur: "telefon" | "bsuid"; deger: string };
+    alici: Alici;
     gonderim: () => Promise<{ wamid: string }>;
     tur: "text" | "template";
     metin: string;
     olay: string;
     iade: (() => void) | null;
-    engelTuru: "telefon" | "wa_kimlik";
+    yanitWamid: string | null;
   };
   let h: Hazir;
 
   if (g.tur === "metin") {
-    // Müşteri hizmeti yanıtı: yalnızca pencere içinde; izin ve RET aranmaz (K4, B3).
-    if (!pencereAcik(sohbet.sonGelenTarihi, simdi)) {
-      throw new GelenKutusuHatasi(
-        retVerdi
-          ? "RET verdi; yalnızca kendisi yazarsa 24 saat içinde yanıt verebilirsiniz."
-          : "24 saatlik pencere kapalı: serbest metin gönderilemez, onaylı bir şablon seçin.",
-        400,
-      );
-    }
-    const alici = telefon ? { tur: "telefon" as const, deger: telefon } : wa?.bsuid ? { tur: "bsuid" as const, deger: wa.bsuid } : null;
-    if (!alici) throw new GelenKutusuHatasi("Kişinin WhatsApp numarası ya da kimliği yok.", 400);
+    const alici = serbestAlici(sohbet, hz, simdi);
+    const yanitWamid = yanitWamidBul(ctx, sohbet, g.yanitlananId);
     h = {
       alici,
-      gonderim: () => istemci.metinGonder({ alici, metin: g.metin }),
+      gonderim: () => hz.istemci.metinGonder({ alici, metin: g.metin, yanitWamid }),
       tur: "text",
       metin: g.metin,
-      olay: retVerdi ? `RET'li kişiye hizmet yanıtı (${numara} numarası)` : `WhatsApp yanıtı gönderildi (${numara} numarası)`,
+      olay: serbestOlay(hz),
       iade: null,
-      engelTuru: alici.tur === "bsuid" ? "wa_kimlik" : "telefon",
+      yanitWamid,
     };
   } else {
     // Şablon: kampanya alıcı kurallarının tamamı. RET'li / engelli kişiye hiçbir koşulda gitmez.
@@ -484,7 +609,7 @@ async function gonder(
     h = {
       alici,
       gonderim: () =>
-        istemci.mesajGonder({
+        hz.istemci.mesajGonder({
           alici,
           sablonAdi: sablon.ad,
           dil: sablon.dil,
@@ -492,9 +617,9 @@ async function gonder(
         }),
       tur: "template",
       metin: sablonMetni(sablon.bilesenler, degerler),
-      olay: `WhatsApp şablonu gönderildi: ${sablon.ad} (${numara} numarası)`,
+      olay: `WhatsApp şablonu gönderildi: ${sablon.ad} (${hz.numara} numarası)`,
       iade: () => sayacIade(ctx, "whatsapp_api", gun),
-      engelTuru: alici.tur === "bsuid" ? "wa_kimlik" : "telefon",
+      yanitWamid: null,
     };
   }
 
@@ -512,6 +637,7 @@ async function gonder(
         gonderenKullanici: ctx.userId || null,
         teslimDurumu: teslim,
         ilkDurum: "acik",
+        yanitWamid: h.yanitWamid,
       },
       simdi,
     );
@@ -520,50 +646,193 @@ async function gonder(
     const yanit = await h.gonderim();
     const mesaj = yaz(yanit.wamid, "gonderildi");
     sistemOlayiEkle(ctx, kayit.id, "whatsapp_yanit", h.olay);
-    return { mesaj: mesajDto({ ...mesaj, gonderenAd: null, medya: null }), tekrar: false, uyari: null };
+    return { mesaj: mesajDto(mesajSatiriGetir(ctx, mesaj.id)!), tekrar: false, uyari: null };
   } catch (hata) {
-    const e = hata instanceof GraphHatasi ? hata : null;
     // Gidip gitmediği bilinmiyor: tekrar denenmez, sayaçtan düşülmez; temsilci görsün diye mesaj yazılır.
-    if (!e || e.http === 0 || e.http >= 500 || e.kod === 131000) {
+    if (belirsizMi(hata)) {
       const mesaj = yaz(null, "belirsiz");
       sistemOlayiEkle(ctx, kayit.id, "whatsapp_yanit", `${h.olay} — sonuç belirsiz`);
-      return {
-        mesaj: mesajDto({ ...mesaj, gonderenAd: null, medya: null }),
-        tekrar: false,
-        uyari: "Meta'dan yanıt alınamadı: mesaj gitmiş de olabilir, gitmemiş de. Tekrar göndermeden önce müşteriyle teyit edin.",
-      };
+      return { mesaj: mesajDto(mesajSatiriGetir(ctx, mesaj.id)!), tekrar: false, uyari: BELIRSIZ_UYARISI };
     }
     h.iade?.();
-    const kilit = hesapKilidiNedeni(e.kod);
-    if (kilit) {
-      whatsappKampanyalariniDuraklat(ctx, kilit, { baglantiIdler: hesapKilidiYaz(ctx, sohbet.baglantiId, e.kod!, simdi) });
-      throw new GelenKutusuHatasi(hesapKilidiMesaji(e.kod!), 409);
-    }
-    if (numaraKayitsizKoduMu(e.kod)) {
-      // Numara Cloud API'ye kayıtlı değil (133010): kampanya işçisiyle aynı davranış, yalnızca bu numara.
-      const metin = numaraKayitsizGonderimMesaji(e.kod!);
-      sonHataYaz(ctx, sohbet.baglantiId, metin);
-      whatsappKampanyalariniDuraklat(ctx, "numara_kayitsiz", { baglantiIdler: [sohbet.baglantiId] });
-      throw new GelenKutusuHatasi(metin, 409);
-    }
-    switch (e.kod) {
-      case 131047:
-        throw new GelenKutusuHatasi("Meta: 24 saatlik pencere kapanmış. Onaylı bir şablon gönderin.", 400);
-      case 131026:
-        whatsappYokIsaretle(ctx, kayit.id, simdi);
-        throw new GelenKutusuHatasi("Bu kişide WhatsApp yok ya da ileti teslim edilemiyor.", 400);
-      case 131050:
-        retIsle(ctx, {
-          leadId: kayit.id,
-          adresler: [{ tur: h.engelTuru, ozet: adresOzeti(ctx.tenantId, h.engelTuru, h.alici.deger) }],
-          kaynak: "whatsapp_ret",
-          aciklama: "Kişi WhatsApp'ta bu işletmeden pazarlama iletilerini durdurmuş (Meta 131050)",
-        });
-        throw new GelenKutusuHatasi("Kişi bu işletmeden pazarlama iletilerini durdurmuş; şablon gönderilemez.", 403);
-    }
-    if (e.http === 429 || e.kod === 130429 || e.kod === 131056) throw new GelenKutusuHatasi("Meta hız sınırı: biraz sonra tekrar deneyin.", 429);
-    throw new GelenKutusuHatasi(`Meta gönderimi reddetti: ${e.message.slice(0, 200)}`, 502);
+    throw metaHatasi(ctx, sohbet, kayit.id, h.alici, hata as GraphHatasi, simdi);
   }
+}
+
+const BELIRSIZ_UYARISI = "Meta'dan yanıt alınamadı: mesaj gitmiş de olabilir, gitmemiş de. Tekrar göndermeden önce müşteriyle teyit edin.";
+
+// --- Medya gönderme ---
+
+type Iletim =
+  | { durum: "gonderildi"; wamid: string; metaMedyaId: string }
+  | { durum: "belirsiz"; metaMedyaId: string }
+  | { durum: "failed"; kod: number | null; metin: string; metaMedyaId: string | null };
+
+/** Yükleme (/media) başarısız: ileti gitmedi (zaman aşımı dahil); tekrar denenebilir. */
+function yuklemeHatasi(ctx: TenantContext, sohbet: SohbetKaydi, kayitId: string, alici: Alici, hata: unknown, simdi: Date): Iletim {
+  const e = hata instanceof GraphHatasi ? hata : null;
+  if (e && (hesapKilidiNedeni(e.kod) || numaraKayitsizKoduMu(e.kod))) {
+    return { durum: "failed", kod: e.kod, metin: metaHatasi(ctx, sohbet, kayitId, alici, e, simdi).message, metaMedyaId: null };
+  }
+  const metin = !e || e.gecici
+    ? "Dosya Meta'ya yüklenemedi (bağlantı ya da Meta'nın geçici hatası). Tekrar deneyin."
+    : (medyaGonderimHataMetni(e.kod) ?? `Meta dosyayı kabul etmedi (yükleme reddedildi): ${e.message.slice(0, 160)}`);
+  return { durum: "failed", kod: e?.kod ?? null, metin, metaMedyaId: null };
+}
+
+/** Dosyayı gönderen numarayla Meta'ya yükler (/media) ve iletiyi gönderir. Hata fırlatmaz: sonucu döner. */
+async function medyaIlet(
+  ctx: TenantContext,
+  sohbet: SohbetKaydi,
+  hz: NumaraHazir,
+  alici: Alici,
+  d: { tur: GidenMedyaTuru; mime: string; icerik: Uint8Array; dosyaAdi: string; aciklama: string | null; yanitWamid: string | null },
+  simdi: Date,
+): Promise<Iletim> {
+  let metaMedyaId: string;
+  try {
+    metaMedyaId = await hz.istemci.medyaYukle({ icerik: d.icerik, mime: d.mime, dosyaAdi: d.dosyaAdi });
+  } catch (hata) {
+    return yuklemeHatasi(ctx, sohbet, hz.kayit.id, alici, hata, simdi);
+  }
+  try {
+    const y = await hz.istemci.medyaGonder({
+      alici,
+      tur: d.tur,
+      medyaId: metaMedyaId,
+      aciklama: d.aciklama,
+      dosyaAdi: d.tur === "document" ? d.dosyaAdi : null,
+      yanitWamid: d.yanitWamid,
+    });
+    return { durum: "gonderildi", wamid: y.wamid, metaMedyaId };
+  } catch (hata) {
+    if (belirsizMi(hata)) return { durum: "belirsiz", metaMedyaId };
+    const e = hata as GraphHatasi;
+    return { durum: "failed", kod: e.kod, metin: metaHatasi(ctx, sohbet, hz.kayit.id, alici, e, simdi).message, metaMedyaId };
+  }
+}
+
+const iletimAlanlari = (s: Iletim) => ({
+  wamid: s.durum === "gonderildi" ? s.wamid : null,
+  teslimDurumu: s.durum,
+  teslimHataKodu: s.durum === "failed" ? s.kod : null,
+  hataMetni: s.durum === "failed" ? s.metin : null,
+});
+
+function iletimOlayi(ctx: TenantContext, hz: NumaraHazir, tur: GidenMedyaTuru, s: Iletim) {
+  const ad = MESAJ_TUR_ADLARI[tur];
+  if (s.durum === "gonderildi") sistemOlayiEkle(ctx, hz.kayit.id, "whatsapp_yanit", `${serbestOlay(hz)} — ${ad}`);
+  else if (s.durum === "belirsiz") sistemOlayiEkle(ctx, hz.kayit.id, "whatsapp_yanit", `${serbestOlay(hz)} — ${ad}, sonuç belirsiz`);
+}
+
+const iletimUyarisi = (s: Iletim) => (s.durum === "belirsiz" ? BELIRSIZ_UYARISI : s.durum === "failed" ? s.metin : null);
+
+/**
+ * Gelen kutusundan dosya (görsel, video, belge): metinle aynı kurallar (24 saat penceresi, RET'li kişiye yalnızca
+ * pencere içinde hizmet yanıtı, test modu, kilit). Dosya içeriğinden doğrulanır (gidenMedyaDogrula), çalışma alanının
+ * medya kotasına sayılır ve gelen medyanın klasörüne yazılır (aynı saklama süresi). Meta'ya yüklenip gönderilir.
+ * Meta reddederse (yükleme ya da gönderim) mesaj "failed" ve nedeniyle yazılır; dosya durduğu için yeniden denenebilir
+ * (medyaMesajiniTekrarDene). Sonucu belirsiz gönderim tekrar denenmez.
+ */
+export async function sohbetMedyasiGonder(
+  ctx: TenantContext,
+  sohbetId: string,
+  g: MedyaGirdisi & { dosyaAdi: string; bayt: Uint8Array },
+  simdi = new Date(),
+): Promise<GonderimSonucu> {
+  return istemciKimligiyle(ctx, sohbetId, g.istemciKimligi, async (sohbet) => {
+    let d: ReturnType<typeof gidenMedyaDogrula>;
+    try {
+      d = gidenMedyaDogrula(g.dosyaAdi, g.bayt);
+    } catch (h) {
+      if (h instanceof GidenMedyaHatasi) throw new GelenKutusuHatasi(h.message, 400);
+      throw h;
+    }
+    const hz = numaraHazirla(ctx, sohbet);
+    const alici = serbestAlici(sohbet, hz, simdi);
+    const yanitWamid = yanitWamidBul(ctx, sohbet, g.yanitlananId);
+    if (medyaKotaKullanimi(ctx.tenantId) + g.bayt.byteLength > MEDYA_KOTA_BAYT) throw new GelenKutusuHatasi(MEDYA_KOTASI_DOLU, 409);
+
+    const sha256 = createHash("sha256").update(g.bayt).digest("hex");
+    const yol = yeniMedyaYolu(ctx.tenantId, simdi);
+    const tam = medyaTamYolu(yol);
+    fs.mkdirSync(path.dirname(tam), { recursive: true });
+    fs.writeFileSync(tam, g.bayt, { mode: 0o600, flag: "wx" });
+
+    const sonuc = await medyaIlet(ctx, sohbet, hz, alici, { ...d, icerik: g.bayt, aciklama: g.aciklama ?? null, yanitWamid }, simdi);
+    let mesajId: string;
+    try {
+      mesajId = gidenMesajYaz(
+        ctx,
+        {
+          baglantiId: sohbet.baglantiId,
+          leadId: sohbet.leadId,
+          kaynak: "temsilci",
+          tur: d.tur,
+          metin: g.aciklama ?? null,
+          istemciKimligi: g.istemciKimligi,
+          gonderenKullanici: ctx.userId || null,
+          ilkDurum: "acik",
+          yanitWamid,
+          ...iletimAlanlari(sonuc),
+          medya: { yol, mime: d.mime, boyut: g.bayt.byteLength, sha256, dosyaAdi: d.dosyaAdi, metaMedyaId: sonuc.metaMedyaId },
+        },
+        simdi,
+      ).id;
+    } catch (hata) {
+      fs.rmSync(tam, { force: true });
+      throw hata;
+    }
+    iletimOlayi(ctx, hz, d.tur, sonuc);
+    return { mesaj: mesajDto(mesajSatiriGetir(ctx, mesajId)!), tekrar: false, uyari: iletimUyarisi(sonuc) };
+  });
+}
+
+/**
+ * Gönderilemeyen ("failed") medya mesajını aynı dosyayla yeniden dener: kurallar yeniden uygulanır, dosya diskten okunup
+ * özeti doğrulanır, Meta'ya yeniden yüklenir; aynı mesaj satırı güncellenir. Yalnızca temsilcinin medya mesajı.
+ */
+export async function medyaMesajiniTekrarDene(ctx: TenantContext, sohbetId: string, mesajId: string, simdi = new Date()): Promise<GonderimSonucu> {
+  const sohbet = sohbetGetir(ctx, sohbetId);
+  const m = sohbet ? mesajSatiriGetir(ctx, mesajId) : null;
+  if (!sohbet || !m || m.sohbetId !== sohbet.id) throw new GelenKutusuHatasi("Mesaj bulunamadı.", 404);
+  return tekSeferde(`${ctx.tenantId}|tekrar|${m.id}`, async () => {
+    const medya = m.medya;
+    const tur = m.tur as GidenMedyaTuru;
+    if (
+      m.yon !== "giden" ||
+      m.kaynak !== "temsilci" ||
+      m.teslimDurumu !== "failed" ||
+      !["image", "video", "document"].includes(m.tur) ||
+      medya?.durum !== "indirildi" ||
+      !medya.yol ||
+      !medya.mime
+    ) {
+      throw new GelenKutusuHatasi("Bu mesaj yeniden denenemez.", 409);
+    }
+    const hz = numaraHazirla(ctx, sohbet);
+    const alici = serbestAlici(sohbet, hz, simdi);
+    let icerik: Uint8Array;
+    try {
+      icerik = fs.readFileSync(medyaTamYolu(medya.yol));
+    } catch {
+      throw new GelenKutusuHatasi("Dosya artık yok (saklama süresi dolmuş olabilir); yeniden ekleyip gönderin.", 409);
+    }
+    if (createHash("sha256").update(icerik).digest("hex") !== medya.sha256) {
+      throw new GelenKutusuHatasi("Dosya değişmiş (özet uyuşmuyor); yeniden ekleyip gönderin.", 409);
+    }
+    const sonuc = await medyaIlet(
+      ctx,
+      sohbet,
+      hz,
+      alici,
+      { tur, mime: medya.mime, icerik, dosyaAdi: medya.dosyaAdi ?? "dosya", aciklama: m.metin, yanitWamid: m.yanitWamid },
+      simdi,
+    );
+    gidenMesajSonucuYaz(ctx, m.id, { ...iletimAlanlari(sonuc), metaMedyaId: sonuc.metaMedyaId });
+    iletimOlayi(ctx, hz, tur, sonuc);
+    return { mesaj: mesajDto(mesajSatiriGetir(ctx, m.id)!), tekrar: false, uyari: iletimUyarisi(sonuc) };
+  });
 }
 
 /** Liste süzgeci sorgu parametrelerinden: numara, durum (acik | kapali), atanan (ben | yok), q, sayfa. */

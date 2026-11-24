@@ -119,6 +119,8 @@ type Gelen = {
   reaction?: { emoji?: string; message_id?: string };
   referral?: { source_id?: string; source_type?: string; headline?: string; ctwa_clid?: string };
   system?: { type?: string; user_id?: string; previous_user_id?: string; wa_id?: string };
+  /** Kişi bir mesaja yanıt verdi (WhatsApp'ta "Yanıtla"): yanıtlanan iletinin wamid'i. */
+  context?: { from?: string; id?: string };
 };
 type Medya = { id?: string; caption?: string; filename?: string; mime_type?: string; sha256?: string };
 type Durum = {
@@ -432,6 +434,8 @@ class Isleyici {
           medyaId: medya?.id ?? null,
           medya: medya ? { mime: medya.mime_type ?? null, dosyaAdi: medya.filename ?? null, metaSha256: medya.sha256 ?? null } : null,
           metaZamani: zaman(m.timestamp, this.simdi),
+          // Tepki (reaction) kendi message_id'sini taşır; alıntı yalnızca yanıtlarda.
+          yanitWamid: m.type !== "reaction" ? (m.context?.id ?? null) : null,
           profilAdi: kisi?.profile?.name ?? null,
         },
         this.simdi,

@@ -771,6 +771,10 @@ export const sohbetMesajlari = sqliteTable(
     kampanyaId: text("kampanya_id"),
     teslimDurumu: text("teslim_durumu"),
     teslimHataKodu: integer("teslim_hata_kodu"),
+    // Gönderilemeyen mesajın kullanıcıya gösterilen nedeni (ör. Meta medya hatası; gelen kutusundan medya, 0030).
+    hataMetni: text("hata_metni"),
+    // Yanıtlanan mesajın wamid'i (Meta context.message_id): giden yanıtta gönderilir, gelen yanıtta webhook'tan yazılır.
+    yanitWamid: text("yanit_wamid"),
     // Meta'nın bildirdiği zaman (gelen iletide mesajın yazıldığı an); sıralama "tarih" ile yapılır.
     metaZamani: zaman("meta_zamani"),
     tarih: zaman("tarih").notNull(),

@@ -169,8 +169,30 @@ export function gercekWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcis
           messaging_product: "whatsapp",
           recipient_type: "individual",
           ...(g.alici.tur === "telefon" ? { to: g.alici.deger } : { recipient: g.alici.deger }),
+          ...(g.yanitWamid ? { context: { message_id: g.yanitWamid } } : {}),
           type: "text",
           text: { preview_url: false, body: g.metin },
+        },
+      });
+      const m = v.messages?.[0];
+      if (!m?.id) throw new GraphHatasi("Meta yanıtında ileti kimliği yok.", 0);
+      return { wamid: m.id, durum: m.message_status ?? null };
+    },
+
+    async medyaGonder(g) {
+      if (!/^\d{1,30}$/.test(g.medyaId)) throw new GraphHatasi("Medya kimliği geçersiz.", 400);
+      const icerik: Record<string, string> = { id: g.medyaId };
+      if (g.aciklama) icerik.caption = g.aciklama;
+      if (g.tur === "document" && g.dosyaAdi) icerik.filename = g.dosyaAdi;
+      const v = await istek<{ messages?: { id: string; message_status?: string }[] }>(`${b.phoneNumberId}/messages`, {
+        method: "POST",
+        govde: {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          ...(g.alici.tur === "telefon" ? { to: g.alici.deger } : { recipient: g.alici.deger }),
+          ...(g.yanitWamid ? { context: { message_id: g.yanitWamid } } : {}),
+          type: g.tur,
+          [g.tur]: icerik,
         },
       });
       const m = v.messages?.[0];

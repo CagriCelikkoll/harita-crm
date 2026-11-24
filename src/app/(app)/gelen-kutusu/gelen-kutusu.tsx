@@ -3,6 +3,9 @@
 // şablon seçici, atama, kapat / yeniden aç) ve iç notlar. Telefonda liste ve sohbet ayrı ekran.
 // Canlı yenileme: imleçli kısa yoklama (/api/gelen-kutusu/degisiklikler): görünür sekmede 3 sn, arka planda 20 sn.
 // Kurallar sunucudadır; arayüz yalnızca yol gösterir (pencere kapalıyken yazma alanı yerine şablon seçici; RET uyarısı).
+// Dosya gönderme (ekler.tsx): ataş menüsü, sürükle-bırak, yapıştırma; her dosya ayrı mesaj, açıklama ilkine. Bir mesajın
+// "Yanıtla"sı gönderimde context.message_id olur; alıntı kutusu gelen ve giden yanıtlarda görünür. Gönderilemeyen medya
+// mesajında "Tekrar dene".
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { bildir } from "@/components/bildirim";
@@ -11,8 +14,10 @@ import { Simge } from "@/components/arayuz/simge";
 import { apiIstek } from "@/lib/api-istemci";
 import { boyutYaz, tarihYaz } from "@/lib/bicim";
 import {
+  ACIKLAMA_AZAMI,
   MEDYA_TURLERI,
   MESAJ_TUR_ADLARI,
+  mesajOzeti,
   NOT_AZAMI,
   PENCERE_MS,
   RET_UYARISI,
@@ -27,6 +32,7 @@ import { yanitaEkle } from "@/lib/hazir-cevaplar";
 import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
 import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
+import { EkDugmesi, ekGonder, EkSeridi, panoDosyalari, useEkler } from "./ekler";
 import { HazirCevapSecici } from "./hazir-cevap-secici";
 
 type Filtre = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; q: string };
@@ -360,6 +366,16 @@ function SohbetEkrani(props: {
   };
 
   const pencereAcik = Boolean(s.pencereBitis && new Date(s.pencereBitis).getTime() > props.simdi);
+  const [yanitlanan, setYanitlanan] = useState<SohbetMesajiDto | null>(null);
+  const yanitlanabilir = pencereAcik && !s.numaraKilitli;
+
+  const tekrarDene = async (m: SohbetMesajiDto) => {
+    const y = await apiIstek<GonderimSonucu>(`/api/sohbetler/${s.id}/mesaj/${m.id}/tekrar`, { method: "POST" });
+    if (!y.ok) return bildir(y.hata, "hata");
+    props.onMesaj(y.veri.mesaj);
+    if (y.veri.uyari) bildir(y.veri.uyari, "hata");
+    else bildir("Gönderildi.");
+  };
 
   return (
     <div className="grid min-h-[70vh] content-start gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
@@ -405,12 +421,12 @@ function SohbetEkrani(props: {
             </button>
           )}
           {mesajlar.map((m) => (
-            <Balon key={m.id} m={m} />
+            <Balon key={m.id} m={m} onYanitla={yanitlanabilir ? setYanitlanan : undefined} onTekrar={tekrarDene} />
           ))}
           <div ref={alt} />
         </div>
 
-        <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} />
+        <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} yanitlanan={yanitlanan} onYanitIptal={() => setYanitlanan(null)} />
       </div>
 
       <div className="flex flex-col gap-4 self-start">
@@ -502,7 +518,8 @@ function TeslimIsareti({ m }: { m: SohbetMesajiDto }) {
   if (d === "failed")
     return (
       <span className="font-semibold text-tehlike" title={m.teslimHataKodu ? `Meta hata kodu ${m.teslimHataKodu}` : undefined}>
-        İletilemedi{m.teslimHataKodu ? ` (${m.teslimHataKodu})` : ""}
+        {m.hataMetni ? "Gönderilemedi" : "İletilemedi"}
+        {m.teslimHataKodu ? ` (${m.teslimHataKodu})` : ""}
       </span>
     );
   if (d === "belirsiz") return <span className="font-semibold text-uyari">{TESLIM_ADLARI.belirsiz}</span>;
@@ -563,16 +580,46 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
   return <div className="mb-1 rounded bg-segment px-2 py-1.5">{indirme}</div>;
 }
 
-function Balon({ m }: { m: SohbetMesajiDto }) {
+/** Alıntı kutusu: yanıtlanan mesaj (tıklayınca ona kayar). */
+function Alinti({ yanit, giden }: { yanit: NonNullable<SohbetMesajiDto["yanit"]>; giden: boolean }) {
+  const kim = yanit.yon === "giden" ? "Siz" : yanit.yon === "gelen" ? "Müşteri" : null;
+  const icerik = (
+    <>
+      {kim && <span className="block font-semibold text-ana-koyu">{kim}</span>}
+      <span className="line-clamp-2 break-words">{yanit.ozet}</span>
+    </>
+  );
+  const sinif = `mb-1 block w-full rounded-md border-l-4 border-ana px-2 py-1 text-left text-xs text-metin-ikincil ${giden ? "bg-white/70" : "bg-zemin"}`;
+  return yanit.id ? (
+    <button
+      type="button"
+      className={sinif}
+      onClick={() => document.getElementById(`mesaj-${yanit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+      title="Yanıtlanan mesaja git"
+    >
+      {icerik}
+    </button>
+  ) : (
+    <div className={sinif}>{icerik}</div>
+  );
+}
+
+/** Yanıtlanabilir: gelen mesaj ya da WhatsApp'a ulaşmış giden mesaj (wamid'i olan); tepki hariç. */
+const yanitlanabilirMi = (m: SohbetMesajiDto) =>
+  m.tur !== "reaction" && (m.yon === "gelen" || Boolean(m.teslimDurumu && !["failed", "belirsiz"].includes(m.teslimDurumu)));
+
+function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m: SohbetMesajiDto) => void; onTekrar: (m: SohbetMesajiDto) => Promise<void> }) {
   const giden = m.yon === "giden";
   const etiket = kaynakEtiketi(m);
   const medya = MEDYA_TURLERI.includes(m.tur);
+  const [deneniyor, setDeneniyor] = useState(false);
   // Belgede Meta başlık yoksa dosya adını metin olarak verir: indirme bağlantısında zaten görünür.
   const metin = m.medya?.dosyaAdi && m.metin === m.medya.dosyaAdi ? null : m.metin;
   return (
-    <div className={`flex ${giden ? "justify-end" : "justify-start"}`}>
+    <div id={`mesaj-${m.id}`} className={`group flex items-center gap-1 ${giden ? "flex-row-reverse" : ""}`}>
       <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm shadow-sm ${giden ? "bg-ana-acik" : "bg-white"}`}>
         {etiket && <div className="mb-0.5 text-xs font-semibold text-ana-koyu">{etiket}</div>}
+        {m.yanit && <Alinti yanit={m.yanit} giden={giden} />}
         {m.medya ? (
           <MedyaGosterimi medya={m.medya} tur={m.tur} />
         ) : (
@@ -589,23 +636,109 @@ function Balon({ m }: { m: SohbetMesajiDto }) {
         ) : !medya ? (
           <p className="text-soluk italic">[{MESAJ_TUR_ADLARI[m.tur]}]</p>
         ) : null}
+        {giden && m.teslimDurumu === "failed" && m.hataMetni && (
+          <p role="alert" className="mt-1 rounded bg-tehlike-acik px-2 py-1 text-xs text-tehlike">
+            {m.hataMetni}
+          </p>
+        )}
         <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-soluk">
+          {m.tekrarDenenebilir && (
+            <button
+              type="button"
+              className="mr-auto font-semibold text-ana-koyu underline"
+              disabled={deneniyor}
+              onClick={async () => {
+                setDeneniyor(true);
+                await onTekrar(m);
+                setDeneniyor(false);
+              }}
+            >
+              {deneniyor ? "Gönderiliyor…" : "Tekrar dene"}
+            </button>
+          )}
           <span title={tarihYaz(m.tarih)}>{saatYaz(m.tarih)}</span>
           {giden && <TeslimIsareti m={m} />}
         </div>
       </div>
+      {onYanitla && yanitlanabilirMi(m) && (
+        <button
+          type="button"
+          className="rounded-full p-1.5 text-soluk hover:bg-white hover:text-ana-koyu focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+          aria-label="Yanıtla"
+          title="Yanıtla"
+          onClick={() => onYanitla(m)}
+        >
+          <Simge ad="yanitla" boyut={16} />
+        </button>
+      )}
     </div>
   );
 }
 
-function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: (m: SohbetMesajiDto) => void }) {
+function YazmaAlani(props: {
+  a: SohbetAyrintisi;
+  pencereAcik: boolean;
+  onMesaj: (m: SohbetMesajiDto) => void;
+  yanitlanan: SohbetMesajiDto | null;
+  onYanitIptal: () => void;
+}) {
   const s = props.a.sohbet;
   const [metin, setMetin] = useState("");
   const [kimlik, setKimlik] = useState(yeniKimlik);
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [sablonAcik, setSablonAcik] = useState(false);
   const [hazirAcik, setHazirAcik] = useState(false);
+  const [surukleniyor, setSurukleniyor] = useState(false);
   const yanitRef = useRef<HTMLTextAreaElement>(null);
+  const ek = useEkler((m) => bildir(m, "hata"));
+  const ekVar = ek.ekler.length > 0;
+  const reddedilenVar = ek.ekler.some((e) => e.onHata);
+
+  // Yanıtla seçilince yazma alanına odaklan.
+  useEffect(() => {
+    if (props.yanitlanan) yanitRef.current?.focus();
+  }, [props.yanitlanan]);
+
+  /**
+   * Ekleri sırayla gönderir (her biri ayrı mesaj). İlk gönderimde açıklama ve yanıtlanan mesaj ilk dosyaya sabitlenir;
+   * bir dosya gönderilemezse durulur (sıra bozulmasın), o dosyada "Tekrar dene" görünür.
+   */
+  const ekleriGonder = async () => {
+    const bekleyen = ek.ref.current.filter((e) => !e.onHata && e.durum !== "yukleniyor");
+    if (!bekleyen.length) return;
+    const ilk = bekleyen[0];
+    if (ilk.aciklama === undefined) {
+      const aciklama = metin.trim();
+      ek.guncelle(ilk.kimlik, { aciklama, yanitlananId: props.yanitlanan?.id ?? null });
+      ilk.aciklama = aciklama;
+      ilk.yanitlananId = props.yanitlanan?.id ?? null;
+      setMetin("");
+      props.onYanitIptal();
+    }
+    setGonderiliyor(true);
+    for (const e of bekleyen) {
+      ek.guncelle(e.kimlik, { durum: "yukleniyor", ilerleme: 0, hata: null });
+      const y = await ekGonder(s.id, e, (oran) => ek.guncelle(e.kimlik, { ilerleme: oran }));
+      if (!y.ok) {
+        ek.guncelle(e.kimlik, { durum: "hata", hata: y.hata });
+        break;
+      }
+      props.onMesaj(y.veri.mesaj);
+      ek.kaldir(e.kimlik);
+      // Meta reddetti: mesaj sohbette "Gönderilemedi" ve "Tekrar dene" ile görünür; kalanlar sırayı korumak için bekler.
+      if (y.veri.uyari) {
+        bildir(y.veri.uyari, "hata");
+        break;
+      }
+    }
+    setGonderiliyor(false);
+  };
+
+  const tekrarDene = (kimlik: string) => {
+    // Hata olan dosya sıranın başına geçmez: bekleyenlerle birlikte sırayla yeniden gönderilir.
+    ek.guncelle(kimlik, { durum: "hazir", hata: null });
+    void ekleriGonder();
+  };
 
   // Hazır cevap yanıt kutusuna konur (gönderilmez); imleç sona gider.
   const hazirCevapSec = (secilen: string) => {
@@ -675,19 +808,65 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
         className="flex flex-col gap-2 border-t border-cizgi p-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!metin.trim() || gonderiliyor) return;
-          if (await gonder({ tur: "metin", metin })) setMetin("");
+          if (gonderiliyor) return;
+          if (ekVar) {
+            if (reddedilenVar) return bildir("Gönderilemeyen dosyaları kaldırın.", "hata");
+            if (metin.trim().length > ACIKLAMA_AZAMI) return bildir(`Açıklama en fazla ${ACIKLAMA_AZAMI} karakter olabilir.`, "hata");
+            return void ekleriGonder();
+          }
+          if (!metin.trim()) return;
+          if (await gonder({ tur: "metin", metin, yanitlananId: props.yanitlanan?.id ?? null })) {
+            setMetin("");
+            props.onYanitIptal();
+          }
+        }}
+        onDragOver={(e) => {
+          if (![...e.dataTransfer.types].includes("Files")) return;
+          e.preventDefault();
+          setSurukleniyor(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSurukleniyor(false);
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setSurukleniyor(false);
+          ek.ekle([...e.dataTransfer.files]);
         }}
       >
+        {surukleniyor && (
+          <p className="rounded-lg border-2 border-dashed border-ana bg-ana-acik px-3 py-4 text-center text-sm font-medium text-ana-koyu">
+            Dosyaları buraya bırakın
+          </p>
+        )}
+        {props.yanitlanan && (
+          <div className="flex items-start gap-2 rounded-md border-l-4 border-ana bg-zemin px-3 py-2 text-xs">
+            <div className="min-w-0 flex-1">
+              <span className="font-semibold text-ana-koyu">Yanıtlanıyor: {props.yanitlanan.yon === "giden" ? "Siz" : "Müşteri"}</span>
+              <p className="line-clamp-2 break-words text-metin-ikincil">{mesajOzeti(props.yanitlanan)}</p>
+            </div>
+            <button type="button" className="rounded p-0.5 hover:bg-white" aria-label="Yanıtı iptal et" onClick={props.onYanitIptal}>
+              <Simge ad="kapat" boyut={14} />
+            </button>
+          </div>
+        )}
+        <EkSeridi ekler={ek.ekler} gonderiliyor={gonderiliyor} onKaldir={ek.kaldir} onTekrar={tekrarDene} />
         {hazirAcik && <HazirCevapSecici onSec={hazirCevapSec} onKapat={() => { setHazirAcik(false); yanitRef.current?.focus(); }} />}
         <textarea
           ref={yanitRef}
           className="girdi min-h-20"
-          aria-label="Yanıtınız"
-          placeholder="Yanıtınızı yazın"
+          aria-label={ekVar ? "Açıklama (ilk dosyaya eklenir)" : "Yanıtınız"}
+          placeholder={ekVar ? `Açıklama (isteğe bağlı, en fazla ${ACIKLAMA_AZAMI} karakter; ilk dosyaya eklenir)` : "Yanıtınızı yazın"}
           value={metin}
-          maxLength={YANIT_AZAMI}
+          maxLength={ekVar ? ACIKLAMA_AZAMI : YANIT_AZAMI}
           onChange={(e) => setMetin(e.target.value)}
+          onPaste={(e) => {
+            const dosyalar = panoDosyalari(e.clipboardData);
+            if (!dosyalar.length) return;
+            e.preventDefault();
+            ek.ekle(dosyalar);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -697,9 +876,11 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-soluk">
-            Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"} · Enter gönderir, Shift+Enter satır
+            Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"} · Enter gönderir, Shift+Enter satır ·
+            Dosyayı sürükleyip bırakabilir ya da yapıştırabilirsiniz
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <EkDugmesi disabled={gonderiliyor} onDosyalar={ek.ekle} />
             <button type="button" className="dugme-kucuk" aria-expanded={hazirAcik} onClick={() => setHazirAcik((x) => !x)}>
               {hazirAcik ? "Hazır cevabı kapat" : "Hazır cevap"}
             </button>
@@ -708,8 +889,8 @@ function YazmaAlani(props: { a: SohbetAyrintisi; pencereAcik: boolean; onMesaj: 
                 {sablonAcik ? "Şablonu kapat" : "Şablon gönder"}
               </button>
             )}
-            <button type="submit" className="dugme-ana" disabled={gonderiliyor || !metin.trim()}>
-              {gonderiliyor ? "Gönderiliyor…" : "Gönder"}
+            <button type="submit" className="dugme-ana" disabled={gonderiliyor || (ekVar ? reddedilenVar : !metin.trim())}>
+              {gonderiliyor ? "Gönderiliyor…" : ekVar ? `Gönder (${ek.ekler.filter((e) => !e.onHata).length} dosya)` : "Gönder"}
             </button>
           </div>
         </div>

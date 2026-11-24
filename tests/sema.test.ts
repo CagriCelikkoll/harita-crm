@@ -98,7 +98,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   ],
   sohbet_mesajlari: [
     "id", "tenant_id", "sohbet_id", "yon", "kaynak", "wamid", "istemci_kimligi", "tur", "metin", "medya_id",
-    "icerik_silindi", "gonderen_kullanici", "kampanya_id", "teslim_durumu", "teslim_hata_kodu", "meta_zamani", "tarih",
+    "icerik_silindi", "gonderen_kullanici", "kampanya_id", "teslim_durumu", "teslim_hata_kodu", "hata_metni", "yanit_wamid", "meta_zamani", "tarih",
     "surum", "olusturma_tarihi",
   ],
   sohbet_notlari: ["id", "tenant_id", "sohbet_id", "kullanici_id", "metin", "tarih"],

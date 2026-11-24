@@ -50,6 +50,8 @@ const YOLLAR = {
   kapat: <path d="M6 6l12 12M18 6L6 18" />,
   filtre: <path d="M4 6h16M7 12h10M10 18h4" />,
   tik: <path d="M5 12l5 5L20 7" />,
+  atac: <path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />,
+  yanitla: <path d="M10 8L4 13l6 5M4 13h10a6 6 0 0 1 6 6" />,
   kilit: (
     <>
       <rect x="5" y="11" width="14" height="10" rx="2" />

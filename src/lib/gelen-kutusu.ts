@@ -93,6 +93,82 @@ export function medyaMimeSadelestir(mime: string | null | undefined): string | n
   return Object.hasOwn(MEDYA_MIME_TURLERI, m) ? m : null;
 }
 
+// --- Giden medya (gelen kutusundan dosya gönderme) ---
+
+/** Gelen kutusundan gönderilebilen medya türleri (Meta ileti türü). */
+export type GidenMedyaTuru = "image" | "video" | "document";
+
+const MB_ = 1024 * 1024;
+/**
+ * WhatsApp Cloud API kuralları: görsel JPEG/PNG ≤ 5 MB; video MP4 / 3GP (H.264 + AAC) ≤ 16 MB; belge ≤ 20 MB (Meta 100 MB
+ * kabul eder; sunucunun gövde sınırı 25 MB olduğu için 20 MB). Uzantı → MIME; tür dosyanın içeriğinden ayrıca doğrulanır.
+ */
+export const GIDEN_MEDYA_KURALLARI: Record<GidenMedyaTuru, { azami: number; ad: string; uzantilar: Record<string, string> }> = {
+  image: { azami: 5 * MB_, ad: "Görsel", uzantilar: { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" } },
+  video: { azami: 16 * MB_, ad: "Video", uzantilar: { mp4: "video/mp4", "3gp": "video/3gpp" } },
+  document: {
+    azami: 20 * MB_,
+    ad: "Belge",
+    uzantilar: {
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ppt: "application/vnd.ms-powerpoint",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      txt: "text/plain",
+    },
+  },
+};
+/** Bir gönderimde en fazla dosya; açıklamanın (caption) en fazla uzunluğu (Meta: 1024). */
+export const EK_AZAMI = 10;
+export const ACIKLAMA_AZAMI = 1024;
+/** Dosya seçicilerin accept değerleri: telefonda görsel/video seçicisi kamera ve galeriyi önerir. */
+export const GORSEL_VIDEO_ACCEPT = "image/jpeg,image/png,video/mp4,video/3gpp,.jpg,.jpeg,.png,.mp4,.3gp";
+export const BELGE_ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
+
+export const dosyaUzantisi = (ad: string) => (/\.([A-Za-z0-9]{1,5})$/.exec(ad.trim())?.[1] ?? "").toLowerCase();
+
+/** Uzantının gösterdiği tür ve MIME; desteklenmiyorsa null. */
+export function uzantiTuru(ad: string): { tur: GidenMedyaTuru; mime: string } | null {
+  const u = dosyaUzantisi(ad);
+  for (const tur of Object.keys(GIDEN_MEDYA_KURALLARI) as GidenMedyaTuru[]) {
+    const mime = GIDEN_MEDYA_KURALLARI[tur].uzantilar[u];
+    if (mime) return { tur, mime };
+  }
+  return null;
+}
+
+export const DESTEKLENMEYEN_DOSYA_METNI =
+  "Bu dosya türü gönderilemez. Görsel: JPEG, PNG · Video: MP4, 3GP · Belge: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT.";
+
+/** Yüklemeden önce (tarayıcıda; sunucu da aynısını uygular): uzantı ve boyut. Hata metni kullanıcıya gösterilir. */
+export function gidenMedyaOnKontrol(ad: string, boyut: number): { tamam: true; tur: GidenMedyaTuru; mime: string } | { tamam: false; hata: string } {
+  const t = uzantiTuru(ad);
+  if (!t) return { tamam: false, hata: DESTEKLENMEYEN_DOSYA_METNI };
+  if (boyut <= 0) return { tamam: false, hata: "Dosya boş." };
+  const k = GIDEN_MEDYA_KURALLARI[t.tur];
+  if (boyut > k.azami) return { tamam: false, hata: `${k.ad} en fazla ${k.azami / MB_} MB olabilir (bu dosya ${(boyut / MB_).toFixed(1)} MB).` };
+  return { tamam: true, ...t };
+}
+
+/** Meta'nın medya hatalarının kullanıcı metni (gönderim yanıtında ya da teslim bildiriminde). */
+export function medyaGonderimHataMetni(kod: number | null | undefined): string | null {
+  switch (kod) {
+    case 131053:
+      return "Meta dosyayı işleyemedi (tür, boyut ya da kodlama WhatsApp'a uygun değil). Dosyayı kontrol edip tekrar deneyin.";
+    case 131052:
+      return "Meta dosyayı indiremedi. Tekrar deneyin.";
+    case 131047:
+      return "Meta: 24 saatlik pencere kapanmış. Onaylı bir şablon gönderin.";
+    case 131026:
+      return "Bu kişide WhatsApp yok ya da ileti teslim edilemiyor.";
+    default:
+      return null;
+  }
+}
+
 export type MedyaDto = {
   id: string;
   durum: MedyaDurumu;
@@ -187,6 +263,12 @@ export type SohbetMesajiDto = {
   kampanyaId: string | null;
   teslimDurumu: string | null;
   teslimHataKodu: number | null;
+  /** Gönderilemeyen mesajın nedeni (kullanıcıya; ör. Meta medya hatası). */
+  hataMetni: string | null;
+  /** Gönderilemeyen medya mesajı dosyası duruyor: "Tekrar dene" gösterilir. */
+  tekrarDenenebilir: boolean;
+  /** Yanıtlanan mesaj (context.message_id): alıntı kutusu. Mesaj bulunamadıysa id null. */
+  yanit: { id: string | null; yon: MesajYonu | null; ozet: string } | null;
   tarih: string;
   surum: number;
 };

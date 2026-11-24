@@ -48,8 +48,24 @@ export type SablonGonderimi = {
 /** POST /{phone-number-id}/media (multipart): kampanya görseli. Dönen kimlik ~30 gün geçerlidir. */
 export type MedyaYuklemesi = { icerik: Uint8Array; mime: string; dosyaAdi: string };
 
-/** POST /{phone-number-id}/messages, type "text": 24 saat penceresinde serbest metin (gelen kutusu yanıtı). */
-export type MetinGonderimi = { alici: { tur: "telefon" | "bsuid"; deger: string }; metin: string };
+/**
+ * POST /{phone-number-id}/messages, type "text": 24 saat penceresinde serbest metin (gelen kutusu yanıtı).
+ * yanitWamid: yanıtlanan iletinin wamid'i (context.message_id; sohbette alıntı olarak görünür).
+ */
+export type MetinGonderimi = { alici: { tur: "telefon" | "bsuid"; deger: string }; metin: string; yanitWamid?: string | null };
+
+/**
+ * POST /{phone-number-id}/messages, type "image" | "video" | "document": /media ile yüklenmiş dosya (kimlikle). aciklama:
+ * caption; dosyaAdi: yalnızca belgede (document.filename, karşı tarafta görünen ad).
+ */
+export type MedyaGonderimi = {
+  alici: { tur: "telefon" | "bsuid"; deger: string };
+  tur: "image" | "video" | "document";
+  medyaId: string;
+  aciklama?: string | null;
+  dosyaAdi?: string | null;
+  yanitWamid?: string | null;
+};
 
 /** messages[0].id (wamid) ve message_status (accepted | held_for_quality_assessment | paused). */
 export type GonderimYaniti = { wamid: string; durum: string | null };
@@ -69,6 +85,7 @@ export interface WhatsappApiIstemcisi {
   medyaYukle(y: MedyaYuklemesi): Promise<string>;
   mesajGonder(g: SablonGonderimi): Promise<GonderimYaniti>;
   metinGonder(g: MetinGonderimi): Promise<GonderimYaniti>;
+  medyaGonder(g: MedyaGonderimi): Promise<GonderimYaniti>;
   /** POST /{phone-number-id}/messages { status: "read", message_id }: gelen iletiyi okundu işaretler. */
   okunduBildir(wamid: string): Promise<void>;
   numaraBilgisi(): Promise<NumaraBilgisi>;

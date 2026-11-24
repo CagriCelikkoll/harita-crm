@@ -31,7 +31,6 @@ export default async function YeniKampanyaSayfasi({ searchParams }: PageProps<"/
         saglayicilar={ayarlar.saglayicilar}
         eksikAyarlar={ayarlar.eksikAyarlar}
         smsAltbilgisi={smsAltbilgisi(ayarlar)}
-        iysKontrolu={ayarlar.iysKontrolu}
         whatsapp={{
           yonetici,
           ilkNumara: tek(p.numara) ?? null,

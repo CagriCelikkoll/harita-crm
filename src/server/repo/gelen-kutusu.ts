@@ -3,6 +3,7 @@
 // artırır ve yeni değeri satırın surum alanına yazar: istemci "bu sürümden sonrası" diye sorar (degisiklikler).
 // İç fonksiyonlar kendi transaction'larını açar; çağıranın transaction'ı içinde savepoint olur (better-sqlite3).
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { WHATSAPP_TESLIM_SIRASI } from "@/lib/whatsapp-api";
 import {
   MESAJ_SAYFA_BOYUTU,
@@ -82,6 +83,8 @@ export type GelenMesajGirdisi = {
   medya?: { mime: string | null; dosyaAdi: string | null; metaSha256: string | null } | null;
   /** Meta'nın bildirdiği yazılma anı; yoksa simdi. */
   metaZamani: Date | null;
+  /** Kişi bir mesaja yanıt verdi (context.id): yanıtlanan mesajın wamid'i. */
+  yanitWamid?: string | null;
   /** WhatsApp profil adı: kayıtta ad yoksa bildirimde gösterilir (bildirim kuyruğuna yazılır). */
   profilAdi?: string | null;
 };
@@ -109,6 +112,7 @@ export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = 
         tur: g.tur,
         metin: g.metin,
         medyaId: g.medyaId,
+        yanitWamid: g.yanitWamid?.slice(0, 200) ?? null,
         metaZamani: g.metaZamani,
         tarih,
         surum,
@@ -165,6 +169,15 @@ export type GidenMesajGirdisi = {
   teslimHataKodu?: number | null;
   /** Sohbet yoksa ilk durumu: kampanya mesajı sohbeti kapalı açar (müşteri cevap verince açılır). */
   ilkDurum: SohbetDurumu;
+  /** Yanıtlanan mesajın wamid'i (gönderimde context.message_id). */
+  yanitWamid?: string | null;
+  /** Gönderilemediyse kullanıcıya gösterilen neden. */
+  hataMetni?: string | null;
+  /**
+   * Gelen kutusundan gönderilen dosya (diske yazılmış ve doğrulanmış): aynı transaction'da sohbet_medyalari satırı
+   * ("indirildi"; gelen medyayla aynı klasör, kota ve saklama süresi). metaMedyaId: Meta'ya yüklendiyse kimliği.
+   */
+  medya?: { yol: string; mime: string; boyut: number; sha256: string; dosyaAdi: string; metaMedyaId: string | null } | null;
 };
 
 /** İşletmenin gönderdiği mesaj (temsilci, kampanya …). Sohbetin durumunu değiştirmez; okunmamışı artırmaz. */
@@ -188,12 +201,32 @@ export function gidenMesajYaz(ctx: TenantContext, g: GidenMesajGirdisi, simdi = 
         kampanyaId: g.kampanyaId ?? null,
         teslimDurumu: g.teslimDurumu,
         teslimHataKodu: g.teslimHataKodu ?? null,
+        hataMetni: g.hataMetni?.slice(0, 500) ?? null,
+        yanitWamid: g.yanitWamid ?? null,
         tarih: simdi,
         surum,
         olusturmaTarihi: simdi,
       })
       .returning()
       .get();
+    if (g.medya) {
+      db.insert(sohbetMedyalari)
+        .values({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          mesajId: mesaj.id,
+          metaMedyaId: g.medya.metaMedyaId,
+          mime: g.medya.mime,
+          boyut: g.medya.boyut,
+          sha256: g.medya.sha256,
+          dosyaAdi: g.medya.dosyaAdi.slice(0, 255),
+          yol: g.medya.yol,
+          durum: "indirildi",
+          indirmeTarihi: simdi,
+          olusturmaTarihi: simdi,
+        })
+        .run();
+    }
     db.update(sohbetler)
       .set({ sonMesajTarihi: sql`max(coalesce(${sohbetler.sonMesajTarihi}, 0), ${simdi.getTime()})`, surum })
       .where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, sohbet.id)))
@@ -211,6 +244,45 @@ export function istemciMesajiBul(ctx: TenantContext, istemciKimligi: string): So
       .where(and(eq(sohbetMesajlari.tenantId, ctx.tenantId), eq(sohbetMesajlari.istemciKimligi, istemciKimligi)))
       .get() ?? null
   );
+}
+
+/**
+ * Gönderilemeyen medya mesajının yeniden denenmesinin sonucu: aynı mesaj satırı güncellenir (yeni wamid, durum, hata),
+ * medyanın Meta kimliği yazılır. Yalnızca hâlâ "failed" olan giden mesaj; güncellendiyse true.
+ */
+export function gidenMesajSonucuYaz(
+  ctx: TenantContext,
+  mesajId: string,
+  g: { wamid: string | null; teslimDurumu: string; teslimHataKodu: number | null; hataMetni: string | null; metaMedyaId?: string | null },
+): boolean {
+  return db.transaction(() => {
+    const m = db
+      .select({ id: sohbetMesajlari.id, sohbetId: sohbetMesajlari.sohbetId })
+      .from(sohbetMesajlari)
+      .where(
+        and(
+          eq(sohbetMesajlari.tenantId, ctx.tenantId),
+          eq(sohbetMesajlari.id, mesajId),
+          eq(sohbetMesajlari.yon, "giden"),
+          eq(sohbetMesajlari.teslimDurumu, "failed"),
+        ),
+      )
+      .get();
+    if (!m) return false;
+    const surum = surumAl(ctx);
+    db.update(sohbetMesajlari)
+      .set({ wamid: g.wamid, teslimDurumu: g.teslimDurumu, teslimHataKodu: g.teslimHataKodu, hataMetni: g.hataMetni?.slice(0, 500) ?? null, surum })
+      .where(and(eq(sohbetMesajlari.tenantId, ctx.tenantId), eq(sohbetMesajlari.id, m.id)))
+      .run();
+    if (g.metaMedyaId !== undefined) {
+      db.update(sohbetMedyalari)
+        .set({ metaMedyaId: g.metaMedyaId })
+        .where(and(eq(sohbetMedyalari.tenantId, ctx.tenantId), eq(sohbetMedyalari.mesajId, m.id)))
+        .run();
+    }
+    db.update(sohbetler).set({ surum }).where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, m.sohbetId))).run();
+    return true;
+  });
 }
 
 /** Meta durum bildirimi: yalnızca ileri gider (sent < failed < delivered < read). Mesaj yoksa false. */
@@ -343,7 +415,49 @@ export function okunmamisSayilari(ctx: TenantContext): Map<string, number> {
 }
 
 /** Sohbetin son mesajları (eskiden yeniye). onceTarih: daha eskileri (geriye kaydırma). */
-export type SohbetMesajiSatiri = SohbetMesaji & { gonderenAd: string | null; medya: SohbetMedyasi | null };
+/** Yanıtlanan mesajın alıntı bilgisi (aynı sohbette wamid ile bulunur). */
+export type YanitlananMesaj = Pick<SohbetMesaji, "id" | "yon" | "tur" | "metin" | "icerikSilindi">;
+
+export type SohbetMesajiSatiri = SohbetMesaji & { gonderenAd: string | null; medya: SohbetMedyasi | null; yanitlanan: YanitlananMesaj | null };
+
+const yanitlanan = alias(sohbetMesajlari, "yanitlanan");
+
+function mesajSorgusu() {
+  return db
+    .select({
+      m: sohbetMesajlari,
+      gonderenAd: user.name,
+      medya: sohbetMedyalari,
+      yanitlanan: { id: yanitlanan.id, yon: yanitlanan.yon, tur: yanitlanan.tur, metin: yanitlanan.metin, icerikSilindi: yanitlanan.icerikSilindi },
+    })
+    .from(sohbetMesajlari)
+    .leftJoin(user, eq(user.id, sohbetMesajlari.gonderenKullanici))
+    .leftJoin(sohbetMedyalari, and(eq(sohbetMedyalari.tenantId, sohbetMesajlari.tenantId), eq(sohbetMedyalari.mesajId, sohbetMesajlari.id)))
+    .leftJoin(
+      yanitlanan,
+      and(
+        eq(yanitlanan.tenantId, sohbetMesajlari.tenantId),
+        eq(yanitlanan.sohbetId, sohbetMesajlari.sohbetId),
+        eq(yanitlanan.wamid, sohbetMesajlari.yanitWamid),
+      ),
+    );
+}
+
+type MesajSorguSatiri = Awaited<ReturnType<ReturnType<typeof mesajSorgusu>["all"]>>[number];
+const satiraCevir = (s: MesajSorguSatiri): SohbetMesajiSatiri => ({
+  ...s.m,
+  gonderenAd: s.gonderenAd,
+  medya: s.medya,
+  yanitlanan: s.yanitlanan?.id ? (s.yanitlanan as YanitlananMesaj) : null,
+});
+
+/** Tek mesaj (gönderen adı, medya ve alıntıyla); bu çalışma alanının değilse null. */
+export function mesajSatiriGetir(ctx: TenantContext, mesajId: string): SohbetMesajiSatiri | null {
+  const s = mesajSorgusu()
+    .where(and(eq(sohbetMesajlari.tenantId, ctx.tenantId), eq(sohbetMesajlari.id, mesajId)))
+    .get();
+  return s ? satiraCevir(s) : null;
+}
 
 /**
  * Sohbetin mesajları (eskiden yeniye), gönderen temsilcinin adıyla. Varsayılan: son MESAJ_SAYFA_BOYUTU mesaj;
@@ -358,17 +472,12 @@ export function sohbetMesajlariGetir(
   if (secenek.onceTarih) kosul.push(lt(sohbetMesajlari.tarih, secenek.onceTarih));
   if (secenek.sonraSurum !== undefined) kosul.push(gt(sohbetMesajlari.surum, secenek.sonraSurum));
   const sira = sql.raw("sohbet_mesajlari.rowid");
-  const sorgu = db
-    .select({ m: sohbetMesajlari, gonderenAd: user.name, medya: sohbetMedyalari })
-    .from(sohbetMesajlari)
-    .leftJoin(user, eq(user.id, sohbetMesajlari.gonderenKullanici))
-    .leftJoin(sohbetMedyalari, and(eq(sohbetMedyalari.tenantId, sohbetMesajlari.tenantId), eq(sohbetMedyalari.mesajId, sohbetMesajlari.id)))
-    .where(and(...kosul));
+  const sorgu = mesajSorgusu().where(and(...kosul));
   const satirlar =
     secenek.sonraSurum !== undefined
       ? sorgu.orderBy(asc(sohbetMesajlari.tarih), asc(sira)).limit(500).all()
       : sorgu.orderBy(desc(sohbetMesajlari.tarih), desc(sira)).limit(MESAJ_SAYFA_BOYUTU).all().reverse();
-  return satirlar.map((s) => ({ ...s.m, gonderenAd: s.gonderenAd, medya: s.medya }));
+  return satirlar.map(satiraCevir);
 }
 
 /** Gelen medya satırı (yalnızca bu çalışma alanının). */

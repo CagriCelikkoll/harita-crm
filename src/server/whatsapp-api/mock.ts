@@ -1,6 +1,6 @@
 // Sahte WhatsApp Cloud API istemcisi: testlerde her zaman, geliştirmede WHATSAPP_API_MOCK=1 ile. Gerçek ağa çıkmaz.
 // Durum modül düzeyindedir; testler mockWhatsappSifirla() ve mockWhatsapp üzerinden senaryo kurar.
-import type { MetaSablon, MetinGonderimi, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
+import type { MedyaGonderimi, MetaSablon, MetinGonderimi, NumaraBilgisi, SablonGonderimi, WhatsappApiIstemcisi } from "./tipler";
 import { GraphHatasi, type GraphBaglantisi } from "./tipler";
 import { createHash } from "node:crypto";
 import { metaMedyaAdresiGecerli } from "./medya-adresi";
@@ -59,6 +59,10 @@ export const mockWhatsapp = {
   gonderilenler: [] as (SablonGonderimi & { wamid: string })[],
   /** Gönderilen serbest metinler (gelen kutusu yanıtları). */
   metinler: [] as (MetinGonderimi & { wamid: string; phoneNumberId: string })[],
+  /** Gönderilen medya iletileri (gelen kutusundan; sırasıyla). */
+  medyaGonderimleri: [] as (MedyaGonderimi & { wamid: string; phoneNumberId: string })[],
+  /** Doluysa bir sonraki medya iletisi gönderimi bu hatayla başarısız olur (tek seferlik). */
+  medyaGonderimHatasi: null as GraphHatasi | null,
   /** Okundu bildirimi gönderilen gelen ileti kimlikleri. */
   okundular: [] as string[],
   /** Alıcıya (telefon ya da BSUID) özel gönderim hatası; her gönderimde yeniden uygulanır. */
@@ -99,6 +103,8 @@ export function mockWhatsappSifirla() {
   mockWhatsapp.gonderilenler = [];
   mockWhatsapp.metinler = [];
   mockWhatsapp.okundular = [];
+  mockWhatsapp.medyaGonderimleri = [];
+  mockWhatsapp.medyaGonderimHatasi = null;
   mockWhatsapp.aliciHatalari = new Map();
   mockWhatsapp.gonderimDurumu = "accepted";
   mockWhatsapp.wabaNumaralari = null;
@@ -181,6 +187,15 @@ export function mockWhatsappIstemcisi(b: GraphBaglantisi): WhatsappApiIstemcisi 
       if (h) throw h;
       const wamid = `wamid.MOCKM${SUREC_ONEKI}${String(mockWhatsapp.metinler.length + 1).padStart(6, "0")}`;
       mockWhatsapp.metinler.push({ ...structuredClone(g), wamid, phoneNumberId: b.phoneNumberId });
+      return { wamid, durum: mockWhatsapp.gonderimDurumu };
+    },
+    async medyaGonder(g) {
+      cagri();
+      const h = mockWhatsapp.aliciHatalari.get(g.alici.deger) ?? mockWhatsapp.medyaGonderimHatasi;
+      mockWhatsapp.medyaGonderimHatasi = null;
+      if (h) throw h;
+      const wamid = `wamid.MOCKD${SUREC_ONEKI}${String(mockWhatsapp.medyaGonderimleri.length + 1).padStart(6, "0")}`;
+      mockWhatsapp.medyaGonderimleri.push({ ...structuredClone(g), wamid, phoneNumberId: b.phoneNumberId });
       return { wamid, durum: mockWhatsapp.gonderimDurumu };
     },
     async okunduBildir(wamid) {

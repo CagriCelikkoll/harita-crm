@@ -932,6 +932,16 @@ const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
   mesajTeslimDurumuYaz: () => {
     expect(gelenKutusu.mesajTeslimDurumuYaz(A, "wamid.B-giden", "read", null)).toBe(false);
   },
+  mesajSatiriGetir: () => {
+    for (const m of bSohbetMesajlari) expect(gelenKutusu.mesajSatiriGetir(A, m.id)).toBeNull();
+    expect(gelenKutusu.mesajSatiriGetir(B, bSohbetMesajlari[0].id)?.id).toBe(bSohbetMesajlari[0].id);
+  },
+  gidenMesajSonucuYaz: () => {
+    // B'nin mesajı "failed" olsa bile A adına güncellenemez (sonuç denetimi: B'nin mesajları değişmez).
+    for (const m of bSohbetMesajlari) {
+      expect(gelenKutusu.gidenMesajSonucuYaz(A, m.id, { wamid: "wamid.A-saldiri", teslimDurumu: "gonderildi", teslimHataKodu: null, hataMetni: null })).toBe(false);
+    }
+  },
   sohbetleriListele: () => {
     expect(gelenKutusu.sohbetleriListele(A).toplam).toBe(0);
     expect(gelenKutusu.sohbetleriListele(A, { idler: [bSohbet.id] }).satirlar).toEqual([]);

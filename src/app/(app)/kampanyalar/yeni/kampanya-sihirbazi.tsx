@@ -71,8 +71,6 @@ export function KampanyaSihirbazi(props: {
   eksikAyarlar: string[];
   /** Her SMS'e eklenen gönderen + ret yolu (sunucuda hesaplanır). */
   smsAltbilgisi: string;
-  /** Çalışma alanının İYS kontrolü; kapalıysa sihirbazın üstünde ve özette uyarı gösterilir. */
-  iysKontrolu: boolean;
   /**
    * WhatsApp (API): yalnızca yönetici başlatır. Gönderen numaralar ve her numaranın (WABA'sının) kullanılabilir
    * (onaylı, destekli) şablonları.
@@ -207,7 +205,6 @@ export function KampanyaSihirbazi(props: {
 
   return (
     <div className="flex max-w-[920px] flex-col gap-6">
-      {!props.iysKontrolu && <IysKapaliUyarisi />}
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-2" aria-label="Adımlar">
         {KAMPANYA_ADIMLARI.map((a, i) => {
           const durumu = a.no < adim ? "tamam" : a.no === adim ? "etkin" : "bekliyor";
@@ -521,7 +518,7 @@ export function KampanyaSihirbazi(props: {
   );
 }
 
-/** İYS kontrolü kapalı: küçük uyarı (oluşturma ve özet ekranı). */
+/** İYS kontrolü kapalı: küçük not; yalnızca Gönder adımının özetinde (sihirbazda tek yer). */
 function IysKapaliUyarisi() {
   return (
     <p role="note" className="rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
