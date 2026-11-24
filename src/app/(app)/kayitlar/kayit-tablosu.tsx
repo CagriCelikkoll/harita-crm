@@ -81,7 +81,12 @@ export function KayitTablosu(props: {
   seciliBaglantisi: (id: string) => string;
   onSec: (id: string) => void;
   google: GoogleDurumu & { hata: string | null };
+  /** Toplu işlem seçimi (yalnızca yönetici): verilirse satır onay kutuları ve "sayfadakilerin tümünü seç" görünür. */
+  secim?: { secili: ReadonlySet<string>; degistir: (id: string) => void; sayfayiDegistir: (sec: boolean) => void };
 }) {
+  const { secim } = props;
+  const sayfaSecili = Boolean(secim) && props.satirlar.length > 0 && props.satirlar.every((s) => secim!.secili.has(s.id));
+  const sayfaKismen = Boolean(secim) && !sayfaSecili && props.satirlar.some((s) => secim!.secili.has(s.id));
   const { bilgi, yukleniyor, goster } = props.google;
   const gosterilmemis = props.satirlar
     .filter((s) => s.kaynak === "google" && !s.isletmeAdi && !bilgi.has(s.id) && !yukleniyor.has(s.id))
@@ -117,6 +122,21 @@ export function KayitTablosu(props: {
         <table className="w-full min-w-[680px] border-collapse text-left text-sm">
           <thead className="text-[13px] text-soluk">
             <tr>
+              {secim && (
+                <th className="w-0 border-b border-cizgi py-3.5 pr-0 pl-5">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-ana"
+                    aria-label="Sayfadakilerin tümünü seç"
+                    title="Sayfadakilerin tümünü seç"
+                    checked={sayfaSecili}
+                    ref={(el) => {
+                      if (el) el.indeterminate = sayfaKismen;
+                    }}
+                    onChange={(e) => secim.sayfayiDegistir(e.target.checked)}
+                  />
+                </th>
+              )}
               <th className="border-b border-cizgi px-5 py-3.5 font-semibold">İşletme</th>
               <th className="border-b border-cizgi px-3 py-3.5 font-semibold">Durum</th>
               <th className="border-b border-cizgi px-3 py-3.5 font-semibold">İzin</th>
@@ -131,6 +151,17 @@ export function KayitTablosu(props: {
               const gosterilebilir = google && !bilgi.has(s.id) && !yukleniyor.has(s.id);
               return (
                 <tr key={s.id} className={`border-b border-[#f0f2ef] ${secili ? "bg-[#f1f7f5]" : "hover:bg-kart-alt"}`}>
+                  {secim && (
+                    <td className="w-0 py-3 pr-0 pl-5 align-top">
+                      <input
+                        type="checkbox"
+                        className="mt-1.5 size-4 accent-ana"
+                        aria-label={`Seç: ${satirAdi(s)}`}
+                        checked={secim.secili.has(s.id)}
+                        onChange={() => secim.degistir(s.id)}
+                      />
+                    </td>
+                  )}
                   <td className="px-5 py-3">
                     <a
                       href={props.seciliBaglantisi(s.id)}

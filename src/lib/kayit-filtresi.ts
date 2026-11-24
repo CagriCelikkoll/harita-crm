@@ -1,11 +1,13 @@
 // Kayıtlar süzgecinin adres (URL) biçimi: Kayıtlar sayfası ve CSV dışa aktarma aynı ayrıştırıcıyı kullanır.
 // grup: ilgi | incelenmemis | tum (sekme), durum, izin, kaynak, wa_izin, etiket, q (arama), ad=bos (adı girilmemiş
-// Google kayıtları), inceleme (eski bağlantılar ve sekme verilmediğinde), sayfa.
+// Google kayıtları), inceleme (eski bağlantılar ve sekme verilmediğinde), sira (son | ad), boyut (50 | 100 | 200), sayfa.
 import { WHATSAPP_IZINLERI, type WhatsappIzni } from "./mesajlasma";
 import {
   ILETI_IZINLERI,
   INCELEME_DURUMLARI,
   KAYIT_DURUMLARI,
+  KAYIT_SAYFA_BOYUTLARI,
+  KAYIT_SIRALARI,
   KAYIT_GRUPLARI,
   KAYIT_KAYNAKLARI,
   type IletiIzni,
@@ -36,10 +38,12 @@ export function kayitFiltresiCoz(al: (ad: string) => string | undefined, varsayi
     arama: al("q")?.trim() || undefined,
     inceleme: grup ? undefined : inceleme === "hepsi" ? "hepsi" : (bul(INCELEME_DURUMLARI, inceleme) as IncelemeDurumu | undefined),
     adsizGoogle: al("ad") === "bos" || undefined,
+    sira: al("sira") === "ad" ? "ad" : undefined,
+    boyut: KAYIT_SAYFA_BOYUTLARI.find((b) => b !== KAYIT_SAYFA_BOYUTLARI[0] && String(b) === al("boyut")),
   };
 }
 
-/** Süzgecin adres sorgusu (sayfa hariç). `grup` verilirse onunla değiştirilir. */
+/** Süzgecin adres sorgusu (sayfa hariç; sıra ve boyut varsayılandan farklıysa dahil). `grup` verilirse onunla değiştirilir. */
 export function kayitSorgusu(f: KayitFiltresi, degisiklik: { grup?: KayitGrubu } = {}): URLSearchParams {
   const s = new URLSearchParams();
   const grup = degisiklik.grup ?? f.grup;
@@ -53,10 +57,21 @@ export function kayitSorgusu(f: KayitFiltresi, degisiklik: { grup?: KayitGrubu }
     q: f.arama,
     inceleme: grup ? undefined : f.inceleme,
     ad: f.adsizGoogle ? "bos" : undefined,
+    sira: f.sira && f.sira !== KAYIT_SIRALARI[0] ? f.sira : undefined,
+    boyut: f.boyut && f.boyut !== KAYIT_SAYFA_BOYUTLARI[0] ? String(f.boyut) : undefined,
   })) {
     if (v) s.set(k, v);
   }
   return s;
+}
+
+/** Toplu işlemde "filtreye uyan tümü": yalnızca süzgeç (sayfa, sıra, boyut yok sayılır). */
+export function topluSuzgec(f: KayitFiltresi): Omit<KayitFiltresi, "sayfa" | "sira" | "boyut"> {
+  const kopya = { ...f };
+  delete kopya.sayfa;
+  delete kopya.sira;
+  delete kopya.boyut;
+  return kopya;
 }
 
 /** Filtreler panelinde seçili süzgeç sayısı (düğmedeki rozet). */

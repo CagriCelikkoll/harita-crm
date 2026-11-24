@@ -2,7 +2,13 @@ import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL
 import {
   ILETI_IZNI_ADLARI,
   KAYIT_DURUM_ADLARI,
+  KAYIT_ETIKET_AZAMI,
+  KAYIT_SAYFA_BOYUTLARI,
   SAYFA_BOYUTU,
+  TOPLU_ATLAMA_NEDENLERI,
+  type KayitSayfaBoyutu,
+  type TopluAtlamaNedeni,
+  type KayitSirasi,
   type IletiIzni,
   type IncelemeDurumu,
   type KayitKaynagi,
@@ -12,11 +18,11 @@ import {
   type TaramaKarari,
 } from "@/lib/sabitler";
 import { db } from "../db";
-import { leadEvents, leads, scans, taramaSonuclari, whatsappKisileri, type Kayit } from "../db/schema";
+import { denetimKayitlari, engelListesi, leadEvents, leads, scans, taramaSonuclari, user, whatsappKisileri, type Kayit } from "../db/schema";
 import { telefonNormallestir } from "../messaging/adres";
-import type { AliciTuru, WhatsappIzni } from "@/lib/mesajlasma";
-import { KayitKuraliHatasi, likeKacir, type TenantContext } from "./baglam";
-import { retliKayitAdresleriniEngelle } from "./engel-listesi";
+import { ALICI_TURU_ADLARI, type AliciTuru, type WhatsappIzni } from "@/lib/mesajlasma";
+import { KayitKuraliHatasi, likeKacir, TopluSecimDegistiHatasi, yoneticiOlmali, type TenantContext } from "./baglam";
+import { engelliKayitlar, retliKayitAdresleriniEngelle } from "./engel-listesi";
 
 export type { Kayit };
 
@@ -43,6 +49,10 @@ export type KayitFiltresi = {
    * - "tum": hepsi.
    */
   grup?: KayitGrubu;
+  /** Liste sırası (yalnızca kayitlariListele): "son" (varsayılan) ya da "ad" (ad / işletme adı A-Z). */
+  sira?: KayitSirasi;
+  /** Sayfa boyutu (yalnızca kayitlariListele): 50 / 100 / 200; varsayılan 50. */
+  boyut?: KayitSayfaBoyutu;
 };
 
 function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
@@ -89,19 +99,28 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   return and(...kosullar)!;
 }
 
+/** Listede gösterilen ad: kullanıcının girdiği işletme adı, yoksa yetkili / kişi adı (Google'daki ad saklanmaz). */
+const gorunenAd = sql`coalesce(nullif(trim(${leads.isletmeAdi}), ''), nullif(trim(${leads.yetkiliAdi}), ''))`;
+
 export function kayitlariListele(ctx: TenantContext, f: KayitFiltresi = {}) {
   const sayfa = Math.max(1, Math.floor(f.sayfa ?? 1));
+  const boyut = KAYIT_SAYFA_BOYUTLARI.find((b) => b === f.boyut) ?? KAYIT_SAYFA_BOYUTLARI[0];
   const kosul = filtreKosulu(ctx, f);
   const toplam = db.select({ n: count() }).from(leads).where(kosul).get()?.n ?? 0;
   const kayitlar = db
     .select()
     .from(leads)
     .where(kosul)
-    .orderBy(desc(leads.guncellemeTarihi), desc(leads.id))
-    .limit(SAYFA_BOYUTU)
-    .offset((sayfa - 1) * SAYFA_BOYUTU)
+    // Ad A-Z: Türkçe alfabe (tr_sira, db/index.ts); adı girilmemiş kayıtlar (ör. Google kayıtları) sonda.
+    .orderBy(
+      ...(f.sira === "ad"
+        ? [sql`${gorunenAd} is null`, sql`tr_sira(${gorunenAd})`, desc(leads.guncellemeTarihi), desc(leads.id)]
+        : [desc(leads.guncellemeTarihi), desc(leads.id)]),
+    )
+    .limit(boyut)
+    .offset((sayfa - 1) * boyut)
     .all();
-  return { kayitlar, toplam, sayfa, sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)) };
+  return { kayitlar, toplam, sayfa, boyut, sayfaSayisi: Math.max(1, Math.ceil(toplam / boyut)) };
 }
 
 /** Sekme sayıları: diğer süzgeçler (durum, izin, arama…) uygulanmış olarak her sekmenin kayıt sayısı. */
@@ -508,4 +527,189 @@ export function incelenmemisSayilari(ctx: TenantContext, scanIdler: string[]): M
     .groupBy(leads.scanId)
     .all();
   return new Map(satirlar.map((s) => [s.scanId!, s.n]));
+}
+
+// ——— Toplu işlem (Kayıtlar listesi) ———
+
+export type TopluIslem =
+  | { tur: "etiket_ekle"; etiket: string }
+  | { tur: "etiket_kaldir"; etiket: string }
+  | { tur: "alici_turu"; aliciTuru: AliciTuru };
+
+/**
+ * Seçim: sayfada işaretlenen id'ler ya da "filtreye uyan tümü" (süzgeç sunucuda yeniden uygulanır; sayfa, sıra ve
+ * boyut yok sayılır). `beklenenToplam`: onay penceresinde gösterilen sayı; filtreye uyan kayıt sayısı o arada
+ * değiştiyse hiçbir şey yazılmaz (TopluSecimDegistiHatasi), kullanıcı yeni sayıyı onaylar.
+ */
+export type TopluSecim = { idler: string[] } | { filtre: Omit<KayitFiltresi, "sayfa" | "sira" | "boyut">; beklenenToplam?: number };
+
+export type TopluSonuc = {
+  /** Seçimde bulunan (bu çalışma alanına ait) kayıt sayısı. */
+  hedef: number;
+  degisen: number;
+  atlanan: Record<TopluAtlamaNedeni, number>;
+  /** id ile seçilip bulunamayan (silinmiş ya da başka çalışma alanına ait) kayıtlar: dokunulmaz. */
+  bulunamayan: number;
+};
+
+const DENETIM_TOPLU_KAYIT = "toplu_kayit_islemi";
+
+/**
+ * Seçilen kayıtlara toplu işlem (yalnızca yönetici; YetkiHatasi). Tek transaction; yalnızca bu çalışma alanının
+ * kayıtları. Değişen her kayda lead_events'e olay, işlemin özetine denetim kaydı yazılır.
+ *  - etiket_ekle / etiket_kaldir: yalnızca `etiketler` alanı. Etiketi zaten olan / olmayan kayıt "ayni"; etiket sınırı
+ *    (KAYIT_ETIKET_AZAMI) dolu kayıt "etiket_siniri" olarak atlanır.
+ *  - alici_turu: yalnızca `alici_turu` alanı. RET vermiş (ileti izni ya da WhatsApp izni 'ret') ve engel listesindeki
+ *    kayıtlara dokunulmaz; Meta reklamından gelen bireysel kişi tacir/esnaf yapılmaz (tek tek, açıklamayla yapılır).
+ * Hiçbir işlem ileti izni, WhatsApp izni / ret alanlarını ya da engel listesini değiştirmez.
+ */
+export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, islem: TopluIslem): TopluSonuc {
+  yoneticiOlmali(ctx);
+  return db.transaction((tx) => {
+    const kolonlar = {
+      id: leads.id,
+      etiketler: leads.etiketler,
+      aliciTuru: leads.aliciTuru,
+      iletiIzni: leads.iletiIzni,
+      kaynak: leads.kaynak,
+      eposta: leads.eposta,
+      ekTelefon: leads.ekTelefon,
+    };
+    let hedefler: { id: string; etiketler: string[]; aliciTuru: AliciTuru; iletiIzni: IletiIzni; kaynak: KayitKaynagi; eposta: string | null; ekTelefon: string | null }[] = [];
+    let bulunamayan = 0;
+    if ("idler" in secim) {
+      const benzersiz = [...new Set(secim.idler)];
+      for (let i = 0; i < benzersiz.length; i += 500) {
+        hedefler.push(
+          ...tx
+            .select(kolonlar)
+            .from(leads)
+            .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, benzersiz.slice(i, i + 500))))
+            .all(),
+        );
+      }
+      bulunamayan = benzersiz.length - hedefler.length;
+    } else {
+      hedefler = tx.select(kolonlar).from(leads).where(filtreKosulu(ctx, secim.filtre)).all();
+      if (secim.beklenenToplam !== undefined && hedefler.length !== secim.beklenenToplam) {
+        throw new TopluSecimDegistiHatasi(hedefler.length);
+      }
+    }
+
+    const atlanan = Object.fromEntries(TOPLU_ATLAMA_NEDENLERI.map((n) => [n, 0])) as Record<TopluAtlamaNedeni, number>;
+    const idler = hedefler.map((h) => h.id);
+    const waIzinleri = new Map<string, WhatsappIzni>();
+    const engelli = new Set<string>();
+    if (islem.tur === "alici_turu" && idler.length) {
+      for (let i = 0; i < idler.length; i += 500) {
+        const parca = idler.slice(i, i + 500);
+        for (const w of tx
+          .select({ leadId: whatsappKisileri.leadId, izin: whatsappKisileri.izin })
+          .from(whatsappKisileri)
+          .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), inArray(whatsappKisileri.leadId, parca)))
+          .all()) {
+          waIzinleri.set(w.leadId, w.izin);
+        }
+        // Engel listesine bu kayıt adına yazılmış adres (ret akışı) ...
+        for (const e of tx
+          .selectDistinct({ leadId: engelListesi.leadId })
+          .from(engelListesi)
+          .where(and(eq(engelListesi.tenantId, ctx.tenantId), inArray(engelListesi.leadId, parca)))
+          .all()) {
+          if (e.leadId) engelli.add(e.leadId);
+        }
+      }
+      // ... ya da kendi adreslerinden (e-posta, ek telefon) biri engel listesinde (listedeki "Engelli" işareti).
+      for (const id of engelliKayitlar(ctx, hedefler)) engelli.add(id);
+    }
+
+    const simdi = new Date();
+    const olaylar: { leadId: string; tur: OlayTuru; aciklama: string }[] = [];
+    for (const h of hedefler) {
+      const kosul = and(eq(leads.id, h.id), eq(leads.tenantId, ctx.tenantId));
+      if (islem.tur === "etiket_ekle" || islem.tur === "etiket_kaldir") {
+        const var_ = h.etiketler.includes(islem.etiket);
+        if (islem.tur === "etiket_ekle" ? var_ : !var_) {
+          atlanan.ayni++;
+          continue;
+        }
+        if (islem.tur === "etiket_ekle" && h.etiketler.length >= KAYIT_ETIKET_AZAMI) {
+          atlanan.etiket_siniri++;
+          continue;
+        }
+        const etiketler = islem.tur === "etiket_ekle" ? [...h.etiketler, islem.etiket] : h.etiketler.filter((e) => e !== islem.etiket);
+        tx.update(leads).set({ etiketler, guncellemeTarihi: simdi }).where(kosul).run();
+        olaylar.push({
+          leadId: h.id,
+          tur: "bilgi",
+          aciklama: `Toplu işlem: "${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "eklendi" : "kaldırıldı"}`,
+        });
+        continue;
+      }
+      // alici_turu: önce ret / engel (aynı türde olsa da "ret" / "engelli" sayılır: dokunulmayan kayıt nedeniyle görünür).
+      if (h.iletiIzni === "ret" || waIzinleri.get(h.id) === "ret") {
+        atlanan.ret++;
+        continue;
+      }
+      if (engelli.has(h.id)) {
+        atlanan.engelli++;
+        continue;
+      }
+      if (h.aliciTuru === islem.aliciTuru) {
+        atlanan.ayni++;
+        continue;
+      }
+      const iysKuraliKalkar = h.aliciTuru === "bireysel" && islem.aliciTuru === "tacir_esnaf";
+      if (iysKuraliKalkar && h.kaynak === "meta_reklam") {
+        atlanan.meta_reklam++;
+        continue;
+      }
+      tx.update(leads).set({ aliciTuru: islem.aliciTuru, guncellemeTarihi: simdi }).where(kosul).run();
+      const waIzinli = waIzinleri.get(h.id) === "var";
+      olaylar.push({
+        leadId: h.id,
+        // Tek kayıt düzenlemesiyle aynı: WhatsApp izinli bireysel kişi tacir/esnaf olunca İYS beyanı kuralı kalkar.
+        tur: iysKuraliKalkar && waIzinli ? "izin" : "bilgi",
+        aciklama: `Toplu işlem: alıcı türü ${ALICI_TURU_ADLARI[h.aliciTuru]} → ${ALICI_TURU_ADLARI[islem.aliciTuru]}${
+          iysKuraliKalkar && waIzinli ? " (yönetici; İYS beyanı kuralı kalktı)" : ""
+        }`,
+      });
+    }
+
+    for (let i = 0; i < olaylar.length; i += 500) {
+      tx.insert(leadEvents)
+        .values(
+          olaylar.slice(i, i + 500).map((o) => ({
+            id: crypto.randomUUID(),
+            tenantId: ctx.tenantId,
+            leadId: o.leadId,
+            tur: o.tur,
+            aciklama: o.aciklama,
+            kullaniciId: ctx.userId || null,
+            sistem: true,
+          })),
+        )
+        .run();
+    }
+
+    const sonuc: TopluSonuc = { hedef: hedefler.length, degisen: olaylar.length, atlanan, bulunamayan };
+    const islemMetni =
+      islem.tur === "alici_turu" ? `alıcı türü → ${ALICI_TURU_ADLARI[islem.aliciTuru]}` : `"${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "ekleme" : "kaldırma"}`;
+    const atlananMetni = TOPLU_ATLAMA_NEDENLERI.filter((n) => atlanan[n]).map((n) => `${n}: ${atlanan[n]}`);
+    tx.insert(denetimKayitlari)
+      .values({
+        id: crypto.randomUUID(),
+        tenantId: ctx.tenantId,
+        kullaniciId: ctx.userId || null,
+        kullaniciAdi: tx.select({ ad: user.name }).from(user).where(eq(user.id, ctx.userId)).get()?.ad ?? null,
+        olay: DENETIM_TOPLU_KAYIT,
+        deger: islem.tur,
+        aciklama: `Toplu işlem (${"idler" in secim ? "seçilen kayıtlar" : "filtreye uyan tümü"}): ${islemMetni}. ${sonuc.hedef} kayıt, ${
+          sonuc.degisen
+        } değişti${atlananMetni.length ? `; atlanan ${atlananMetni.join(", ")}` : ""}.`,
+        tarih: simdi,
+      })
+      .run();
+    return sonuc;
+  });
 }

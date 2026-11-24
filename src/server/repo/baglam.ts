@@ -37,6 +37,14 @@ export class KayitKuraliHatasi extends Error {
   }
 }
 
+/** Toplu işlem: onaylanan "filtreye uyan tümü" sayısı işlem anında değişmiş (409); hiçbir şey yazılmaz. */
+export class TopluSecimDegistiHatasi extends Error {
+  constructor(readonly guncelToplam: number) {
+    super(`Filtreye uyan kayıt sayısı değişti (şimdi ${guncelToplam}). Yeni sayıyla yeniden onaylayın.`);
+    this.name = "TopluSecimDegistiHatasi";
+  }
+}
+
 export function yoneticiOlmali(ctx: TenantContext) {
   if (ctx.rol !== "yonetici") throw new YetkiHatasi();
 }

@@ -262,6 +262,20 @@ const kayitTestleri: Record<keyof typeof kayitlar, () => void> = {
     expect(kayitlar.kayitGetir(B, bKayit.id)).toEqual(bKayit);
     expect(olaylar.olaylariListele(B, bKayit.id)).toHaveLength(olaySayisi);
   },
+  kayitlariTopluGuncelle: () => {
+    const olaySayisi = olaylar.olaylariListele(B, bKayit.id).length;
+    // id ile: B'nin kaydı A'nın seçimine konsa da bulunmaz, dokunulmaz.
+    expect(kayitlar.kayitlariTopluGuncelle(A, { idler: [bKayit.id] }, { tur: "etiket_ekle", etiket: "ele-gecirildi" })).toMatchObject({
+      hedef: 0,
+      degisen: 0,
+      bulunamayan: 1,
+    });
+    expect(kayitlar.kayitlariTopluGuncelle(A, { idler: [bKayit.id] }, { tur: "alici_turu", aliciTuru: "bireysel" }).degisen).toBe(0);
+    // "Filtreye uyan tümü": süzgeç yalnızca A'nın kayıtlarında çalışır; B'nin etiketi kalır.
+    expect(kayitlar.kayitlariTopluGuncelle(A, { filtre: { grup: "tum", etiket: "gizli-b" } }, { tur: "etiket_kaldir", etiket: "gizli-b" }).hedef).toBe(0);
+    expect(kayitlar.kayitGetir(B, bKayit.id)).toEqual(bKayit);
+    expect(olaylar.olaylariListele(B, bKayit.id)).toHaveLength(olaySayisi);
+  },
   kayitSil: () => {
     expect(kayitlar.kayitSil(A, bKayit.id)).toBe(false);
     expect(kayitlar.kayitGetir(B, bKayit.id)).not.toBeNull();

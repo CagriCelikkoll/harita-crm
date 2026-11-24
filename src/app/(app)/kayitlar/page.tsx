@@ -16,6 +16,8 @@ import {
   KAYIT_GRUPLARI,
   KAYIT_KAYNAK_ADLARI,
   KAYIT_KAYNAKLARI,
+  KAYIT_SAYFA_BOYUTLARI,
+  KAYIT_SIRALARI,
   KULLANIM_DOLDU_METNI,
   OTOMATIK_GOSTERIM_SINIRI_METNI,
 } from "@/lib/sabitler";
@@ -241,6 +243,11 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         sayfaSayisi={liste.sayfaSayisi}
         oncekiBaglanti={liste.sayfa > 1 ? sayfaBaglantisi(liste.sayfa - 1) : null}
         sonrakiBaglanti={liste.sayfa < liste.sayfaSayisi ? sayfaBaglantisi(liste.sayfa + 1) : null}
+        yonetici={ctx.rol === "yonetici"}
+        filtreSorgusu={kayitSorgusu({ ...filtre, sira: undefined, boyut: undefined }).toString()}
+        sira={filtre.sira ?? KAYIT_SIRALARI[0]}
+        boyut={filtre.boyut ?? KAYIT_SAYFA_BOYUTLARI[0]}
+        etiketler={etiketler}
       />
     </>
   );

@@ -110,6 +110,20 @@ export const GOOGLE_ADSIZ = "Google kaydı · ad girilmemiş";
 export const AD_GIRME_IPUCU = "İşletmeyle görüştüğünüzde adını buraya yazın";
 
 export const SAYFA_BOYUTU = 20;
+/** Kayıtlar listesinde seçilebilen sayfa boyutları; ilki varsayılandır. */
+export const KAYIT_SAYFA_BOYUTLARI = [50, 100, 200] as const;
+export type KayitSayfaBoyutu = (typeof KAYIT_SAYFA_BOYUTLARI)[number];
+/** Kayıtlar listesinin sırası: son işlem (yeniden eskiye; varsayılan) ya da ad / işletme adı (A-Z, Türkçe alfabe). */
+export const KAYIT_SIRALARI = ["son", "ad"] as const;
+export type KayitSirasi = (typeof KAYIT_SIRALARI)[number];
+export const KAYIT_SIRA_ADLARI: Record<KayitSirasi, string> = { son: "Son işlem", ad: "Ad / işletme adı (A-Z)" };
+/** Bir kayıtta en fazla etiket (tek kayıt düzenleme ve toplu etiket ekleme aynı sınırı uygular). */
+export const KAYIT_ETIKET_AZAMI = 20;
+/** Toplu işlemde id ile gönderilebilecek en fazla kayıt (sayfa seçimi); daha fazlası "filtreye uyan tümü" ile. */
+export const TOPLU_ISLEM_AZAMI_ID = 500;
+/** Toplu işlemde kaydın atlanma nedenleri: zaten aynı, RET vermiş, engel listesinde, Meta reklamı kaynaklı bireysel, etiket sınırı. */
+export const TOPLU_ATLAMA_NEDENLERI = ["ayni", "ret", "engelli", "meta_reklam", "etiket_siniri"] as const;
+export type TopluAtlamaNedeni = (typeof TOPLU_ATLAMA_NEDENLERI)[number];
 export const YARICAP_MIN_KM = 1;
 export const YARICAP_MAX_KM = 25;
 /** Google kuralı: Places'tan gelen enlem/boylam en fazla 30 gün saklanabilir. */

@@ -16,7 +16,26 @@ export function veritabaniAc(dosyaYolu = process.env.DATABASE_PATH ?? "./data/ap
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.pragma("busy_timeout = 5000");
+  // Türkçe alfabe sırası (Kayıtlar > Ad A-Z): SQLite'ın ikili karşılaştırması Ç, Ğ, İ, Ö, Ş, Ü'yü Z'nin sonrasına koyar.
+  sqlite.function("tr_sira", { deterministic: true }, (deger: unknown) => (typeof deger === "string" ? trSiraAnahtari(deger) : null));
   return drizzle(sqlite, { schema });
+}
+
+const TR_ALFABE = "abcçdefgğhıijklmnoöpqrsştuüvwxyz";
+const SAPKALI: Record<string, string> = { â: "a", î: "i", û: "u" };
+
+/**
+ * Metnin Türkçe alfabe sırasıyla karşılaştırılabilir anahtarı (büyük/küçük harf duyarsız). Harfler U+0100'den
+ * başlayan ardışık kod noktalarına eşlenir; rakam, boşluk ve noktalama harflerden önce gelir.
+ */
+export function trSiraAnahtari(metin: string): string {
+  let anahtar = "";
+  for (const h of metin.trim().toLocaleLowerCase("tr")) {
+    const harf = SAPKALI[h] ?? h;
+    const sira = TR_ALFABE.indexOf(harf);
+    anahtar += sira >= 0 ? String.fromCharCode(0x100 + sira) : harf;
+  }
+  return anahtar;
 }
 
 export type DB = ReturnType<typeof veritabaniAc>;
