@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { kategoriBul } from "@/lib/kategoriler";
+import { sayfaAdresi } from "@/lib/sayfalama";
 import { TARAMA_KARARLARI, type TaramaKarari } from "@/lib/sabitler";
 import { sayfaBaglami } from "@/server/oturum";
 import { kotaDurumu } from "@/server/repo/kullanim";
@@ -52,6 +53,11 @@ export default async function TaramaSayfasi({ searchParams }: PageProps<"/tarama
     if (sayfa > 1) s.set("sonuc", String(sayfa));
     return `/tarama?${s}`;
   };
+  // Aralık dışı ya da geçersiz ?sonuc= : en yakın geçerli sayfaya geçilir.
+  const istenenSayfa = tek(p.sonuc);
+  if (sonuc && istenenSayfa !== undefined && istenenSayfa !== String(sonuc.sayfa) && !(sonuc.sayfa === 1 && istenenSayfa === "")) {
+    redirect(sayfaAdresi(baglanti(karar), sonuc.sayfa, "sonuc"));
+  }
 
   return (
     <>
@@ -74,8 +80,7 @@ export default async function TaramaSayfasi({ searchParams }: PageProps<"/tarama
             sayilar={sonuc.sayilar}
             karar={karar}
             kararBaglantisi={Object.fromEntries(TARAMA_KARARLARI.map((k) => [k, baglanti(k)])) as Record<TaramaKarari, string>}
-            oncekiBaglanti={sonuc.sayfa > 1 ? baglanti(karar, sonuc.sayfa - 1) : null}
-            sonrakiBaglanti={sonuc.sayfa < sonuc.sayfaSayisi ? baglanti(karar, sonuc.sayfa + 1) : null}
+            sayfalama={{ sayfa: sonuc.sayfa, sayfaSayisi: sonuc.sayfaSayisi, toplam: sonuc.toplam, boyut: sonuc.boyut, taban: baglanti(karar) }}
             otomatik={!kota.uyari && !kota.doldu}
           />
         )}

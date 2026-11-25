@@ -17,10 +17,12 @@ import {
   type KayitDurumu,
   type OlayTuru,
   type KayitGrubu,
+  type KayitKampanyaDurumu,
   type TaramaKarari,
 } from "@/lib/sabitler";
+import { sayfaSayisiHesapla, sayfaSinirla } from "@/lib/sayfalama";
 import { db } from "../db";
-import { denetimKayitlari, engelListesi, leadEvents, leads, scans, taramaSonuclari, user, whatsappKisileri, type Kayit } from "../db/schema";
+import { denetimKayitlari, engelListesi, leadEvents, leads, messageQueue, scans, taramaSonuclari, user, whatsappKisileri, type Kayit } from "../db/schema";
 import { telefonNormallestir } from "../messaging/adres";
 import {
   ALICI_TURU_ADLARI,
@@ -44,6 +46,14 @@ export type KayitFiltresi = {
   /** WhatsApp (Cloud API) izni; 'yok' satırı olmayan kayıtları da kapsar. */
   whatsappIzni?: WhatsappIzni;
   etiket?: string;
+  /** Hiç etiketi olmayan kayıtlar (verilirse `etiket` yok sayılır). */
+  etiketsiz?: boolean;
+  /**
+   * WhatsApp (Cloud API) kampanyası almış mı: "almis" = en az bir WhatsApp kampanyasında iletisi gerçekten gönderilmiş
+   * (kuyruk satırı "gonderildi", test / sandbox kaydı değil, Meta "teslim edilemedi" bildirmemiş). Hariç tutulan,
+   * bekleyen, başarısız, iptal edilen ya da test modunda kaydedilen satırlar "almamis" sayılır.
+   */
+  kampanyaDurumu?: KayitKampanyaDurumu;
   /** Yalnızca kullanıcının girdiği alanlarda arar (Places içeriği saklanmadığı için). */
   arama?: string;
   /** Tarama sonucunun incelenmesi. Verilmezse "ilgilenmiyor" kayıtlar gizlenir; "hepsi" hiçbirini gizlemez. */
@@ -88,8 +98,16 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
         : var_,
     );
   }
-  if (f.etiket) {
+  if (f.etiketsiz) kosullar.push(sql`json_array_length(${leads.etiketler}) = 0`);
+  else if (f.etiket) {
     kosullar.push(sql`exists (select 1 from json_each(${leads.etiketler}) where json_each.value = ${f.etiket})`);
+  }
+  if (f.kampanyaDurumu) {
+    // İlişkisiz alt sorgu: kiracının WhatsApp kuyruğu bir kez taranır (satır başına ayrı sorgu yok).
+    const almis = sql`${leads.id} in (select q.lead_id from ${messageQueue} q where q.tenant_id = ${ctx.tenantId}
+      and q.kanal = 'whatsapp_api' and q.durum = 'gonderildi' and q.sandbox_icerik is null
+      and coalesce(q.teslim_durumu, '') <> 'failed')`;
+    kosullar.push(f.kampanyaDurumu === "almis" ? almis : sql`not (${almis})`);
   }
   const arama = f.arama?.trim();
   if (arama) {
@@ -113,10 +131,12 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
 const gorunenAd = sql`coalesce(nullif(trim(${leads.isletmeAdi}), ''), nullif(trim(${leads.yetkiliAdi}), ''))`;
 
 export function kayitlariListele(ctx: TenantContext, f: KayitFiltresi = {}) {
-  const sayfa = Math.max(1, Math.floor(f.sayfa ?? 1));
   const boyut = KAYIT_SAYFA_BOYUTLARI.find((b) => b === f.boyut) ?? KAYIT_SAYFA_BOYUTLARI[0];
   const kosul = filtreKosulu(ctx, f);
   const toplam = db.select({ n: count() }).from(leads).where(kosul).get()?.n ?? 0;
+  // Aralık dışı sayfa (0, eksi, toplamdan büyük) en yakın geçerli sayfaya çekilir.
+  const sayfaSayisi = sayfaSayisiHesapla(toplam, boyut);
+  const sayfa = sayfaSinirla(f.sayfa ?? 1, sayfaSayisi);
   const kayitlar = db
     .select()
     .from(leads)
@@ -130,7 +150,7 @@ export function kayitlariListele(ctx: TenantContext, f: KayitFiltresi = {}) {
     .limit(boyut)
     .offset((sayfa - 1) * boyut)
     .all();
-  return { kayitlar, toplam, sayfa, boyut, sayfaSayisi: Math.max(1, Math.ceil(toplam / boyut)) };
+  return { kayitlar, toplam, sayfa, boyut, sayfaSayisi };
 }
 
 /** Sekme sayıları: diğer süzgeçler (durum, izin, arama…) uygulanmış olarak her sekmenin kayıt sayısı. */
@@ -380,12 +400,13 @@ export function taramaKayitlari(ctx: TenantContext, scanId: string) {
  * için döner. Sıra taramada eklenme sırasıdır (karar verilince kayıt sayfadan kaymaz).
  */
 export function taramaSonuclariListele(ctx: TenantContext, scanId: string, secenek: { sayfa?: number; karar?: TaramaKarari } = {}) {
-  const sayfa = Math.max(1, Math.floor(secenek.sayfa ?? 1));
   const temel = and(eq(taramaSonuclari.tenantId, ctx.tenantId), eq(taramaSonuclari.scanId, scanId), eq(leads.tenantId, ctx.tenantId));
   const kararKosulu =
     secenek.karar === "ilgi" ? eq(leads.inceleme, "ilgileniyor") : secenek.karar === "gec" ? eq(leads.inceleme, "ilgilenmiyor") : undefined;
   const kosul = kararKosulu ? and(temel, kararKosulu) : temel;
   const toplam = db.select({ n: count() }).from(taramaSonuclari).innerJoin(leads, eq(leads.id, taramaSonuclari.leadId)).where(kosul).get()?.n ?? 0;
+  const sayfaSayisi = sayfaSayisiHesapla(toplam, SAYFA_BOYUTU);
+  const sayfa = sayfaSinirla(secenek.sayfa ?? 1, sayfaSayisi);
   const kayitlar = db
     .select({ id: leads.id, isletmeAdi: leads.isletmeAdi, inceleme: leads.inceleme, durum: leads.durum })
     .from(taramaSonuclari)
@@ -407,7 +428,8 @@ export function taramaSonuclariListele(ctx: TenantContext, scanId: string, secen
     kayitlar,
     toplam,
     sayfa,
-    sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)),
+    boyut: SAYFA_BOYUTU,
+    sayfaSayisi,
     sayilar: {
       bulunan: dagilim.reduce((a, x) => a + x.n, 0),
       incelenmedi: say("incelenmedi"),

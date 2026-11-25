@@ -574,6 +574,14 @@ const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
   kampanyalariListele: () => {
     expect(kampanyalar.kampanyalariListele(A).map((k) => k.id)).not.toContain(bKampanya.id);
   },
+  kampanyaSayfasi: () => {
+    const a = kampanyalar.kampanyaSayfasi(A, { sayfa: 1 });
+    expect(a.kampanyalar.map((k) => k.id)).not.toContain(bKampanya.id);
+    expect(a.kampanyalar.every((k) => k.tenantId === A.tenantId)).toBe(true);
+    // Sayım da kiracıya özgü: B'nin kampanyaları A'nın toplamına ve sayfa sayısına girmez.
+    expect(a.toplam).toBe(kampanyalar.kampanyalariListele(A, 1000).length);
+    expect(kampanyalar.kampanyaSayfasi(B).kampanyalar.map((k) => k.id)).toContain(bKampanya.id);
+  },
   buAyGonderilenMesaj: () => {
     // B'nin gönderilmiş mesajı A'nın sayısına girmez. (B'nin mesajları geçici olarak "gönderildi" yapılır, sonra geri alınır.)
     const onceki = db.$client.prepare("select id, durum, gonderim_tarihi from message_queue where kampanya_id = ?").all(bKampanya.id) as {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { SekmeGrubu } from "@/components/arayuz/sekmeler";
 import { Simge } from "@/components/arayuz/simge";
@@ -9,6 +9,7 @@ import { AcilirPanel } from "@/components/arayuz/acilir-panel";
 import { ListeTercihi } from "@/components/liste-tercihi";
 import { etkinSuzgecEtiketleri, etkinSuzgecSayisi, kayitFiltresiCoz, kayitSorgusu } from "@/lib/kayit-filtresi";
 import { KAYIT_TERCIH_ALANLARI } from "@/lib/liste-tercihi";
+import { sayfaAdresi } from "@/lib/sayfalama";
 import { WHATSAPP_IZINLERI, WHATSAPP_IZNI_ADLARI, whatsappDonusMetni } from "@/lib/mesajlasma";
 import {
   ILETI_IZINLERI,
@@ -17,6 +18,8 @@ import {
   KAYIT_DURUMLARI,
   KAYIT_GRUP_ADLARI,
   KAYIT_GRUPLARI,
+  KAYIT_KAMPANYA_DURUM_ADLARI,
+  KAYIT_KAMPANYA_DURUMLARI,
   KAYIT_KAYNAK_ADLARI,
   KAYIT_KAYNAKLARI,
   KAYIT_SAYFA_BOYUTLARI,
@@ -80,11 +83,15 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
   const etiketler = etiketleriListele(ctx);
   const sorgu = kayitSorgusu(filtre);
   const adres = (s: URLSearchParams) => `/kayitlar${s.size ? `?${s}` : ""}`;
-  const sayfaBaglantisi = (sayfa: number) => {
-    const s = new URLSearchParams(sorgu);
-    if (sayfa > 1) s.set("sayfa", String(sayfa));
-    return adres(s);
-  };
+  const sayfaTabani = adres(sorgu);
+  const sayfaBaglantisi = (sayfa: number) => sayfaAdresi(sayfaTabani, sayfa);
+  // Aralık dışı ya da geçersiz ?sayfa= (0, harf, toplamdan büyük): en yakın geçerli sayfanın adresine geçilir.
+  const istenenSayfa = tek(p.sayfa);
+  if (istenenSayfa !== undefined && istenenSayfa !== String(liste.sayfa) && !(liste.sayfa === 1 && istenenSayfa === "")) {
+    const s = new URLSearchParams(sayfaBaglantisi(liste.sayfa).split("?")[1] ?? "");
+    if (seciliId) s.set("secili", seciliId);
+    redirect(adres(s));
+  }
   const suzgecSayisi = etkinSuzgecSayisi(filtre);
   // Sekme, arama, sıra ve boyut korunur; yalnızca süzgeçler temizlenir.
   const temizAdres = adres(kayitSorgusu({ grup: filtre.grup, arama: filtre.arama, sira: filtre.sira, boyut: filtre.boyut }));
@@ -161,7 +168,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
           panelSinifi="absolute right-0 z-20 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-kart border border-kenar bg-white p-5 shadow-lg"
         >
           <form key={`suzgec-${sorgu}`} method="get" className="flex flex-col gap-3">
-            {gizliAlanlar(["durum", "izin", "kaynak", "wa_izin", "etiket", "ad"])}
+            {gizliAlanlar(["durum", "izin", "kaynak", "wa_izin", "etiket", "etiketsiz", "wa_kampanya", "ad"])}
             <label className="etiket">
               Durum
               <select name="durum" defaultValue={filtre.durum ?? ""} className={secim}>
@@ -216,6 +223,25 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="etiketsiz" value="1" defaultChecked={filtre.etiketsiz} className="size-4 accent-ana" />
+              Etiket yok (hiç etiketi olmayan kayıtlar)
+            </label>
+            <label className="etiket">
+              Kampanya durumu
+              <select name="wa_kampanya" defaultValue={filtre.kampanyaDurumu ?? ""} className={secim}>
+                <option value="">Tümü</option>
+                {KAYIT_KAMPANYA_DURUMLARI.map((d) => (
+                  <option key={d} value={d}>
+                    {KAYIT_KAMPANYA_DURUM_ADLARI[d]}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-soluk">
+                Yalnızca gerçekten gönderilen WhatsApp kampanya iletileri sayılır; hariç tutulan, başarısız ya da test modundaki
+                alıcılar &quot;almamış&quot; sayılır.
+              </span>
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="ad" value="bos" defaultChecked={filtre.adsizGoogle} className="size-4 accent-ana" />
@@ -273,8 +299,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         sorgu={new URLSearchParams(sayfaBaglantisi(liste.sayfa).split("?")[1] ?? "").toString()}
         sayfa={liste.sayfa}
         sayfaSayisi={liste.sayfaSayisi}
-        oncekiBaglanti={liste.sayfa > 1 ? sayfaBaglantisi(liste.sayfa - 1) : null}
-        sonrakiBaglanti={liste.sayfa < liste.sayfaSayisi ? sayfaBaglantisi(liste.sayfa + 1) : null}
+        sayfaTabani={sayfaTabani}
         yonetici={ctx.rol === "yonetici"}
         filtreSorgusu={kayitSorgusu({ ...filtre, sira: undefined, boyut: undefined }).toString()}
         sira={filtre.sira ?? KAYIT_SIRALARI[0]}

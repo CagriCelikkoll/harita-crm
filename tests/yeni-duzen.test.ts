@@ -383,7 +383,7 @@ describe("Bölge tara: sonuçlar (Grup 5)", () => {
     expect(panel).toContain("Önceki taramalar");
     expect(panel).toContain("router.push(`/tarama?tarama=${t.id}`, { scroll: false })");
     const izgara = oku("src/app/(app)/tarama/sonuc-izgarasi.tsx");
-    for (const m of [">\n                      İlgilen", ">\n                      Geç", "Geri al", "Bu sayfadakileri geç", "Sonraki sayfa"]) expect(izgara).toContain(m);
+    for (const m of [">\n                      İlgilen", ">\n                      Geç", "Geri al", "Bu sayfadakileri geç", "<Sayfalama"]) expect(izgara).toContain(m);
     expect(izgara).toContain("otomatikIdler: props.otomatik ? props.satirlar.filter((s) => !s.isletmeAdi)");
     expect(izgara).toContain("mesafeMetni(props.merkez, yer.konum)");
     // İlgilen ad girme alanı açmaz (Google adı ad alanının yanında görünmez).

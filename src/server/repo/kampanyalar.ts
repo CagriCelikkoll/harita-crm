@@ -3,6 +3,7 @@
 import { and, count, desc, eq, gte, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { KAMPANYA_AZAMI_ALICI, type HaricNedeni, type MesajDurumu } from "@/lib/mesajlasma";
 import { SAYFA_BOYUTU } from "@/lib/sabitler";
+import { sayfaSayisiHesapla, sayfaSinirla } from "@/lib/sayfalama";
 import { ayAnahtari, istanbulAni } from "@/lib/zaman";
 import { db } from "../db";
 import { kampanyalar, leads, messageQueue, type Kampanya, type KampanyaFiltresi, type Kayit } from "../db/schema";
@@ -136,6 +137,30 @@ export function kampanyalariListele(ctx: TenantContext, limit = 50) {
   return liste.map((k) => ({ ...k, sayilar: sayilar.get(k.id) ?? bosSayilar() }));
 }
 
+/** Kampanyalar ekranı: sayfalı liste (yeniden eskiye, sayfa başına SAYFA_BOYUTU); aralık dışı sayfa en yakına çekilir. */
+export function kampanyaSayfasi(ctx: TenantContext, f: { sayfa?: number } = {}) {
+  const kosul = eq(kampanyalar.tenantId, ctx.tenantId);
+  const toplam = db.select({ n: count() }).from(kampanyalar).where(kosul).get()?.n ?? 0;
+  const sayfaSayisi = sayfaSayisiHesapla(toplam, SAYFA_BOYUTU);
+  const sayfa = sayfaSinirla(f.sayfa ?? 1, sayfaSayisi);
+  const liste = db
+    .select()
+    .from(kampanyalar)
+    .where(kosul)
+    .orderBy(desc(kampanyalar.olusturmaTarihi), desc(kampanyalar.id))
+    .limit(SAYFA_BOYUTU)
+    .offset((sayfa - 1) * SAYFA_BOYUTU)
+    .all();
+  const sayilar = sayilariGetir(ctx, liste.map((k) => k.id));
+  return {
+    kampanyalar: liste.map((k) => ({ ...k, sayilar: sayilar.get(k.id) ?? bosSayilar() })),
+    toplam,
+    sayfa,
+    sayfaSayisi,
+    boyut: SAYFA_BOYUTU,
+  };
+}
+
 /** Panel: bu ay (İstanbul takvimi) gönderilen kampanya mesajı sayısı (tüm kanallar). */
 export function buAyGonderilenMesaj(ctx: TenantContext, simdi = new Date()): number {
   const ayBasi = istanbulAni(`${ayAnahtari(simdi)}-01`);
@@ -187,13 +212,14 @@ export function kampanyaGetir(ctx: TenantContext, id: string) {
 
 /** Kampanyanın alıcı bazında durumu (sayfalı). Alıcı adresi gösterilmez; kaydın kullanıcı verisi gösterilir. */
 export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: number; durum?: MesajDurumu } = {}) {
-  const sayfa = Math.max(1, Math.floor(f.sayfa ?? 1));
   const kosul = and(
     eq(messageQueue.tenantId, ctx.tenantId),
     eq(messageQueue.kampanyaId, id),
     f.durum ? eq(messageQueue.durum, f.durum) : undefined,
   );
   const toplam = db.select({ n: count() }).from(messageQueue).where(kosul).get()?.n ?? 0;
+  const sayfaSayisi = sayfaSayisiHesapla(toplam, SAYFA_BOYUTU);
+  const sayfa = sayfaSinirla(f.sayfa ?? 1, sayfaSayisi);
   const mesajlar = db
     .select({
       id: messageQueue.id,
@@ -216,7 +242,7 @@ export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: n
     .limit(SAYFA_BOYUTU)
     .offset((sayfa - 1) * SAYFA_BOYUTU)
     .all();
-  return { mesajlar, toplam, sayfa, sayfaSayisi: Math.max(1, Math.ceil(toplam / SAYFA_BOYUTU)) };
+  return { mesajlar, toplam, sayfa, sayfaSayisi, boyut: SAYFA_BOYUTU };
 }
 
 /** Bekleyen mesajlar iptal edilir; gönderilmiş olanlar etkilenmez. Tamamlanmış kampanya iptal edilemez. */

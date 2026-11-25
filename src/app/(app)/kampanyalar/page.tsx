@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { IlerlemeCubugu } from "@/components/arayuz/gosterge";
+import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { DurumRozeti, type RozetTonu } from "@/components/arayuz/rozet";
 import { SekmeGrubu } from "@/components/arayuz/sekmeler";
 import { ListeTercihi } from "@/components/liste-tercihi";
 import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import { KAMPANYA_TERCIH_ALANLARI } from "@/lib/liste-tercihi";
+import { adrestekiSayfa, sayfaAdresi } from "@/lib/sayfalama";
 import { KAMPANYA_DURUM_ADLARI, KANAL_ADLARI, whatsappDonusMetni, type KampanyaDurumu } from "@/lib/mesajlasma";
 import { sayfaBaglami } from "@/server/oturum";
-import { kampanyalariListele } from "@/server/repo/kampanyalar";
+import { kampanyaSayfasi } from "@/server/repo/kampanyalar";
 import { etiketleriListele } from "@/server/repo/kayitlar";
 import { numaraEtiketleri } from "@/server/servisler/whatsapp-api";
 import { WhatsappListesi } from "./whatsapp-listesi";
@@ -32,7 +35,15 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
   const tek = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const { ctx } = await sayfaBaglami();
   const sekme = tek(p.sekme) === "whatsapp" ? "whatsapp" : "kampanyalar";
-  const kampanyalar = sekme === "kampanyalar" ? kampanyalariListele(ctx) : [];
+  // Sayfa bağlantıları ?sekme= taşır: sekmesiz adres kayıtlı sekmeyi uygular ve sayfayı düşürürdü (liste-tercihi).
+  const sayfaTabani = "/kampanyalar?sekme=kampanyalar";
+  const istenenSayfa = tek(p.sayfa);
+  const liste = sekme === "kampanyalar" ? kampanyaSayfasi(ctx, { sayfa: adrestekiSayfa(istenenSayfa) }) : null;
+  // Aralık dışı ya da geçersiz ?sayfa= : en yakın geçerli sayfaya geçilir.
+  if (liste && istenenSayfa !== undefined && istenenSayfa !== String(liste.sayfa) && !(liste.sayfa === 1 && istenenSayfa === "")) {
+    redirect(sayfaAdresi(sayfaTabani, liste.sayfa));
+  }
+  const kampanyalar = liste?.kampanyalar ?? [];
   const numaralar = numaraEtiketleri(ctx);
 
   return (
@@ -131,6 +142,17 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
               </tbody>
             </table>
           </div>
+          {liste && (
+            <Sayfalama
+              className="border-t border-cizgi bg-kart-alt px-5 py-3"
+              sayfa={liste.sayfa}
+              sayfaSayisi={liste.sayfaSayisi}
+              toplam={liste.toplam}
+              boyut={liste.boyut}
+              taban={sayfaTabani}
+              kayitAdi="kampanya"
+            />
+          )}
         </section>
       )}
     </>

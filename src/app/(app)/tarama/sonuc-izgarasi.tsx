@@ -6,6 +6,7 @@
 // kendi kaydınıza yazılır (Google'daki ad bu alana aktarılmaz).
 import { useState } from "react";
 import Link from "next/link";
+import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { useRouter } from "next/navigation";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { GoogleEtiketi } from "@/components/arayuz/rozet";
@@ -35,8 +36,8 @@ export function SonucIzgarasi(props: {
   karar: TaramaKarari;
   /** Süzgeç ve sayfa bağlantıları sunucuda üretilir (adres ?tarama=&karar=&sonuc=). */
   kararBaglantisi: Record<TaramaKarari, string>;
-  sonrakiBaglanti: string | null;
-  oncekiBaglanti: string | null;
+  /** Sayfalama: sayfasız adres (?tarama=&karar=), sayfa ?sonuc= parametresinde. */
+  sayfalama: { sayfa: number; sayfaSayisi: number; toplam: number; boyut: number; taban: string };
   otomatik: boolean;
 }) {
   const router = useRouter();
@@ -183,18 +184,9 @@ export function SonucIzgarasi(props: {
               Bu sayfadakileri geç
             </button>
           )}
-          {props.oncekiBaglanti && (
-            <Link href={props.oncekiBaglanti} className="dugme dugme-kucuk">
-              Önceki sayfa
-            </Link>
-          )}
-          {props.sonrakiBaglanti && (
-            <Link href={props.sonrakiBaglanti} className="dugme dugme-kucuk">
-              Sonraki sayfa
-            </Link>
-          )}
         </div>
       </div>
+      <Sayfalama className="mt-3" {...props.sayfalama} param="sonuc" kayitAdi="sonuç" />
     </section>
   );
 }

@@ -76,7 +76,7 @@ export function tercihKarari(arama: string, alanlar: readonly string[], kayitli:
 }
 
 /** Kayıtlar listesinde izlenen parametreler (lib/kayit-filtresi biçimi; arama "q" ve sayfa hariç). */
-export const KAYIT_TERCIH_ALANLARI = ["grup", "sira", "boyut", "durum", "izin", "kaynak", "wa_izin", "etiket", "ad", "inceleme"] as const;
+export const KAYIT_TERCIH_ALANLARI = ["grup", "sira", "boyut", "durum", "izin", "kaynak", "wa_izin", "etiket", "etiketsiz", "wa_kampanya", "ad", "inceleme"] as const;
 /** Kampanyalar: görünüm sekmesi. */
 export const KAMPANYA_TERCIH_ALANLARI = ["sekme"] as const;
 /** Gelen kutusu: numara sekmesi, Açık / Kapalı / Tümü, Herkes / Bana atanan / Atanmamış (arama hariç). */

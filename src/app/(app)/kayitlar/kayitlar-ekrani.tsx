@@ -6,12 +6,11 @@
 // Geniş ekranda panel tablonun sağındadır; dar ekranda sağdan açılan çekmecedir.
 // Yönetici satırları seçip toplu işlem yapabilir (toplu-islem.tsx); işlemden sonra liste sunucudan yenilenir.
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BilgiNotu } from "@/components/arayuz/not";
+import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { useGoogleBilgisi } from "@/components/google-bilgisi";
-import { sayiYaz } from "@/lib/bicim";
 import {
   KAYIT_SAYFA_BOYUTLARI,
   KAYIT_SIRA_ADLARI,
@@ -36,8 +35,8 @@ export function KayitlarEkrani(props: {
   sorgu: string;
   sayfa: number;
   sayfaSayisi: number;
-  oncekiBaglanti: string | null;
-  sonrakiBaglanti: string | null;
+  /** Sayfasız liste adresi (sayfalama bağlantıları bundan üretilir). */
+  sayfaTabani: string;
   /** Toplu işlem yalnızca yöneticiye açık. */
   yonetici: boolean;
   /** Süzgeç sorgusu (sayfa, sıra, boyut ve secili hariç): "filtreye uyan tümü" ve sıra / boyut bağlantıları. */
@@ -195,7 +194,6 @@ export function KayitlarEkrani(props: {
           />
           <div className="flex flex-wrap items-center justify-between gap-3 bg-kart-alt px-5 py-3.5 text-[13px] text-soluk">
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>{sayiYaz(toplam)} kayıt</span>
               <label className="flex items-center gap-1.5">
                 Sırala
                 <select
@@ -227,32 +225,15 @@ export function KayitlarEkrani(props: {
               <span>&quot;Google&quot; etiketli bilgiler Google Haritalar&apos;dan anlık gösterilir, kaydedilmez.</span>
               <GoogleAtfi />
             </span>
-            {props.sayfaSayisi > 1 && (
-              <nav aria-label="Sayfalar" className="flex items-center gap-2">
-                {props.oncekiBaglanti ? (
-                  <Link className="dugme dugme-kucuk" href={props.oncekiBaglanti} aria-label="Önceki sayfa">
-                    ‹
-                  </Link>
-                ) : (
-                  <span className="dugme dugme-kucuk opacity-40" aria-hidden="true">
-                    ‹
-                  </span>
-                )}
-                <span className="tabular-nums">
-                  {props.sayfa} / {props.sayfaSayisi}
-                </span>
-                {props.sonrakiBaglanti ? (
-                  <Link className="dugme dugme-kucuk" href={props.sonrakiBaglanti} aria-label="Sonraki sayfa">
-                    ›
-                  </Link>
-                ) : (
-                  <span className="dugme dugme-kucuk opacity-40" aria-hidden="true">
-                    ›
-                  </span>
-                )}
-              </nav>
-            )}
           </div>
+          <Sayfalama
+            className="border-t border-cizgi bg-kart-alt px-5 py-3"
+            sayfa={props.sayfa}
+            sayfaSayisi={props.sayfaSayisi}
+            toplam={toplam}
+            boyut={props.boyut}
+            taban={props.sayfaTabani}
+          />
         </section>
 
         {secili && (

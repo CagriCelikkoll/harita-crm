@@ -117,6 +117,13 @@ export type KayitSayfaBoyutu = (typeof KAYIT_SAYFA_BOYUTLARI)[number];
 export const KAYIT_SIRALARI = ["son", "ad"] as const;
 export type KayitSirasi = (typeof KAYIT_SIRALARI)[number];
 export const KAYIT_SIRA_ADLARI: Record<KayitSirasi, string> = { son: "Son işlem", ad: "Ad / işletme adı (A-Z)" };
+/** Kayıtlar süzgeci "Kampanya durumu" (WhatsApp kampanyası; adres: ?wa_kampanya=). Ayrıntı: KayitFiltresi.kampanyaDurumu. */
+export const KAYIT_KAMPANYA_DURUMLARI = ["almamis", "almis"] as const;
+export type KayitKampanyaDurumu = (typeof KAYIT_KAMPANYA_DURUMLARI)[number];
+export const KAYIT_KAMPANYA_DURUM_ADLARI: Record<KayitKampanyaDurumu, string> = {
+  almamis: "Hiç WhatsApp kampanyası almamış",
+  almis: "WhatsApp kampanyası almış",
+};
 /** Bir kayıtta en fazla etiket (tek kayıt düzenleme ve toplu etiket ekleme aynı sınırı uygular). */
 export const KAYIT_ETIKET_AZAMI = 20;
 /** Bir toplu işlemde en fazla kayıt (sayfa seçimi ve "filtreye uyan tümü" dahil); fazlası için filtre daraltılır. */

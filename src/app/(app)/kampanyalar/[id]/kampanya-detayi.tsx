@@ -1,9 +1,12 @@
 "use client";
 // Kampanya ayrıntısı: üstte durum kartı (rozetler, uyarılar, ilerleme, sayılar), altında sekmeler: Alıcılar (alıcı
 // bazında durum, süzgeç, sayfalama), Mesaj (konu ve şablon), Geçmiş (zaman çizelgesi, nedenler, Meta teslim
-// bildirimleri). Kampanya sürerken 10 sn'de bir yenilenir.
+// bildirimleri). Kampanya sürerken 10 sn'de bir yenilenir. Alıcıların sayfası ve durum süzgeci adreste tutulur
+// (?sayfa=&durum=; geri tuşu önceki sayfaya döner): değişince sunucu sayfası yeni ilk veriyi gönderir.
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { IlerlemeCubugu, IstatistikKutusu } from "@/components/arayuz/gosterge";
 import { DurumRozeti, type RozetTonu } from "@/components/arayuz/rozet";
 import { Sekmeler, sekmeId, sekmePaneliId } from "@/components/arayuz/sekmeler";
@@ -32,6 +35,7 @@ type Veri = {
   toplam: number;
   sayfa: number;
   sayfaSayisi: number;
+  boyut: number;
   isciSonNabiz?: string | null;
   simdi?: string;
 };
@@ -74,10 +78,25 @@ const DETAY_SEKMELERI: { deger: DetaySekmesi; ad: string }[] = [
   { deger: "gecmis", ad: "Geçmiş" },
 ];
 
-export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: string | null; simdi: string; yonetici: boolean } }) {
+export function KampanyaDetayi({
+  ilk,
+  durum: filtre,
+  isci,
+}: {
+  ilk: Veri;
+  /** Adresteki durum süzgeci ("" = tümü). */
+  durum: MesajDurumu | "";
+  isci: { sonNabiz: string | null; simdi: string; yonetici: boolean };
+}) {
+  const router = useRouter();
   const [veri, setVeri] = useState(ilk);
+  // Adres (sayfa / süzgeç) değişince sunucudan gelen yeni ilk veri yerel kopyanın yerine geçer.
+  const [gelen, setGelen] = useState(ilk);
+  if (gelen !== ilk) {
+    setGelen(ilk);
+    setVeri(ilk);
+  }
   const google = useGoogleBilgisi();
-  const [filtre, setFiltre] = useState<MesajDurumu | "">("");
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
   const [acik, setAcik] = useState<string | null>(null);
@@ -113,7 +132,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
     setHata(null);
     const r = await apiIstek(`/api/kampanyalar/${k.id}?islem=${yol}`, { method: "POST" });
     setMesgul(false);
-    if (r.ok) await yukle(1, filtre);
+    if (r.ok) await yukle(veri.sayfa, filtre);
     else setHata(r.hata);
   };
 
@@ -201,8 +220,7 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
                     value={filtre}
                     onChange={(e) => {
                       const d = e.target.value as MesajDurumu | "";
-                      setFiltre(d);
-                      void yukle(1, d);
+                      router.push(`/kampanyalar/${k.id}${d ? `?durum=${d}` : ""}`, { scroll: false });
                     }}
                     className="girdi"
                   >
@@ -278,24 +296,15 @@ export function KampanyaDetayi({ ilk, isci }: { ilk: Veri; isci: { sonNabiz: str
                   </tbody>
                 </table>
               </div>
-              {veri.sayfaSayisi > 1 && (
-                <nav className="mt-3 flex items-center justify-between text-sm" aria-label="Sayfalar">
-                  <button type="button" className="dugme dugme-kucuk" disabled={veri.sayfa <= 1} onClick={() => void yukle(veri.sayfa - 1, filtre)}>
-                    Önceki
-                  </button>
-                  <span className="tabular-nums">
-                    {veri.sayfa} / {veri.sayfaSayisi}
-                  </span>
-                  <button
-                    type="button"
-                    className="dugme dugme-kucuk"
-                    disabled={veri.sayfa >= veri.sayfaSayisi}
-                    onClick={() => void yukle(veri.sayfa + 1, filtre)}
-                  >
-                    Sonraki
-                  </button>
-                </nav>
-              )}
+              <Sayfalama
+                className="mt-3"
+                sayfa={veri.sayfa}
+                sayfaSayisi={veri.sayfaSayisi}
+                toplam={veri.toplam}
+                boyut={veri.boyut}
+                taban={`/kampanyalar/${k.id}${filtre ? `?durum=${filtre}` : ""}`}
+                kayitAdi="alıcı"
+              />
             </div>
           )}
 
