@@ -261,6 +261,8 @@ export type SohbetMesajiDto = {
   medya: MedyaDto | null;
   gonderen: string | null;
   kampanyaId: string | null;
+  /** Görselli şablonla gönderilen kampanya iletisinde başlık görselinin adresi (balonda küçük resim). */
+  sablonGorseli?: string | null;
   teslimDurumu: string | null;
   teslimHataKodu: number | null;
   /** Gönderilemeyen mesajın nedeni (kullanıcıya; ör. Meta medya hatası). */
@@ -294,10 +296,87 @@ export type SohbetAyrintiDto = SohbetOzetiDto & {
 };
 
 /** Mesajın kısa hali (liste satırı). */
-export function mesajOzeti(m: { tur: SohbetMesajTuru; metin: string | null; icerikSilindi?: boolean }): string {
+/** Şablon iletisinin sohbet balonundaki parçaları (lib/whatsapp-api sablonMetni çıktısından). */
+export type SablonBalonu = {
+  /** Başlıkta görsel / video / belge var ("[Görsel]" …). */
+  baslikMedyasi: "Görsel" | "Video" | "Belge" | null;
+  /** Metin başlığı (sablonMetni *…* ile yazar; yıldızlar atılmış). */
+  baslik: string | null;
+  govde: string;
+  /** Alt bilgi (sablonMetni _…_ ile yazar; alt çizgiler atılmış). */
+  altbilgi: string | null;
+  butonlar: string[];
+};
+
+const BUTON_SATIRI = /^(\[[^\]\n]+\]\s*)+$/;
+
+/**
+ * sablonMetni çıktısını ("[Görsel]\n\n*Başlık*\n\nGövde\n\n_Alt bilgi_\n\n[Buton 1] [Buton 2]") balon parçalarına
+ * ayırır. Tanınmayan biçimde metnin tamamı gövde olur (eski / elle yazılmış metinler bozulmaz).
+ */
+export function sablonParcala(metin: string): SablonBalonu {
+  const bloklar = metin.split(/\n{2,}/);
+  const sonuc: SablonBalonu = { baslikMedyasi: null, baslik: null, govde: "", altbilgi: null, butonlar: [] };
+  const ilk = bloklar[0]?.trim();
+  const medya = ilk?.match(/^\[(Görsel|Video|Belge)\]$/);
+  if (medya) {
+    sonuc.baslikMedyasi = medya[1] as SablonBalonu["baslikMedyasi"];
+    bloklar.shift();
+  }
+  const son = bloklar.at(-1)?.trim();
+  if (bloklar.length > 1 && son && BUTON_SATIRI.test(son)) {
+    sonuc.butonlar = [...son.matchAll(/\[([^\]\n]+)\]/g)].map((m) => m[1].trim());
+    bloklar.pop();
+  }
+  const altbilgi = bloklar.at(-1)?.trim();
+  if (bloklar.length > 1 && altbilgi && /^_[^\n]+_$/.test(altbilgi)) {
+    sonuc.altbilgi = altbilgi.slice(1, -1);
+    bloklar.pop();
+  }
+  const baslik = bloklar[0]?.trim();
+  if (bloklar.length > 1 && baslik && /^\*[^\n*]+\*$/.test(baslik)) {
+    sonuc.baslik = baslik.slice(1, -1);
+    bloklar.shift();
+  }
+  sonuc.govde = bloklar.join("\n\n");
+  return sonuc;
+}
+
+/** WhatsApp biçim işaretlerini (*kalın*, _italik_, ~üstü çizili~, ```kod```) düz metinden kaldırır (önizleme). */
+export const bicimIsaretleriniKaldir = (metin: string) =>
+  metin.replace(/```([\s\S]+?)```/g, "$1").replace(/([*_~])(?=\S)([^*_~\n]*?\S)\1/g, "$2");
+
+const kisalt = (s: string) => (s.length > 120 ? `${s.slice(0, 117)}…` : s);
+
+/**
+ * Sohbet listesi ve alıntı kutusu için okunur özet: "🖼 Fotoğraf: açıklama", "📎 Belge: dosya.pdf", "🎤 Ses kaydı";
+ * şablon iletisinde ham "[Görsel]" / buton satırı yerine gövde ("🖼 " önekiyle, görselliyse).
+ */
+export function mesajOzeti(m: { tur: SohbetMesajTuru; metin: string | null; icerikSilindi?: boolean; dosyaAdi?: string | null }): string {
   if (m.icerikSilindi) return "(içerik saklama süresi doldu)";
-  if (m.metin) return m.metin.length > 120 ? `${m.metin.slice(0, 117)}…` : m.metin;
-  return `[${MESAJ_TUR_ADLARI[m.tur]}]`;
+  const aciklama = m.metin?.trim() ? `: ${m.metin.trim()}` : "";
+  switch (m.tur) {
+    case "image":
+      return kisalt(`🖼 Fotoğraf${aciklama}`);
+    case "video":
+      return kisalt(`🎬 Video${aciklama}`);
+    case "document":
+      return kisalt(`📎 Belge: ${m.dosyaAdi?.trim() || m.metin?.trim() || "dosya"}`);
+    case "audio":
+      return "🎤 Ses kaydı";
+    case "sticker":
+      return "Çıkartma";
+    case "location":
+      return kisalt(`📍 Konum${aciklama}`);
+    case "template": {
+      if (!m.metin) return "Şablon";
+      const p = sablonParcala(m.metin);
+      const govde = bicimIsaretleriniKaldir([p.baslik, p.govde].filter(Boolean).join(" · ")).replace(/\s+/g, " ").trim();
+      return kisalt(`${p.baslikMedyasi === "Görsel" ? "🖼 " : p.baslikMedyasi ? "📎 " : ""}${govde || "Şablon"}`);
+    }
+    default:
+      return m.metin ? kisalt(m.metin) : `[${MESAJ_TUR_ADLARI[m.tur]}]`;
+  }
 }
 
 /** Gelen kutusu liste süzgeci (arama hariç adreste ve liste tercihinde tutulur; lib/liste-tercihi). */

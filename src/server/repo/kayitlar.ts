@@ -601,212 +601,228 @@ const DENETIM_TOPLU_KAYIT = "toplu_kayit_islemi";
  *    'var' olan kayıt "ayni" (kanıtı ezilmez). 'ret' satırı hiçbir koşulda güncellenmez; İYS beyanı alanına dokunulmaz.
  * Diğer işlemler WhatsApp izni / ret alanlarını değiştirmez; hiçbir işlem ileti iznini ya da engel listesini
  * değiştirmez. Seçim TOPLU_ISLEM_AZAMI kaydı aşarsa hiçbir şey yazılmaz (400).
+ * `onizleme`: onay penceresi için kuru çalıştırma; aynı kurallarla kaç kaydın değişeceği ve atlanacağı hesaplanır,
+ * transaction sonunda geri alınır (hiçbir şey yazılmaz; olay ve denetim kaydı da). Beyan / açıklama aranmaz.
  */
-export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, islem: TopluIslem): TopluSonuc {
+export function kayitlariTopluGuncelle(ctx: TenantContext, secim: TopluSecim, islem: TopluIslem, secenek: { onizleme?: boolean } = {}): TopluSonuc {
   yoneticiOlmali(ctx);
   const izinAciklamasi = islem.tur === "whatsapp_izni" ? islem.aciklama?.trim() || null : null;
-  if (islem.tur === "whatsapp_izni") {
+  if (islem.tur === "whatsapp_izni" && !secenek.onizleme) {
     if (islem.beyan !== true) throw new KayitKuraliHatasi("WhatsApp izni için beyan onay kutusunu işaretleyin.", 400);
     if (islem.kaynak === "diger" && !izinAciklamasi) throw new KayitKuraliHatasi('"Diğer" izin kaynağı için açıklama yazın.', 400);
   }
   if ("idler" in secim && new Set(secim.idler).size > TOPLU_ISLEM_AZAMI) throw new KayitKuraliHatasi(TOPLU_ISLEM_SINIRI_METNI, 400);
-  return db.transaction((tx) => {
-    const kolonlar = {
-      id: leads.id,
-      etiketler: leads.etiketler,
-      aliciTuru: leads.aliciTuru,
-      iletiIzni: leads.iletiIzni,
-      kaynak: leads.kaynak,
-      eposta: leads.eposta,
-      ekTelefon: leads.ekTelefon,
-    };
-    let hedefler: { id: string; etiketler: string[]; aliciTuru: AliciTuru; iletiIzni: IletiIzni; kaynak: KayitKaynagi; eposta: string | null; ekTelefon: string | null }[] = [];
-    let bulunamayan = 0;
-    if ("idler" in secim) {
-      const benzersiz = [...new Set(secim.idler)];
-      for (let i = 0; i < benzersiz.length; i += 500) {
-        hedefler.push(
-          ...tx
-            .select(kolonlar)
-            .from(leads)
-            .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, benzersiz.slice(i, i + 500))))
-            .all(),
-        );
+  let onizlemeSonucu: TopluSonuc | null = null;
+  try {
+    return db.transaction((tx) => {
+      const kolonlar = {
+        id: leads.id,
+        etiketler: leads.etiketler,
+        aliciTuru: leads.aliciTuru,
+        iletiIzni: leads.iletiIzni,
+        kaynak: leads.kaynak,
+        eposta: leads.eposta,
+        ekTelefon: leads.ekTelefon,
+      };
+      let hedefler: { id: string; etiketler: string[]; aliciTuru: AliciTuru; iletiIzni: IletiIzni; kaynak: KayitKaynagi; eposta: string | null; ekTelefon: string | null }[] = [];
+      let bulunamayan = 0;
+      if ("idler" in secim) {
+        const benzersiz = [...new Set(secim.idler)];
+        for (let i = 0; i < benzersiz.length; i += 500) {
+          hedefler.push(
+            ...tx
+              .select(kolonlar)
+              .from(leads)
+              .where(and(eq(leads.tenantId, ctx.tenantId), inArray(leads.id, benzersiz.slice(i, i + 500))))
+              .all(),
+          );
+        }
+        bulunamayan = benzersiz.length - hedefler.length;
+      } else {
+        hedefler = tx.select(kolonlar).from(leads).where(filtreKosulu(ctx, secim.filtre)).all();
+        if (secim.beklenenToplam !== undefined && hedefler.length !== secim.beklenenToplam) {
+          throw new TopluSecimDegistiHatasi(hedefler.length);
+        }
       }
-      bulunamayan = benzersiz.length - hedefler.length;
-    } else {
-      hedefler = tx.select(kolonlar).from(leads).where(filtreKosulu(ctx, secim.filtre)).all();
-      if (secim.beklenenToplam !== undefined && hedefler.length !== secim.beklenenToplam) {
-        throw new TopluSecimDegistiHatasi(hedefler.length);
-      }
-    }
-    if (hedefler.length > TOPLU_ISLEM_AZAMI) throw new KayitKuraliHatasi(TOPLU_ISLEM_SINIRI_METNI, 400);
+      if (hedefler.length > TOPLU_ISLEM_AZAMI) throw new KayitKuraliHatasi(TOPLU_ISLEM_SINIRI_METNI, 400);
 
-    const atlanan = Object.fromEntries(TOPLU_ATLAMA_NEDENLERI.map((n) => [n, 0])) as Record<TopluAtlamaNedeni, number>;
-    const idler = hedefler.map((h) => h.id);
-    const waIzinleri = new Map<string, WhatsappIzni>();
-    const waYok = new Set<string>();
-    const engelli = new Set<string>();
-    const simdi = new Date();
-    if ((islem.tur === "alici_turu" || islem.tur === "whatsapp_izni") && idler.length) {
-      for (let i = 0; i < idler.length; i += 500) {
-        const parca = idler.slice(i, i + 500);
-        for (const w of tx
-          .select({ leadId: whatsappKisileri.leadId, izin: whatsappKisileri.izin, whatsappYokTarihi: whatsappKisileri.whatsappYokTarihi })
-          .from(whatsappKisileri)
-          .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), inArray(whatsappKisileri.leadId, parca)))
-          .all()) {
-          waIzinleri.set(w.leadId, w.izin);
-          // Gönderim kuralıyla aynı pencere (alici-kurallari.ts): Meta son 90 günde "numarada WhatsApp yok" dedi.
-          if (w.whatsappYokTarihi && simdi.getTime() - w.whatsappYokTarihi.getTime() < WHATSAPP_YOK_GUN * 86_400_000) waYok.add(w.leadId);
+      const atlanan = Object.fromEntries(TOPLU_ATLAMA_NEDENLERI.map((n) => [n, 0])) as Record<TopluAtlamaNedeni, number>;
+      const idler = hedefler.map((h) => h.id);
+      const waIzinleri = new Map<string, WhatsappIzni>();
+      const waYok = new Set<string>();
+      const engelli = new Set<string>();
+      const simdi = new Date();
+      if ((islem.tur === "alici_turu" || islem.tur === "whatsapp_izni") && idler.length) {
+        for (let i = 0; i < idler.length; i += 500) {
+          const parca = idler.slice(i, i + 500);
+          for (const w of tx
+            .select({ leadId: whatsappKisileri.leadId, izin: whatsappKisileri.izin, whatsappYokTarihi: whatsappKisileri.whatsappYokTarihi })
+            .from(whatsappKisileri)
+            .where(and(eq(whatsappKisileri.tenantId, ctx.tenantId), inArray(whatsappKisileri.leadId, parca)))
+            .all()) {
+            waIzinleri.set(w.leadId, w.izin);
+            // Gönderim kuralıyla aynı pencere (alici-kurallari.ts): Meta son 90 günde "numarada WhatsApp yok" dedi.
+            if (w.whatsappYokTarihi && simdi.getTime() - w.whatsappYokTarihi.getTime() < WHATSAPP_YOK_GUN * 86_400_000) waYok.add(w.leadId);
+          }
+          // Engel listesine bu kayıt adına yazılmış adres (ret akışı) ...
+          for (const e of tx
+            .selectDistinct({ leadId: engelListesi.leadId })
+            .from(engelListesi)
+            .where(and(eq(engelListesi.tenantId, ctx.tenantId), inArray(engelListesi.leadId, parca)))
+            .all()) {
+            if (e.leadId) engelli.add(e.leadId);
+          }
         }
-        // Engel listesine bu kayıt adına yazılmış adres (ret akışı) ...
-        for (const e of tx
-          .selectDistinct({ leadId: engelListesi.leadId })
-          .from(engelListesi)
-          .where(and(eq(engelListesi.tenantId, ctx.tenantId), inArray(engelListesi.leadId, parca)))
-          .all()) {
-          if (e.leadId) engelli.add(e.leadId);
-        }
+        // ... ya da kendi adreslerinden (e-posta, ek telefon) biri engel listesinde (listedeki "Engelli" işareti).
+        for (const id of engelliKayitlar(ctx, hedefler)) engelli.add(id);
       }
-      // ... ya da kendi adreslerinden (e-posta, ek telefon) biri engel listesinde (listedeki "Engelli" işareti).
-      for (const id of engelliKayitlar(ctx, hedefler)) engelli.add(id);
-    }
 
-    const olaylar: { leadId: string; tur: OlayTuru; aciklama: string }[] = [];
-    for (const h of hedefler) {
-      const kosul = and(eq(leads.id, h.id), eq(leads.tenantId, ctx.tenantId));
-      if (islem.tur === "etiket_ekle" || islem.tur === "etiket_kaldir") {
-        const var_ = h.etiketler.includes(islem.etiket);
-        if (islem.tur === "etiket_ekle" ? var_ : !var_) {
-          atlanan.ayni++;
+      const olaylar: { leadId: string; tur: OlayTuru; aciklama: string }[] = [];
+      for (const h of hedefler) {
+        const kosul = and(eq(leads.id, h.id), eq(leads.tenantId, ctx.tenantId));
+        if (islem.tur === "etiket_ekle" || islem.tur === "etiket_kaldir") {
+          const var_ = h.etiketler.includes(islem.etiket);
+          if (islem.tur === "etiket_ekle" ? var_ : !var_) {
+            atlanan.ayni++;
+            continue;
+          }
+          if (islem.tur === "etiket_ekle" && h.etiketler.length >= KAYIT_ETIKET_AZAMI) {
+            atlanan.etiket_siniri++;
+            continue;
+          }
+          const etiketler = islem.tur === "etiket_ekle" ? [...h.etiketler, islem.etiket] : h.etiketler.filter((e) => e !== islem.etiket);
+          tx.update(leads).set({ etiketler, guncellemeTarihi: simdi }).where(kosul).run();
+          olaylar.push({
+            leadId: h.id,
+            tur: "bilgi",
+            aciklama: `Toplu işlem: "${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "eklendi" : "kaldırıldı"}`,
+          });
           continue;
         }
-        if (islem.tur === "etiket_ekle" && h.etiketler.length >= KAYIT_ETIKET_AZAMI) {
-          atlanan.etiket_siniri++;
-          continue;
-        }
-        const etiketler = islem.tur === "etiket_ekle" ? [...h.etiketler, islem.etiket] : h.etiketler.filter((e) => e !== islem.etiket);
-        tx.update(leads).set({ etiketler, guncellemeTarihi: simdi }).where(kosul).run();
-        olaylar.push({
-          leadId: h.id,
-          tur: "bilgi",
-          aciklama: `Toplu işlem: "${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "eklendi" : "kaldırıldı"}`,
-        });
-        continue;
-      }
-      // alici_turu / whatsapp_izni: önce ret / engel (aynı değerde olsa da "ret" / "engelli" sayılır: dokunulmayan kayıt
-      // nedeniyle görünür).
-      if (h.iletiIzni === "ret" || waIzinleri.get(h.id) === "ret") {
-        atlanan.ret++;
-        continue;
-      }
-      if (engelli.has(h.id)) {
-        atlanan.engelli++;
-        continue;
-      }
-      if (islem.tur === "whatsapp_izni") {
-        if (waYok.has(h.id)) {
-          atlanan.whatsapp_yok++;
-          continue;
-        }
-        if (waIzinleri.get(h.id) === "var") {
-          atlanan.ayni++;
-          continue;
-        }
-        const alanlar = {
-          izin: "var" as const,
-          izinTarihi: simdi,
-          izinKaynagi: islem.kaynak,
-          izinNotu: izinAciklamasi,
-          izinIceAktarmaId: null,
-          izinKaydedenId: ctx.userId || null,
-          guncellemeTarihi: simdi,
-        };
-        // İYS beyanı (iys_beyan_tarihi) alanlarda yok: dokunulmaz. 'ret' satırı koşulla da korunur.
-        const yazilan = tx
-          .insert(whatsappKisileri)
-          .values({ tenantId: ctx.tenantId, leadId: h.id, ...alanlar })
-          .onConflictDoUpdate({
-            target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
-            set: alanlar,
-            setWhere: sql`${whatsappKisileri.izin} <> 'ret'`,
-          })
-          .returning({ leadId: whatsappKisileri.leadId })
-          .get();
-        if (!yazilan) {
+        // alici_turu / whatsapp_izni: önce ret / engel (aynı değerde olsa da "ret" / "engelli" sayılır: dokunulmayan kayıt
+        // nedeniyle görünür).
+        if (h.iletiIzni === "ret" || waIzinleri.get(h.id) === "ret") {
           atlanan.ret++;
           continue;
         }
-        tx.update(leads).set({ guncellemeTarihi: simdi }).where(kosul).run();
+        if (engelli.has(h.id)) {
+          atlanan.engelli++;
+          continue;
+        }
+        if (islem.tur === "whatsapp_izni") {
+          if (waYok.has(h.id)) {
+            atlanan.whatsapp_yok++;
+            continue;
+          }
+          if (waIzinleri.get(h.id) === "var") {
+            atlanan.ayni++;
+            continue;
+          }
+          const alanlar = {
+            izin: "var" as const,
+            izinTarihi: simdi,
+            izinKaynagi: islem.kaynak,
+            izinNotu: izinAciklamasi,
+            izinIceAktarmaId: null,
+            izinKaydedenId: ctx.userId || null,
+            guncellemeTarihi: simdi,
+          };
+          // İYS beyanı (iys_beyan_tarihi) alanlarda yok: dokunulmaz. 'ret' satırı koşulla da korunur.
+          const yazilan = tx
+            .insert(whatsappKisileri)
+            .values({ tenantId: ctx.tenantId, leadId: h.id, ...alanlar })
+            .onConflictDoUpdate({
+              target: [whatsappKisileri.tenantId, whatsappKisileri.leadId],
+              set: alanlar,
+              setWhere: sql`${whatsappKisileri.izin} <> 'ret'`,
+            })
+            .returning({ leadId: whatsappKisileri.leadId })
+            .get();
+          if (!yazilan) {
+            atlanan.ret++;
+            continue;
+          }
+          tx.update(leads).set({ guncellemeTarihi: simdi }).where(kosul).run();
+          olaylar.push({
+            leadId: h.id,
+            tur: "izin",
+            aciklama: `Toplu işlem: WhatsApp izni kaydedildi (${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? `: ${izinAciklamasi}` : ""})`,
+          });
+          continue;
+        }
+        if (h.aliciTuru === islem.aliciTuru) {
+          atlanan.ayni++;
+          continue;
+        }
+        const iysKuraliKalkar = h.aliciTuru === "bireysel" && islem.aliciTuru === "tacir_esnaf";
+        if (iysKuraliKalkar && h.kaynak === "meta_reklam") {
+          atlanan.meta_reklam++;
+          continue;
+        }
+        tx.update(leads).set({ aliciTuru: islem.aliciTuru, guncellemeTarihi: simdi }).where(kosul).run();
+        const waIzinli = waIzinleri.get(h.id) === "var";
         olaylar.push({
           leadId: h.id,
-          tur: "izin",
-          aciklama: `Toplu işlem: WhatsApp izni kaydedildi (${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? `: ${izinAciklamasi}` : ""})`,
+          // Tek kayıt düzenlemesiyle aynı: WhatsApp izinli bireysel kişi tacir/esnaf olunca İYS beyanı kuralı kalkar.
+          tur: iysKuraliKalkar && waIzinli ? "izin" : "bilgi",
+          aciklama: `Toplu işlem: alıcı türü ${ALICI_TURU_ADLARI[h.aliciTuru]} → ${ALICI_TURU_ADLARI[islem.aliciTuru]}${
+            iysKuraliKalkar && waIzinli ? " (yönetici; İYS beyanı kuralı kalktı)" : ""
+          }`,
         });
-        continue;
       }
-      if (h.aliciTuru === islem.aliciTuru) {
-        atlanan.ayni++;
-        continue;
-      }
-      const iysKuraliKalkar = h.aliciTuru === "bireysel" && islem.aliciTuru === "tacir_esnaf";
-      if (iysKuraliKalkar && h.kaynak === "meta_reklam") {
-        atlanan.meta_reklam++;
-        continue;
-      }
-      tx.update(leads).set({ aliciTuru: islem.aliciTuru, guncellemeTarihi: simdi }).where(kosul).run();
-      const waIzinli = waIzinleri.get(h.id) === "var";
-      olaylar.push({
-        leadId: h.id,
-        // Tek kayıt düzenlemesiyle aynı: WhatsApp izinli bireysel kişi tacir/esnaf olunca İYS beyanı kuralı kalkar.
-        tur: iysKuraliKalkar && waIzinli ? "izin" : "bilgi",
-        aciklama: `Toplu işlem: alıcı türü ${ALICI_TURU_ADLARI[h.aliciTuru]} → ${ALICI_TURU_ADLARI[islem.aliciTuru]}${
-          iysKuraliKalkar && waIzinli ? " (yönetici; İYS beyanı kuralı kalktı)" : ""
-        }`,
-      });
-    }
 
-    for (let i = 0; i < olaylar.length; i += 500) {
-      tx.insert(leadEvents)
-        .values(
-          olaylar.slice(i, i + 500).map((o) => ({
-            id: crypto.randomUUID(),
-            tenantId: ctx.tenantId,
-            leadId: o.leadId,
-            tur: o.tur,
-            aciklama: o.aciklama,
-            kullaniciId: ctx.userId || null,
-            sistem: true,
-          })),
-        )
+      for (let i = 0; i < olaylar.length; i += 500) {
+        tx.insert(leadEvents)
+          .values(
+            olaylar.slice(i, i + 500).map((o) => ({
+              id: crypto.randomUUID(),
+              tenantId: ctx.tenantId,
+              leadId: o.leadId,
+              tur: o.tur,
+              aciklama: o.aciklama,
+              kullaniciId: ctx.userId || null,
+              sistem: true,
+            })),
+          )
+          .run();
+      }
+
+      const sonuc: TopluSonuc = { hedef: hedefler.length, degisen: olaylar.length, atlanan, bulunamayan };
+      const islemMetni =
+        islem.tur === "alici_turu"
+          ? `alıcı türü → ${ALICI_TURU_ADLARI[islem.aliciTuru]}`
+          : islem.tur === "whatsapp_izni"
+            ? `WhatsApp izni kaydı; kaynak: ${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? ` (${izinAciklamasi})` : ""}`
+            : `"${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "ekleme" : "kaldırma"}`;
+      const atlananMetni = TOPLU_ATLAMA_NEDENLERI.filter((n) => atlanan[n]).map((n) => `${n}: ${atlanan[n]}`);
+      tx.insert(denetimKayitlari)
+        .values({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          kullaniciId: ctx.userId || null,
+          kullaniciAdi: tx.select({ ad: user.name }).from(user).where(eq(user.id, ctx.userId)).get()?.ad ?? null,
+          olay: DENETIM_TOPLU_KAYIT,
+          deger: islem.tur,
+          aciklama: `Toplu işlem (${"idler" in secim ? "seçilen kayıtlar" : "filtreye uyan tümü"}): ${islemMetni}. ${sonuc.hedef} kayıt, ${
+            sonuc.degisen
+          } değişti${atlananMetni.length ? `; atlanan ${atlananMetni.join(", ")}` : ""}.${
+            islem.tur === "whatsapp_izni" ? ` İzin kaydedilen kişi sayısı: ${sonuc.degisen}. Onaylanan beyan: "${WHATSAPP_TOPLU_IZIN_BEYANI}"` : ""
+          }`,
+          tarih: simdi,
+        })
         .run();
-    }
-
-    const sonuc: TopluSonuc = { hedef: hedefler.length, degisen: olaylar.length, atlanan, bulunamayan };
-    const islemMetni =
-      islem.tur === "alici_turu"
-        ? `alıcı türü → ${ALICI_TURU_ADLARI[islem.aliciTuru]}`
-        : islem.tur === "whatsapp_izni"
-          ? `WhatsApp izni kaydı; kaynak: ${WHATSAPP_IZIN_KAYNAK_ADLARI[islem.kaynak]}${izinAciklamasi ? ` (${izinAciklamasi})` : ""}`
-          : `"${islem.etiket}" etiketi ${islem.tur === "etiket_ekle" ? "ekleme" : "kaldırma"}`;
-    const atlananMetni = TOPLU_ATLAMA_NEDENLERI.filter((n) => atlanan[n]).map((n) => `${n}: ${atlanan[n]}`);
-    tx.insert(denetimKayitlari)
-      .values({
-        id: crypto.randomUUID(),
-        tenantId: ctx.tenantId,
-        kullaniciId: ctx.userId || null,
-        kullaniciAdi: tx.select({ ad: user.name }).from(user).where(eq(user.id, ctx.userId)).get()?.ad ?? null,
-        olay: DENETIM_TOPLU_KAYIT,
-        deger: islem.tur,
-        aciklama: `Toplu işlem (${"idler" in secim ? "seçilen kayıtlar" : "filtreye uyan tümü"}): ${islemMetni}. ${sonuc.hedef} kayıt, ${
-          sonuc.degisen
-        } değişti${atlananMetni.length ? `; atlanan ${atlananMetni.join(", ")}` : ""}.${
-          islem.tur === "whatsapp_izni" ? ` İzin kaydedilen kişi sayısı: ${sonuc.degisen}. Onaylanan beyan: "${WHATSAPP_TOPLU_IZIN_BEYANI}"` : ""
-        }`,
-        tarih: simdi,
-      })
-      .run();
-    return sonuc;
-  });
+      if (secenek.onizleme) {
+        onizlemeSonucu = sonuc;
+        throw new TopluOnizlemeGeriAlindi(); // transaction geri alınır: hiçbir şey yazılmaz
+      }
+      return sonuc;
+    });
+  } catch (h) {
+    // Önizlemede transaction bilerek geri alınır; hesaplanan sonuç döner.
+    if (onizlemeSonucu && h instanceof TopluOnizlemeGeriAlindi) return onizlemeSonucu;
+    throw h;
+  }
 }
+
+/** Toplu işlem önizlemesinin transaction'ı geri almak için fırlattığı iç sinyal (dışarı çıkmaz). */
+class TopluOnizlemeGeriAlindi extends Error {}

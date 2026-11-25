@@ -5,6 +5,9 @@
 //   aylık kullanım %80'e ulaştıysa otomatik çağrı yapılmaz; "Google bilgilerini göster" düğmesi çıkar (?canli=1).
 // - Sonuç yalnızca bellekte, en fazla 30 dakika tutulur (lib/google-onbellegi.ts): aynı kayıt yeniden açılınca
 //   Places'a yeniden gidilmez; tarayıcı depolamasına yazılmaz.
+// - Kayıtlar listesi Google'a hiç gitmez; Google bilgisi yalnızca burada getirilir ve "Google'dan getirildi · aylık
+//   kullanımdan düşer" (önbellekten geldiyse "Önbellekten getirildi") notu gösterilir. Başlık listeyle aynı kayıtlı ad;
+//   Google'daki ad altında küçük yazıyla ("Google'daki adı: …").
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
 import { useCallback, useEffect, useState } from "react";
@@ -18,6 +21,7 @@ import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
 import { detayOnbellegi, listeOnbellegi } from "@/lib/google-onbellegi";
 import { tarihYaz } from "@/lib/bicim";
+import { googleKaynakNotu, type GoogleKaynagi } from "@/lib/google-kaynak-notu";
 import {
   ALICI_TURLERI,
   ALICI_TURU_ADLARI,
@@ -28,7 +32,6 @@ import {
 } from "@/lib/mesajlasma";
 import {
   AD_GIRME_IPUCU,
-  GOOGLE_ADSIZ,
   ILETI_IZNI_ADLARI,
   KOTA_DOLDU_MESAJI,
   OTOMATIK_GOSTERIM_SINIRI_METNI,
@@ -37,9 +40,10 @@ import {
   KAYIT_KAYNAK_ADLARI,
   OLAY_TURU_ADLARI,
 } from "@/lib/sabitler";
-import type { CanliSonuc, ListeBilgisi } from "@/server/servisler/canli-bilgi";
+import type { CanliSonuc } from "@/server/servisler/canli-bilgi";
 import type { KayitDto, OlayDto, WhatsappKisiDto } from "@/server/servisler/kayit-dto";
 import type { KayitWhatsapp } from "@/server/servisler/whatsapp";
+import { satirAdi } from "./kayit-tablosu";
 
 
 type DetayVerisi = {
@@ -48,8 +52,11 @@ type DetayVerisi = {
   olaylar: OlayDto[];
   canli?: CanliSonuc;
   canliAtlandi?: "ilgilenmiyor" | "kota";
+  /** Bu istekte Places'a gidildiyse harcanan birim (api/kayitlar/[id]). */
+  canliBirim?: number;
   engelli: boolean;
 };
+
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
 type PanelSekmesi = "genel" | "izin" | "gecmis";
 const PANEL_SEKMELERI: { deger: PanelSekmesi; ad: string }[] = [
@@ -69,8 +76,6 @@ function onbellegeYaz(id: string, c: CanliSonuc) {
 export function DetayPaneli(props: {
   id: string;
   kullaniciId: string;
-  /** Listede gösterilen Google bilgisi (ad, adres); ayrıntı Google'dan alınamadığında başlıkta kullanılır. */
-  googleBilgisi?: ListeBilgisi;
   onKapat: () => void;
   /** Liste satırını sayfa yenilemeden günceller (izin rozeti, engelli işareti, son işlem tarihi). */
   onKayitDegisti: (k: KayitDto, ek: { whatsappIzni: WhatsappKisiDto["izin"]; engelli: boolean }) => void;
@@ -80,6 +85,7 @@ export function DetayPaneli(props: {
   const [veri, setVeri] = useState<Omit<DetayVerisi, "canli" | "canliAtlandi"> | null>(null);
   const [canli, setCanli] = useState<CanliSonuc | null>(null);
   const [canliAtlandi, setCanliAtlandi] = useState<DetayVerisi["canliAtlandi"]>(undefined);
+  const [googleKaynagi, setGoogleKaynagi] = useState<GoogleKaynagi | null>(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [bulunamadi, setBulunamadi] = useState(false);
   const [mesaj, setMesaj] = useState<Mesaj>(null);
@@ -102,6 +108,7 @@ export function DetayPaneli(props: {
         const c = onceki ?? s.veri.canli ?? null;
         setCanli(c);
         setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
+        setGoogleKaynagi(onceki ? { tur: "onbellek" } : s.veri.canliBirim ? { tur: "google" } : null);
         if (s.veri.canli) {
           onbellegeYaz(id, s.veri.canli);
           kullanimDegisti();
@@ -122,6 +129,7 @@ export function DetayPaneli(props: {
     if (!s.ok) return setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
     setCanli(s.veri.canli ?? null);
     setCanliAtlandi(undefined);
+    setGoogleKaynagi(s.veri.canliBirim ? { tur: "google" } : null);
     if (s.veri.canli) onbellegeYaz(id, s.veri.canli);
     kullanimDegisti();
   }
@@ -203,17 +211,19 @@ export function DetayPaneli(props: {
   const yer = canli?.durum === "tamam" ? canli.yer : null;
   const telefon = yer?.telefonUluslararasi ?? yer?.telefon ?? kayit.ekTelefon;
   const surum = `${kayit.id}-${kayit.guncellemeTarihi}`; // formlar kayıt değişince yeniden oluşsun
-  const listeGoogle = props.googleBilgisi && !("hata" in props.googleBilgisi) ? props.googleBilgisi : null;
-  const baslik = google
-    ? (kayit.isletmeAdi ?? yer?.ad ?? listeGoogle?.ad ?? GOOGLE_ADSIZ)
-    : (kayit.isletmeAdi ?? kayit.yetkiliAdi ?? "(adsız kişi)");
-  const altBaslik = google ? (yer?.adres ?? listeGoogle?.adres ?? "Google Haritalar kaydı") : KAYIT_KAYNAK_ADLARI[kayit.kaynak];
+  // Başlık listedeki adla aynı (kayit-tablosu satirAdi: işletme adı, yoksa yetkili, yoksa yer tutucu); Google'daki ad
+  // yalnızca bilgi olarak altında.
+  const baslik = satirAdi(kayit);
+  const kayitliAdVar = Boolean(kayit.isletmeAdi?.trim() || kayit.yetkiliAdi?.trim());
+  const googleAdi = google && yer?.ad && yer.ad !== baslik ? yer.ad : null;
+  const altBaslik = google ? (yer?.adres ?? "Google Haritalar kaydı") : KAYIT_KAYNAK_ADLARI[kayit.kaynak];
 
   return (
     <aside className={`${PANEL} flex flex-col xl:sticky xl:top-5`} aria-label="Kayıt ayrıntıları" id="kayit-detayi">
       <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className={`text-xl font-bold ${kayit.isletmeAdi || !google ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
+          <h2 className={`text-xl font-bold ${kayitliAdVar ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
+          {googleAdi && <span className="text-[13px] text-metin-ikincil">Google&apos;daki adı: {googleAdi}</span>}
           <span className="text-[13px] text-soluk">{altBaslik}</span>
           {veri.engelli && kayit.iletiIzni !== "ret" && (
             <p className="mt-1 text-[13px] text-tehlike">
@@ -396,9 +406,16 @@ export function DetayPaneli(props: {
           <MesajGoster mesaj={mesaj} alan="kayitNotu" />
 
           <div className="flex flex-col gap-2.5 rounded-[10px] bg-ic-kutu p-4 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold">İletişim bilgileri</span>
-              {google && <span className="text-xs text-soluk">Google Haritalar</span>}
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">İletişim bilgileri</span>
+                {google && <span className="shrink-0 text-xs text-soluk">Google Haritalar</span>}
+              </div>
+              {google && yer && googleKaynagi && (
+                <p role="note" className="text-xs text-soluk">
+                  {googleKaynakNotu(googleKaynagi)}
+                </p>
+              )}
             </div>
             {!google ? (
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

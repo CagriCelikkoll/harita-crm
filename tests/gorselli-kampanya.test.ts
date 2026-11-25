@@ -310,7 +310,7 @@ describe("kampanya oluşturma", () => {
 
 describe("gönderim", { timeout: 30_000 }, () => {
   it("görsel gönderen numarayla bir kez yüklenir, her alıcıda aynı kimlik header → image → id ile gider", async () => {
-    const { ctx, n, k } = await gorselliKampanya("Gonder");
+    const { ctx, n, g, k } = await gorselliKampanya("Gonder");
     const t = await tur();
     expect(t.gonderilen).toBe(3);
     expect(mockWhatsapp.medyaYuklemeleri).toEqual([
@@ -327,6 +327,14 @@ describe("gönderim", { timeout: 30_000 }, () => {
     expect(mockWhatsapp.gonderilenler.map((g) => (g.bilesenler[1].parameters[0] as { text: string }).text).sort()).toEqual(["İşletme 1", "İşletme 2", "İşletme 3"]);
     expect(kampanyaGorselAlanlari(ctx, k.id)).toMatchObject({ metaGorselId: "9000000001", metaGorselNumarasi: n.phoneId, metaGorselTarihi: SIMDI });
     expect(kampanyaGetir(ctx, k.id)!.durum).toBe("tamamlandi");
+
+    // Gelen kutusu: şablon iletisi balonda kampanyanın görseliyle; listede ham "[Görsel]" yerine okunur önizleme.
+    const liste = gk.sohbetleriListele(ctx).satirlar;
+    expect(liste).toHaveLength(3);
+    const dto = gelenKutusu.mesajDto(gk.sohbetMesajlariGetir(ctx, liste[0].id)[0]);
+    expect(dto).toMatchObject({ tur: "template", kampanyaId: k.id, sablonGorseli: `/api/medya/${g.id}` });
+    expect(dto.metin).toMatch(/^\[Görsel\]\n\nİşletme [123], yeni portföyümüz hazır\.$/);
+    expect(gelenKutusu.sohbetListesi(ctx, {}).sohbetler[0].sonMesaj).toMatch(/^🖼 İşletme [123], yeni portföyümüz hazır\.$/);
   });
 
   it("kimlik yeniden kullanılır; süresi (25 gün) dolunca ya da numara değişince yeniden yüklenir", async () => {

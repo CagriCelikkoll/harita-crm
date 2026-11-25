@@ -47,8 +47,8 @@ const adresSorgusu = (p: Record<string, string | string[] | undefined>) => {
 };
 
 // Kayıtlar (docs/tasarim/Kayitlar.dc.html): sekmeler (İlgilendiklerim / İncelenmemiş / Tümü), arama, Filtreler,
-// tablo ve sağda ayrıntı paneli. Bu sunucu sayfası Places'a GİTMEZ. Adı girilmemiş Google kayıtlarının adı ve adresi
-// istemcide, kullanım %80'e ulaşana kadar otomatik istenir (/api/kayitlar/canli, otomatik: true; eşik sunucuda).
+// tablo ve sağda ayrıntı paneli. Bu sunucu sayfası da liste de Places'a GİTMEZ (listede yalnızca kayıtlı ad / yetkili;
+// Google ayrıntısı yalnızca bir kaydın ayrıntı paneli açılınca o kayıt için getirilir: detay-paneli.tsx).
 export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayitlar">) {
   const { ctx } = await sayfaBaglami();
   const p = await searchParams;
@@ -247,7 +247,8 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
               <input type="checkbox" name="ad" value="bos" defaultChecked={filtre.adsizGoogle} className="size-4 accent-ana" />
               Yalnızca adını girmediğim Google kayıtları
             </label>
-            <div className="flex flex-wrap gap-2 pt-1">
+            {/* Panel ekrandan uzunsa içi kayar; Uygula / Temizle panelin altına yapışık kalır. */}
+            <div className="sticky -bottom-5 z-10 -mx-5 flex flex-wrap gap-2 border-t border-cizgi bg-white px-5 pt-3 pb-5">
               <button type="submit" className="dugme-ana">
                 Uygula
               </button>
@@ -295,7 +296,6 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         toplam={liste.toplam}
         seciliIlk={seciliId ?? null}
         kullaniciId={ctx.userId}
-        otomatik={!kota.uyari && !kota.doldu}
         sorgu={new URLSearchParams(sayfaBaglantisi(liste.sayfa).split("?")[1] ?? "").toString()}
         sayfa={liste.sayfa}
         sayfaSayisi={liste.sayfaSayisi}
@@ -305,6 +305,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         sira={filtre.sira ?? KAYIT_SIRALARI[0]}
         boyut={filtre.boyut ?? KAYIT_SAYFA_BOYUTLARI[0]}
         etiketler={etiketler}
+        bosListe={suzgecSayisi > 0 || filtre.arama ? { temizAdres: adres(kayitSorgusu({ grup: filtre.grup, sira: filtre.sira, boyut: filtre.boyut })) } : null}
       />
     </>
   );

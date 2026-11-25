@@ -26,6 +26,7 @@ import {
   NOT_AZAMI,
   PENCERE_MS,
   RET_UYARISI,
+  sablonParcala,
   TESLIM_ADLARI,
   YANIT_AZAMI,
   type GelenKutusuFiltresi,
@@ -390,10 +391,19 @@ function SohbetEkrani(props: {
   const [eskiler, setEskiler] = useState<SohbetMesajiDto[]>([]);
   const [dahaEski, setDahaEski] = useState(a.dahaEski);
   const mesajlar = useMemo(() => mesajlariBirlestir(eskiler, a.mesajlar), [eskiler, a.mesajlar]);
-  const alt = useRef<HTMLDivElement>(null);
+  // Mesaj listesi kendi kabında kayar. Yeni mesaj gelince (ya da gönderilince) en alta inilir; görseller sonradan
+  // yüklenip yüksekliği büyütünce kullanıcı alttaysa altta kalınır (önceden yalnızca bir kez scrollIntoView
+  // yapılıyordu ve görsel yüklenince yeni ileti yarım kalıyordu). Yukarı kaydırıp eski mesaj okuyan kullanıcı bozulmaz.
+  const liste = useRef<HTMLDivElement>(null);
+  const altta = useRef(true);
+  const altaIn = () => {
+    const el = liste.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  };
   const sonId = mesajlar.at(-1)?.id;
   useEffect(() => {
-    alt.current?.scrollIntoView({ block: "end" });
+    altta.current = true;
+    altaIn();
   }, [sonId]);
 
   const guncelle = async (govde: { durum?: "acik" | "kapali"; atananKullanici?: string | null }) => {
@@ -425,7 +435,9 @@ function SohbetEkrani(props: {
 
   return (
     <div className="grid min-h-[70vh] content-start gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-      <div className="kart flex min-w-0 flex-col !p-0">
+      {/* Geniş ekranda kart ekran yüksekliğiyle sınırlı: ek eklenince yazma alanı büyür, mesaj listesi küçülür; "Gönder"
+          görünür alanın altına inmez. */}
+      <div className="kart flex min-w-0 flex-col !p-0 lg:h-[calc(100dvh-9rem)] lg:min-h-[520px]">
         <header className="flex flex-wrap items-center gap-3 border-b border-cizgi px-4 py-3">
           <button type="button" className="dugme-kucuk lg:hidden" onClick={props.onGeri}>
             ← Sohbetler
@@ -460,7 +472,18 @@ function SohbetEkrani(props: {
           </button>
         </header>
 
-        <div className="flex max-h-[60vh] min-h-[320px] flex-1 flex-col gap-2 overflow-y-auto bg-zemin px-4 py-4">
+        <div
+          ref={liste}
+          className="flex max-h-[60vh] min-h-[320px] flex-1 flex-col gap-2 overflow-y-auto bg-zemin px-4 py-4 lg:max-h-none lg:min-h-[160px]"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            altta.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          }}
+          // Görsel / video sonradan yüklenince (load olayı kabarcıklanmaz: yakalama aşaması) alttaysa altta kal.
+          onLoadCapture={() => {
+            if (altta.current) altaIn();
+          }}
+        >
           {dahaEski && (
             <button type="button" className="dugme-kucuk self-center" onClick={() => void eskileriYukle()}>
               Daha eski mesajlar
@@ -469,7 +492,6 @@ function SohbetEkrani(props: {
           {mesajlar.map((m) => (
             <Balon key={m.id} m={m} onYanitla={yanitlanabilir ? setYanitlanan : undefined} onTekrar={tekrarDene} />
           ))}
-          <div ref={alt} />
         </div>
 
         <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} yanitlanan={yanitlanan} onYanitIptal={() => setYanitlanan(null)} />
@@ -654,6 +676,64 @@ function Alinti({ yanit, giden }: { yanit: NonNullable<SohbetMesajiDto["yanit"]>
 const yanitlanabilirMi = (m: SohbetMesajiDto) =>
   m.tur !== "reaction" && (m.yon === "gelen" || Boolean(m.teslimDurumu && !["failed", "belirsiz"].includes(m.teslimDurumu)));
 
+/** WhatsApp biçimlendirmesi: *kalın*, _italik_, ~üstü çizili~, ```kod```. Metin React düğümü olarak (HTML değil). */
+export function WhatsappMetni({ metin }: { metin: string }) {
+  const parcalar = metin.split(/(```[\s\S]+?```|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g);
+  return (
+    <>
+      {parcalar.map((p, i) => {
+        if (p.length > 6 && p.startsWith("```") && p.endsWith("```")) return <code key={i} className="font-mono text-[13px]">{p.slice(3, -3)}</code>;
+        if (p.length > 2 && /\S/.test(p.slice(1, -1))) {
+          if (p.startsWith("*") && p.endsWith("*")) return <strong key={i}>{p.slice(1, -1)}</strong>;
+          if (p.startsWith("_") && p.endsWith("_")) return <em key={i}>{p.slice(1, -1)}</em>;
+          if (p.startsWith("~") && p.endsWith("~")) return <s key={i}>{p.slice(1, -1)}</s>;
+        }
+        return p;
+      })}
+    </>
+  );
+}
+
+/**
+ * Giden şablon iletisi (kampanya / şablon gönder): sohbet balonu gibi; başlık görseli küçük resim (yoksa yer tutucu),
+ * biçimlendirilmiş gövde, gri alt bilgi ve butonlar ayrı satırlar. Metin lib/gelen-kutusu sablonParcala ile ayrılır.
+ */
+function SablonIletisi({ metin, gorsel }: { metin: string; gorsel: string | null }) {
+  const p = sablonParcala(metin);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {p.baslikMedyasi === "Görsel" &&
+        (gorsel ? (
+          <a href={gorsel} target="_blank" rel="noopener" className="block" title="Büyük boyutta aç">
+            {/* eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz */}
+            <img src={gorsel} alt="Kampanya görseli" loading="lazy" className="max-h-48 w-full max-w-72 rounded-md object-cover" />
+          </a>
+        ) : (
+          <div className="rounded-md bg-segment px-2 py-3 text-center text-xs text-metin-ikincil">Görsel</div>
+        ))}
+      {p.baslikMedyasi && p.baslikMedyasi !== "Görsel" && (
+        <div className="rounded-md bg-segment px-2 py-1 text-xs text-metin-ikincil">{p.baslikMedyasi}</div>
+      )}
+      {p.baslik && <p className="font-semibold break-words">{p.baslik}</p>}
+      {p.govde && (
+        <p className="break-words whitespace-pre-wrap">
+          <WhatsappMetni metin={p.govde} />
+        </p>
+      )}
+      {p.altbilgi && <p className="text-xs break-words text-soluk">{p.altbilgi}</p>}
+      {p.butonlar.length > 0 && (
+        <ul aria-label="Şablon butonları" className="-mx-3 mt-1 border-t border-black/10">
+          {p.butonlar.map((b, i) => (
+            <li key={i} className="border-b border-black/10 px-3 py-1.5 text-center text-[13px] font-medium text-ana-koyu last:border-b-0">
+              {b}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m: SohbetMesajiDto) => void; onTekrar: (m: SohbetMesajiDto) => Promise<void> }) {
   const giden = m.yon === "giden";
   const etiket = kaynakEtiketi(m);
@@ -677,6 +757,8 @@ function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m:
         )}
         {m.icerikSilindi ? (
           <p className="text-soluk italic">İçerik saklama süresi doldu</p>
+        ) : m.tur === "template" && metin ? (
+          <SablonIletisi metin={metin} gorsel={m.sablonGorseli ?? null} />
         ) : metin ? (
           <p className="break-words whitespace-pre-wrap">{metin}</p>
         ) : !medya ? (

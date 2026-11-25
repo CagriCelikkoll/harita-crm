@@ -11,6 +11,7 @@ import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
 import { engelliKayitlar } from "@/server/repo/engel-listesi";
 import { kotaDurumu } from "@/server/repo/kullanim";
 import { olaylariListele } from "@/server/repo/olaylar";
+import { cagriBirimi } from "@/server/places/istemci";
 import { canliBilgiGetir, type CanliSonuc } from "@/server/servisler/canli-bilgi";
 import { kayitDto, olayDto, whatsappKisiDto } from "@/server/servisler/kayit-dto";
 import { whatsappKisisiGetir } from "@/server/repo/whatsapp-kisileri";
@@ -22,6 +23,8 @@ const BASLIK = { "Cache-Control": "no-store" };
  *   kayıt "ilgilenmiyor" işaretliyse ya da aylık kota %80'i geçtiyse çekilmez (canliAtlandi), panel düğme gösterir.
  * ?canli=1 → kullanıcı "Google bilgilerini göster" dedi: koşulsuz çekilir (kota kapısı yine geçerli).
  * Parametresiz → yalnızca kullanıcı verisi ve olaylar (Places çağrısı yok; işlemlerden sonra kullanılır).
+ * canliBirim: bu istekte Places'a gidildiyse harcanan kullanım birimi (panel "Google'dan getirildi · ~X birim" yazar);
+ * çağrı yapılmadıysa ya da birim iade edildiyse (ağ hatası, kota) yoktur.
  */
 export async function GET(istek: Request, { params }: RouteContext<"/api/kayitlar/[id]">) {
   const ctx = await apiBaglami();
@@ -54,6 +57,7 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
       olaylar: olaylariListele(ctx, kayit.id).map(olayDto),
       canli,
       canliAtlandi,
+      ...(canli?.durum === "tamam" || canli?.durum === "bulunamadi" ? { canliBirim: cagriBirimi("detay") } : {}),
     },
     { headers: BASLIK },
   );

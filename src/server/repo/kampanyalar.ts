@@ -217,6 +217,11 @@ export function kampanyaGetir(ctx: TenantContext, id: string) {
   return { ...kampanya, sayilar: sayilariGetir(ctx, [id]).get(id) ?? bosSayilar(), nedenler, teslim, ucretli };
 }
 
+/** Alıcı listesinin durum sırası (kampanyaMesajlari). */
+const ALICI_DURUM_SIRASI = sql`case ${messageQueue.durum}
+  when 'gonderildi' then 0 when 'basarisiz' then 1 when 'gonderiliyor' then 2 when 'kuyrukta' then 3
+  when 'iptal' then 4 when 'haric' then 5 else 6 end`;
+
 /**
  * Kampanyanın alıcı bazında durumu (sayfalı) ve WhatsApp'ta mesajın Meta'dan gelen son teslim durumu (+ hata kodu).
  * Süzgeç mesaj durumu ya da teslim durumu olabilir (lib/mesajlasma ALICI_SUZGECLERI). Alıcı adresi gösterilmez; kaydın
@@ -255,7 +260,9 @@ export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: n
     .from(messageQueue)
     .innerJoin(leads, and(eq(leads.id, messageQueue.leadId), eq(leads.tenantId, messageQueue.tenantId)))
     .where(kosul)
-    .orderBy(messageQueue.olusturmaTarihi, messageQueue.id)
+    // Varsayılan sıra: önce gönderilenler, sonra başarısız, gönderimde ve bekleyenler; iptal ve hariçler sonda.
+    // Aynı durumdakiler eklenme sırasıyla (rowid; eşit zamanlı satırlarda da kararlı, sayfalar arasında tekrar yok).
+    .orderBy(ALICI_DURUM_SIRASI, messageQueue.olusturmaTarihi, sql`message_queue.rowid`)
     .limit(SAYFA_BOYUTU)
     .offset((sayfa - 1) * SAYFA_BOYUTU)
     .all();

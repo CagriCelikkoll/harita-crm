@@ -1,5 +1,6 @@
-// Grup B — liste maliyeti: kayıt listesi Places'a kendiliğinden gitmez; Google ad/adresi yalnızca istenince
-// (/api/kayitlar/canli, kayıt başı 17 birim) gelir ve yalnızca bellekte tutulur; detay paneli istisnalarla otomatik
+// Grup B — liste maliyeti: Kayıtlar listesi Places'a hiç gitmez (yalnızca kayıtlı ad); tarama sonuçları ve kampanya
+// alıcıları Google ad/adresini yalnızca istenince (/api/kayitlar/canli, kayıt başı 17 birim) alır ve yalnızca bellekte
+// tutar; detay paneli istisnalarla otomatik ve harcanan birimi yanıtta döndürür (canliBirim)
 // (ilgilenilmeyen kayıt ve kota %80+ → çağrı yok); tarama sonuçlarının incelenmesi (leads.inceleme, migration 0013);
 // "ilgilenmiyor" kayıtlar listede gizli ve hiçbir kampanyaya / WhatsApp listesine girmez.
 import fs from "node:fs";
@@ -118,15 +119,25 @@ describe("detay paneli: otomatik Enterprise çağrısı istisnalarla", () => {
     const normal = await (await detay(a.id, "oto")).json();
     expect(normal.canli?.durum).toBe("tamam");
     expect(normal.canliAtlandi).toBeUndefined();
+    // Panel notu için harcanan birim yanıtta ("Google'dan getirildi · ~20 birim").
+    expect(normal.canliBirim).toBe(20);
     expect(aylikPlacesBirimi(ctx)).toBe(20);
 
     kayitlar.incelemeAyarla(ctx, [b.id], "ilgilenmiyor");
     const atlandi = await (await detay(b.id, "oto")).json();
     expect(atlandi).toMatchObject({ canliAtlandi: "ilgilenmiyor" });
     expect(atlandi.canli).toBeUndefined();
+    expect(atlandi.canliBirim).toBeUndefined();
     expect(aylikPlacesBirimi(ctx)).toBe(20);
 
-    expect((await (await detay(b.id, "1")).json()).canli?.durum).toBe("tamam");
+    const elle = await (await detay(b.id, "1")).json();
+    expect(elle.canli?.durum).toBe("tamam");
+    expect(elle.canliBirim).toBe(20);
+    expect(aylikPlacesBirimi(ctx)).toBe(40);
+    // Parametresiz (işlem sonrası yenileme): Places'a gidilmez, birim yok.
+    const yenileme = await (await kayitRotasi.GET(new Request(`${U}/api/kayitlar/${a.id}`), { params: Promise.resolve({ id: a.id }) })).json();
+    expect(yenileme.canli).toBeUndefined();
+    expect(yenileme.canliBirim).toBeUndefined();
     expect(aylikPlacesBirimi(ctx)).toBe(40);
   });
 

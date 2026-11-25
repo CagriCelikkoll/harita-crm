@@ -17,6 +17,7 @@ import { db } from "../db";
 import {
   bildirimKuyrugu,
   gelenKutusuSurumu,
+  kampanyalar,
   leads,
   memberships,
   sohbetler,
@@ -327,6 +328,8 @@ export type SohbetSatiri = Sohbet & {
   sonTur: SohbetMesajTuru | null;
   sonMetin: string | null;
   sonIcerikSilindi: boolean | null;
+  /** Son ileti belge / medyaysa dosya adı (liste önizlemesi: "📎 Belge: dosya.pdf"). */
+  sonDosyaAdi?: string | null;
 };
 
 function sohbetKosulu(ctx: TenantContext, f: SohbetFiltresi): SQL | undefined {
@@ -351,10 +354,16 @@ function sohbetKosulu(ctx: TenantContext, f: SohbetFiltresi): SQL | undefined {
   return and(...kosul);
 }
 
+const SON_MESAJ_ID =
+  "(select m.id from sohbet_mesajlari m where m.tenant_id = sohbetler.tenant_id and m.sohbet_id = sohbetler.id order by m.tarih desc, m.rowid desc limit 1)";
 const sonMesaj = (alan: "tur" | "metin" | "icerik_silindi") =>
   sql.raw(
     `(select m.${alan} from sohbet_mesajlari m where m.tenant_id = sohbetler.tenant_id and m.sohbet_id = sohbetler.id order by m.tarih desc, m.rowid desc limit 1)`,
   );
+/** Son iletinin medya dosya adı (sohbet_medyalari, mesaj başına tek satır). */
+const sonDosyaAdi = sql.raw(
+  `(select md.dosya_adi from sohbet_medyalari md where md.tenant_id = sohbetler.tenant_id and md.mesaj_id = ${SON_MESAJ_ID})`,
+);
 
 export function sohbetleriListele(ctx: TenantContext, f: SohbetFiltresi = {}): { satirlar: SohbetSatiri[]; toplam: number } {
   const sayfa = Math.max(1, Math.floor(f.sayfa ?? 1));
@@ -369,6 +378,7 @@ export function sohbetleriListele(ctx: TenantContext, f: SohbetFiltresi = {}): {
       sonTur: sql<SohbetMesajTuru | null>`${sonMesaj("tur")}`,
       sonMetin: sql<string | null>`${sonMesaj("metin")}`,
       sonIcerikSilindi: sql<number | null>`${sonMesaj("icerik_silindi")}`,
+      sonDosyaAdi: sql<string | null>`${sonDosyaAdi}`,
     })
     .from(sohbetler)
     .innerJoin(leads, and(eq(leads.tenantId, sohbetler.tenantId), eq(leads.id, sohbetler.leadId)))
@@ -395,6 +405,7 @@ export function sohbetleriListele(ctx: TenantContext, f: SohbetFiltresi = {}): {
       sonTur: s.sonTur,
       sonMetin: s.sonMetin,
       sonIcerikSilindi: s.sonIcerikSilindi === null ? null : Boolean(s.sonIcerikSilindi),
+      sonDosyaAdi: s.sonDosyaAdi,
     })),
     toplam,
   };
@@ -418,7 +429,13 @@ export function okunmamisSayilari(ctx: TenantContext): Map<string, number> {
 /** Yanıtlanan mesajın alıntı bilgisi (aynı sohbette wamid ile bulunur). */
 export type YanitlananMesaj = Pick<SohbetMesaji, "id" | "yon" | "tur" | "metin" | "icerikSilindi">;
 
-export type SohbetMesajiSatiri = SohbetMesaji & { gonderenAd: string | null; medya: SohbetMedyasi | null; yanitlanan: YanitlananMesaj | null };
+export type SohbetMesajiSatiri = SohbetMesaji & {
+  gonderenAd: string | null;
+  medya: SohbetMedyasi | null;
+  yanitlanan: YanitlananMesaj | null;
+  /** Görselli şablonla gönderilen kampanya iletisinde kampanyanın başlık görseli (sohbet_medyalari kimliği). */
+  kampanyaGorselId?: string | null;
+};
 
 const yanitlanan = alias(sohbetMesajlari, "yanitlanan");
 
@@ -429,9 +446,11 @@ function mesajSorgusu() {
       gonderenAd: user.name,
       medya: sohbetMedyalari,
       yanitlanan: { id: yanitlanan.id, yon: yanitlanan.yon, tur: yanitlanan.tur, metin: yanitlanan.metin, icerikSilindi: yanitlanan.icerikSilindi },
+      kampanyaGorselId: kampanyalar.gorselMedyaId,
     })
     .from(sohbetMesajlari)
     .leftJoin(user, eq(user.id, sohbetMesajlari.gonderenKullanici))
+    .leftJoin(kampanyalar, and(eq(kampanyalar.tenantId, sohbetMesajlari.tenantId), eq(kampanyalar.id, sohbetMesajlari.kampanyaId)))
     .leftJoin(sohbetMedyalari, and(eq(sohbetMedyalari.tenantId, sohbetMesajlari.tenantId), eq(sohbetMedyalari.mesajId, sohbetMesajlari.id)))
     .leftJoin(
       yanitlanan,
@@ -449,6 +468,7 @@ const satiraCevir = (s: MesajSorguSatiri): SohbetMesajiSatiri => ({
   gonderenAd: s.gonderenAd,
   medya: s.medya,
   yanitlanan: s.yanitlanan?.id ? (s.yanitlanan as YanitlananMesaj) : null,
+  kampanyaGorselId: s.kampanyaGorselId ?? null,
 });
 
 /** Tek mesaj (gönderen adı, medya ve alıntıyla); bu çalışma alanının değilse null. */

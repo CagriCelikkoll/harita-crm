@@ -219,12 +219,15 @@ describe("gönderim", () => {
   });
 
   it("belge: dosya adı korunur (document.filename), açıklama eklenir; aynı istemci kimliği ikinci kez gönderilmez", async () => {
-    const { sohbetId } = await sohbet("MedyaBelge");
+    const { ctx, sohbetId } = await sohbet("MedyaBelge");
     const ik = kimlik();
     const y = await medyaGonder(sohbetId, "Teklif — Ekim 2026.pdf", PDF, { istemciKimligi: ik, aciklama: "Teklifimiz ektedir" });
     expect(y.status).toBe(201);
     expect(mockWhatsapp.medyaGonderimleri[0]).toMatchObject({ tur: "document", dosyaAdi: "Teklif — Ekim 2026.pdf", aciklama: "Teklifimiz ektedir" });
     expect(mockWhatsapp.medyaYuklemeleri[0].dosyaAdi).toBe("Teklif — Ekim 2026.pdf");
+    // Sohbet listesi önizlemesi ham "[Belge]" değil, dosya adıyla.
+    expect(gk.sohbetleriListele(ctx).satirlar.find((s) => s.id === sohbetId)?.sonDosyaAdi).toBe("Teklif — Ekim 2026.pdf");
+    expect(servis.sohbetListesi(ctx, {}).sohbetler.find((s) => s.id === sohbetId)?.sonMesaj).toBe("📎 Belge: Teklif — Ekim 2026.pdf");
 
     const ikinci = await medyaGonder(sohbetId, "Teklif — Ekim 2026.pdf", PDF, { istemciKimligi: ik });
     expect(ikinci.status).toBe(200);

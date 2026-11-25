@@ -51,6 +51,33 @@ export function topluOzetMetni(s: TopluSonuc): string {
   return `${sayiYaz(s.degisen)} kayıt değişti.${atlanan ? ` ${sayiYaz(atlanan)} kayıt atlandı: ${parcalar.join(", ")}.` : ""}`;
 }
 
+/** Önizlemede "aynı" nedeninin işleme göre adı. */
+const AYNI_ADLARI: Record<IslemTuru, string> = {
+  etiket_ekle: "etiket zaten var",
+  etiket_kaldir: "etiketi yok",
+  alici_turu: "zaten bu türde",
+  whatsapp_izni: "zaten izinli",
+};
+const DEGISIM_ADLARI: Record<IslemTuru, (n: string) => string> = {
+  etiket_ekle: (n) => `${n} kayda eklenecek`,
+  etiket_kaldir: (n) => `${n} kayıttan kaldırılacak`,
+  alici_turu: (n) => `${n} kaydın türü değişecek`,
+  whatsapp_izni: (n) => `${n} kayda kaydedilecek`,
+};
+
+/**
+ * Onay penceresinin ön sayımı (sunucuda aynı kurallarla, hiçbir şey yazılmadan):
+ * "4 seçili · 3 kayda kaydedilecek, 1 atlanacak: zaten izinli". Birden çok neden varsa sayılarıyla.
+ */
+export function onizlemeMetni(tur: IslemTuru, secili: number, s: TopluSonuc): string {
+  const nedenler = TOPLU_ATLAMA_NEDENLERI.filter((n) => s.atlanan[n] > 0);
+  const atlanan = nedenler.reduce((t, n) => t + s.atlanan[n], 0) + s.bulunamayan;
+  const ad = (n: TopluAtlamaNedeni) => (n === "ayni" ? AYNI_ADLARI[tur] : ATLAMA_ADLARI[n]);
+  const parcalar = [...nedenler.map((n) => ({ ad: ad(n), n: s.atlanan[n] })), ...(s.bulunamayan ? [{ ad: "bulunamadı (silinmiş)", n: s.bulunamayan }] : [])];
+  const nedenMetni = parcalar.length === 1 ? parcalar[0].ad : parcalar.map((p) => `${sayiYaz(p.n)} ${p.ad}`).join(", ");
+  return `${sayiYaz(secili)} seçili · ${DEGISIM_ADLARI[tur](sayiYaz(s.degisen))}${atlanan ? `, ${sayiYaz(atlanan)} atlanacak: ${nedenMetni}` : ""}.`;
+}
+
 const bosAbone = () => () => {};
 
 export function TopluIslemCubugu(props: {
@@ -76,6 +103,8 @@ export function TopluIslemCubugu(props: {
   const [beyan, setBeyan] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
   const [gonderiliyor, setGonderiliyor] = useState(false);
+  // Onay penceresinin ön sayımı (null: istenmedi / alınamadı → yalnızca seçili sayı gösterilir).
+  const [onizleme, setOnizleme] = useState<{ durum: "yukleniyor" } | { durum: "tamam"; sonuc: TopluSonuc } | null>(null);
   const pencere = useRef<HTMLDialogElement>(null);
   const baslikId = useId();
   const listeId = useId();
@@ -89,29 +118,45 @@ export function TopluIslemCubugu(props: {
     (tur === "whatsapp_izni" ? true : tur === "alici_turu" ? aliciTuru !== "" : temizEtiket.length > 0 && temizEtiket.length <= 40);
   // WhatsApp izni: kaynak, "Diğer" ise açıklama ve beyan onay penceresinde zorunlu.
   const izinHazir = izinKaynagi !== "" && (izinKaynagi !== "diger" || izinAciklamasi.trim().length > 0) && beyan;
-  const onaylanabilir = tur !== "whatsapp_izni" || izinHazir;
+  const degisecekYok = onizleme?.durum === "tamam" && onizleme.sonuc.degisen === 0;
+  const onaylanabilir = (tur !== "whatsapp_izni" || izinHazir) && !degisecekYok;
   const n = sayiYaz(props.sayi);
+  const islemGovdesi = () =>
+    tur === "whatsapp_izni"
+      ? { tur, kaynak: izinKaynagi, aciklama: izinAciklamasi.trim() || null, beyan }
+      : tur === "alici_turu"
+        ? { tur, aliciTuru }
+        : { tur, etiket: temizEtiket };
+
+  /** Pencere açılınca: kaç kaydın değişeceği / atlanacağı (sunucuda, yazmadan). */
+  async function onizlemeAl() {
+    setOnizleme({ durum: "yukleniyor" });
+    const islem = tur === "whatsapp_izni" ? { tur } : islemGovdesi();
+    const y = await apiIstek<{ sonuc: TopluSonuc }>("/api/kayitlar/toplu", { method: "POST", govde: { onizleme: true, secim: props.secim, islem } });
+    if (y.ok) return setOnizleme({ durum: "tamam", sonuc: y.veri.sonuc });
+    setOnizleme(null);
+    if (y.durum === 409) {
+      pencere.current?.close();
+      setHata(y.hata);
+      props.onSayiDegisti();
+    }
+  }
+  // Ne yapılacağı; kaç kaydın değişeceği / atlanacağı altındaki önizlemede (sunucunun ön sayımı).
   const onayMetni =
     tur === "etiket_ekle"
-      ? `${n} kayda "${temizEtiket}" etiketi eklenecek.`
+      ? `"${temizEtiket}" etiketi eklenecek.`
       : tur === "etiket_kaldir"
-        ? `${n} kayıttan "${temizEtiket}" etiketi kaldırılacak.`
+        ? `"${temizEtiket}" etiketi kaldırılacak.`
         : tur === "whatsapp_izni"
-          ? `${n} kayıt için WhatsApp izni kaydedilecek.`
-          : `${n} kaydın alıcı türü "${aliciTuru ? ALICI_TURU_ADLARI[aliciTuru] : ""}" olarak değiştirilecek.`;
+          ? "WhatsApp izni kaydedilecek."
+          : `Alıcı türü "${aliciTuru ? ALICI_TURU_ADLARI[aliciTuru] : ""}" olarak değiştirilecek.`;
 
   async function uygula() {
     if (!onaylanabilir) return;
     pencere.current?.close();
     setGonderiliyor(true);
     setHata(null);
-    const islem =
-      tur === "whatsapp_izni"
-        ? { tur, kaynak: izinKaynagi, aciklama: izinAciklamasi.trim() || null, beyan }
-        : tur === "alici_turu"
-          ? { tur, aliciTuru }
-          : { tur, etiket: temizEtiket };
-    const y = await apiIstek<{ sonuc: TopluSonuc }>("/api/kayitlar/toplu", { method: "POST", govde: { secim: props.secim, islem } });
+    const y = await apiIstek<{ sonuc: TopluSonuc }>("/api/kayitlar/toplu", { method: "POST", govde: { secim: props.secim, islem: islemGovdesi() } });
     setGonderiliyor(false);
     if (y.ok) {
       setEtiket("");
@@ -146,6 +191,7 @@ export function TopluIslemCubugu(props: {
           if (!hazir || gonderiliyor) return;
           setBeyan(false); // beyan her işlemde yeniden onaylanır
           pencere.current?.showModal();
+          void onizlemeAl();
         }}
       >
         <label className="etiket">
@@ -217,6 +263,14 @@ export function TopluIslemCubugu(props: {
                 Toplu işlem: {ISLEM_ADLARI[tur]}
               </h2>
               <p>{onayMetni}</p>
+              <p role="status" aria-live="polite" className="rounded-md bg-ic-kutu px-3 py-2 font-medium">
+                {onizleme?.durum === "tamam"
+                  ? onizlemeMetni(tur, props.sayi, onizleme.sonuc)
+                  : onizleme?.durum === "yukleniyor"
+                    ? "Etkilenecek kayıtlar sayılıyor…"
+                    : `${n} seçili.`}
+              </p>
+              {degisecekYok && <p className="text-uyari">Seçili kayıtlarda değişecek bir şey yok.</p>}
               {tur === "alici_turu" && <p className="text-soluk">RET vermiş ve engel listesindeki kayıtlara dokunulmaz.</p>}
               {tur === "whatsapp_izni" && (
                 <>

@@ -268,8 +268,14 @@ export function KampanyaDetayi({
                   </select>
                 </label>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="relative overflow-x-auto">
+                {/* Sabit sütun genişlikleri: süzgeç ya da sayfa değişince sütunlar zıplamaz. */}
+                <table className="w-full min-w-[560px] table-fixed text-sm break-words">
+                  <colgroup>
+                    <col className="w-[40%]" />
+                    <col className="w-[28%]" />
+                    <col />
+                  </colgroup>
                   <thead className="text-[13px] text-soluk">
                     <tr className="border-b border-cizgi">
                       <th className="py-2.5 pr-3 text-left font-semibold">Kayıt</th>

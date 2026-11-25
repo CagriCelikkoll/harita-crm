@@ -1,8 +1,8 @@
 "use client";
 // Tablo + ayrıntı paneli. Kayıt seçmek ve kayıt üzerinde işlem yapmak sunucuda sayfayı yeniden çizmez.
-// Adı girilmemiş Google kayıtlarının adı ve adresi, kullanım %80'e ulaşana kadar açılışta otomatik istenir (eşik
-// sunucuda); sonra satırlar "Göster" düğmesine döner. Google bilgileri yalnızca bellekte tutulur (en fazla 30 dakika,
-// lib/google-onbellegi.ts; tarayıcı depolamasına yazılmaz).
+// Liste Google'dan hiç anlık veri çekmez (yalnızca kayıtlı ad / yetkili; kayit-tablosu.tsx): gezinmek kullanım
+// harcamaz. Google ayrıntısı yalnızca bir kaydın ayrıntı paneli açılınca, o kayıt için getirilir ve panelde harcanan
+// birim gösterilir (detay-paneli.tsx; yalnızca bellekte, lib/google-onbellegi.ts).
 // Geniş ekranda panel tablonun sağındadır; dar ekranda sağdan açılan çekmecedir.
 // Yönetici satırları seçip toplu işlem yapabilir (toplu-islem.tsx); işlemden sonra liste sunucudan yenilenir.
 import { useCallback, useEffect, useState } from "react";
@@ -10,12 +10,10 @@ import { useRouter } from "next/navigation";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { GoogleAtfi } from "@/components/google-atfi";
-import { useGoogleBilgisi } from "@/components/google-bilgisi";
 import {
   KAYIT_SAYFA_BOYUTLARI,
   KAYIT_SIRA_ADLARI,
   KAYIT_SIRALARI,
-  OTOMATIK_GOSTERIM_SINIRI_METNI,
   type KayitSayfaBoyutu,
   type KayitSirasi,
 } from "@/lib/sabitler";
@@ -29,8 +27,6 @@ export function KayitlarEkrani(props: {
   toplam: number;
   seciliIlk: string | null;
   kullaniciId: string;
-  /** Kullanım uyarı eşiğinin altında: adı girilmemiş Google kayıtları açılışta otomatik istenir. */
-  otomatik: boolean;
   /** Mevcut filtre + sayfa sorgusu (secili hariç). */
   sorgu: string;
   sayfa: number;
@@ -44,6 +40,8 @@ export function KayitlarEkrani(props: {
   sira: KayitSirasi;
   boyut: KayitSayfaBoyutu;
   etiketler: string[];
+  /** Süzgeç ya da arama etkinken boş liste: "Süzgeçleri temizle" bağlantısı (yoksa null: yeni kayıt önerisi). */
+  bosListe?: { temizAdres: string } | null;
 }) {
   const router = useRouter();
   const [satirlar, setSatirlar] = useState(props.satirlar);
@@ -88,10 +86,6 @@ export function KayitlarEkrani(props: {
     return `/kayitlar${s.size ? `?${s}` : ""}`;
   };
   const [secili, setSecili] = useState<string | null>(props.seciliIlk);
-  const google = useGoogleBilgisi(
-    props.satirlar.map((s) => s.id),
-    { otomatikIdler: props.otomatik ? props.satirlar.filter((s) => s.kaynak === "google" && !s.isletmeAdi).map((s) => s.id) : [] },
-  );
 
   const seciliBaglantisi = useCallback(
     (id: string | null) => {
@@ -150,7 +144,6 @@ export function KayitlarEkrani(props: {
 
   return (
     <div className="flex flex-col gap-4">
-      {google.otomatikKapali && <BilgiNotu ton="uyari">{OTOMATIK_GOSTERIM_SINIRI_METNI}</BilgiNotu>}
       <div className="flex flex-wrap items-start gap-6">
         <section aria-label="Kayıt listesi" className="min-w-0 flex-[999_1_560px] overflow-hidden rounded-kart border border-kenar bg-white">
           {ozet && (
@@ -189,7 +182,7 @@ export function KayitlarEkrani(props: {
             seciliId={secili}
             seciliBaglantisi={seciliBaglantisi}
             onSec={sec}
-            google={google}
+            bosListe={props.bosListe ?? null}
             secim={props.yonetici ? { secili: seciliIdler, degistir: secimDegistir, sayfayiDegistir } : undefined}
           />
           <div className="flex flex-wrap items-center justify-between gap-3 bg-kart-alt px-5 py-3.5 text-[13px] text-soluk">
@@ -222,7 +215,7 @@ export function KayitlarEkrani(props: {
                   ))}
                 </select>
               </label>
-              <span>&quot;Google&quot; etiketli bilgiler Google Haritalar&apos;dan anlık gösterilir, kaydedilmez.</span>
+              <span>Listede yalnızca kayıtlı bilgiler görünür; Google bilgileri bir kaydı açınca getirilir, kaydedilmez.</span>
               <GoogleAtfi />
             </span>
           </div>
@@ -245,7 +238,6 @@ export function KayitlarEkrani(props: {
               key={secili}
               id={secili}
               kullaniciId={props.kullaniciId}
-              googleBilgisi={google.bilgi.get(secili)}
               onKapat={() => sec(null)}
               onKayitDegisti={kayitDegisti}
               onSilindi={silindi}

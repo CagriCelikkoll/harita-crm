@@ -270,19 +270,23 @@ describe("Kayıtlar: sekmeler ve süzgeç (Grup 4)", () => {
     expect(await satirSayisi("?grup=tum&kaynak=elle")).toBe(2);
   });
 
-  it("Kayıtlar ekranı adı girilmemiş Google kayıtlarını otomatik ister (yalnızca kullanım eşiğin altındayken, bir kez)", () => {
+  it("Kayıtlar listesi Google'dan hiç anlık veri çekmez; satırda kayıtlı ad / yetkili, yoksa nötr yer tutucu", async () => {
     const sayfa = oku("src/app/(app)/kayitlar/page.tsx");
-    expect(sayfa).toContain("otomatik={!kota.uyari && !kota.doldu}");
+    expect(sayfa).not.toContain("otomatik=");
     expect(sayfa).toContain('kayitFiltresiCoz((ad) => tek(p[ad]), "ilgi")');
-    const ekran = oku("src/app/(app)/kayitlar/kayitlar-ekrani.tsx");
-    expect(ekran).toContain('otomatikIdler: props.otomatik ? props.satirlar.filter((s) => s.kaynak === "google" && !s.isletmeAdi)');
-    expect(ekran).toContain('{google.otomatikKapali && <BilgiNotu ton="uyari">{OTOMATIK_GOSTERIM_SINIRI_METNI}</BilgiNotu>}');
-    const kanca = oku("src/components/google-bilgisi.tsx");
-    expect(kanca).toMatch(/if \(otomatikIstendi\.current \|\| !ilkOtomatik\.length\) return;\s*otomatikIstendi\.current = true;/);
-    expect(kanca).toContain("govde: { idler: ilkOtomatik.slice(0, 20), otomatik: true }");
+    // Liste bileşenleri Google kancasını / canlı uç noktayı kullanmaz.
+    for (const d of ["src/app/(app)/kayitlar/kayitlar-ekrani.tsx", "src/app/(app)/kayitlar/kayit-tablosu.tsx"]) {
+      const kod = oku(d);
+      expect(kod, d).not.toMatch(/useGoogleBilgisi|\/api\/kayitlar\/canli|GoogleEtiketi|Google bilgilerini göster/);
+    }
     const tablo = oku("src/app/(app)/kayitlar/kayit-tablosu.tsx");
-    expect(tablo).toContain("<GoogleEtiketi />");
     for (const b of ["İşletme", "Durum", "İzin", "Son işlem", "Etiket"]) expect(tablo).toContain(`font-semibold">${b}</th>`);
+    // Gösterilen ad = "Ad (A-Z)" sıralamasının anahtarı: işletme adı, yoksa yetkili, yoksa yer tutucu.
+    const { satirAdi } = await import("@/app/(app)/kayitlar/kayit-tablosu");
+    expect(satirAdi({ isletmeAdi: "Ege Emlak", yetkiliAdi: "Can", kaynak: "google" })).toBe("Ege Emlak");
+    expect(satirAdi({ isletmeAdi: null, yetkiliAdi: "Can Örnek", kaynak: "google" })).toBe("Can Örnek");
+    expect(satirAdi({ isletmeAdi: "  ", yetkiliAdi: null, kaynak: "google" })).toBe("Google kaydı · ad girilmemiş");
+    expect(satirAdi({ isletmeAdi: null, yetkiliAdi: null, kaynak: "elle" })).toBe("(adsız kişi)");
   });
 
   it("ayrıntı paneli: Ara / E-posta / WhatsApp ve Genel / İletişim izni / Geçmiş sekmeleri; ad alanı boş gelir", () => {
@@ -294,8 +298,11 @@ describe("Kayıtlar: sekmeler ve süzgeç (Grup 4)", () => {
     expect(panel).toMatch(/>\s*Ara\s*</);
     expect(panel).toMatch(/>\s*E-posta\s*</);
     expect(panel).toContain('aria-label="Ayrıntıları kapat"');
-    // Listedeki Google adı yalnızca başlıkta; ad girme alanı kullanıcının kaydıyla gelir.
-    expect(panel.match(/listeGoogle\?\.ad\b/g)).toHaveLength(1);
+    // Başlık listedeki kayıtlı adla aynı; Google'daki ad yalnızca altında bilgi olarak. Ad girme alanı kullanıcının kaydıyla gelir.
+    expect(panel).not.toContain("listeGoogle");
+    expect(panel).toContain("const baslik = satirAdi(kayit);");
+    expect(panel).toContain("Google&apos;daki adı: {googleAdi}");
+    expect(panel).toContain("{googleKaynakNotu(googleKaynagi)}");
     expect(panel).toMatch(/name="isletmeAdi"\s+defaultValue=\{kayit\.isletmeAdi \?\? ""\}/);
     // Durum seçimi tek dokunuşla (çipler).
     expect(panel).toContain("<SecimCipi");

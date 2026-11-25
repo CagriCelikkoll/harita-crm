@@ -121,7 +121,9 @@ function ozetDto(s: SohbetSatiri, etiketler: Map<string, string>): SohbetOzetiDt
     durum: s.durum,
     atananKullanici: s.atananKullanici,
     atananAd: s.atananAd,
-    sonMesaj: s.sonTur ? mesajOzeti({ tur: s.sonTur, metin: s.sonMetin, icerikSilindi: Boolean(s.sonIcerikSilindi) }) : null,
+    sonMesaj: s.sonTur
+      ? mesajOzeti({ tur: s.sonTur, metin: s.sonMetin, icerikSilindi: Boolean(s.sonIcerikSilindi), dosyaAdi: s.sonDosyaAdi })
+      : null,
     sonMesajTarihi: s.sonMesajTarihi?.toISOString() ?? null,
     sonGelenTarihi: s.sonGelenTarihi?.toISOString() ?? null,
     okunmamis: s.okunmamis,
@@ -140,6 +142,7 @@ export function mesajDto(m: SohbetMesajiSatiri): SohbetMesajiDto {
     medya: m.medya ? medyaDto(m.medya) : null,
     gonderen: m.gonderenAd,
     kampanyaId: m.kampanyaId,
+    sablonGorseli: m.tur === "template" && m.kampanyaGorselId ? `/api/medya/${m.kampanyaGorselId}` : null,
     teslimDurumu: m.teslimDurumu,
     teslimHataKodu: m.teslimHataKodu,
     hataMetni: m.hataMetni ?? (m.teslimDurumu === "failed" ? medyaGonderimHataMetni(m.teslimHataKodu) : null),

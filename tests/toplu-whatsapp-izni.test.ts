@@ -103,7 +103,7 @@ describe("toplu WhatsApp izni: beyan ve kaynak zorunlu", () => {
 });
 
 describe("toplu WhatsApp izni: kayda yazılanlar, atlananlar, denetim", () => {
-  it("RET, ileti reddi, engel listesi ve 'WhatsApp yok' atlanır; ret geri açılmaz; İYS beyanı ve engel listesi değişmez", () => {
+  it("RET, ileti reddi, engel listesi ve 'WhatsApp yok' atlanır; ret geri açılmaz; İYS beyanı ve engel listesi değişmez; önizleme aynı sayıları yazmadan verir", async () => {
     const { ctx, kullanici } = kiraciOlustur("IzinAtla");
     const [normal, iysli, iletiRet, yalnizIletiRet, waRet, engelliTel, waYok, waYokEski, zatenVar] = kisiler(ctx, "izin", 9);
     // Satırı var, izni 'yok' ama İYS beyan tarihi dolu (eski veri): beyan alanına dokunulmamalı.
@@ -122,6 +122,26 @@ describe("toplu WhatsApp izni: kayda yazılanlar, atlananlar, denetim", () => {
 
     const once = new Map([iletiRet, yalnizIletiRet, waRet, zatenVar].map((k) => [k.id, whatsappKisisiGetir(ctx, k.id)]));
     const engelOnce = engelSayisi(ctx);
+
+    // Onay penceresi önizlemesi: aynı sayılar, hiçbir şey yazılmaz (izin, olay, denetim); beyan / kaynak aranmaz.
+    const onizleme = kayitlar.kayitlariTopluGuncelle(
+      ctx,
+      { filtre: { grup: "tum", etiket: "izin" }, beklenenToplam: 9 },
+      { tur: "whatsapp_izni", kaynak: "diger", aciklama: null, beyan: false },
+      { onizleme: true },
+    );
+    expect(onizleme).toMatchObject({ hedef: 9, degisen: 3, atlanan: { ayni: 1, ret: 3, engelli: 1, whatsapp_yok: 1 } });
+    expect(whatsappKisisiGetir(ctx, normal.id)).toBeNull();
+    expect(olaylariListele(ctx, normal.id).some((o) => o.aciklama?.startsWith("Toplu işlem"))).toBe(false);
+    expect(denetimKayitlariListele(ctx, { olay: "toplu_kayit_islemi" })).toHaveLength(0);
+    // Uç nokta: { onizleme: true } kaynak ve beyan olmadan kabul edilir.
+    oturum.ctx = ctx;
+    const y = await rota.POST(istek({ onizleme: true, secim: { tur: "idler", idler: [normal.id, zatenVar.id, waRet.id] }, islem: { tur: "whatsapp_izni" } }));
+    expect(y.status).toBe(200);
+    expect((await y.json()).sonuc).toMatchObject({ hedef: 3, degisen: 1, atlanan: { ayni: 1, ret: 1 } });
+    expect(whatsappKisisiGetir(ctx, normal.id)).toBeNull();
+    oturum.ctx = null;
+
     const baslangic = Date.now();
 
     const s = kayitlar.kayitlariTopluGuncelle(

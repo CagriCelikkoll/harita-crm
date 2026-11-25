@@ -499,7 +499,7 @@ export function KampanyaSihirbazi(props: {
             Vazgeç
           </Link>
         )}
-        <div className="min-w-0 flex-1 text-[13px]">
+        <div className="min-w-0 flex-1 text-[13px] max-sm:order-first max-sm:basis-full">
           {hata ? (
             <p role="alert" className="text-tehlike">
               {hata}
@@ -837,7 +837,8 @@ function WhatsappSablonSecimi(props: {
       [anahtar]: { ...(props.eslem[anahtar] ?? { kaynak: "isletme_adi" }), ...degisiklik },
     });
   return (
-    <fieldset className="flex flex-col gap-3">
+    // min-w-0: <fieldset> varsayılanı min-inline-size: min-content; uzun şablon adı seçeneği onu (ve sayfayı) taşırıyordu.
+    <fieldset className="flex min-w-0 flex-col gap-3">
       <legend className="mb-2 text-sm font-medium text-soluk">WhatsApp şablonu · {props.numara}</legend>
       {props.sablonlar.length === 0 ? (
         <p className="text-sm text-soluk">
@@ -945,9 +946,14 @@ function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: 
       setYukleniyor(false);
     }
   }
+  // Tarayıcının dosya girişi gizlidir: yüklemeden sonra değeri sıfırlandığından (aynı dosya yeniden seçilebilsin)
+  // görsel yüklüyken "Dosya seçilmedi" yazıyordu. Seçili görsel adı ve boyutuyla ayrı gösterilir.
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-end gap-3">
+    <div className="flex min-w-0 flex-col gap-1.5" role="group" aria-labelledby="gorsel-baslik">
+      <span id="gorsel-baslik" className="text-sm font-semibold">
+        Başlık görseli (zorunlu)
+      </span>
+      <div className="flex min-w-0 items-center gap-3">
         {props.gorsel ? (
           // eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz
           <img src={props.gorsel.adres} alt="Kampanya görseli" className="size-14 shrink-0 rounded-md border border-kenar object-cover" />
@@ -956,34 +962,43 @@ function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: 
             Görsel
           </span>
         )}
-        <label className="etiket min-w-0 flex-1">
-          Başlık görseli (zorunlu)
-          <input
-            type="file"
-            accept="image/jpeg,image/png"
-            disabled={yukleniyor}
-            onChange={(e) => {
-              void sec(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-            className="girdi text-[13px]"
-          />
-        </label>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {props.gorsel ? (
+            <p className="flex min-w-0 items-baseline gap-1 text-[13px]" aria-live="polite">
+              <span className="min-w-0 truncate font-medium" title={props.gorsel.dosyaAdi}>
+                {props.gorsel.dosyaAdi}
+              </span>
+              <span className="shrink-0 text-soluk">· {sayiYaz(Math.ceil(props.gorsel.boyut / 1024))} KB</span>
+            </p>
+          ) : (
+            <p className="text-[13px] text-soluk">{yukleniyor ? "Yükleniyor…" : "Henüz görsel yüklenmedi."}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* relative: sr-only giriş kabın dışına taşmasın. */}
+            <label className={`dugme dugme-kucuk relative cursor-pointer focus-within:ring-2 focus-within:ring-ana ${yukleniyor ? "pointer-events-none opacity-50" : ""}`}>
+              {props.gorsel ? "Görseli değiştir" : "Görsel seç"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png"
+                disabled={yukleniyor}
+                onChange={(e) => {
+                  void sec(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+                className="sr-only"
+              />
+            </label>
+            {props.gorsel && (
+              <button type="button" className="text-[13px] text-tehlike underline" onClick={() => props.onGorsel(null)}>
+                Kaldır
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-      {props.gorsel && (
-        <p className="flex flex-wrap items-center gap-x-2 text-xs text-soluk">
-          <span className="min-w-0 truncate">
-            {props.gorsel.dosyaAdi} · {sayiYaz(Math.ceil(props.gorsel.boyut / 1024))} KB
-          </span>
-          <button type="button" className="text-tehlike underline" onClick={() => props.onGorsel(null)}>
-            Kaldır
-          </button>
-        </p>
-      )}
       <p className="text-xs text-soluk">
         JPEG ya da PNG, en fazla 5 MB. Aynı görsel bütün alıcılara gider; Meta&apos;ya kampanya başlarken bir kez yüklenir.
       </p>
-      {yukleniyor && <p className="text-sm text-soluk">Yükleniyor…</p>}
       {hata && (
         <p role="alert" className="text-sm text-tehlike">
           {hata}
