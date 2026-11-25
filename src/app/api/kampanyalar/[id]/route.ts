@@ -2,7 +2,7 @@
 // İptal: POST ?islem=iptal (bekleyen mesajlar gönderilmez). Devam: POST ?islem=devam (duraklatılmış WhatsApp
 // kampanyası; yalnızca yönetici, kalite kırmızı değilse).
 import { NextResponse } from "next/server";
-import { MESAJ_DURUMLARI } from "@/lib/mesajlasma";
+import { aliciSuzgeciCoz } from "@/lib/mesajlasma";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { kampanyaGetir, kampanyaIptal, kampanyaMesajlari } from "@/server/repo/kampanyalar";
@@ -19,7 +19,7 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kampany
   const kampanya = kampanyaGetir(ctx, id);
   if (!kampanya) return bulunamadi();
   const p = new URL(istek.url).searchParams;
-  const durum = MESAJ_DURUMLARI.find((d) => d === p.get("durum"));
+  const durum = aliciSuzgeciCoz(p.get("durum"));
   const sayfa = kampanyaMesajlari(ctx, id, { sayfa: Number(p.get("sayfa") ?? 1) || 1, durum });
   return NextResponse.json(
     {

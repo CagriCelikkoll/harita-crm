@@ -1,7 +1,14 @@
 // Kampanyalar ve kuyruğa ekleme. Alıcı kuralları çağıran serviste (servisler/kampanya.ts) uygulanır;
 // burada yalnızca bu kiracının kayıtları kuyruğa yazılır.
 import { and, count, desc, eq, gte, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
-import { KAMPANYA_AZAMI_ALICI, type HaricNedeni, type MesajDurumu } from "@/lib/mesajlasma";
+import {
+  KAMPANYA_AZAMI_ALICI,
+  TESLIM_SUZGECLERI,
+  teslimSuzgeciMi,
+  type AliciSuzgeci,
+  type HaricNedeni,
+  type MesajDurumu,
+} from "@/lib/mesajlasma";
 import { SAYFA_BOYUTU } from "@/lib/sabitler";
 import { sayfaSayisiHesapla, sayfaSinirla } from "@/lib/sayfalama";
 import { ayAnahtari, istanbulAni } from "@/lib/zaman";
@@ -210,12 +217,20 @@ export function kampanyaGetir(ctx: TenantContext, id: string) {
   return { ...kampanya, sayilar: sayilariGetir(ctx, [id]).get(id) ?? bosSayilar(), nedenler, teslim, ucretli };
 }
 
-/** Kampanyanın alıcı bazında durumu (sayfalı). Alıcı adresi gösterilmez; kaydın kullanıcı verisi gösterilir. */
-export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: number; durum?: MesajDurumu } = {}) {
+/**
+ * Kampanyanın alıcı bazında durumu (sayfalı) ve WhatsApp'ta mesajın Meta'dan gelen son teslim durumu (+ hata kodu).
+ * Süzgeç mesaj durumu ya da teslim durumu olabilir (lib/mesajlasma ALICI_SUZGECLERI). Alıcı adresi gösterilmez; kaydın
+ * kullanıcı verisi gösterilir.
+ */
+export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: number; durum?: AliciSuzgeci } = {}) {
   const kosul = and(
     eq(messageQueue.tenantId, ctx.tenantId),
     eq(messageQueue.kampanyaId, id),
-    f.durum ? eq(messageQueue.durum, f.durum) : undefined,
+    teslimSuzgeciMi(f.durum)
+      ? eq(messageQueue.teslimDurumu, TESLIM_SUZGECLERI[f.durum])
+      : f.durum
+        ? eq(messageQueue.durum, f.durum)
+        : undefined,
   );
   const toplam = db.select({ n: count() }).from(messageQueue).where(kosul).get()?.n ?? 0;
   const sayfaSayisi = sayfaSayisiHesapla(toplam, SAYFA_BOYUTU);
@@ -234,6 +249,8 @@ export function kampanyaMesajlari(ctx: TenantContext, id: string, f: { sayfa?: n
       sonrakiDeneme: messageQueue.sonrakiDeneme,
       gonderimTarihi: messageQueue.gonderimTarihi,
       sandboxIcerik: messageQueue.sandboxIcerik,
+      teslimDurumu: messageQueue.teslimDurumu,
+      teslimHataKodu: messageQueue.teslimHataKodu,
     })
     .from(messageQueue)
     .innerJoin(leads, and(eq(leads.id, messageQueue.leadId), eq(leads.tenantId, messageQueue.tenantId)))

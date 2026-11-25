@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { MESAJ_DURUMLARI } from "@/lib/mesajlasma";
+import { aliciSuzgeciCoz } from "@/lib/mesajlasma";
 import { adrestekiSayfa, sayfaAdresi } from "@/lib/sayfalama";
 import { sayfaBaglami } from "@/server/oturum";
 import { kampanyaGetir, kampanyaMesajlari } from "@/server/repo/kampanyalar";
@@ -13,14 +13,15 @@ export const metadata: Metadata = { title: "Kampanya" };
 
 const tek = (d: string | string[] | undefined) => (Array.isArray(d) ? d[0] : d);
 
-// Alıcı listesinin sayfası ve durum süzgeci adreste: ?sayfa=&durum= (aralık dışı sayfa en yakın geçerli sayfaya gider).
+// Alıcı listesinin sayfası ve durum süzgeci adreste: ?sayfa=&durum= (mesaj durumu ya da Meta teslim durumu;
+// lib/mesajlasma ALICI_SUZGECLERI). Aralık dışı sayfa en yakın geçerli sayfaya gider.
 export default async function KampanyaSayfasi({ params, searchParams }: PageProps<"/kampanyalar/[id]">) {
   const { ctx } = await sayfaBaglami();
   const { id } = await params;
   const p = await searchParams;
   const kampanya = kampanyaGetir(ctx, id);
   if (!kampanya) notFound(); // başka kiracının kampanyası da 404
-  const durum = MESAJ_DURUMLARI.find((d) => d === tek(p.durum));
+  const durum = aliciSuzgeciCoz(tek(p.durum));
   const istenenSayfa = tek(p.sayfa);
   const sayfa = kampanyaMesajlari(ctx, id, { sayfa: adrestekiSayfa(istenenSayfa), durum });
   if (istenenSayfa !== undefined && istenenSayfa !== String(sayfa.sayfa) && !(sayfa.sayfa === 1 && istenenSayfa === "")) {

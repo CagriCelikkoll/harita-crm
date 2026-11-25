@@ -140,6 +140,24 @@ export const MESAJ_DURUM_ADLARI: Record<MesajDurumu, string> = {
   iptal: "İptal",
 };
 
+/**
+ * Kampanya ayrıntısının Alıcılar süzgeci (adreste ?durum=): mesaj durumları ve WhatsApp'ta mesajın Meta'dan gelen son
+ * teslim durumu. "teslim_edildi" yalnızca okunmamışları kapsar (okunan iletinin son durumu "read").
+ */
+export const TESLIM_SUZGECLERI = { okundu: "read", teslim_edildi: "delivered", teslim_edilemedi: "failed" } as const;
+export type TeslimSuzgeci = keyof typeof TESLIM_SUZGECLERI;
+export type AliciSuzgeci = MesajDurumu | TeslimSuzgeci;
+export const ALICI_SUZGECLERI: readonly AliciSuzgeci[] = [...MESAJ_DURUMLARI, "okundu", "teslim_edildi", "teslim_edilemedi"];
+export const TESLIM_SUZGEC_ADLARI: Record<TeslimSuzgeci, string> = {
+  okundu: "Okundu",
+  teslim_edildi: "Teslim edildi (okunmadı)",
+  teslim_edilemedi: "Teslim edilemedi",
+};
+export const aliciSuzgeciAdi = (s: AliciSuzgeci) => (s in TESLIM_SUZGECLERI ? TESLIM_SUZGEC_ADLARI[s as TeslimSuzgeci] : MESAJ_DURUM_ADLARI[s as MesajDurumu]);
+/** Adresteki değer; tanınmıyorsa undefined (süzgeçsiz). */
+export const aliciSuzgeciCoz = (v: string | null | undefined): AliciSuzgeci | undefined => ALICI_SUZGECLERI.find((s) => s === v);
+export const teslimSuzgeciMi = (s: AliciSuzgeci | undefined): s is TeslimSuzgeci => s !== undefined && s in TESLIM_SUZGECLERI;
+
 export const HARIC_NEDEN_ADLARI: Record<HaricNedeni, string> = {
   ret: "İleti reddi",
   engel: "Engel listesinde",

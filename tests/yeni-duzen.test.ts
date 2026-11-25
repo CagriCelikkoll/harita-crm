@@ -465,6 +465,9 @@ describe("Kampanyalar ve sihirbaz (Grup 6)", () => {
     expect(s).toContain("router.push(`/kampanyalar/${s.veri.id}`)");
     expect(s).toContain('props.whatsapp.yonetici ? ["eposta", "sms", "whatsapp_api"] : ["eposta", "sms"]');
     expect(s).toContain("const adim = adimCoz(props.adim, taslak);");
+    // Düzen (tests/kampanya-duzeni.test.ts): sağda yapışkan önizleme, altta yapışkan düğme çubuğu.
+    expect(s).toContain('from "./mesaj-onizlemesi"');
+    expect(s).toContain('aria-label="Sihirbaz düğmeleri"');
     const sayfa = oku("src/app/(app)/kampanyalar/yeni/page.tsx");
     expect(sayfa).toContain('istenenKanal && (istenenKanal !== "whatsapp_api" || yonetici)');
     const liste = oku("src/app/(app)/kampanyalar/page.tsx");

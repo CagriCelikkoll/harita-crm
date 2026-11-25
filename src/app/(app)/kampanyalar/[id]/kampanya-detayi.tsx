@@ -1,7 +1,7 @@
 "use client";
-// Kampanya ayrıntısı: üstte durum kartı (rozetler, uyarılar, ilerleme, sayılar), altında sekmeler: Alıcılar (alıcı
-// bazında durum, süzgeç, sayfalama), Mesaj (konu ve şablon), Geçmiş (zaman çizelgesi, nedenler, Meta teslim
-// bildirimleri). Kampanya sürerken 10 sn'de bir yenilenir. Alıcıların sayfası ve durum süzgeci adreste tutulur
+// Kampanya ayrıntısı: üstte durum kartı (rozetler, uyarılar, ilerleme, yan yana sayı kartları; WhatsApp'ta Meta teslim
+// bildirimleri de aynı satırda kartlar: teslim, okundu, teslim edilemedi + hata kodları), altında sekmeler: Alıcılar
+// (alıcı bazında durum, süzgeç, sayfalama), Mesaj (konu ve şablon), Geçmiş (zaman çizelgesi, nedenler). Kampanya sürerken 10 sn'de bir yenilenir. Alıcıların sayfası ve durum süzgeci adreste tutulur
 // (?sayfa=&durum=; geri tuşu önceki sayfaya döner): değişince sunucu sayfası yeni ilk veriyi gönderir.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,9 +23,14 @@ import {
   KANAL_ADLARI,
   MESAJ_DURUM_ADLARI,
   MESAJ_DURUMLARI,
+  TESLIM_SUZGEC_ADLARI,
+  TESLIM_SUZGECLERI,
+  teslimSuzgeciMi,
+  type AliciSuzgeci,
   type MesajDurumu,
+  type TeslimSuzgeci,
 } from "@/lib/mesajlasma";
-import { teslimHataAciklamasi } from "@/lib/whatsapp-api";
+import { kisiTeslimDurumu, teslimKartlari } from "@/lib/kampanya-gorunumu";
 import { GOOGLE_ADSIZ } from "@/lib/sabitler";
 import type { KampanyaDto, MesajDto } from "@/server/servisler/kampanya-dto";
 
@@ -47,13 +52,6 @@ const DIGER_NEDENLER: Record<string, string> = {
   hata: "Beklenmeyen hata",
   iptal: "Kampanya iptal edildi",
   meta_teslim_etmedi: "Meta teslim etmedi (alıcı başına pazarlama sınırı; 24 saat sonra tekrar denenebilir)",
-};
-/** Meta teslim bildirimi (webhook statuses). */
-const TESLIM_ADLARI: Record<string, string> = {
-  sent: "Meta'ya iletildi",
-  delivered: "Teslim edildi",
-  read: "Okundu",
-  failed: "Teslim edilemedi",
 };
 const nedenAdi = (n: string | null): string =>
   !n
@@ -84,8 +82,8 @@ export function KampanyaDetayi({
   isci,
 }: {
   ilk: Veri;
-  /** Adresteki durum süzgeci ("" = tümü). */
-  durum: MesajDurumu | "";
+  /** Adresteki durum süzgeci: mesaj durumu ya da Meta teslim durumu ("" = tümü). */
+  durum: AliciSuzgeci | "";
   isci: { sonNabiz: string | null; simdi: string; yonetici: boolean };
 }) {
   const router = useRouter();
@@ -104,7 +102,7 @@ export function KampanyaDetayi({
   const k = veri.kampanya;
 
   const yukle = useCallback(
-    async (sayfa: number, durum: MesajDurumu | "") => {
+    async (sayfa: number, durum: AliciSuzgeci | "") => {
       const q = new URLSearchParams({ sayfa: String(sayfa), ...(durum ? { durum } : {}) });
       const s = await apiIstek<Veri>(`/api/kampanyalar/${k.id}?${q}`);
       if (s.ok) setVeri(s.veri);
@@ -189,15 +187,40 @@ export function KampanyaDetayi({
             </div>
             <IlerlemeCubugu yuzde={yuzde} etiket="Kampanya ilerlemesi" kalin />
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
+          <div role="group" aria-label="Gönderim sayıları" className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {(["kuyrukta", "gonderildi", "haric", "basarisiz"] as const).map((d) => (
               <IstatistikKutusu key={d} baslik={MESAJ_DURUM_ADLARI[d]} deger={sayiYaz(s[d])} />
             ))}
           </div>
           {(s.gonderiliyor > 0 || s.iptal > 0) && (
-            <p className="text-[13px] text-soluk">
+            <p className="-mt-2 text-[13px] text-soluk">
               {MESAJ_DURUM_ADLARI.gonderiliyor}: {sayiYaz(s.gonderiliyor)} · {MESAJ_DURUM_ADLARI.iptal}: {sayiYaz(s.iptal)}
             </p>
+          )}
+          {k.kanal === "whatsapp_api" && !k.sandbox && (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold">Meta teslim bildirimleri</h3>
+              <div role="group" aria-label="Meta teslim bildirimleri" className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+                {teslimKartlari(k.teslim).map((t) => (
+                  <IstatistikKutusu key={t.durum} baslik={t.ad} deger={sayiYaz(t.n)}>
+                    {t.kodlar.length > 0 && (
+                      <ul aria-label="Hata kodları" className="mt-1 flex flex-col gap-0.5 text-xs text-tehlike">
+                        {t.kodlar.map((x) => (
+                          <li key={x.kod}>
+                            {x.kod}
+                            {x.aciklama ? ` (${x.aciklama})` : ""}: <span className="tabular-nums">{sayiYaz(x.n)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </IstatistikKutusu>
+                ))}
+              </div>
+              <p className="text-xs text-soluk">
+                Her iletinin Meta&apos;dan gelen son durumu sayılır (okunan ileti &quot;Teslim edildi&quot;de ayrıca sayılmaz).
+                {k.ucretli.length > 0 && ` Meta'nın ücretlendirdiği: ${k.ucretli.map((u) => `${sayiYaz(u.n)} ${u.kategori ?? ""}`).join(", ")}.`}
+              </p>
+            </div>
           )}
           {hata && (
             <p role="alert" className="text-sm text-tehlike">
@@ -219,17 +242,29 @@ export function KampanyaDetayi({
                   <select
                     value={filtre}
                     onChange={(e) => {
-                      const d = e.target.value as MesajDurumu | "";
+                      const d = e.target.value as AliciSuzgeci | "";
                       router.push(`/kampanyalar/${k.id}${d ? `?durum=${d}` : ""}`, { scroll: false });
                     }}
                     className="girdi"
                   >
                     <option value="">Tüm durumlar</option>
-                    {MESAJ_DURUMLARI.map((d) => (
-                      <option key={d} value={d}>
-                        {MESAJ_DURUM_ADLARI[d]}
-                      </option>
-                    ))}
+                    <optgroup label="Gönderim durumu">
+                      {MESAJ_DURUMLARI.map((d) => (
+                        <option key={d} value={d}>
+                          {MESAJ_DURUM_ADLARI[d]}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {/* WhatsApp: mesajın Meta'dan gelen son durumu (adreste ?durum=okundu …). */}
+                    {(k.kanal === "whatsapp_api" || teslimSuzgeciMi(filtre || undefined)) && (
+                      <optgroup label="Meta teslim durumu">
+                        {(Object.keys(TESLIM_SUZGECLERI) as TeslimSuzgeci[]).map((d) => (
+                          <option key={d} value={d}>
+                            {TESLIM_SUZGEC_ADLARI[d]}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </label>
               </div>
@@ -266,7 +301,7 @@ export function KampanyaDetayi({
                           )}
                         </td>
                         <td className="py-2.5 pr-3">
-                          <DurumRozeti ton={ROZET[m.durum]}>{MESAJ_DURUM_ADLARI[m.durum]}</DurumRozeti>
+                          <KisiDurumu m={m} />
                         </td>
                         <td className="py-2.5 text-xs text-soluk">
                           {m.gonderimTarihi && <span className="block">{tarihYaz(m.gonderimTarihi)}</span>}
@@ -368,38 +403,25 @@ export function KampanyaDetayi({
                   </ul>
                 </div>
               )}
-              {k.kanal === "whatsapp_api" && k.teslim.length > 0 && (
-                <div>
-                  <h3 className="mb-1 font-semibold">Meta teslim bildirimleri</h3>
-                  <ul>
-                    {k.teslim.map((t) => (
-                      <li key={`${t.durum}-${t.kod}`} className="flex justify-between gap-3 border-b border-cizgi py-1.5 last:border-0">
-                        <span>
-                          {TESLIM_ADLARI[t.durum ?? ""] ?? t.durum}
-                          {t.kod !== null && (
-                            <span className="text-xs text-soluk">
-                              {" "}
-                              (hata {t.kod}
-                              {teslimHataAciklamasi(t.kod) ? `: ${teslimHataAciklamasi(t.kod)}` : ""})
-                            </span>
-                          )}
-                        </span>
-                        <span className="tabular-nums">{sayiYaz(t.n)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {k.ucretli.length > 0 && (
-                    <p className="mt-1 text-xs text-soluk">
-                      Meta&apos;nın ücretlendirdiği: {k.ucretli.map((u) => `${sayiYaz(u.n)} ${u.kategori ?? ""}`).join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </section>
       </div>
     </>
+  );
+}
+
+const TESLIM_ROZETI: Record<"delivered" | "read" | "failed", RozetTonu> = { delivered: "ana", read: "mavi", failed: "tehlike" };
+
+/** Alıcının durumu: Meta'dan teslim edildi / okundu / teslim edilemedi bildirimi geldiyse o, yoksa mesaj durumu. */
+function KisiDurumu({ m }: { m: MesajDto }) {
+  const t = kisiTeslimDurumu(m.teslimDurumu, m.teslimHataKodu);
+  if (!t) return <DurumRozeti ton={ROZET[m.durum]}>{MESAJ_DURUM_ADLARI[m.durum]}</DurumRozeti>;
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <DurumRozeti ton={TESLIM_ROZETI[t.durum]}>{t.ad}</DurumRozeti>
+      {t.kod && <span className="text-xs text-tehlike">{t.kod}</span>}
+    </span>
   );
 }
 
