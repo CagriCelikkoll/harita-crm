@@ -16,7 +16,7 @@ import { baglantiGetir } from "@/server/repo/whatsapp-baglantilari";
 import { sablonlariListele } from "@/server/repo/whatsapp-sablonlari";
 import { whatsappIzniAyarla, whatsappKisisiGetir } from "@/server/repo/whatsapp-kisileri";
 import { isciTuru } from "@/server/servisler/isci";
-import { kampanyaBaslat } from "@/server/servisler/kampanya";
+import { kampanyaBaslat, kampanyaOzeti } from "@/server/servisler/kampanya";
 import * as wa from "@/server/servisler/whatsapp-api";
 import { mockWhatsappSifirla } from "@/server/whatsapp-api/mock";
 import { GET, POST } from "@/app/api/whatsapp/webhook/[kimlik]/route";
@@ -122,11 +122,8 @@ describe("teslim durumları", () => {
     );
     for (const x of [a, b]) whatsappIzniAyarla(k.ctx, x.id, { izin: "var", kaynak: "form" });
     const sablon = sablonlariListele(k.ctx).find((s) => s.ad === "randevu_hatirlatma")!;
-    const kampanya = kampanyaBaslat(
-      k.ctx,
-      { kanal: "whatsapp_api", baglantiId: tekNumara(k.ctx), ad: "K", filtre: { etiket: "wh" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } },
-      SIMDI,
-    );
+    const girdi = { kanal: "whatsapp_api", baglantiId: tekNumara(k.ctx), ad: "K", filtre: { etiket: "wh" }, testModu: false, sablonId: sablon.id, degiskenEslem: { "body:ad": { kaynak: "sabit", deger: "A" }, "body:tarih": { kaynak: "sabit", deger: "B" } } } as const;
+    const kampanya = kampanyaBaslat(k.ctx, girdi, SIMDI);
     await isciTuru({ simdi: () => SIMDI, whatsappAralikMs: 0 });
     const wamid = (leadId: string) =>
       (db.$client.prepare("select saglayici_kimligi s from message_queue where lead_id = ?").get(leadId) as { s: string }).s;
@@ -144,6 +141,12 @@ describe("teslim durumları", () => {
     await durum(wamid(b.id), "failed", { errors: [{ code: 131026, title: "undeliverable" }] });
     expect(teslim(b.id)).toMatchObject({ d: "failed", k: 131026 });
     expect(whatsappKisisiGetir(k.ctx, b.id)?.whatsappYokTarihi).toBeInstanceOf(Date);
+    // Sonraki kampanyanın özetinde "Numarada WhatsApp yok" (haric: whatsapp_yok) olarak görünür ve alınmaz.
+    const ozet = kampanyaOzeti(k.ctx, { ...girdi, ad: "K2" }, SIMDI);
+    expect(ozet.haricler.whatsapp_yok).toBe(1);
+    expect(ozet.gonderilecek).toBe(1);
+    // Meta kabul ettiği için (teslim edilemese de) Kayıtlar "Kampanya durumu" süzgecinde "almış" sayılır.
+    expect(kayitlariListele(k.ctx, { grup: "tum", kampanyaDurumu: "almis" }).kayitlar.map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
 
     // Kampanya detay sayıları
     expect(kampanyaMesajlari(k.ctx, kampanya.id).toplam).toBe(2);

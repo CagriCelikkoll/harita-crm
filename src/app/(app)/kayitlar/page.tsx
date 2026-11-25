@@ -239,8 +239,8 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
                 ))}
               </select>
               <span className="text-xs font-normal text-soluk">
-                Yalnızca gerçekten gönderilen WhatsApp kampanya iletileri sayılır; hariç tutulan, başarısız ya da test modundaki
-                alıcılar &quot;almamış&quot; sayılır.
+                Meta&apos;nın kabul ettiği WhatsApp kampanya iletileri sayılır (teslim edilemese de); hariç tutulan, Meta&apos;nın
+                reddettiği ya da test modundaki alıcılar &quot;almamış&quot; sayılır.
               </span>
             </label>
             <label className="flex items-center gap-2 text-sm">

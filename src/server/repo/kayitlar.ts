@@ -49,9 +49,10 @@ export type KayitFiltresi = {
   /** Hiç etiketi olmayan kayıtlar (verilirse `etiket` yok sayılır). */
   etiketsiz?: boolean;
   /**
-   * WhatsApp (Cloud API) kampanyası almış mı: "almis" = en az bir WhatsApp kampanyasında iletisi gerçekten gönderilmiş
-   * (kuyruk satırı "gonderildi", test / sandbox kaydı değil, Meta "teslim edilemedi" bildirmemiş). Hariç tutulan,
-   * bekleyen, başarısız, iptal edilen ya da test modunda kaydedilen satırlar "almamis" sayılır.
+   * WhatsApp (Cloud API) kampanyası almış mı: "almis" = en az bir WhatsApp kampanyasında iletisi Meta'ya gönderilmiş ve
+   * Meta kabul etmiş (kuyruk satırı "gonderildi", test / sandbox kaydı değil). Teslime bakılmaz: sonradan gelen teslim
+   * hatası (ör. 131026, 131049) da "almis" sayılır. Hariç tutulan, bekleyen, gönderim anında başarısız olan (Meta
+   * reddetti), iptal edilen ya da test modunda kaydedilen satırlar "almamis" sayılır.
    */
   kampanyaDurumu?: KayitKampanyaDurumu;
   /** Yalnızca kullanıcının girdiği alanlarda arar (Places içeriği saklanmadığı için). */
@@ -105,8 +106,7 @@ function filtreKosulu(ctx: TenantContext, f: KayitFiltresi): SQL {
   if (f.kampanyaDurumu) {
     // İlişkisiz alt sorgu: kiracının WhatsApp kuyruğu bir kez taranır (satır başına ayrı sorgu yok).
     const almis = sql`${leads.id} in (select q.lead_id from ${messageQueue} q where q.tenant_id = ${ctx.tenantId}
-      and q.kanal = 'whatsapp_api' and q.durum = 'gonderildi' and q.sandbox_icerik is null
-      and coalesce(q.teslim_durumu, '') <> 'failed')`;
+      and q.kanal = 'whatsapp_api' and q.durum = 'gonderildi' and q.sandbox_icerik is null)`;
     kosullar.push(f.kampanyaDurumu === "almis" ? almis : sql`not (${almis})`);
   }
   const arama = f.arama?.trim();

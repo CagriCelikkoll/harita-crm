@@ -2,7 +2,7 @@
 // - Sayfa düğmeleri ve kısaltma, "Sayfaya git" girdisi (0, harf, toplamdan büyük), bilgi satırı, tek sayfa.
 // - Adres: sayfa parametresi 1. sayfada yazılmaz, diğer parametreler korunur; aralık dışı ?sayfa= en yakın geçerli
 //   sayfaya yönlendirilir; sayfa numarası liste tercihine yazılmaz.
-// - Süzgeçler: yalnızca gerçekten gönderilmiş WhatsApp kampanya iletisi "almış" sayılır; "filtre aktif" şeridi ve
+// - Süzgeçler: Meta'nın kabul ettiği WhatsApp kampanya iletisi "almış" sayılır (teslim hatası da); "filtre aktif" şeridi ve
 //   toplu işlemdeki "filtreye uyan tümü" aynı süzgeci uygular; başka çalışma alanının kuyruğu sonucu etkilemez.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TenantContext } from "@/server/repo/baglam";
@@ -56,7 +56,7 @@ function kisiler(ctx: TenantContext, ad: string, adet: number, ek: Partial<YeniK
   );
 }
 
-type Satir = { lead: Kayit; durum: string; sandbox?: boolean; teslim?: string | null; haric?: boolean };
+type Satir = { lead: Kayit; durum: string; sandbox?: boolean; teslim?: string | null; kod?: number; neden?: string; haric?: boolean };
 /** Kampanya + kuyruk satırları; satır durumları doğrudan yazılır (gönderim işçisi çalıştırılmaz). */
 function kampanya(ctx: TenantContext, kanal: "whatsapp_api" | "eposta", satirlar: Satir[]) {
   const k = kampanyalar.kampanyaOlustur(
@@ -65,10 +65,10 @@ function kampanya(ctx: TenantContext, kanal: "whatsapp_api" | "eposta", satirlar
     satirlar.map((x) => ({ leadId: x.lead.id, ...(x.haric ? { haric: "whatsapp_izni_yok" as const } : {}) })),
   );
   const yaz = db.$client.prepare(
-    "update message_queue set durum = ?, sandbox_icerik = ?, teslim_durumu = ?, gonderim_tarihi = ? where kampanya_id = ? and lead_id = ?",
+    "update message_queue set durum = ?, sandbox_icerik = ?, teslim_durumu = ?, teslim_hata_kodu = ?, neden = coalesce(?, neden), gonderim_tarihi = ? where kampanya_id = ? and lead_id = ?",
   );
   for (const x of satirlar) {
-    yaz.run(x.durum, x.sandbox ? "Test modu metni" : null, x.teslim ?? null, x.durum === "gonderildi" ? Date.now() : null, k.id, x.lead.id);
+    yaz.run(x.durum, x.sandbox ? "Test modu metni" : null, x.teslim ?? null, x.kod ?? null, x.neden ?? null, x.durum === "gonderildi" ? Date.now() : null, k.id, x.lead.id);
   }
   return k;
 }
@@ -223,14 +223,18 @@ describe("sayfalı sayfalar: adres", () => {
 describe("Kayıtlar süzgeci: Kampanya durumu ve Etiket yok", () => {
   function kurulum(ad: string) {
     const { ctx } = kiraciOlustur(ad);
-    const [gonderildi, haric, testModu, teslimEdilemedi, basarisiz, kuyrukta, eposta, hic] = kisiler(ctx, ad, 8);
+    const [gonderildi, haric, testModu, teslim131026, teslim131049, metaReddetti, iptal, kuyrukta, eposta, hic] = kisiler(ctx, ad, 10);
     const etiketli = kisiler(ctx, `${ad}E`, 2, { etiketler: ["parti-1"] });
     kampanya(ctx, "whatsapp_api", [
       { lead: gonderildi, durum: "gonderildi", teslim: "delivered" },
       { lead: haric, durum: "haric", haric: true },
       { lead: testModu, durum: "gonderildi", sandbox: true },
-      { lead: teslimEdilemedi, durum: "gonderildi", teslim: "failed" },
-      { lead: basarisiz, durum: "basarisiz" },
+      // Meta kabul etti, sonra teslim edemedi (webhook): yine "almış".
+      { lead: teslim131026, durum: "gonderildi", teslim: "failed", kod: 131026 },
+      { lead: teslim131049, durum: "gonderildi", teslim: "failed", kod: 131049 },
+      // Gönderim anında Meta reddetti (ör. eşzamanlı 131026): "almamış".
+      { lead: metaReddetti, durum: "basarisiz", neden: "whatsapp_yok" },
+      { lead: iptal, durum: "iptal", neden: "iptal" },
       { lead: kuyrukta, durum: "kuyrukta" },
       { lead: etiketli[0], durum: "gonderildi", teslim: "read" },
     ]);
@@ -238,32 +242,37 @@ describe("Kayıtlar süzgeci: Kampanya durumu ve Etiket yok", () => {
     kampanya(ctx, "eposta", [{ lead: eposta, durum: "gonderildi" }]);
     // Aynı kayıt ikinci bir WhatsApp kampanyasında hariç: önceki gerçek gönderim yine "almış".
     kampanya(ctx, "whatsapp_api", [{ lead: gonderildi, durum: "haric", haric: true }]);
-    return { ctx, gonderildi, haric, testModu, teslimEdilemedi, basarisiz, kuyrukta, eposta, hic, etiketli };
+    return {
+      ctx,
+      gonderildi,
+      hic,
+      etiketli,
+      /** Kampanya almış sayılanlar (etiketli[0] dahil). */
+      almis: [gonderildi, teslim131026, teslim131049, etiketli[0]],
+      /** Etiketi olmayan ve kampanya almamış sayılanlar. */
+      almamisEtiketsiz: [haric, testModu, metaReddetti, iptal, kuyrukta, eposta, hic],
+    };
   }
 
-  it("almış: yalnızca gerçekten gönderilmiş WhatsApp kampanya iletisi; hariç / test / teslim edilemedi / başarısız / bekleyen almamış", () => {
+  it("almış: Meta'nın kabul ettiği WhatsApp kampanya iletisi (teslim hatası 131026 / 131049 dahil); hariç / test / Meta'nın reddettiği / iptal / bekleyen almamış", () => {
     const k = kurulum("KampDurum");
     const almis = kayitlar.kayitlariListele(k.ctx, { grup: "tum", kampanyaDurumu: "almis" });
-    expect(idler(almis.kayitlar)).toEqual(idler([k.gonderildi, k.etiketli[0]]));
+    expect(idler(almis.kayitlar)).toEqual(idler(k.almis));
     const almamis = kayitlar.kayitlariListele(k.ctx, { grup: "tum", kampanyaDurumu: "almamis" });
-    expect(idler(almamis.kayitlar)).toEqual(
-      idler([k.haric, k.testModu, k.teslimEdilemedi, k.basarisiz, k.kuyrukta, k.eposta, k.hic, k.etiketli[1]]),
-    );
+    expect(idler(almamis.kayitlar)).toEqual(idler([...k.almamisEtiketsiz, k.etiketli[1]]));
     expect(almis.toplam + almamis.toplam).toBe(kayitlar.kayitlariListele(k.ctx, { grup: "tum" }).toplam);
   });
 
   it("Etiket yok: hiç etiketi olmayanlar; etiket kaldırılınca listeye girer; Kampanya durumu ile birlikte çalışır", () => {
     const k = kurulum("EtiketYok");
     const yok = kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true });
-    expect(yok.toplam).toBe(8);
+    expect(yok.toplam).toBe(10);
     expect(idler(yok.kayitlar)).not.toContain(k.etiketli[0].id);
     kayitlar.kayitGuncelle(k.ctx, k.etiketli[1].id, { etiketler: [] });
-    expect(kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true }).toplam).toBe(9);
+    expect(kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true }).toplam).toBe(11);
     // Parti: hiç WhatsApp kampanyası almamış ve etiketi olmayanlar.
     const parti = kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true, kampanyaDurumu: "almamis" });
-    expect(idler(parti.kayitlar)).toEqual(
-      idler([k.haric, k.testModu, k.teslimEdilemedi, k.basarisiz, k.kuyrukta, k.eposta, k.hic, k.etiketli[1]]),
-    );
+    expect(idler(parti.kayitlar)).toEqual(idler([...k.almamisEtiketsiz, k.etiketli[1]]));
   });
 
   it("adres biçimi, rozet sayısı ve 'Filtre aktif' şeridi; 'Etiket yok' etiket adını geçersiz kılar", () => {
@@ -291,20 +300,18 @@ describe("Kayıtlar süzgeci: Kampanya durumu ve Etiket yok", () => {
     expect(y.status).toBe(200);
     expect((await y.json()).sonuc).toMatchObject({ hedef: 67, degisen: 67 });
     const partide = kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiket: "parti-2", boyut: 100 });
-    expect(idler(partide.kayitlar)).toEqual(
-      idler([k.haric, k.testModu, k.teslimEdilemedi, k.basarisiz, k.kuyrukta, k.eposta, k.hic, ...ek]),
-    );
-    // Gerçekten gönderilmiş ve etiketli kayıtlar dokunulmadan kalır; artık hiçbiri "etiket yok" değil.
+    expect(idler(partide.kayitlar)).toEqual(idler([...k.almamisEtiketsiz, ...ek]));
+    // Kampanya almış ve etiketli kayıtlar dokunulmadan kalır; "etiket yok" olarak yalnızca almış olanlar kalır.
     expect(kayitlar.kayitGetir(k.ctx, k.gonderildi.id)!.etiketler).toEqual([]);
     expect(kayitlar.kayitGetir(k.ctx, k.etiketli[1].id)!.etiketler).toEqual(["parti-1"]);
-    expect(kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true }).toplam).toBe(1);
+    expect(kayitlar.kayitlariListele(k.ctx, { grup: "tum", etiketsiz: true }).toplam).toBe(3);
   });
 
   it("izolasyon: başka çalışma alanının kuyruğu ve kayıtları sonucu etkilemez", () => {
     const a = kurulum("IzolA");
     const b = kurulum("IzolB");
     const aAlmis = idler(kayitlar.kayitlariListele(a.ctx, { grup: "tum", kampanyaDurumu: "almis" }).kayitlar);
-    expect(aAlmis).toEqual(idler([a.gonderildi, a.etiketli[0]]));
+    expect(aAlmis).toEqual(idler(a.almis));
     // B'nin A'daki kayıtlara işaret eden bir kuyruk satırı yazamaz (yabancı anahtar kiracıyla birlikte); B'nin kendi
     // gönderimleri A'nın "almamış" listesini değiştirmez.
     const bKamp = kampanya(b.ctx, "whatsapp_api", [{ lead: b.hic, durum: "gonderildi" }]);
@@ -319,9 +326,9 @@ describe("Kayıtlar süzgeci: Kampanya durumu ve Etiket yok", () => {
     expect(idler(kayitlar.kayitlariListele(a.ctx, { grup: "tum", kampanyaDurumu: "almis" }).kayitlar)).toEqual(aAlmis);
     const aEtiketsiz = kayitlar.kayitlariListele(a.ctx, { grup: "tum", etiketsiz: true });
     expect(aEtiketsiz.kayitlar.every((x) => x.tenantId === a.ctx.tenantId)).toBe(true);
-    expect(aEtiketsiz.toplam).toBe(8);
+    expect(aEtiketsiz.toplam).toBe(10);
     expect(idler(kayitlar.kayitlariListele(b.ctx, { grup: "tum", kampanyaDurumu: "almis" }).kayitlar)).toEqual(
-      idler([b.gonderildi, b.etiketli[0], b.hic]),
+      idler([...b.almis, b.hic]),
     );
   });
 });
