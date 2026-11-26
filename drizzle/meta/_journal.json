@@ -218,6 +218,13 @@
       "when": 1795509887789,
       "tag": "0030_sohbet_yanit_medya",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1795704569040,
+      "tag": "0031_yonlendirme",
+      "breakpoints": true
     }
   ]
 }

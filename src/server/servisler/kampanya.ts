@@ -7,6 +7,7 @@
 import { z } from "zod";
 import {
   ALICI_TURLERI,
+  HARIC_NEDEN_ADLARI,
   HARIC_NEDENLERI,
   KAMPANYA_AZAMI_ALICI,
   KUYRUK_KANALLARI,
@@ -62,6 +63,18 @@ export class KampanyaHatasi extends Error {
   }
 }
 
+/** WhatsApp şablon değişkenlerinin eşlemesi (kampanya ve gelen kutusundaki tek alıcılı gönderim). */
+export const DegiskenEslemGirdisi = z.record(
+  z.string().max(80),
+  z
+    .object({
+      kaynak: z.enum(DEGISKEN_KAYNAKLARI),
+      deger: z.string().trim().max(500).optional(),
+      yedek: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+);
+
 export const KampanyaGirdisi = z
   .object({
     kanal: z.enum(KUYRUK_KANALLARI),
@@ -74,18 +87,7 @@ export const KampanyaGirdisi = z
     sablonId: z.string().max(100).optional(),
     /** Yalnızca görselli WhatsApp şablonu: yüklenen kampanya görselinin kimliği (POST /api/kampanyalar/gorsel). */
     gorselId: z.string().max(100).optional(),
-    degiskenEslem: z
-      .record(
-        z.string().max(80),
-        z
-          .object({
-            kaynak: z.enum(DEGISKEN_KAYNAKLARI),
-            deger: z.string().trim().max(500).optional(),
-            yedek: z.string().trim().max(500).optional(),
-          })
-          .strict(),
-      )
-      .optional(),
+    degiskenEslem: DegiskenEslemGirdisi.optional(),
     bosIsimHitabi: z.string().trim().max(80).optional(),
     filtre: z
       .object({
@@ -238,8 +240,9 @@ function whatsappOzeti(
   };
 }
 
-function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date) {
-  const adaylar = kampanyaAdaylari(ctx, g.filtre);
+/** tekilAday verilirse (tek alıcılı kampanya) filtre kullanılmaz; kurallar aynen uygulanır. */
+function hazirla(ctx: TenantContext, g: KampanyaGirdisi, simdi: Date, tekilAday?: KampanyaAdayi) {
+  const adaylar = tekilAday ? [tekilAday] : kampanyaAdaylari(ctx, g.filtre);
   if (adaylar.length > KAMPANYA_AZAMI_ALICI) {
     throw new KampanyaHatasi(`Bir kampanyada en fazla ${KAMPANYA_AZAMI_ALICI} alıcı olabilir; filtreyi daraltın.`);
   }
@@ -321,24 +324,61 @@ export function kampanyaOzeti(ctx: TenantContext, g: KampanyaGirdisi, simdi = ne
   return hazirla(ctx, g, simdi).ozet;
 }
 
-export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = new Date()): Kampanya {
-  if (g.kanal === "whatsapp_api") yoneticiOlmali(ctx); // Meta ücreti var (K12)
-  const { ozet, kararlar, sablon } = hazirla(ctx, g, simdi);
+/** Kampanyanın başlatılmasını engelleyen ilk koşul (numara, kalite, hesap kilidi, ticari ileti ayarları); yoksa null. */
+function baslatmaEngeli(ozet: KampanyaOzeti): string | null {
   if (ozet.whatsapp && !ozet.sandbox && !ozet.whatsapp.baglantiVar) {
-    throw new KampanyaHatasi("Seçilen numaranın sahipliği doğrulanmadı (Ayarlar → WhatsApp → Bağlantıyı test et).");
+    return "Seçilen numaranın sahipliği doğrulanmadı (Ayarlar → WhatsApp → Bağlantıyı test et).";
   }
   if (ozet.whatsapp?.kalite === "RED" && !ozet.sandbox) {
-    throw new KampanyaHatasi("Numaranın kalite puanı düşük (kırmızı); kalite düzelene kadar kampanya başlatılamaz.");
+    return "Numaranın kalite puanı düşük (kırmızı); kalite düzelene kadar kampanya başlatılamaz.";
   }
-  if (ozet.whatsapp?.hesapKilidi && !ozet.sandbox) {
-    throw new KampanyaHatasi(`${ozet.whatsapp.hesapKilidi} Kilit kalkana kadar kampanya başlatılamaz.`);
-  }
+  if (ozet.whatsapp?.hesapKilidi && !ozet.sandbox) return `${ozet.whatsapp.hesapKilidi} Kilit kalkana kadar kampanya başlatılamaz.`;
   if (!ozet.sandbox && ozet.eksikAyarlar.length) {
-    throw new KampanyaHatasi(
-      `Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın: ${ozet.eksikAyarlar.join(", ")}.`,
-    );
+    return `Gerçek gönderim için Ayarlar → Ticari ileti bölümünü tamamlayın: ${ozet.eksikAyarlar.join(", ")}.`;
   }
-  if (ozet.gonderilecek === 0) throw new KampanyaHatasi("Kurallara uyan alıcı yok; kampanya oluşturulmadı.");
+  return null;
+}
+
+export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = new Date()): Kampanya {
+  if (g.kanal === "whatsapp_api") yoneticiOlmali(ctx); // Meta ücreti var (K12)
+  const hazir = hazirla(ctx, g, simdi);
+  const engel = baslatmaEngeli(hazir.ozet);
+  if (engel) throw new KampanyaHatasi(engel);
+  if (hazir.ozet.gonderilecek === 0) throw new KampanyaHatasi("Kurallara uyan alıcı yok; kampanya oluşturulmadı.");
+  return kampanyaYaz(ctx, g, hazir, simdi);
+}
+
+/**
+ * Tek alıcılı WhatsApp kampanyası (gelen kutusu "Şablon gönder"): toplu kampanyanın bütün kuralları aynen uygulanır
+ * (RET, engel listesi, WhatsApp izni ve İYS, "Numarada WhatsApp yok", test modu, şablon WABA eşleşmesi, numara durumu,
+ * ticari ileti ayarları). Ayrıca alıcı bugün gönderilemiyorsa (günlük sınır ya da Meta limitinin bu uygulamaya ayrılan
+ * payı dolu) kampanya ertesi güne bırakılmaz: engel döner. Yazmaz; engel null ise tekilKampanyaBaslat başlatır.
+ */
+export function tekilKampanyaDegerlendir(ctx: TenantContext, g: KampanyaGirdisi, aday: KampanyaAdayi, simdi = new Date()) {
+  const tekilGirdi: KampanyaGirdisi = { ...g, kanal: "whatsapp_api", testModu: false, planlananTarih: null, filtre: {} };
+  const hazir = hazirla(ctx, tekilGirdi, simdi, aday);
+  const karar = hazir.kararlar[0]?.karar;
+  let engel = baslatmaEngeli(hazir.ozet);
+  if (!engel && karar && !karar.uygun) engel = `Gönderilemez: ${HARIC_NEDEN_ADLARI[karar.neden]}.`;
+  if (!engel && hazir.ozet.bugunKalan === 0) {
+    const sinirKalan = hazir.ozet.gunlukSinir - sayacDegeri(ctx, "whatsapp_api", gunAnahtari(simdi));
+    engel =
+      sinirKalan <= 0
+        ? "Bugünkü WhatsApp gönderim sınırı doldu (Ayarlar → Ticari ileti); yarın yeniden deneyin."
+        : "Meta mesajlaşma limitinin bu uygulamaya ayrılan payı doldu (son 24 saat); daha sonra yeniden deneyin.";
+  }
+  return { hazir, girdi: tekilGirdi, engel };
+}
+
+/** Üyeler de başlatabilir (toplu WhatsApp kampanyası yalnızca yönetici); kullanıcı başı günlük sınır çağıranda (yonlendirme.ts). */
+export function tekilKampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, aday: KampanyaAdayi, simdi = new Date()): Kampanya {
+  const { hazir, girdi, engel } = tekilKampanyaDegerlendir(ctx, g, aday, simdi);
+  if (engel) throw new KampanyaHatasi(engel);
+  return kampanyaYaz(ctx, girdi, hazir, simdi, true);
+}
+
+function kampanyaYaz(ctx: TenantContext, g: KampanyaGirdisi, hazir: ReturnType<typeof hazirla>, simdi: Date, tekil = false): Kampanya {
+  const { ozet, kararlar, sablon } = hazir;
   return kampanyaOlustur(
     ctx,
     {
@@ -354,6 +394,7 @@ export function kampanyaBaslat(ctx: TenantContext, g: KampanyaGirdisi, simdi = n
       filtre: g.filtre,
       sandbox: ozet.sandbox,
       planlananTarih: g.planlananTarih ? new Date(g.planlananTarih) : null,
+      tekil,
     },
     kararlar.map(({ kayit, karar }) => ({ leadId: kayit.id, haric: karar.uygun ? undefined : karar.neden })),
     simdi,

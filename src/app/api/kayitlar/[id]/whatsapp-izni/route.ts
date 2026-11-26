@@ -1,7 +1,7 @@
 // Kaydın WhatsApp (Cloud API) izni. 'ret' ret akışından geçer (tüm kanallar, engel listesi) ve geri alınamaz.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { RET_ONAYI_GEREKLI, WHATSAPP_IZIN_KAYNAKLARI } from "@/lib/mesajlasma";
+import { RET_ONAYI_GEREKLI, WHATSAPP_IZIN_KAYNAKLARI, yonlendirmeKaynagiMi } from "@/lib/mesajlasma";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { retIsle } from "@/server/repo/engel-listesi";
@@ -32,6 +32,11 @@ export async function PUT(istek: Request, { params }: RouteContext<"/api/kayitla
   const g = Izin.safeParse(await istek.json().catch(() => null));
   if (!g.success) return gecersiz(g.error.issues[0]?.message ?? "Geçersiz değer.");
   if (!kayitGetir(ctx, id)) return bulunamadi();
+  // Yönlendirme kaynakları ("Kişi doğrudan izin verdi", "Müşteri yönlendirdi") yalnızca gelen kutusundaki Şablon gönder
+  // akışında yazılır; kayıt ekranında yalnızca mevcut kaynak korunabilir (izin notu / İYS beyanı düzenlenirken).
+  if (g.data.izin === "var" && yonlendirmeKaynagiMi(g.data.kaynak) && whatsappKisisiGetir(ctx, id)?.izinKaynagi !== g.data.kaynak) {
+    return gecersiz("Bu izin kaynağı yalnızca gelen kutusundaki Şablon gönder penceresinden kaydedilir.");
+  }
 
   if (g.data.izin === "ret") {
     retIsle(ctx, { leadId: id, adresler: [], kaynak: "kayit_ret", aciklama: "WhatsApp reddi elle işaretlendi" });

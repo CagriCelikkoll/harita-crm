@@ -11,6 +11,8 @@ export type KampanyaDto = {
   bosIsimHitabi: string | null;
   filtre: KampanyaFiltresi;
   sandbox: boolean;
+  /** Tek alıcılı kampanya (gelen kutusu "Şablon gönder"). */
+  tekil: boolean;
   durum: KampanyaDurumu;
   planlananTarih: string | null;
   olusturmaTarihi: string;
@@ -43,6 +45,7 @@ export const kampanyaDto = (k: KampanyaSatiri, numara: string | null = null): Ka
   bosIsimHitabi: k.bosIsimHitabi,
   filtre: k.filtre,
   sandbox: k.sandbox,
+  tekil: k.tekil,
   durum: k.durum,
   planlananTarih: k.planlananTarih?.toISOString() ?? null,
   olusturmaTarihi: k.olusturmaTarihi.toISOString(),

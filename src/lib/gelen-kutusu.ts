@@ -293,6 +293,10 @@ export type SohbetAyrintiDto = SohbetOzetiDto & {
   pencereBitis: string | null;
   testModu: boolean;
   numaraKilitli: string | null;
+  /** Sohbetin gönderen (işletme) numarası, yalnızca rakam (hazır cevaptaki wa.me bağlantısı); bilinmiyorsa null. */
+  gonderenNumara: string | null;
+  /** Kişi başka bir sohbette yönlendirildiyse (kaynak "Yönlendirme"): kaynak metni ve yönlendiren sohbet. */
+  yonlendiren: { metin: string; sohbetId: string | null } | null;
 };
 
 /** Mesajın kısa hali (liste satırı). */

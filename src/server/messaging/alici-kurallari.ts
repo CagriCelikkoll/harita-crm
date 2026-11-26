@@ -14,6 +14,8 @@
 // WhatsApp (Cloud API, kanal "whatsapp_api") — Places'a HİÇ gidilmez:
 //  1. ileti_izni = 'ret' ya da WhatsApp izni 'ret'      → "ret"
 //  2. WhatsApp izni 'var' değil                           → "whatsapp_izni_yok" (Meta politikası: her alıcıda onay)
+//     İzin kaynağı "Müşteri yönlendirdi" ise yalnızca tacir/esnafta geçerlidir; bireyselde "whatsapp_izni_yok"
+//     (kişinin kendi izni gerekir; kayıt sonradan bireysele çevrilse de).
 //  3. bireysel ve İYS beyanı yok                          → "iys_beyani_yok" (tacir/esnafta WhatsApp izni yeterli)
 //     İstisna: bağlantı test modundayken kaydın telefonu Ayarlar'daki test numaralarından biriyse (`testNumaralari`;
 //     çağıran yalnızca test modunda verir). Test numaraları İYS'de kayıtlı değildir; beyan kutusunu işaretlemek yanlış
@@ -24,7 +26,7 @@
 //  5. Adres: ek_telefon (cep olmalı → "cep_degil"); telefon yoksa BSUID; ikisi de yoksa "iletisim_yok"
 //  6. Telefon ya da BSUID engel listesindeyse            → "engel"
 import "server-only";
-import type { EngelTuru, HaricNedeni, Kanal, WhatsappIzni } from "@/lib/mesajlasma";
+import type { EngelTuru, HaricNedeni, Kanal, WhatsappIzinKaynagi, WhatsappIzni } from "@/lib/mesajlasma";
 import type { Kayit } from "../repo/kayitlar";
 import { cepMi, epostaNormallestir, telefonNormallestir } from "./adres";
 
@@ -32,6 +34,7 @@ export type AliciKanali = Kanal | "whatsapp" | "whatsapp_api";
 /** Kaydın WhatsApp bilgisi (whatsapp_kisileri); satır yoksa null = izin 'yok'. */
 export type AliciWhatsappBilgisi = {
   izin: WhatsappIzni;
+  izinKaynagi?: WhatsappIzinKaynagi | null;
   iysBeyanTarihi: Date | null;
   whatsappYokTarihi: Date | null;
   bsuid: string | null;
@@ -114,6 +117,7 @@ function whatsappApiDegerlendir(
   const wa = kayit.whatsapp ?? null;
   if (wa?.izin === "ret") return { uygun: false, neden: "ret" };
   if (wa?.izin !== "var") return { uygun: false, neden: "whatsapp_izni_yok" };
+  if (wa.izinKaynagi === "musteri_yonlendirdi" && kayit.aliciTuru === "bireysel") return { uygun: false, neden: "whatsapp_izni_yok" };
   const testAlicisi = Boolean(testNumaralari?.size && kayit.ekTelefon?.trim() && testNumaralari.has(telefonNormallestir(kayit.ekTelefon) ?? ""));
   if (iysKontrolu && kayit.aliciTuru === "bireysel" && !wa.iysBeyanTarihi && !testAlicisi) return { uygun: false, neden: "iys_beyani_yok" };
   if (wa.whatsappYokTarihi && simdi.getTime() - wa.whatsappYokTarihi.getTime() < WHATSAPP_YOK_GUN * 86_400_000) {

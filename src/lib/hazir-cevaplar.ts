@@ -36,6 +36,26 @@ export function hazirCevapAra<T extends HazirCevapDto>(cevaplar: T[], sorgu: str
   return [...baslikta, ...metinde];
 }
 
+/**
+ * Hazır cevapta gönderen numaranın yeri: yanıt kutusuna konurken sohbetin gönderen (işletme) numarasıyla dolar
+ * (ör. "wa.me/{gonderen_numara}" → "wa.me/905321234567"). Numara bilinmiyorsa yer tutucu olduğu gibi kalır.
+ */
+export const GONDEREN_NUMARA_YER_TUTUCU = "{gonderen_numara}";
+
+/** Ayarlar → Hazır cevaplar'da yöneticiye gösterilen örnek (yalnızca öneri; eklenmeden önce düzenlenebilir). */
+export const ORNEK_HAZIR_CEVAPLAR: readonly HazirCevapGirdisi[] = [
+  {
+    baslik: "Yönlendirme isteği",
+    metin: `Tabii! Mesajımızı ilgili kişiye iletebilir ya da şu bağlantıdan bize yazmasını rica edebilirsiniz: wa.me/${GONDEREN_NUMARA_YER_TUTUCU}`,
+  },
+];
+
+/** Yer tutucuyu gönderen numaranın rakamlarıyla doldurur (wa.me ülke koduyla, başında + olmadan ister). */
+export function hazirCevapDoldur(metin: string, gonderenNumara: string | null | undefined): string {
+  const rakam = (gonderenNumara ?? "").replace(/\D/g, "");
+  return rakam ? metin.replaceAll(GONDEREN_NUMARA_YER_TUTUCU, rakam) : metin;
+}
+
 /** Yanıt kutusuna koyma: kutu boşsa metin onun yerine geçer, doluysa alt satıra eklenir; yanıt sınırını aşmaz. */
 export function yanitaEkle(mevcut: string, metin: string): string {
   const birlesik = mevcut.trim() ? `${mevcut.replace(/\s+$/, "")}\n${metin}` : metin;

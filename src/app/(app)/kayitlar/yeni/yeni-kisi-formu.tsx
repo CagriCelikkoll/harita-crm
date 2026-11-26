@@ -1,15 +1,29 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { bildir } from "@/components/bildirim";
 import { apiIstek } from "@/lib/api-istemci";
 import { ALICI_TURLERI, ALICI_TURU_ACIKLAMASI, ALICI_TURU_SECIM_ADLARI, type AliciTuru } from "@/lib/mesajlasma";
 import type { KayitDto } from "@/server/servisler/kayit-dto";
+import { YENI_KISI_ON_DOLUM } from "@/lib/telefon-algilama";
 
 export function YeniKisiFormu() {
   const router = useRouter();
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState(false);
+  const telefonRef = useRef<HTMLInputElement>(null);
+  // Gelen kutusu "Kişi olarak ekle": numara sekme deposundan bir kez okunur (adreste taşınmaz) ve silinir.
+  useEffect(() => {
+    try {
+      const ham = window.sessionStorage.getItem(YENI_KISI_ON_DOLUM);
+      if (!ham) return;
+      window.sessionStorage.removeItem(YENI_KISI_ON_DOLUM);
+      const { ekTelefon } = JSON.parse(ham) as { ekTelefon?: unknown };
+      if (typeof ekTelefon === "string" && telefonRef.current && !telefonRef.current.value) telefonRef.current.value = ekTelefon.slice(0, 40);
+    } catch {
+      /* depo kapalı ya da bozuk: form boş açılır */
+    }
+  }, []);
 
   async function gonder(form: FormData) {
     setHata(null);
@@ -45,7 +59,7 @@ export function YeniKisiFormu() {
       </label>
       <label className="etiket">
         Telefon
-        <input name="ekTelefon" maxLength={40} className="girdi" placeholder="0532 111 22 33" />
+        <input ref={telefonRef} name="ekTelefon" maxLength={40} className="girdi" placeholder="0532 111 22 33" />
       </label>
       <label className="etiket">
         E-posta

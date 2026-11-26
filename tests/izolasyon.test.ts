@@ -557,6 +557,15 @@ const sayacTestleri: Record<keyof typeof gonderimSayaci, () => void> = {
 };
 
 const kampanyaTestleri: Record<keyof typeof kampanyalar, () => void> = {
+  kampanyaAdayiGetir: () => {
+    // Tek alıcılı kampanya: A, B'nin kaydını aday olarak alamaz.
+    expect(kampanyalar.kampanyaAdayiGetir(A, bKayit.id)).toBeNull();
+    expect(kampanyalar.kampanyaAdayiGetir(B, bKayit.id)?.id).toBe(bKayit.id);
+  },
+  tekilKampanyaSayisi: () => {
+    // Kullanıcı başı günlük tekil sınır: B'nin kampanyaları A'nın sayımına girmez.
+    expect(kampanyalar.tekilKampanyaSayisi(A, new Date(0))).toBe(0);
+  },
   kampanyaAdaylari: () => {
     expect(kampanyalar.kampanyaAdaylari(A, {}).map((k) => k.id)).not.toContain(bKayit.id);
   },
@@ -927,6 +936,11 @@ const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
     expect(() =>
       gelenKutusu.gelenMesajYaz(A, { baglantiId: bWaBaglanti.id, leadId: bKisi.id, wamid: "wamid.A-saldiri", tur: "text", metin: "x", medyaId: null, metaZamani: null }),
     ).toThrow();
+  },
+  sohbetBaslat: () => {
+    // B'nin kaydına A adına sohbet açılamaz (Şablon gönder).
+    expect(() => gelenKutusu.sohbetBaslat(A, bWaBaglanti.id, bKisi.id)).toThrow();
+    expect(gelenKutusu.sohbetBul(A, bWaBaglanti.id, bKisi.id)).toBeNull();
   },
   gidenMesajYaz: () => {
     expect(() =>

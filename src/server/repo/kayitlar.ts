@@ -474,6 +474,9 @@ export type YeniKisi = {
   notlar?: string | null;
   etiketler?: string[];
   aliciTuru?: AliciTuru;
+  /** Yalnızca kaynak 'yonlendirme': "Yönlendirme — <yönlendiren>" ve yönlendiren sohbet. */
+  kaynakAyrintisi?: string | null;
+  yonlendirenSohbetId?: string | null;
 };
 
 /** Kişileri ekler; her biri için "eklendi" olayı yazılır. Çağıran aynı transaction'da ek işler yapabilir (tx). */
@@ -501,6 +504,8 @@ export function kisileriEkle(
           telefonE164: telefonNormallestir(k.ekTelefon),
           notlar: k.notlar ?? null,
           etiketler: k.etiketler ?? [],
+          kaynakAyrintisi: k.kaynakAyrintisi ?? null,
+          yonlendirenSohbetId: k.yonlendirenSohbetId ?? null,
           ...(k.aliciTuru ? { aliciTuru: k.aliciTuru } : {}),
         })),
       )

@@ -828,7 +828,8 @@ function SmsSayaci({ metin, altbilgi }: { metin: string; altbilgi: string }) {
   );
 }
 
-function WhatsappSablonSecimi(props: {
+/** Mesaj adımının şablon seçimi (gelen kutusundaki tek kişilik Şablon gönder penceresi de kullanır). */
+export function WhatsappSablonSecimi(props: {
   /** Gönderen numaranın etiketi (şablonlar onun WhatsApp hesabından). */
   numara: string;
   sablonlar: SablonDto[];
@@ -935,7 +936,7 @@ function WhatsappSablonSecimi(props: {
  * Görselli şablonun başlık görseli: seçilen dosya sunucuya yüklenir (tür imzadan doğrulanır, sha256 alınır); boyut
  * burada da önceden denetlenir. Meta'ya yükleme kampanya başlarken işçide, bir kez yapılır.
  */
-function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: KampanyaGorselDto | null) => void }) {
+export function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: KampanyaGorselDto | null) => void }) {
   const [hata, setHata] = useState<string | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
   async function sec(dosya: File | undefined) {

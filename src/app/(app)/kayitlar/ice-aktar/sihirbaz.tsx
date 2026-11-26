@@ -25,6 +25,7 @@ import {
   RET_ONAY_METNI,
   WHATSAPP_IZIN_KAYNAK_ADLARI,
   WHATSAPP_IZIN_KAYNAKLARI,
+  yonlendirmeKaynagiMi,
   type AliciTuru,
   type WhatsappIzinKaynagi,
 } from "@/lib/mesajlasma";
@@ -326,7 +327,7 @@ export function IceAktarmaSihirbazi() {
                 onChange={(e) => secenek("varsayilanIzinKaynagi", (e.target.value || null) as WhatsappIzinKaynagi | null)}
               >
                 <option value="">{izinEslendi ? "— yok (satır hatalı sayılır) —" : "Seçin"}</option>
-                {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => k !== "diger").map((k) => (
+                {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => k !== "diger" && !yonlendirmeKaynagiMi(k)).map((k) => (
                   <option key={k} value={k}>
                     {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
                   </option>

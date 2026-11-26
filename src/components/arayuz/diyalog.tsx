@@ -27,7 +27,8 @@ export function Diyalog(props: {
   children: ReactNode;
   /** Alt sağdaki düğmeler (Vazgeç / Onayla). */
   eylemler?: ReactNode;
-  genislik?: "dar" | "orta";
+  /** genis: uzun form (ör. gelen kutusu Şablon gönder); pencere ekran yüksekliğiyle sınırlı, içi kayar. */
+  genislik?: "dar" | "orta" | "genis";
 }) {
   const pencere = useRef<HTMLDialogElement>(null);
   const acan = useRef<Element | null>(null);
@@ -64,7 +65,7 @@ export function Diyalog(props: {
           hedef.focus();
         }
       }}
-      className={`m-auto ${props.genislik === "orta" ? "w-[min(30rem,calc(100vw-2rem))]" : "w-[min(28rem,calc(100vw-2rem))]"} rounded-kart border border-kenar bg-white p-5 text-sm shadow-yukselti backdrop:bg-black/40`}
+      className={`m-auto ${props.genislik === "genis" ? "max-h-[calc(100dvh-2rem)] w-[min(56rem,calc(100vw-2rem))] overflow-y-auto" : props.genislik === "orta" ? "w-[min(30rem,calc(100vw-2rem))]" : "w-[min(28rem,calc(100vw-2rem))]"} rounded-kart border border-kenar bg-white p-5 text-sm shadow-yukselti backdrop:bg-black/40`}
     >
       <div className="flex flex-col gap-3">
         <h2 id={baslikId} className="text-base font-semibold">

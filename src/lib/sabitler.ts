@@ -33,7 +33,9 @@ export const OLAY_TURLERI = [
  * Kaydın nereden geldiği. Yalnızca 'google' kayıtlarında place_id vardır ve Places saklama kuralı geçerlidir;
  * diğerlerinde ad ve telefon kullanıcının (çalışma alanının) kendi verisidir.
  */
-export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam", "whatsapp_gelen"] as const;
+// yonlendirme: gelen kutusunda bir müşterinin yönlendirdiği numaraya "Şablon gönder" ile açılan kayıt (kaynak_ayrintisi:
+// "Yönlendirme — <yönlendiren>", yonlendiren_sohbet_id: yönlendiren sohbet).
+export const KAYIT_KAYNAKLARI = ["google", "ice_aktarma", "elle", "meta_reklam", "whatsapp_gelen", "yonlendirme"] as const;
 export const MERKEZ_KAYNAKLARI = ["harita", "adres"] as const;
 /**
  * Tarama sonucunun incelenmesi: yeni Google kayıtları "incelenmedi" gelir; kullanıcı "İlgilen" / "İlgilenme" der.
@@ -96,6 +98,7 @@ export const KAYIT_KAYNAK_ADLARI: Record<KayitKaynagi, string> = {
   elle: "Elle eklendi",
   meta_reklam: "Reklamdan yazdı",
   whatsapp_gelen: "WhatsApp'tan yazdı",
+  yonlendirme: "Yönlendirme",
 };
 
 export const INCELEME_ADLARI: Record<IncelemeDurumu, string> = {

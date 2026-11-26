@@ -12,6 +12,7 @@
 //   liste de yeniden çekilmez (maliyet).
 import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { bildir, SonucMesaji } from "@/components/bildirim";
 import { DurumRozeti, IZIN_TONU } from "@/components/arayuz/rozet";
 import { SecimCipi, Sekmeler, sekmeId, sekmePaneliId } from "@/components/arayuz/sekmeler";
@@ -29,6 +30,7 @@ import {
   iysDurumMetni,
   WHATSAPP_IZIN_KAYNAK_ADLARI,
   WHATSAPP_IZIN_KAYNAKLARI,
+  yonlendirmeKaynagiMi,
   WHATSAPP_IZNI_ADLARI,
   type AliciTuru,
 } from "@/lib/mesajlasma";
@@ -240,7 +242,19 @@ export function DetayPaneli(props: {
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className={`text-xl font-semibold ${kayitliAdVar ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
           {googleAdi && <span className="text-ufak text-metin-ikincil">Google&apos;daki adı: {googleAdi}</span>}
-          <span className="text-ufak text-soluk">{altBaslik}</span>
+          <span className="text-ufak text-soluk">
+            {kayit.kaynak === "yonlendirme" && kayit.kaynakAyrintisi ? (
+              kayit.yonlendirenSohbetId ? (
+                <Link href={`/gelen-kutusu?sohbet=${kayit.yonlendirenSohbetId}`} className="underline hover:text-metin">
+                  {kayit.kaynakAyrintisi}
+                </Link>
+              ) : (
+                kayit.kaynakAyrintisi
+              )
+            ) : (
+              altBaslik
+            )}
+          </span>
           {veri.engelli && kayit.iletiIzni !== "ret" && (
             <p className="mt-1 text-ufak text-tehlike">
               <DurumRozeti ton="tehlike">Engelli</DurumRozeti> Bu kişinin adreslerinden biri engel listesinde (daha önce
@@ -888,7 +902,7 @@ function WhatsappIzinBolumu(props: {
                   <option value="" disabled>
                     Seçin
                   </option>
-                  {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => k !== "diger" || w.izinKaynagi === "diger").map((k) => (
+                  {WHATSAPP_IZIN_KAYNAKLARI.filter((k) => (k !== "diger" && !yonlendirmeKaynagiMi(k)) || w.izinKaynagi === k).map((k) => (
                     <option key={k} value={k}>
                       {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
                     </option>

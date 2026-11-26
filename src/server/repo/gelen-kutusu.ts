@@ -73,6 +73,23 @@ function sohbetHazirla(ctx: TenantContext, baglantiId: string, leadId: string, i
   return sohbetBul(ctx, baglantiId, leadId)!;
 }
 
+/**
+ * İşletmenin başlattığı sohbet (gelen kutusu "Şablon gönder"): sohbet yoksa açık olarak açılır, varsa kapalıysa
+ * yeniden açılır; listede en üste gelir (son mesaj tarihi şimdi). Gönderilen şablon işçi gönderince sohbete düşer.
+ */
+export function sohbetBaslat(ctx: TenantContext, baglantiId: string, leadId: string, simdi = new Date()): Sohbet {
+  return db.transaction(() => {
+    const sohbet = sohbetHazirla(ctx, baglantiId, leadId, "acik", simdi);
+    const surum = surumAl(ctx);
+    return db
+      .update(sohbetler)
+      .set({ durum: "acik", sonMesajTarihi: sql`max(coalesce(${sohbetler.sonMesajTarihi}, 0), ${simdi.getTime()})`, surum })
+      .where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, sohbet.id)))
+      .returning()
+      .get()!;
+  });
+}
+
 export type GelenMesajGirdisi = {
   baglantiId: string;
   leadId: string;

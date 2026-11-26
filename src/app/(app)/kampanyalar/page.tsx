@@ -100,6 +100,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
                     <span className="flex items-start justify-between gap-3">
                       <span className="min-w-0 font-semibold break-words text-metin">{k.ad}</span>
                       <span className="flex shrink-0 gap-1.5">
+                        {k.tekil && <DurumRozeti ton="mor">Tekil</DurumRozeti>}
                         {k.sandbox && <DurumRozeti ton="uyari">Test</DurumRozeti>}
                         <DurumRozeti ton={DURUM_TONU[k.durum] ?? "notr"}>{KAMPANYA_DURUM_ADLARI[k.durum]}</DurumRozeti>
                       </span>
@@ -152,6 +153,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
                           {k.kanal === "whatsapp_api" && (
                             <DurumRozeti ton="notr">{(k.baglantiId && numaralar.get(k.baglantiId)) || "Silinmiş numara"}</DurumRozeti>
                           )}
+                          {k.tekil && <DurumRozeti ton="mor">Tekil</DurumRozeti>}
                           {k.sandbox && <DurumRozeti ton="uyari">Test</DurumRozeti>}
                         </span>
                       </td>

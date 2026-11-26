@@ -33,6 +33,25 @@ function adayKosulu(ctx: TenantContext, f: KampanyaFiltresi): SQL {
   return and(...kosullar)!;
 }
 
+const ADAY_ALANLARI = {
+  id: leads.id,
+  placeId: leads.placeId,
+  durum: leads.durum,
+  iletiIzni: leads.iletiIzni,
+  aliciTuru: leads.aliciTuru,
+  eposta: leads.eposta,
+  ekTelefon: leads.ekTelefon,
+  isletmeAdi: leads.isletmeAdi,
+  yetkiliAdi: leads.yetkiliAdi,
+  telefonE164: leads.telefonE164,
+  inceleme: leads.inceleme,
+};
+
+/** Tek alıcılı kampanyanın adayı: bu kiracının kaydı (yoksa null). */
+export function kampanyaAdayiGetir(ctx: TenantContext, leadId: string): KampanyaAdayi | null {
+  return db.select(ADAY_ALANLARI).from(leads).where(and(eq(leads.tenantId, ctx.tenantId), eq(leads.id, leadId))).get() ?? null;
+}
+
 /** Filtreye uyan kayıtlar (en fazla KAMPANYA_AZAMI_ALICI + 1: fazlası "çok fazla alıcı" demektir). */
 export function kampanyaAdaylari(ctx: TenantContext, f: KampanyaFiltresi): KampanyaAdayi[] {
   return db
@@ -65,6 +84,8 @@ export type YeniKampanya = Pick<Kampanya, "kanal" | "ad" | "konu" | "sablon" | "
   baglantiId?: string | null;
   /** Yalnızca görselli WhatsApp şablonu: kampanya görseli (bu çalışma alanının; servis denetler). */
   gorselMedyaId?: string | null;
+  /** Tek alıcılı kampanya (gelen kutusu "Şablon gönder"; listede "Tekil"). */
+  tekil?: boolean;
 };
 export type KuyrukGirdisi = { leadId: string; haric?: HaricNedeni };
 
@@ -82,6 +103,7 @@ export function kampanyaOlustur(ctx: TenantContext, k: YeniKampanya, alicilar: K
         durum: zamanlandi ? "zamanlandi" : "calisiyor",
         planlananTarih: k.planlananTarih,
         baslamaTarihi: zamanlandi ? null : simdi,
+        olusturmaTarihi: simdi,
       })
       .returning()
       .get();
@@ -166,6 +188,24 @@ export function kampanyaSayfasi(ctx: TenantContext, f: { sayfa?: number } = {}) 
     sayfaSayisi,
     boyut: SAYFA_BOYUTU,
   };
+}
+
+/** Kullanıcının bu andan sonra oluşturduğu tekil (gelen kutusu "Şablon gönder") kampanya sayısı: günlük sınır için. */
+export function tekilKampanyaSayisi(ctx: TenantContext, sonra: Date): number {
+  return (
+    db
+      .select({ n: count() })
+      .from(kampanyalar)
+      .where(
+        and(
+          eq(kampanyalar.tenantId, ctx.tenantId),
+          eq(kampanyalar.olusturan, ctx.userId),
+          eq(kampanyalar.tekil, true),
+          gte(kampanyalar.olusturmaTarihi, sonra),
+        ),
+      )
+      .get()?.n ?? 0
+  );
 }
 
 /** Panel: bu ay (İstanbul takvimi) gönderilen kampanya mesajı sayısı (tüm kanallar). */

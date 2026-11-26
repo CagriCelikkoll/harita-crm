@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { KaydetCubugu } from "@/components/arayuz/kart";
 import { SonucMesaji } from "@/components/bildirim";
 import { YANIT_AZAMI } from "@/lib/gelen-kutusu";
-import { HAZIR_CEVAP_BASLIK_AZAMI, type HazirCevapDto } from "@/lib/hazir-cevaplar";
+import { GONDEREN_NUMARA_YER_TUTUCU, HAZIR_CEVAP_BASLIK_AZAMI, type HazirCevapDto, type HazirCevapGirdisi } from "@/lib/hazir-cevaplar";
 import type { FormDurumu } from "../eylemler";
 import { hazirCevabiSil, hazirCevapKaydet } from "./eylemler";
 
@@ -21,7 +21,7 @@ function Durum({ durum }: { durum: FormDurumu }) {
  * Yeni hazır cevap (cevap verilmezse) ya da düzenleme. Eklenince form boşalır. Alanlar denetimli: React form eylemi
  * bitince denetimsiz alanları sıfırlar; hata olduğunda (ör. aynı başlık) yazılan başlık kaybolmasın.
  */
-export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () => void }) {
+export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () => void; /** Yeni formda: örnek öneriler (yalnızca forma doldurur; kaydetmez). */ oneriler?: readonly HazirCevapGirdisi[] }) {
   const [baslik, setBaslik] = useState(props.cevap?.baslik ?? "");
   const [metin, setMetin] = useState(props.cevap?.metin ?? "");
   const [durum, eylem, bekliyor] = useActionState(async (onceki: FormDurumu, formData: FormData) => {
@@ -37,6 +37,24 @@ export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () =>
     <form action={eylem} className="border-t border-cizgi">
       {props.cevap && <input type="hidden" name="id" value={props.cevap.id} />}
       <fieldset disabled={bekliyor} className="flex flex-col gap-4 px-7 py-6">
+        {!props.cevap && props.oneriler && props.oneriler.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-ufak text-soluk">
+            Örnek:
+            {props.oneriler.map((o) => (
+              <button
+                key={o.baslik}
+                type="button"
+                className="dugme dugme-kucuk"
+                onClick={() => {
+                  setBaslik(o.baslik);
+                  setMetin(o.metin);
+                }}
+              >
+                {o.baslik}
+              </button>
+            ))}
+          </div>
+        )}
         <label htmlFor={`${on}-baslik`} className="flex flex-col gap-1.5 text-ufak text-soluk">
           Başlık (seçerken aranır)
           <input
@@ -61,8 +79,13 @@ export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () =>
             onChange={(e) => setMetin(e.target.value)}
             className="girdi min-h-28"
           />
-          <span className="self-end text-xs">
-            {metin.length} / {YANIT_AZAMI}
+          <span className="flex flex-wrap justify-between gap-2 text-xs">
+            <span>
+              {GONDEREN_NUMARA_YER_TUTUCU} yazarsanız sohbetin gönderen numarasıyla dolar (ör. wa.me/{GONDEREN_NUMARA_YER_TUTUCU}).
+            </span>
+            <span className="ml-auto">
+              {metin.length} / {YANIT_AZAMI}
+            </span>
           </span>
         </label>
         <Durum durum={durum} />

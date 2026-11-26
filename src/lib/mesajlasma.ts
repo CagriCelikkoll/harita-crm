@@ -42,13 +42,27 @@ export const WHATSAPP_IZIN_KAYNAKLARI = [
   "mevcut_musteri",
   "siparis",
   "diger",
+  // Gelen kutusu "Şablon gönder" (yönlendirilen numara): zorunlu seçim; musteri_yonlendirdi yalnızca tacir/esnafta.
+  "dogrudan_izin",
+  "musteri_yonlendirdi",
 ] as const;
+/** Gelen kutusu "Şablon gönder" (tek alıcılı kampanya): kullanıcı başına günlük (İstanbul günü) en fazla bu kadar. */
+export const TEKIL_GUNLUK_SINIR = 20;
+export const TEKIL_SINIR_DOLDU = `Bugünkü tekil şablon gönderim sınırınız doldu (kullanıcı başına günde ${TEKIL_GUNLUK_SINIR}); yarın yeniden deneyin.`;
+/** Yönlendirilen numaraya şablon gönderiminde seçilen izin kaynağı (yalnızca bu akış yazar). */
+export const YONLENDIRME_IZIN_KAYNAKLARI = ["dogrudan_izin", "musteri_yonlendirdi"] as const;
 /** Toplu "WhatsApp iznini kaydet"te seçilebilen kaynaklar (reklam ve kişinin kendisinin yazması sistemden gelir). */
 export const TOPLU_IZIN_KAYNAKLARI = ["mevcut_musteri", "siparis", "form", "sozlesme", "sozlu", "diger"] as const;
 
 export type AliciTuru = (typeof ALICI_TURLERI)[number];
 export type WhatsappIzni = (typeof WHATSAPP_IZINLERI)[number];
 export type WhatsappIzinKaynagi = (typeof WHATSAPP_IZIN_KAYNAKLARI)[number];
+export type YonlendirmeIzinKaynagi = (typeof YONLENDIRME_IZIN_KAYNAKLARI)[number];
+/** "Müşteri yönlendirdi" yalnızca tacir/esnaf alıcıda seçilebilir; bireyselde kişinin kendi izni gerekir. */
+export const yonlendirmeIzniSecilebilir = (kaynak: YonlendirmeIzinKaynagi, aliciTuru: AliciTuru | null | undefined): boolean =>
+  kaynak === "dogrudan_izin" ? Boolean(aliciTuru) : aliciTuru === "tacir_esnaf";
+/** Kayıt ekranı ve içe aktarmada seçilmez: yalnızca gelen kutusundaki yönlendirme akışı yazar. */
+export const yonlendirmeKaynagiMi = (k: string | null | undefined) => (YONLENDIRME_IZIN_KAYNAKLARI as readonly string[]).includes(k ?? "");
 export type Kanal = (typeof KANALLAR)[number];
 export type KuyrukKanali = (typeof KUYRUK_KANALLARI)[number];
 export type KampanyaDurumu = (typeof KAMPANYA_DURUMLARI)[number];
@@ -115,6 +129,8 @@ export const WHATSAPP_IZIN_KAYNAK_ADLARI: Record<WhatsappIzinKaynagi, string> = 
   mevcut_musteri: "Mevcut müşteri – WhatsApp yazışması",
   siparis: "Sipariş sırasında numara verdi",
   diger: "Diğer",
+  dogrudan_izin: "Kişi doğrudan izin verdi (telefonda/yüz yüze)",
+  musteri_yonlendirdi: "Müşteri yönlendirdi (tacir/esnaf)",
 };
 
 /** Toplu "WhatsApp iznini kaydet" beyanı: onay penceresinde zorunlu onay kutusu; metin denetim kaydına aynen yazılır. */

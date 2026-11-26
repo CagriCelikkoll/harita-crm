@@ -171,6 +171,10 @@ export const leads = sqliteTable(
     // Tarama sonucunun incelenmesi (sabitler.ts INCELEME_DURUMLARI): tarama "incelenmedi" ekler; mevcut ve Google dışı
     // kayıtlar "ilgileniyor". "ilgilenmiyor" kayıt silinmez, listede gizlenir ve kampanyalara girmez.
     inceleme: text("inceleme", { enum: INCELEME_DURUMLARI }).notNull().default("ilgileniyor"),
+    // Yalnızca kaynak 'yonlendirme' (0031): "Yönlendirme — <yönlendiren kişinin adı/numarası>" ve yönlendiren sohbet
+    // (sohbetler.id; yabancı anahtar yok: sohbet silinse de kaynak bilgisi kalır, bağlantı "bulunamadı" olur).
+    kaynakAyrintisi: text("kaynak_ayrintisi"),
+    yonlendirenSohbetId: text("yonlendiren_sohbet_id"),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
     guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
   },
@@ -488,6 +492,8 @@ export const kampanyalar = sqliteTable(
     metaGorselId: text("meta_gorsel_id"),
     metaGorselNumarasi: text("meta_gorsel_numarasi"),
     metaGorselTarihi: zaman("meta_gorsel_tarihi"),
+    // Tek alıcılı kampanya (0031): gelen kutusundan yönlendirilen numaraya "Şablon gönder"; listede "Tekil" rozeti.
+    tekil: integer("tekil", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [
     uniqueIndex("kampanyalar_tenant_id_uq").on(t.tenantId, t.id),

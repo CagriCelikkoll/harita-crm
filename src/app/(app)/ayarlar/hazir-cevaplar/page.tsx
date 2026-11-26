@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AyarBolumu, Kart, KartBaslik } from "@/components/arayuz/kart";
-import { HAZIR_CEVAP_AZAMI } from "@/lib/hazir-cevaplar";
+import { baslikAnahtari, HAZIR_CEVAP_AZAMI, ORNEK_HAZIR_CEVAPLAR } from "@/lib/hazir-cevaplar";
 import { hazirCevaplariListele } from "@/server/repo/hazir-cevaplar";
 import { ayarBolumuBaglami } from "../erisim";
 import { HazirCevapFormu, HazirCevapSatiri } from "./formlar";
@@ -12,6 +12,9 @@ export default async function Sayfa() {
   const { ctx } = await ayarBolumuBaglami("hazir-cevaplar");
   const yonetici = ctx.rol === "yonetici";
   const cevaplar = hazirCevaplariListele(ctx);
+  // Örnekler yalnızca öneri: aynı başlıkta kayıt yoksa "Yeni hazır cevap" formunda gösterilir, seçilince forma dolar.
+  const kayitliBasliklar = new Set(cevaplar.map((c) => c.baslikAnahtari));
+  const oneriler = ORNEK_HAZIR_CEVAPLAR.filter((o) => !kayitliBasliklar.has(baslikAnahtari(o.baslik)));
   return (
     <AyarBolumu
       baslik="Hazır cevaplar"
@@ -20,7 +23,7 @@ export default async function Sayfa() {
       {yonetici && cevaplar.length < HAZIR_CEVAP_AZAMI && (
         <Kart etiket="Yeni hazır cevap">
           <KartBaslik baslik="Yeni hazır cevap" />
-          <HazirCevapFormu />
+          <HazirCevapFormu oneriler={oneriler} />
         </Kart>
       )}
       <Kart etiket="Kayıtlı hazır cevaplar">

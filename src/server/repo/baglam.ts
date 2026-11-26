@@ -1,4 +1,5 @@
 import type { Rol } from "@/lib/sabitler";
+import { db } from "../db";
 
 declare const marka: unique symbol;
 
@@ -52,4 +53,12 @@ export function yoneticiOlmali(ctx: TenantContext) {
 /** LIKE desenindeki özel karakterleri kaçırır (ESCAPE '\'). */
 export function likeKacir(metin: string) {
   return metin.replace(/[\\%_]/g, (k) => `\\${k}`);
+}
+
+/**
+ * Birden çok depo çağrısını tek transaction'da çalıştırır: fn hata fırlatırsa hepsi geri alınır (depo fonksiyonlarının kendi
+ * transaction'ları iç içe savepoint olur). Kiracı denetimi her depo fonksiyonundadır; bu yalnızca bütünlük içindir.
+ */
+export function tekIslemde<T>(fn: () => T): T {
+  return db.transaction(() => fn());
 }

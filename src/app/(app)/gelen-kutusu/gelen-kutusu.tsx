@@ -37,13 +37,14 @@ import {
   type SohbetNotuDto,
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
-import { yanitaEkle } from "@/lib/hazir-cevaplar";
+import { hazirCevapDoldur, yanitaEkle } from "@/lib/hazir-cevaplar";
 import { GELEN_KUTUSU_TERCIH_ALANLARI, tarayiciDeposu, tercihAnahtari, tercihOku, tercihYaz } from "@/lib/liste-tercihi";
 import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
 import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
 import { EkDugmesi, ekGonder, EkSeridi, panoDosyalari, useEkler } from "./ekler";
 import { HazirCevapSecici } from "./hazir-cevap-secici";
+import { NumaraliMetin } from "./yonlendirme";
 
 type Filtre = GelenKutusuFiltresi;
 
@@ -258,6 +259,7 @@ export function GelenKutusu(props: {
               setAyrinti(null);
             }}
             onDegisti={(a) => setAyrinti(a)}
+            onSohbetAc={sohbetAc}
             onMesaj={(m) => setAyrinti((x) => (x && x.sohbet.id === secili.sohbet.id ? { ...x, mesajlar: mesajlariBirlestir(x.mesajlar, [m]) } : x))}
             onNotlar={(n) => setAyrinti((x) => (x ? { ...x, notlar: n } : x))}
           />
@@ -387,6 +389,8 @@ function SohbetEkrani(props: {
   kullaniciId: string;
   onGeri: () => void;
   onDegisti: (a: SohbetAyrintisi) => void;
+  /** Başka sohbeti aç (Şablon gönder sonrası yeni kişinin sohbeti; yönlendiren sohbet bağlantısı). */
+  onSohbetAc: (id: string) => void;
   onMesaj: (m: SohbetMesajiDto) => void;
   onNotlar: (n: SohbetNotuDto[]) => void;
 }) {
@@ -453,6 +457,17 @@ function SohbetEkrani(props: {
             <span className="text-xs text-soluk">
               {s.telefon ?? "Telefon yok"} · {s.numara}
             </span>
+            {s.yonlendiren && (
+              <span className="text-xs text-soluk">
+                {s.yonlendiren.sohbetId ? (
+                  <button type="button" className="underline hover:text-metin" onClick={() => props.onSohbetAc(s.yonlendiren!.sohbetId!)}>
+                    {s.yonlendiren.metin}
+                  </button>
+                ) : (
+                  s.yonlendiren.metin
+                )}
+              </span>
+            )}
           </div>
           <DurumRozeti ton={s.izin === "ret" ? "tehlike" : s.izin === "var" ? "ana" : "notr"}>
             {s.izin === "ret" ? "RET verdi" : s.izin === "var" ? "WhatsApp izni var" : "WhatsApp izni yok"}
@@ -494,7 +509,7 @@ function SohbetEkrani(props: {
             </button>
           )}
           {mesajlar.map((m) => (
-            <Balon key={m.id} m={m} onYanitla={yanitlanabilir ? setYanitlanan : undefined} onTekrar={tekrarDene} />
+            <Balon key={m.id} m={m} sohbetId={s.id} onSohbetAc={props.onSohbetAc} onYanitla={yanitlanabilir ? setYanitlanan : undefined} onTekrar={tekrarDene} />
           ))}
         </div>
 
@@ -739,7 +754,19 @@ function SablonIletisi({ metin, gorsel }: { metin: string; gorsel: string | null
   );
 }
 
-function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m: SohbetMesajiDto) => void; onTekrar: (m: SohbetMesajiDto) => Promise<void> }) {
+function Balon({
+  m,
+  sohbetId,
+  onSohbetAc,
+  onYanitla,
+  onTekrar,
+}: {
+  m: SohbetMesajiDto;
+  sohbetId: string;
+  onSohbetAc: (id: string) => void;
+  onYanitla?: (m: SohbetMesajiDto) => void;
+  onTekrar: (m: SohbetMesajiDto) => Promise<void>;
+}) {
   const giden = m.yon === "giden";
   const etiket = kaynakEtiketi(m);
   const medya = MEDYA_TURLERI.includes(m.tur);
@@ -765,7 +792,8 @@ function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m:
         ) : m.tur === "template" && metin ? (
           <SablonIletisi metin={metin} gorsel={m.sablonGorseli ?? null} />
         ) : metin ? (
-          <p className="break-words whitespace-pre-wrap">{metin}</p>
+          // Gelen mesajdaki Türkiye cep numaraları tıklanabilir (Kayıtlarda aç / Kişi olarak ekle / Şablon gönder / Kopyala).
+          <p className="break-words whitespace-pre-wrap">{giden ? metin : <NumaraliMetin metin={metin} sohbetId={sohbetId} onSohbetAc={onSohbetAc} />}</p>
         ) : !medya ? (
           <p className="text-soluk italic">[{MESAJ_TUR_ADLARI[m.tur]}]</p>
         ) : null}
@@ -883,7 +911,8 @@ function YazmaAlani(props: {
 
   // Hazır cevap yanıt kutusuna konur (gönderilmez); imleç sona gider.
   const hazirCevapSec = (secilen: string) => {
-    const yeni = yanitaEkle(metin, secilen);
+    // {gonderen_numara}: bu sohbetin gönderen (işletme) numarası (ör. wa.me bağlantısı).
+    const yeni = yanitaEkle(metin, hazirCevapDoldur(secilen, s.gonderenNumara));
     setMetin(yeni);
     setHazirAcik(false);
     requestAnimationFrame(() => {

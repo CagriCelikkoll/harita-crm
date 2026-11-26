@@ -222,6 +222,11 @@ function ayrintiDto(ctx: TenantContext, id: string, simdi: Date): SohbetAyrintiD
     pencereBitis: pencereAcik(satir.sonGelenTarihi, simdi) ? (pencereBitisi(satir.sonGelenTarihi)?.toISOString() ?? null) : null,
     testModu: b?.testModu ?? false,
     numaraKilitli: kilit ?? (b?.kalite === "RED" ? "Numaranın kalitesi düşük (kırmızı): gönderim durduruldu." : null),
+    gonderenNumara: b?.gorunenNumara?.replace(/\D/g, "") || null,
+    yonlendiren:
+      kayit.kaynak === "yonlendirme" && kayit.kaynakAyrintisi
+        ? { metin: kayit.kaynakAyrintisi, sohbetId: kayit.yonlendirenSohbetId && sohbetGetir(ctx, kayit.yonlendirenSohbetId) ? kayit.yonlendirenSohbetId : null }
+        : null,
   };
 }
 

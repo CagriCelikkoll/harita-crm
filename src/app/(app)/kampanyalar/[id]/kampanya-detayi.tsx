@@ -199,6 +199,7 @@ export function KampanyaDetayi({
             <DurumRozeti ton={k.durum === "tamamlandi" ? "ana" : k.durum === "duraklatildi" ? "uyari" : k.durum === "calisiyor" ? "mavi" : "notr"}>
               {KAMPANYA_DURUM_ADLARI[k.durum]}
             </DurumRozeti>
+            {k.tekil && <DurumRozeti ton="mor">Tekil</DurumRozeti>}
             {k.sandbox && <DurumRozeti ton="uyari">Test modu: gerçek gönderim yok</DurumRozeti>}
             {k.durum === "zamanlandi" && k.planlananTarih && (
               <span className="text-ufak text-soluk">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</span>

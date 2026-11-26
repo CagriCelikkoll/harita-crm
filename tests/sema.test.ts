@@ -30,6 +30,8 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     // isletme_adi: kullanıcının elle girdiği ad (kampanyalardaki {isletme}); Places'tan gelen ad YAZILMAZ.
     "isletme_adi", "alici_turu", "inceleme",
     "telefon_e164", // ek_telefon'un normalize hali (kullanıcı verisi); Places telefonu YAZILMAZ
+    // 0031, kaynak 'yonlendirme': "Yönlendirme — <yönlendiren>" ve yönlendiren sohbet (kullanıcı verisi, Places değil)
+    "kaynak_ayrintisi", "yonlendiren_sohbet_id",
     "olusturma_tarihi", "guncelleme_tarihi",
   ],
   lead_events: ["id", "tenant_id", "lead_id", "tur", "aciklama", "kullanici_id", "sistem", "tarih"],
@@ -60,6 +62,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "sablon_id", "degisken_eslem", "duraklatma_nedeni", "baglanti_id", // WhatsApp (Cloud API); baglanti_id: gönderen numara
     // Görselli şablon (0026): görselin medya satırı ve Meta'ya yüklenmiş kimliği (numara, tarih).
     "gorsel_medya_id", "meta_gorsel_id", "meta_gorsel_numarasi", "meta_gorsel_tarihi",
+    "tekil", // 0031: tek alıcılı kampanya (gelen kutusu "Şablon gönder")
   ],
   message_queue: [
     "id", "tenant_id", "kampanya_id", "lead_id", "kanal", "durum", "neden", "hata", "deneme_sayisi", "sonraki_deneme",

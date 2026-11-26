@@ -18,6 +18,9 @@ export type KayitDto = {
   ekTelefon: string | null;
   notlar: string | null;
   etiketler: string[];
+  /** Yalnızca kaynak "yonlendirme": "Yönlendirme — <yönlendiren>" ve yönlendiren sohbet. */
+  kaynakAyrintisi: string | null;
+  yonlendirenSohbetId: string | null;
   guncellemeTarihi: string;
 };
 
@@ -45,6 +48,8 @@ export const kayitDto = (k: Kayit): KayitDto => ({
   ekTelefon: k.ekTelefon,
   notlar: k.notlar,
   etiketler: k.etiketler,
+  kaynakAyrintisi: k.kaynakAyrintisi,
+  yonlendirenSohbetId: k.yonlendirenSohbetId,
   guncellemeTarihi: k.guncellemeTarihi.toISOString(),
 });
 
