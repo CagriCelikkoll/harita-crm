@@ -4,7 +4,7 @@
 // - Sekmeler: alt çizgili sekmeler (role="tab"); içerik `sekmePaneliId` / `sekmeId` ile bağlanır.
 // - SecimCipi: aria-pressed ile seçilebilir yuvarlak çip (durum, kategori).
 // Klavye: ok tuşları, Home / End (sekmeKlavye); yalnızca seçili sekme Tab sırasındadır.
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { sekmeKlavye } from "@/lib/arayuz";
 import { sayiYaz } from "@/lib/bicim";
@@ -12,11 +12,25 @@ import { sayiYaz } from "@/lib/bicim";
 type Secenek<T extends string> = { deger: T; ad: string; sayi?: number; href?: string };
 
 export function SekmeGrubu<T extends string>(props: { etiket: string; secenekler: Secenek<T>[]; secili: T; onSec?: (d: T) => void }) {
+  const kap = useRef<HTMLDivElement>(null);
+  // Seçili segment kaydırılmış alanda kalmasın: yalnızca yatayda görünür alana getirilir (sayfa kaymaz).
+  useEffect(() => {
+    const k = kap.current;
+    const s = k?.querySelector<HTMLElement>("[aria-current=page], [aria-pressed=true]");
+    if (!k || !s || k.scrollWidth <= k.clientWidth) return;
+    if (s.offsetLeft + s.offsetWidth > k.scrollLeft + k.clientWidth || s.offsetLeft < k.scrollLeft) k.scrollLeft = s.offsetLeft - 4;
+  }, [props.secili]);
   return (
-    <div role="group" aria-label={props.etiket} className="inline-flex flex-wrap gap-0.5 rounded-xl bg-segment p-1">
+    // Tek satır: sığmazsa (telefon) segment yatay kayar; sayılar sekmeyle birlikte kalır.
+    <div
+      ref={kap}
+      role="group"
+      aria-label={props.etiket}
+      className="relative inline-flex max-w-full min-w-0 gap-0.5 overflow-x-auto rounded-xl bg-segment p-1 [scrollbar-width:thin]"
+    >
       {props.secenekler.map((s) => {
         const secili = s.deger === props.secili;
-        const sinif = `inline-flex h-9 items-center gap-1.5 rounded-md px-3.5 text-sm ${
+        const sinif = `inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm whitespace-nowrap ${
           secili ? "bg-white font-semibold text-metin ring-1 ring-kenar" : "text-metin-ikincil hover:bg-uzerine-gelme hover:text-metin active:bg-basili"
         }`;
         const icerik = (

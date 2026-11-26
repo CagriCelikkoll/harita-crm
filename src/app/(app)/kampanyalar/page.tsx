@@ -90,7 +90,38 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
         </section>
       ) : (
         <section aria-label="Kampanya listesi" className="kart-cerceve">
-          <div className="overflow-x-auto">
+          {/* ≤ 640 px: kart listesi (yatay kaydırma yok); her satırın tamamı kampanyaya giden bağlantı. */}
+          <ul className="sm:hidden">
+            {kampanyalar.map((k) => {
+              const hedef = k.sayilar.kuyrukta + k.sayilar.gonderiliyor + k.sayilar.gonderildi + k.sayilar.basarisiz;
+              return (
+                <li key={k.id} className="border-b border-cizgi last:border-0">
+                  <Link href={`/kampanyalar/${k.id}`} className="satir flex min-h-11 flex-col gap-1.5 px-4 py-3">
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 font-semibold break-words text-metin">{k.ad}</span>
+                      <span className="flex shrink-0 gap-1.5">
+                        {k.sandbox && <DurumRozeti ton="uyari">Test</DurumRozeti>}
+                        <DurumRozeti ton={DURUM_TONU[k.durum] ?? "notr"}>{KAMPANYA_DURUM_ADLARI[k.durum]}</DurumRozeti>
+                      </span>
+                    </span>
+                    <span className="text-ufak break-words text-soluk">
+                      {KANAL_ADLARI[k.kanal]}
+                      {k.kanal === "whatsapp_api" && ` · ${(k.baglantiId && numaralar.get(k.baglantiId)) || "Silinmiş numara"}`}
+                    </span>
+                    <span className="text-ufak text-metin-ikincil tabular-nums">
+                      Gönderim: {sayiYaz(k.sayilar.gonderildi)} / {sayiYaz(hedef)}
+                      {k.sayilar.haric > 0 && ` · ${sayiYaz(k.sayilar.haric)} hariç`}
+                      {k.sayilar.basarisiz > 0 && ` · ${sayiYaz(k.sayilar.basarisiz)} başarısız`}
+                    </span>
+                    <span className="text-xs text-soluk">
+                      {k.durum === "zamanlandi" && k.planlananTarih ? `Planlanan: ${tarihYaz(k.planlananTarih)}` : tarihYaz(k.olusturmaTarihi)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="overflow-x-auto max-sm:hidden">
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <thead className="text-ufak text-soluk">
                 <tr>

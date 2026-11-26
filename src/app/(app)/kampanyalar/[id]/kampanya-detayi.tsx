@@ -134,6 +134,47 @@ export function KampanyaDetayi({
     else setHata(r.hata);
   };
 
+  // Alıcı satırının ad ve ayrıntı parçaları: geniş ekranda tablo hücresi, ≤ 640 px'te kart satırı.
+  const aliciAdi = (m: MesajDto) => (
+    <>
+      {/* Adı girilmemiş Google kaydı: sade soluk metin (bağlantı kayda gider) + yanında "Göster". */}
+      <Link
+        href={`/kayitlar?grup=tum&secili=${m.leadId}`}
+        className={m.isletmeAdi || m.kaynak !== "google" ? "text-ana underline" : "text-soluk underline-offset-2 hover:text-metin hover:underline"}
+      >
+        {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
+      </Link>
+      {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
+      {!m.isletmeAdi && m.kaynak === "google" && (
+        <span className="ml-2 inline-block">
+          <GoogleBilgisiHucresi
+            id={m.leadId}
+            alan="ad"
+            bilgi={google.bilgi.get(m.leadId)}
+            yukleniyor={google.yukleniyor.has(m.leadId)}
+            onGoster={google.goster}
+          />
+        </span>
+      )}
+    </>
+  );
+  const aliciAyrintisi = (m: MesajDto) => (
+    <>
+      {m.gonderimTarihi && <span className="block">{tarihYaz(m.gonderimTarihi)}</span>}
+      {m.neden && <span className="block">{nedenAdi(m.neden)}</span>}
+      {m.hata && <span className="block text-tehlike">{m.hata}</span>}
+      {m.durum === "kuyrukta" && m.sonrakiDeneme && <span className="block">Sonraki deneme: {tarihYaz(m.sonrakiDeneme)}</span>}
+      {m.sandboxIcerik && (
+        <button type="button" className="dugme-metin" onClick={() => setAcik(acik === m.id ? null : m.id)}>
+          {acik === m.id ? "Mesajı gizle" : "Kaydedilen mesajı göster"}
+        </button>
+      )}
+      {acik === m.id && m.sandboxIcerik && (
+        <pre className="mt-1 max-w-prose whitespace-pre-wrap break-words rounded-lg bg-ic-kutu p-2 font-sans text-metin">{m.sandboxIcerik}</pre>
+      )}
+    </>
+  );
+
   return (
     <>
       <SayfaBasligi baslik={k.ad} aciklama={`${KANAL_ADLARI[k.kanal]} kampanyası${k.numara ? ` · Gönderen: ${k.numara}` : ""} · ${tarihYaz(k.olusturmaTarihi)}`}>
@@ -267,7 +308,22 @@ export function KampanyaDetayi({
                   </select>
                 </label>
               </div>
-              <div className="relative overflow-x-auto">
+              {/* ≤ 640 px: kart listesi (her satır: ad, durum rozeti, ayrıntı / hata kodu); yatay kaydırma yok. */}
+              <ul aria-label="Alıcılar" className="text-sm break-words sm:hidden">
+                {veri.mesajlar.map((m) => (
+                  <li key={m.id} className="satir -mx-2 flex min-h-11 flex-col gap-1.5 border-b border-cizgi px-2 py-3 last:border-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">{aliciAdi(m)}</div>
+                      <div className="max-w-[50%] shrink-0">
+                        <KisiDurumu m={m} />
+                      </div>
+                    </div>
+                    <div className="text-xs text-soluk">{aliciAyrintisi(m)}</div>
+                  </li>
+                ))}
+                {veri.mesajlar.length === 0 && <li className="py-4 text-center text-soluk">Bu durumda alıcı yok.</li>}
+              </ul>
+              <div className="relative overflow-x-auto max-sm:hidden">
                 {/* Sabit sütun genişlikleri: süzgeç ya da sayfa değişince sütunlar zıplamaz. */}
                 <table className="w-full min-w-[560px] table-fixed text-sm break-words">
                   <colgroup>
@@ -285,50 +341,11 @@ export function KampanyaDetayi({
                   <tbody>
                     {veri.mesajlar.map((m) => (
                       <tr key={m.id} className="satir border-b border-cizgi align-top last:border-0">
-                        <td className="py-2.5 pr-3">
-                          {/* Adı girilmemiş Google kaydı: sade soluk metin (bağlantı kayda gider) + yanında "Göster". */}
-                          <Link
-                            href={`/kayitlar?grup=tum&secili=${m.leadId}`}
-                            className={
-                              m.isletmeAdi || m.kaynak !== "google"
-                                ? "text-ana underline"
-                                : "text-soluk underline-offset-2 hover:text-metin hover:underline"
-                            }
-                          >
-                            {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
-                          </Link>
-                          {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
-                          {!m.isletmeAdi && m.kaynak === "google" && (
-                            <span className="ml-2 inline-block">
-                              <GoogleBilgisiHucresi
-                                id={m.leadId}
-                                alan="ad"
-                                bilgi={google.bilgi.get(m.leadId)}
-                                yukleniyor={google.yukleniyor.has(m.leadId)}
-                                onGoster={google.goster}
-                              />
-                            </span>
-                          )}
-                        </td>
+                        <td className="py-2.5 pr-3">{aliciAdi(m)}</td>
                         <td className="py-2.5 pr-3">
                           <KisiDurumu m={m} />
                         </td>
-                        <td className="py-2.5 text-xs text-soluk">
-                          {m.gonderimTarihi && <span className="block">{tarihYaz(m.gonderimTarihi)}</span>}
-                          {m.neden && <span className="block">{nedenAdi(m.neden)}</span>}
-                          {m.hata && <span className="block text-tehlike">{m.hata}</span>}
-                          {m.durum === "kuyrukta" && m.sonrakiDeneme && <span className="block">Sonraki deneme: {tarihYaz(m.sonrakiDeneme)}</span>}
-                          {m.sandboxIcerik && (
-                            <button type="button" className="dugme-metin" onClick={() => setAcik(acik === m.id ? null : m.id)}>
-                              {acik === m.id ? "Mesajı gizle" : "Kaydedilen mesajı göster"}
-                            </button>
-                          )}
-                          {acik === m.id && m.sandboxIcerik && (
-                            <pre className="mt-1 max-w-prose whitespace-pre-wrap break-words rounded-lg bg-ic-kutu p-2 font-sans text-metin">
-                              {m.sandboxIcerik}
-                            </pre>
-                          )}
-                        </td>
+                        <td className="py-2.5 text-xs text-soluk">{aliciAyrintisi(m)}</td>
                       </tr>
                     ))}
                     {veri.mesajlar.length === 0 && (

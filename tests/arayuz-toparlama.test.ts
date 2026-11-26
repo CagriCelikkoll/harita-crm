@@ -112,9 +112,9 @@ describe("Faz 1: etkileşim durumları", () => {
     expect(c).toMatch(/:where\(button, select, input, textarea\):disabled \{\s*opacity: 0\.5;\s*cursor: not-allowed;/);
   });
 
-  it("tablo satırı: üzerine gelme zemini + 3 px ana şerit; seçili satırda kalıcı; eski kart-alt hover'ı kalmadı", () => {
-    expect(css()).toMatch(/@utility satir \{\s*@apply hover:bg-uzerine-gelme;\s*&:hover > :first-child \{\s*box-shadow: inset 3px 0 0 var\(--color-ana\);/);
-    expect(css()).toMatch(/@utility satir-secili \{\s*@apply bg-secili-satir/);
+  it("tablo satırı: üzerine gelme yalnızca açık zemin, seçili satır zemin + 3 px ana şerit; eski kart-alt hover'ı kalmadı", () => {
+    expect(css()).toMatch(/@utility satir \{\s*@apply hover:bg-satir-uzerine;\s*\}/);
+    expect(css()).toMatch(/@utility satir-secili \{\s*@apply bg-secili-satir;\s*& > td:first-child,\s*&:not\(tr\) \{\s*box-shadow: inset 3px 0 0 var\(--color-ana\);/);
     expect(oku("src/app/(app)/kayitlar/kayit-tablosu.tsx")).toContain('secili ? "satir-secili" : "satir"');
     expect(oku("src/app/(app)/kampanyalar/page.tsx")).toContain('className="satir border-b border-cizgi"');
     const kullanan = tsxDosyalari("src").filter((d) => /hover:bg-kart-alt|text-\[#1d6fd1\]|bg-\[#f1f7f5\]/.test(oku(d)));
@@ -260,5 +260,47 @@ describe("Faz 3: ölçekler ve renk belirteçleri", () => {
     expect(d).toContain('"text-soluk underline-offset-2 hover:text-metin hover:underline"');
     expect(d).not.toContain("italic");
     expect(oku("src/components/google-bilgisi.tsx")).toMatch(/<Dugme\s+tur="metin"[\s\S]*?Göster\s*<\/Dugme>/);
+  });
+});
+
+describe("Toparlama sonrası küçük düzeltmeler", () => {
+  it("segment sekmeleri tek satırda; sığmazsa yatay kayar, seçili sekme görünür alana getirilir, sayılar kalır", () => {
+    const s = oku("src/components/arayuz/sekmeler.tsx");
+    expect(s).toContain("relative inline-flex max-w-full min-w-0 gap-0.5 overflow-x-auto");
+    expect(s).not.toMatch(/inline-flex flex-wrap gap-0\.5/);
+    expect(s).toContain("shrink-0 items-center gap-1.5 rounded-md px-3.5 text-sm whitespace-nowrap");
+    expect(s).toContain("k.scrollLeft = s.offsetLeft - 4");
+    expect(s).toContain("sayiYaz(s.sayi)");
+  });
+
+  it("≤ 640 px: kampanya listesi ve alıcılar kart listesi, tablo gizli (yatay kaydırma yok)", () => {
+    const liste = oku("src/app/(app)/kampanyalar/page.tsx");
+    expect(liste).toContain('<ul className="sm:hidden">');
+    expect(liste).toContain('className="satir flex min-h-11 flex-col gap-1.5 px-4 py-3"');
+    expect(liste).toContain('<div className="overflow-x-auto max-sm:hidden">');
+    const detay = oku("src/app/(app)/kampanyalar/[id]/kampanya-detayi.tsx");
+    expect(detay).toContain('<ul aria-label="Alıcılar" className="text-sm break-words sm:hidden">');
+    expect(detay).toMatch(/className="satir -mx-2 flex min-h-11 flex-col[^"]*"[\s\S]*?\{aliciAdi\(m\)\}[\s\S]*?<KisiDurumu m=\{m\} \/>[\s\S]*?\{aliciAyrintisi\(m\)\}/);
+    expect(detay).toContain('<div className="relative overflow-x-auto max-sm:hidden">');
+  });
+
+  it("panel sayı kartları telefonda 2×2", () => {
+    expect(oku("src/app/(app)/panel/page.tsx")).toContain(
+      'className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4"',
+    );
+  });
+
+  it("satır üzerine gelme zemini seçiliden açık; gelen kutusu listesi aynı satır sınıflarını kullanır", () => {
+    expect(kontrast(belirtec("satir-uzerine"), "#ffffff")).toBeLessThan(kontrast(belirtec("uzerine-gelme"), "#ffffff"));
+    expect(kontrast(belirtec("satir-uzerine"), "#ffffff")).toBeLessThan(kontrast(belirtec("secili-satir"), "#ffffff"));
+    expect(kontrast(belirtec("soluk"), belirtec("satir-uzerine"))).toBeGreaterThanOrEqual(4.5);
+    expect(oku("src/app/(app)/gelen-kutusu/gelen-kutusu.tsx")).toContain('props.secili ? "satir-secili" : "satir"');
+  });
+
+  it("alıcılarda Okundu bilgi tonunda rozet (teslim edildi / edilemedi ile aynı biçim)", () => {
+    const d = oku("src/app/(app)/kampanyalar/[id]/kampanya-detayi.tsx");
+    expect(d).toContain('{ delivered: "ana", read: "mavi", failed: "tehlike" }');
+    expect(d).toContain("<DurumRozeti ton={TESLIM_ROZETI[t.durum]}>{t.ad}</DurumRozeti>");
+    expect(oku("src/components/arayuz/rozet.tsx")).toContain('mavi: "bg-bilgi-acik text-bilgi"');
   });
 });

@@ -356,7 +356,7 @@ function SohbetSatiri(props: { s: SohbetOzetiDto; secili: boolean; simdi: number
         type="button"
         onClick={() => props.onSec(s.id)}
         aria-current={props.secili ? "true" : undefined}
-        className={`flex w-full flex-col gap-1 border-b border-cizgi px-4 py-3 text-left ${props.secili ? "bg-ana-acik" : "hover:bg-zemin"}`}
+        className={`flex w-full flex-col gap-1 border-b border-cizgi px-4 py-3 text-left ${props.secili ? "satir-secili" : "satir"}`}
       >
         <span className="flex items-center gap-2">
           <span className={`min-w-0 flex-1 truncate text-sm ${s.okunmamis ? "font-semibold" : "font-semibold"}`}>{s.ad}</span>

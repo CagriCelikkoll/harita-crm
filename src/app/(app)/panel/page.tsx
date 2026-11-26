@@ -59,7 +59,8 @@ export default async function PanelSayfasi() {
       <SayfaBasligi baslik="Panel" aciklama="Bugün nereden devam edeceğinizi gösterir." />
 
       <div className="flex flex-col gap-6">
-        <section className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4" aria-label="Özet">
+        {/* Telefonda 2×2 ızgara; geniş ekranda sığdığı kadar yan yana. */}
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4" aria-label="Özet">
           {ozetler.map((o) => (
             <Link key={o.baslik} href={o.href} className="kart hover:border-ana">
               <p className="text-ufak text-soluk">{o.baslik}</p>

@@ -41,6 +41,8 @@
   --color-uzerine-gelme: #e3f0ea;
   --color-basili: #cfe4db;
   --color-secili-satir: #d8ece4;
+  /* Liste satırının üzerine gelme zemini: düğmelerdeki uzerine-gelme'den açık, seçili satırla karışmaz. */
+  --color-satir-uzerine: #eef6f2;
   /* Bilgi (mavi) ve mor rozet / not; ilerleme çubuğu zemini; WhatsApp "okundu" işareti. */
   --color-bilgi: #1d4f91;
   --color-bilgi-acik: #e4ecf8;
@@ -248,16 +250,16 @@ input[type="radio"]:not(:disabled):active {
 @utility kart-cerceve {
   @apply overflow-hidden rounded-kart border border-kenar bg-white;
 }
-/* Tablo satırı: üzerine gelince zemin + solda 3 px ana şerit; seçili satırda kalıcı (zemin secili-satir). */
+/* Liste / tablo satırı (Kayıtlar, gelen kutusu, kampanya alıcıları ve kampanya listesi; telefonda kart satırı da).
+   Üzerine gelme: yalnızca açık zemin (satir-uzerine), şerit yok. Seçili: secili-satir zemini + solda 3 px ana şerit
+   (tabloda ilk hücrede, tablo dışı satırda öğenin kendisinde). */
 @utility satir {
-  @apply hover:bg-uzerine-gelme;
-  &:hover > :first-child {
-    box-shadow: inset 3px 0 0 var(--color-ana);
-  }
+  @apply hover:bg-satir-uzerine;
 }
 @utility satir-secili {
-  @apply bg-secili-satir hover:bg-secili-satir;
-  & > :first-child {
+  @apply bg-secili-satir;
+  & > td:first-child,
+  &:not(tr) {
     box-shadow: inset 3px 0 0 var(--color-ana);
   }
 }
