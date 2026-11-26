@@ -16,6 +16,30 @@ import type { SablonDto } from "@/server/servisler/whatsapp-api";
 export const ornekDeger = (a: DegiskenEslemi[string] | undefined) =>
   a?.kaynak === "sabit" ? a.deger || "…" : a?.kaynak === "yetkili_adi" ? "Örnek Yetkili" : "Örnek İşletme";
 
+/** Kayıttan gelen değişkenin "Kayıtta boşsa" değeri: girildiyse o, girilmediyse alıcı hariç tutulur. */
+export const yedekMetni = (a: DegiskenEslemi[string] | undefined) =>
+  a?.yedek?.trim() ? `boşsa: "${a.yedek.trim()}"` : "boşsa alıcı hariç tutulur";
+
+/** Önizlemenin altında: girilen "Kayıtta boşsa" değerleri (kayıttan gelen değişkenler için). */
+function YedekDegerler(props: { sablon: SablonDto; eslem: DegiskenEslemi }) {
+  const satirlar = props.sablon.degiskenler.flatMap((dg) => {
+    const a = props.eslem[degiskenAnahtari(dg)];
+    return a?.kaynak !== "sabit" && a?.yedek?.trim() ? [{ ad: `${dg.bilesen === "header" ? "Başlık" : "Gövde"} {{${dg.ad}}}`, deger: a.yedek.trim() }] : [];
+  });
+  if (!satirlar.length) return null;
+  return (
+    <span className="mt-0.5 block text-left text-metin-ikincil">
+      Kayıtta boşsa:{" "}
+      {satirlar.map((s, i) => (
+        <span key={s.ad}>
+          {i > 0 && ", "}
+          {s.ad} → &quot;{s.deger}&quot;
+        </span>
+      ))}
+    </span>
+  );
+}
+
 const BUTON_TURU_ADLARI: Record<string, string> = { QUICK_REPLY: "Hızlı yanıt", URL: "Bağlantı", PHONE_NUMBER: "Telefon", COPY_CODE: "Kodu kopyala" };
 const BOLUM_ADLARI = { gorsel: "Görsel", baslik: "Başlık", govde: "Gövde", altbilgi: "Alt bilgi", butonlar: "Butonlar" } as const;
 
@@ -23,7 +47,7 @@ const BOLUM_ADLARI = { gorsel: "Görsel", baslik: "Başlık", govde: "Gövde", a
 const sablonButonlari = (s: SablonDto) =>
   s.bilesenler.filter((b) => b.type.toUpperCase() === "BUTTONS").flatMap((b) => b.buttons ?? []);
 
-function Telefon(props: { ust: string; children: ReactNode; etiket: string; aciklama: string }) {
+function Telefon(props: { ust: string; children: ReactNode; etiket: string; aciklama: string; ek?: ReactNode }) {
   return (
     <figure aria-label={props.etiket} className="mx-auto flex w-full max-w-[320px] flex-col overflow-hidden rounded-[26px] border-[6px] border-[#1f2c34] bg-[#efeae2] shadow-sm">
       <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-white">
@@ -31,7 +55,10 @@ function Telefon(props: { ust: string; children: ReactNode; etiket: string; acik
         <span className="truncate text-sm font-semibold">{props.ust}</span>
       </div>
       <div className="flex min-h-48 flex-col gap-1.5 p-3">{props.children}</div>
-      <figcaption className="bg-white/70 px-3 py-1.5 text-center text-[11px] text-soluk">{props.aciklama}</figcaption>
+      <figcaption className="bg-white/70 px-3 py-1.5 text-center text-[11px] text-soluk">
+        {props.aciklama}
+        {props.ek}
+      </figcaption>
     </figure>
   );
 }
@@ -55,7 +82,7 @@ export function WhatsappOnizlemesi(props: {
   const bolumler = sablonParcalari(sablon.bilesenler).filter((b) => b.tur !== "butonlar");
   const butonlar = sablonButonlari(sablon);
   return (
-    <Telefon ust={props.numara || "WhatsApp"} etiket="WhatsApp önizlemesi" aciklama="Örnek değerlerle; değişkenler vurgulu">
+    <Telefon ust={props.numara || "WhatsApp"} etiket="WhatsApp önizlemesi" aciklama="Örnek değerlerle; değişkenler vurgulu" ek={<YedekDegerler sablon={sablon} eslem={props.eslem} />}>
       <div className="max-w-[92%] self-start overflow-hidden rounded-lg rounded-tl-none bg-white text-[13px] text-[#111b21] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
         {bolumler.map((b, i) =>
           b.tur === "gorsel" ? (
@@ -128,7 +155,7 @@ export function SablonAyrintilari(props: { sablon: SablonDto; eslem: DegiskenEsl
                 return (
                   <li key={degiskenAnahtari(dg)}>
                     {dg.bilesen === "header" ? "Başlık" : "Gövde"} {`{{${dg.ad}}}`} → {DEGISKEN_KAYNAK_ADLARI[a?.kaynak ?? "isletme_adi"]}
-                    {a?.kaynak === "sabit" && a.deger ? `: "${a.deger}"` : ""}
+                    {a?.kaynak === "sabit" ? (a.deger ? `: "${a.deger}"` : "") : ` (${yedekMetni(a)})`}
                   </li>
                 );
               })}

@@ -32,6 +32,11 @@
   --radius-kart: 14px;
 }
 
+/* Kaydırma çubuğunun yeri her zaman ayrılır: kısa içerikli sayfada çubuk kaybolunca düzen yana kaymaz. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--color-zemin);
   color: var(--color-metin);

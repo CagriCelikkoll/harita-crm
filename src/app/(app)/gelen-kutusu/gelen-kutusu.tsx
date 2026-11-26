@@ -621,7 +621,8 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
   const indirme = (
     <a href={`${adres}?indir=1`} className="text-xs font-medium text-ana-koyu underline" download>
       {medya.gorunum === "ses" ? "Ses kaydını indir" : medya.gorunum === "video" ? "Videoyu indir" : (medya.dosyaAdi ?? "Belgeyi indir")}
-      {medya.boyut !== null ? ` (${boyutYaz(medya.boyut)})` : ""}
+      {/* Boyut bölünmez ("(193 B)" iki satıra ayrılmasın); uzun dosya adı kendi içinde kırılır. */}
+      {medya.boyut !== null && <span className="whitespace-nowrap"> ({boyutYaz(medya.boyut)})</span>}
     </a>
   );
   if (medya.gorunum === "ses") {

@@ -51,12 +51,24 @@ export function ekOlustur(dosya: File): Ek {
   };
 }
 
-/** Panodan yapıştırılan ekran görüntüsünün adı çoğu tarayıcıda "image.png": zamanla ayırt edilir. */
-export function panoDosyalari(veri: DataTransfer | null): File[] {
+const ISTANBUL_ZAMANI = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Istanbul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Yapıştırılan ekran görüntüsünün adı, yerel saatle (Europe/Istanbul): "ekran-goruntusu-2026-11-25-16-17-01.png". */
+export const panoDosyaAdi = (zaman: Date) => `ekran-goruntusu-${ISTANBUL_ZAMANI.format(zaman).replace(/[ :]/g, "-")}.png`;
+
+/** Panodan yapıştırılan ekran görüntüsünün adı çoğu tarayıcıda "image.png": zamanla (İstanbul saati) ayırt edilir. */
+export function panoDosyalari(veri: DataTransfer | null, simdi = new Date()): File[] {
   if (!veri) return [];
-  return [...veri.files].map((f) =>
-    f.name && f.name !== "image.png" ? f : new File([f], `ekran-goruntusu-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`, { type: f.type }),
-  );
+  return [...veri.files].map((f) => (f.name && f.name !== "image.png" ? f : new File([f], panoDosyaAdi(simdi), { type: f.type })));
 }
 
 type Yanit = { ok: true; veri: GonderimSonucu } | { ok: false; hata: string };

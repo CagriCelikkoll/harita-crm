@@ -266,3 +266,72 @@ describe("kayıt ayrıntı paneli: Google kaynak notu ve başlık", () => {
     expect(panel).toMatch(/<h2[^>]*>\{baslik\}<\/h2>\s*\{googleAdi && <span[^>]*>Google&apos;daki adı: \{googleAdi\}<\/span>\}/);
   });
 });
+
+// ——— 3. tur ———
+
+describe("3. tur: adım çubuğu, Kayıtta boşsa, yapıştırma adı, PDF boyutu, kaydırma çubuğu yeri", () => {
+  it("13: adım çubuğu tek satır; dar ekranda yalnızca etkin adımın adı görünür, diğerleri ekran okuyucuya kalır", async () => {
+    const { vi } = await import("vitest");
+    vi.doMock("next/navigation", async (asil) => ({
+      ...(await asil<typeof import("next/navigation")>()),
+      useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {}, back: () => {}, prefetch: () => {} }),
+    }));
+    const { KampanyaSihirbazi } = await import("@/app/(app)/kampanyalar/yeni/kampanya-sihirbazi");
+    const h = renderToStaticMarkup(
+      createElement(KampanyaSihirbazi, {
+        adim: "2",
+        ilkKanal: "eposta",
+        etiketler: [],
+        saglayicilar: { eposta: { tanimli: true }, sms: { tanimli: false } } as Parameters<typeof KampanyaSihirbazi>[0]["saglayicilar"],
+        eksikAyarlar: [],
+        smsAltbilgisi: "",
+        whatsapp: { yonetici: false, numaralar: [] },
+      }),
+    );
+    const ol = h.slice(h.indexOf('aria-label="Adımlar"') - 80, h.indexOf("</ol>"));
+    expect(ol).toContain("flex-nowrap");
+    expect(ol).not.toContain("flex-wrap ");
+    expect(ol).toMatch(/aria-current="step"[^]*?<span class="whitespace-nowrap font-semibold ">Alıcılar<\/span>/);
+    for (const ad of ["Kanal", "Mesaj", "Gönder"]) expect(ol).toMatch(new RegExp(`max-sm:sr-only">${ad}</span>`));
+    vi.doUnmock("next/navigation");
+  });
+
+  it("14: 'Kayıtta boşsa' seçimle aynı hizada (açıklama kutunun altında); yedek değer önizlemede ve ayrıntılarda", async () => {
+    const s = oku("src/app/(app)/kampanyalar/yeni/kampanya-sihirbazi.tsx");
+    expect(s).toContain('<div key={anahtar} className="grid items-start gap-2 sm:grid-cols-3">');
+    expect(s).toMatch(/Kayıtta boşsa\s*<input[\s\S]*?\/>\s*<span className="text-xs font-normal text-soluk">Boş bırakılırsa/);
+    const { WhatsappOnizlemesi, SablonAyrintilari, yedekMetni } = await import("@/app/(app)/kampanyalar/yeni/mesaj-onizlemesi");
+    const sablon = {
+      id: "s",
+      wabaId: "w",
+      ad: "t",
+      dil: "tr",
+      kategori: "MARKETING",
+      degiskenler: [
+        { bilesen: "body", ad: "1" },
+        { bilesen: "body", ad: "2" },
+      ],
+      bilesenler: [{ type: "BODY", text: "Merhaba {{1}}, {{2}}." }],
+    } as unknown as Parameters<typeof SablonAyrintilari>[0]["sablon"];
+    const eslem = { "body:1": { kaynak: "isletme_adi" as const, yedek: "Değerli müşterimiz" }, "body:2": { kaynak: "yetkili_adi" as const } };
+    const onizleme = renderToStaticMarkup(createElement(WhatsappOnizlemesi, { numara: "N", sablon, eslem, gorselAdresi: null }));
+    expect(onizleme).toContain("Kayıtta boşsa: <span>Gövde {{1}} → &quot;Değerli müşterimiz&quot;</span>");
+    const ayrinti = renderToStaticMarkup(createElement(SablonAyrintilari, { sablon, eslem }));
+    expect(ayrinti).toContain("Gövde {{1}} → Kaydın işletme adı (boşsa: &quot;Değerli müşterimiz&quot;)");
+    expect(ayrinti).toContain("(boşsa alıcı hariç tutulur)");
+    expect(yedekMetni({ kaynak: "isletme_adi", yedek: "  " })).toBe("boşsa alıcı hariç tutulur");
+  });
+
+  it("16: yapıştırılan dosyanın adı İstanbul saatiyle; PDF balonunda boyut bölünmez", async () => {
+    const { panoDosyaAdi } = await import("@/app/(app)/gelen-kutusu/ekler");
+    expect(panoDosyaAdi(new Date("2026-11-25T13:17:01Z"))).toBe("ekran-goruntusu-2026-11-25-16-17-01.png");
+    expect(panoDosyaAdi(new Date("2026-11-25T22:05:09Z"))).toBe("ekran-goruntusu-2026-11-26-01-05-09.png");
+    expect(oku("src/app/(app)/gelen-kutusu/gelen-kutusu.tsx")).toContain(
+      '{medya.boyut !== null && <span className="whitespace-nowrap"> ({boyutYaz(medya.boyut)})</span>}',
+    );
+  });
+
+  it("17: kaydırma çubuğunun yeri her zaman ayrılır (kısa sayfada düzen kaymaz)", () => {
+    expect(oku("src/app/globals.css")).toMatch(/html \{\s*scrollbar-gutter: stable;\s*\}/);
+  });
+});

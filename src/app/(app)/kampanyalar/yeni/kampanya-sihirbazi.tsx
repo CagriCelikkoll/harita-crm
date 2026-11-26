@@ -216,12 +216,14 @@ export function KampanyaSihirbazi(props: {
 
   return (
     <div className="flex max-w-[1240px] flex-col gap-4">
-      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-sm" aria-label="Adımlar">
+      {/* Tek satır (kırılmaz): dar ekranda yalnızca numaralar ve etkin adımın adı; diğer adların adı ekran okuyucuya
+          kalır. Bağlantı çizgisi satır başında boşta kalmaz. */}
+      <ol className="flex min-w-0 flex-nowrap items-center gap-x-1.5 text-sm" aria-label="Adımlar">
         {KAMPANYA_ADIMLARI.map((a, i) => {
           const durumu = a.no < adim ? "tamam" : a.no === adim ? "etkin" : "bekliyor";
           return (
-            <li key={a.no} className="flex items-center gap-1.5" aria-current={durumu === "etkin" ? "step" : undefined}>
-              {i > 0 && <span aria-hidden="true" className="h-px w-5 bg-kenar-alan" />}
+            <li key={a.no} className="relative flex shrink-0 items-center gap-1.5" aria-current={durumu === "etkin" ? "step" : undefined}>
+              {i > 0 && <span aria-hidden="true" className="h-px w-3 bg-kenar-alan sm:w-5" />}
               <span
                 className={`flex size-6 items-center justify-center rounded-full text-xs font-bold ${
                   durumu === "tamam" ? "bg-ana text-white" : durumu === "etkin" ? "border-2 border-ana text-ana" : "border-2 border-kenar-alan text-soluk"
@@ -229,7 +231,11 @@ export function KampanyaSihirbazi(props: {
               >
                 {durumu === "tamam" ? <Simge ad="tik" boyut={12} kalinlik={3} /> : a.no}
               </span>
-              <span className={durumu === "bekliyor" ? "text-soluk" : "font-semibold"}>{a.ad}</span>
+              <span
+                className={`whitespace-nowrap ${durumu === "bekliyor" ? "text-soluk" : "font-semibold"} ${durumu === "etkin" ? "" : "max-sm:sr-only"}`}
+              >
+                {a.ad}
+              </span>
             </li>
           );
         })}
@@ -866,7 +872,8 @@ function WhatsappSablonSecimi(props: {
         const anahtar = degiskenAnahtari(dg);
         const a = props.eslem[anahtar] ?? { kaynak: "isletme_adi" as DegiskenKaynagi };
         return (
-          <div key={anahtar} className="grid gap-2 sm:grid-cols-3">
+          // items-start + tek satırlık etiketler: seçim ve metin kutusu aynı hizada (açıklama kutunun altında).
+          <div key={anahtar} className="grid items-start gap-2 sm:grid-cols-3">
             <label className="etiket">
               {dg.bilesen === "header" ? "Başlık" : "Gövde"} {"{{"}
               {dg.ad}
@@ -896,13 +903,15 @@ function WhatsappSablonSecimi(props: {
               </label>
             ) : (
               <label className="etiket sm:col-span-2">
-                Kayıtta boşsa <span className="text-xs font-normal text-soluk">(boş bırakılırsa alıcı hariç tutulur)</span>
+                Kayıtta boşsa
                 <input
                   value={a.yedek ?? ""}
                   onChange={(e) => ayar(anahtar, { yedek: e.target.value })}
                   maxLength={500}
                   className="girdi"
+                  placeholder="ör. Değerli müşterimiz"
                 />
+                <span className="text-xs font-normal text-soluk">Boş bırakılırsa bu bilgisi boş olan alıcı hariç tutulur.</span>
               </label>
             )}
           </div>
