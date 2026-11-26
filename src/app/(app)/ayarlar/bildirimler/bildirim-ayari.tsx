@@ -1,5 +1,6 @@
 "use client";
 // Bu cihazda bildirimi açma / kapatma ve cihaz listesindeki satır. İzin yalnızca düğmeye basınca istenir.
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SonucMesaji } from "@/components/bildirim";
@@ -46,7 +47,7 @@ export function BildirimAyari(props: { acikAnahtar: string | null }) {
   if (!props.acikAnahtar) {
     icerik = <p className="text-sm text-soluk">Bu sunucuda bildirimler kapalı. Sunucu yöneticisinin VAPID anahtarlarını tanımlaması gerekir (docs/SUNUCU-KURULUM.md).</p>;
   } else if (!durum) {
-    icerik = <p className="text-sm text-soluk">Denetleniyor…</p>;
+    icerik = <DonerGosterge etiket="Denetleniyor…" />;
   } else if (durum.destek === "ios-ana-ekran") {
     icerik = (
       <p className="text-sm">
@@ -102,7 +103,7 @@ export function CihazSatiri(props: { id: string; ad: string; ayrinti: string }) 
     <li className="flex flex-wrap items-center justify-between gap-3 border-t border-cizgi px-7 py-4">
       <div className="min-w-0">
         <p className="font-semibold">{props.ad}</p>
-        <p className="text-[13px] text-soluk">{props.ayrinti}</p>
+        <p className="text-ufak text-soluk">{props.ayrinti}</p>
       </div>
       <form action={eylem} className="flex items-center gap-2">
         <input type="hidden" name="id" value={props.id} />

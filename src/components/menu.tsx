@@ -44,18 +44,18 @@ export function Menu(props: {
   const pushAdresi = useBildirimAdresi();
 
   return (
-    <aside ref={kok} className="bg-menu text-[#e8ece9] md:sticky md:top-0 md:flex md:h-screen md:w-58 md:shrink-0 md:flex-col md:gap-7 md:px-4 md:py-6">
+    <aside ref={kok} className="bg-menu text-menu-yazi [--odak-rengi:var(--color-menu-vurgu)] md:sticky md:top-0 md:flex md:h-screen md:w-58 md:shrink-0 md:flex-col md:gap-7 md:px-4 md:py-6">
       <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-2 md:py-0">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-ana text-white">
-            <Simge ad="konum" />
+          <span className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-ana text-white">
+            <Simge ad="konum" boyut={20} />
           </span>
-          <span className="truncate text-base font-bold">Harita CRM</span>
+          <span className="truncate text-base font-semibold">Harita CRM</span>
         </div>
         <button
           ref={dugme}
           type="button"
-          className="min-h-10 rounded-lg px-3 text-sm text-menu-metin ring-1 ring-white/20 md:hidden"
+          className="min-h-10 rounded-lg px-3 text-sm text-menu-metin ring-1 ring-white/20 hover:bg-menu-acik hover:text-white active:bg-menu-cizgi md:hidden"
           aria-expanded={acik}
           aria-controls="ana-menu"
           onClick={() => setAcik((a) => !a)}
@@ -75,13 +75,13 @@ export function Menu(props: {
                 onClick={() => setAcik(false)}
                 aria-current={aktif ? "page" : undefined}
                 className={`flex h-11 items-center gap-3 rounded-lg px-3 text-sm ${
-                  aktif ? "bg-ana font-semibold text-white" : "text-menu-metin hover:bg-menu-acik hover:text-white"
+                  aktif ? "bg-ana font-semibold text-white" : "text-menu-metin hover:bg-menu-acik hover:text-white active:bg-menu-cizgi"
                 }`}
               >
-                <Simge ad={b.simge} />
+                <Simge ad={b.simge} boyut={20} />
                 {b.ad}
                 {b.href === "/gelen-kutusu" && props.okunmamis > 0 && (
-                  <span className="ml-auto rounded-full bg-menu-vurgu px-2 py-0.5 text-xs font-bold text-menu" aria-label={`${props.okunmamis} okunmamış`}>
+                  <span className="ml-auto rounded-full bg-menu-vurgu px-2 py-0.5 text-xs font-semibold text-menu" aria-label={`${props.okunmamis} okunmamış`}>
                     {props.okunmamis > 99 ? "99+" : props.okunmamis}
                   </span>
                 )}
@@ -114,7 +114,7 @@ export function Menu(props: {
           <div className="flex items-center gap-2.5">
             <span
               aria-hidden="true"
-              className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-menu-cizgi text-[13px] font-semibold"
+              className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-menu-cizgi text-ufak font-semibold"
             >
               {basHarfler(props.kullaniciAdi)}
             </span>
@@ -131,7 +131,7 @@ export function Menu(props: {
               aboneliği sunucuda silinir (lib/bildirim-istemci.ts). */}
           <form action={cikisYap} onSubmit={googleOnbellekleriniTemizle}>
             <input type="hidden" name="pushAdresi" value={pushAdresi} />
-            <button type="submit" className="text-xs text-menu-metin underline hover:text-white">
+            <button type="submit" className="rounded-md px-1 text-xs text-menu-metin underline hover:bg-menu-acik hover:text-white active:bg-menu-cizgi">
               Çıkış yap
             </button>
           </form>

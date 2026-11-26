@@ -1,6 +1,7 @@
 "use client";
 // "Geçmişi göster": bir ayarın denetim kayıtları (tarih, kişi, yeni değer, açıklama). Yalnızca yöneticiye gösterilir
 // (sunucu da 403 verir). Liste açılınca istenir; her açılışta yenilenir (arada yapılan değişiklik görünür).
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
 import { tarihYaz } from "@/lib/bicim";
@@ -22,19 +23,19 @@ export function DenetimGecmisi(props: { olay: GecmisOlayi; degerAdi: (deger: str
         if ((e.currentTarget as HTMLDetailsElement).open) void yukle();
       }}
     >
-      <summary className="cursor-pointer text-[13px] font-medium text-ana">Geçmişi göster</summary>
+      <summary className="cursor-pointer text-ufak font-medium text-ana">Geçmişi göster</summary>
       <div className="mt-2" aria-live="polite">
-        {durum.tur === "yukleniyor" && <p className="text-[13px] text-soluk">Yükleniyor…</p>}
+        {durum.tur === "yukleniyor" && <DonerGosterge boyut={14} etiket="Yükleniyor…" />}
         {durum.tur === "hata" && (
-          <p role="alert" className="text-[13px] text-tehlike">
+          <p role="alert" className="text-ufak text-tehlike">
             {durum.metin}
           </p>
         )}
         {durum.tur === "tamam" &&
           (durum.kayitlar.length === 0 ? (
-            <p className="text-[13px] text-soluk">Henüz değişiklik yok.</p>
+            <p className="text-ufak text-soluk">Henüz değişiklik yok.</p>
           ) : (
-            <ul aria-label="Değişiklik geçmişi" className="flex flex-col divide-y divide-cizgi rounded-[10px] border border-kenar text-[13px]">
+            <ul aria-label="Değişiklik geçmişi" className="flex flex-col divide-y divide-cizgi rounded-xl border border-kenar text-ufak">
               {durum.kayitlar.map((k) => (
                 <li key={k.id} className="flex flex-col gap-0.5 px-3 py-2">
                   <span className="flex flex-wrap gap-x-2">

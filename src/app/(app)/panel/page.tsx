@@ -61,9 +61,9 @@ export default async function PanelSayfasi() {
       <div className="flex flex-col gap-6">
         <section className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4" aria-label="Özet">
           {ozetler.map((o) => (
-            <Link key={o.baslik} href={o.href} className="rounded-kart border border-kenar bg-white px-6 py-5 hover:border-ana">
-              <p className="text-[13px] text-soluk">{o.baslik}</p>
-              <p className="mt-1 text-[28px] leading-tight font-bold tabular-nums">{sayiYaz(o.deger)}</p>
+            <Link key={o.baslik} href={o.href} className="kart hover:border-ana">
+              <p className="text-ufak text-soluk">{o.baslik}</p>
+              <p className="mt-1 text-baslik leading-tight font-semibold tabular-nums">{sayiYaz(o.deger)}</p>
             </Link>
           ))}
         </section>
@@ -84,11 +84,11 @@ export default async function PanelSayfasi() {
                 <li key={i.metin} className="flex flex-wrap items-center gap-4 border-t border-cizgi px-7 py-4">
                   <span
                     aria-hidden="true"
-                    className={`size-2.5 shrink-0 rounded-full ${i.ton === "tehlike" ? "bg-tehlike" : i.ton === "uyari" ? "bg-[#b45309]" : "bg-ana"}`}
+                    className={`size-2.5 shrink-0 rounded-full ${i.ton === "tehlike" ? "bg-tehlike" : i.ton === "uyari" ? "bg-uyari-dolgu" : "bg-ana"}`}
                   />
                   <div className="min-w-0 flex-[1_1_260px]">
                     <p className={`font-semibold ${i.ton === "tehlike" ? "text-tehlike" : ""}`}>{i.metin}</p>
-                    <p className="text-[13px] text-soluk">{i.aciklama}</p>
+                    <p className="text-ufak text-soluk">{i.aciklama}</p>
                   </div>
                   <Link href={i.href} className="dugme dugme-kucuk">
                     {i.eylem}
@@ -136,7 +136,7 @@ export default async function PanelSayfasi() {
                         <p className="truncate font-semibold">
                           {kategoriBul(t.kategori)?.etiket ?? t.kategori} · {t.yaricapM / 1000} km
                         </p>
-                        <p className="text-[13px] text-soluk">
+                        <p className="text-ufak text-soluk">
                           {tarihYaz(t.olusturmaTarihi)} · {sayiYaz(t.bulunanSayisi)} işletme
                         </p>
                       </Link>
@@ -161,7 +161,7 @@ export default async function PanelSayfasi() {
                     <li key={k.id} className="flex items-center justify-between gap-3 border-t border-cizgi px-7 py-3.5 text-sm">
                       <Link href={`/kampanyalar/${k.id}`} className="min-w-0 hover:underline">
                         <p className="truncate font-semibold">{k.ad}</p>
-                        <p className="text-[13px] text-soluk">
+                        <p className="text-ufak text-soluk">
                           {KANAL_ADLARI[k.kanal]} · {sayiYaz(k.sayilar.gonderildi)} gönderildi · {tarihYaz(k.olusturmaTarihi)}
                         </p>
                       </Link>

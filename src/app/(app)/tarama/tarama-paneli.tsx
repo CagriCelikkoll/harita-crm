@@ -2,6 +2,7 @@
 // Bölge tara (docs/tasarim/Tarama.dc.html): solda form kartı (merkez, kategori çipleri, yarıçap, süre bilgisi,
 // Taramayı başlat, tarama durumu), sağda geniş harita; altında son taramanın sonuçları (children, sunucudan) ve
 // katlanır "Önceki taramalar" (Sonuçları gör, Haritada göster, Tekrar kullan).
+import { Dugme } from "@/components/arayuz/dugme";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -211,7 +212,7 @@ export function TaramaPaneli({
       <div className="flex flex-wrap items-stretch gap-6">
         <section
           aria-label="Yeni tarama"
-          className="flex min-w-0 flex-[1_1_320px] flex-col gap-6 rounded-kart border border-kenar bg-white p-7 sm:max-w-[400px]"
+          className="kart flex min-w-0 flex-[1_1_320px] flex-col gap-6 sm:max-w-[400px]"
         >
           <div className="flex flex-col gap-2">
             <form
@@ -237,13 +238,13 @@ export function TaramaPaneli({
                 </button>
               </div>
             </form>
-            <p className="text-[13px] text-soluk">
+            <p className="text-ufak text-soluk">
               {kaynak.tur === "adres" && kaynak.adresMetni ? `Adres araması: ${kaynak.adresMetni}. ` : ""}Ya da haritada bir noktaya
               tıklayın.
             </p>
-            {adresMesaji && <p className="text-[13px] text-soluk">{adresMesaji}</p>}
+            {adresMesaji && <p className="text-ufak text-soluk">{adresMesaji}</p>}
             <details className="text-sm">
-              <summary className="cursor-pointer text-[13px] text-ana">Koordinatla gir</summary>
+              <summary className="cursor-pointer text-ufak text-ana">Koordinatla gir</summary>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="etiket">
                   Enlem
@@ -280,7 +281,7 @@ export function TaramaPaneli({
                 </SecimCipi>
               ))}
             </div>
-            <label className="flex flex-col gap-1.5 text-[13px] text-soluk">
+            <label className="flex flex-col gap-1.5 text-ufak text-soluk">
               Diğer…
               <select
                 value={digerSecili ? kategori : ""}
@@ -313,7 +314,7 @@ export function TaramaPaneli({
             />
           </label>
 
-          <p className="rounded-[10px] bg-ic-kutu px-4 py-3.5 text-[13px] text-metin-ikincil">
+          <p className="rounded-xl bg-ic-kutu px-4 py-3.5 text-ufak text-metin-ikincil">
             Tarama birkaç dakika sürebilir; bulunan işletmeler aşağıda incelemeniz için listelenir. İşletme bilgileri
             saklanmaz; Google Haritalar&apos;dan anlık gösterilir.
             {mock && <strong className="mt-1 block text-uyari">Örnek veri kullanılıyor (PLACES_MOCK).</strong>}
@@ -349,24 +350,25 @@ export function TaramaPaneli({
                 </div>
               )}
               {aktif.durum === "tamamlandi" && aktif.kapsamTamam === false && (
-                <p className="text-[13px] text-uyari">
+                <p className="text-ufak text-uyari">
                   {aktif.hataMesaji ??
                     "Alanın tamamı taranmamış olabilir (bazı küçük bölgelerde çok fazla sonuç vardı). Daha küçük bir yarıçapla tekrar deneyin."}
                 </p>
               )}
-              {aktif.durum === "hata" && <p className="text-[13px] text-tehlike">{aktif.hataMesaji}</p>}
-              {isaretBilgisi && <p className="text-[13px] text-soluk">{isaretBilgisi}</p>}
+              {aktif.durum === "hata" && <p className="text-ufak text-tehlike">{aktif.hataMesaji}</p>}
+              {isaretBilgisi && <p className="text-ufak text-soluk">{isaretBilgisi}</p>}
             </div>
           )}
 
-          <button
-            type="button"
-            className="dugme-ana mt-auto min-h-12 w-full rounded-[10px] text-[15px]"
+          <Dugme
+            tur="ana"
+            className="mt-auto min-h-12 w-full rounded-xl text-base"
             onClick={baslat}
-            disabled={calisiyor || merkezSecimiBekleniyor || kota.doldu}
+            yukleniyor={calisiyor}
+            disabled={merkezSecimiBekleniyor || kota.doldu}
           >
             {calisiyor ? "Tarama sürüyor…" : "Taramayı başlat"}
-          </button>
+          </Dugme>
         </section>
 
         <section aria-label="Harita" className="relative min-h-[440px] min-w-0 flex-[999_1_460px] overflow-hidden rounded-kart">
@@ -384,10 +386,10 @@ export function TaramaPaneli({
 
       {children}
 
-      <details className="group overflow-hidden rounded-kart border border-kenar bg-white">
+      <details className="kart-cerceve group">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-7 [&::-webkit-details-marker]:hidden">
           <span className="font-semibold">Önceki taramalar</span>
-          <span className="text-[13px] text-soluk">{sayiYaz(gecmis.length)} tarama</span>
+          <span className="text-ufak text-soluk">{sayiYaz(gecmis.length)} tarama</span>
         </summary>
         {gecmis.length === 0 ? (
           <p className="border-t border-cizgi px-7 py-4 text-sm text-soluk">Henüz tarama yok.</p>
@@ -399,17 +401,17 @@ export function TaramaPaneli({
                   <p className="font-semibold">
                     {kategoriBul(t.kategori)?.etiket ?? t.kategori} · {t.yaricapM / 1000} km
                   </p>
-                  <p className="text-[13px] text-soluk">
+                  <p className="text-ufak text-soluk">
                     {tarihYaz(t.olusturmaTarihi)} · {t.merkezKaynagi === "adres" ? t.adresMetni : "Haritadan seçilen nokta"}
                     {t.merkezLat === null && " · konum silindi (30 gün)"}
                   </p>
-                  {t.durum === "hata" && t.hataMesaji && <p className="text-[13px] text-tehlike">{t.hataMesaji}</p>}
+                  {t.durum === "hata" && t.hataMesaji && <p className="text-ufak text-tehlike">{t.hataMesaji}</p>}
                 </div>
                 <span className="flex items-center gap-2">
                   <TaramaDurumuRozeti durum={t.durum} />
-                  {t.kapsamTamam === false && <span className="text-[13px] text-uyari">kısmi</span>}
+                  {t.kapsamTamam === false && <span className="text-ufak text-uyari">kısmi</span>}
                 </span>
-                <span className="text-[13px] text-soluk tabular-nums">
+                <span className="text-ufak text-soluk tabular-nums">
                   {sayiYaz(t.bulunanSayisi)} bulundu
                   {(t.incelenmemis ?? 0) > 0 && ` · ${sayiYaz(t.incelenmemis ?? 0)} incelenmedi`}
                 </span>

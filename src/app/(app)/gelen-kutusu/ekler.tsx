@@ -155,11 +155,11 @@ export function EkDugmesi(props: { disabled?: boolean; onDosyalar: (d: File[]) =
         <span className="sr-only sm:not-sr-only">Dosya ekle</span>
       </button>
       {acik && (
-        <div role="menu" className="absolute bottom-full left-0 z-20 mb-1 flex min-w-44 flex-col rounded-lg border border-kenar bg-white p-1 text-sm shadow-lg">
-          <button type="button" role="menuitem" className="rounded px-3 py-2 text-left hover:bg-zemin" onClick={() => gorsel.current?.click()}>
+        <div role="menu" className="absolute bottom-full left-0 z-20 mb-1 flex min-w-44 flex-col rounded-lg border border-kenar bg-white p-1 text-sm shadow-yukselti">
+          <button type="button" role="menuitem" className="rounded-md px-3 py-2 text-left hover:bg-uzerine-gelme active:bg-basili" onClick={() => gorsel.current?.click()}>
             Fotoğraf / Video
           </button>
-          <button type="button" role="menuitem" className="rounded px-3 py-2 text-left hover:bg-zemin" onClick={() => belge.current?.click()}>
+          <button type="button" role="menuitem" className="rounded-md px-3 py-2 text-left hover:bg-uzerine-gelme active:bg-basili" onClick={() => belge.current?.click()}>
             Belge
           </button>
         </div>
@@ -182,11 +182,11 @@ export function EkSeridi(props: { ekler: Ek[]; gonderiliyor: boolean; onKaldir: 
         >
           {e.tur === "image" && e.onizleme ? (
             // eslint-disable-next-line @next/next/no-img-element -- yerel önizleme (blob: adresi)
-            <img src={e.onizleme} alt="" className="h-20 w-full rounded object-cover" />
+            <img src={e.onizleme} alt="" className="h-20 w-full rounded-md object-cover" />
           ) : e.tur === "video" && e.onizleme ? (
-            <video src={e.onizleme} muted preload="metadata" className="h-20 w-full rounded bg-black object-cover" />
+            <video src={e.onizleme} muted preload="metadata" className="h-20 w-full rounded-md bg-black object-cover" />
           ) : (
-            <div className="flex h-20 items-center justify-center rounded bg-zemin px-1 text-center font-semibold text-metin-ikincil uppercase">
+            <div className="flex h-20 items-center justify-center rounded-md bg-zemin px-1 text-center font-semibold text-metin-ikincil uppercase">
               {(e.dosya.name.split(".").pop() ?? "dosya").slice(0, 5)}
             </div>
           )}
@@ -195,7 +195,7 @@ export function EkSeridi(props: { ekler: Ek[]; gonderiliyor: boolean; onKaldir: 
           </span>
           <span className="text-soluk">{boyutYaz(e.dosya.size)}</span>
           {e.durum === "yukleniyor" && (
-            <span className="h-1.5 overflow-hidden rounded bg-segment" role="progressbar" aria-valuenow={Math.round(e.ilerleme * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Yükleniyor">
+            <span className="h-1.5 overflow-hidden rounded-md bg-segment" role="progressbar" aria-valuenow={Math.round(e.ilerleme * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Yükleniyor">
               <span className="block h-full bg-ana transition-[width]" style={{ width: `${Math.round(e.ilerleme * 100)}%` }} />
             </span>
           )}
@@ -205,14 +205,14 @@ export function EkSeridi(props: { ekler: Ek[]; gonderiliyor: boolean; onKaldir: 
             </span>
           )}
           {e.durum === "hata" && !e.onHata && (
-            <button type="button" className="self-start font-semibold text-ana-koyu underline" disabled={props.gonderiliyor} onClick={() => props.onTekrar(e.kimlik)}>
+            <button type="button" className="dugme-metin self-start" disabled={props.gonderiliyor} onClick={() => props.onTekrar(e.kimlik)}>
               Tekrar dene
             </button>
           )}
           {e.durum !== "yukleniyor" && (
             <button
               type="button"
-              className="absolute top-1 right-1 rounded-full bg-white/90 p-0.5 shadow"
+              className="dugme-ikon absolute top-1 right-1 !size-7 rounded-full bg-white/90 ring-1 ring-kenar"
               aria-label={`Kaldır: ${e.dosya.name}`}
               onClick={() => props.onKaldir(e.kimlik)}
             >

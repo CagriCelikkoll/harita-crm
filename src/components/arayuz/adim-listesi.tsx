@@ -23,14 +23,14 @@ function Isaret({ durum, no }: { durum: KurulumAdimDurumu; no: number }) {
   }
   if (durum === "kilitli") {
     return (
-      <span className={`${ortak} bg-[#eef0ec] text-soluk`}>
-        <Simge ad="kilit" boyut={13} kalinlik={2.5} />
+      <span className={`${ortak} bg-notr-acik text-soluk`}>
+        <Simge ad="kilit" boyut={14} kalinlik={2.5} />
       </span>
     );
   }
   return (
     <span
-      className={`${ortak} border-2 text-[13px] font-bold ${durum === "etkin" ? "border-ana text-ana" : "border-kenar-alan text-soluk"}`}
+      className={`${ortak} border-2 text-ufak font-semibold ${durum === "etkin" ? "border-ana text-ana" : "border-kenar-alan text-soluk"}`}
     >
       {no}
     </span>
@@ -47,7 +47,7 @@ export function AdimListesi({ adimlar }: { adimlar: Adim[] }) {
             <p className={`font-semibold ${a.durum === "kilitli" || a.durum === "bekliyor" ? "text-soluk" : ""}`}>
               {a.baslik} <span className="sr-only">({DURUM_METNI[a.durum]})</span>
             </p>
-            <div className="text-[13px] text-soluk">{a.aciklama}</div>
+            <div className="text-ufak text-soluk">{a.aciklama}</div>
           </div>
           {a.eylem && <div className="flex flex-wrap gap-2">{a.eylem}</div>}
         </li>

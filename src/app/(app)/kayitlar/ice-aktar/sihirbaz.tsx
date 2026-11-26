@@ -2,6 +2,7 @@
 // İçe aktarma sihirbazı: 1) dosya, 2) sütun eşleme ve seçenekler, 3) önizleme raporu, 4) onay ve sonuç.
 // Doğrulama ve sayılar sunucudan gelir; beyan onayı ve ret onayı sunucuda da zorunludur. Alıcı türünün varsayılanı
 // yoktur: sütun eşlenmemişse tüm dosya için seçilmeden önizlenemez.
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { apiIstek } from "@/lib/api-istemci";
@@ -213,7 +214,7 @@ export function IceAktarmaSihirbazi() {
           onChange={(e) => e.target.files?.[0] && dosyaYukle(e.target.files[0])}
           className="block text-sm"
         />
-        {mesgul && <p className="text-sm text-soluk">Dosya okunuyor…</p>}
+        {mesgul && <DonerGosterge etiket="Dosya okunuyor…" />}
         {hata && (
           <p role="alert" className="text-sm text-tehlike">
             {hata}
@@ -435,7 +436,7 @@ export function IceAktarmaSihirbazi() {
       </section>
 
       {hata && (
-        <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-tehlike">
+        <p role="alert" className="rounded-md bg-tehlike-acik p-3 text-sm text-tehlike">
           {hata}
         </p>
       )}
@@ -498,13 +499,13 @@ export function IceAktarmaSihirbazi() {
           )}
 
           {rapor.beyanGerekli && (
-            <label className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm">
+            <label className="flex items-start gap-2 rounded-md bg-uyari-acik p-3 text-sm">
               <input type="checkbox" className="mt-1" checked={beyan} onChange={(e) => setBeyan(e.target.checked)} />
               <span>{IZIN_BEYANI_METNI}</span>
             </label>
           )}
           {rapor.retli > 0 && (
-            <label className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm">
+            <label className="flex items-start gap-2 rounded-md bg-tehlike-acik p-3 text-sm">
               <input type="checkbox" className="mt-1" checked={retOnayi} onChange={(e) => setRetOnayi(e.target.checked)} />
               <span>
                 Dosyada ret işaretli {sayi(rapor.retli)} kişi var. {RET_ONAY_METNI}

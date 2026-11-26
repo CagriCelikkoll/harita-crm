@@ -120,12 +120,12 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
       </p>
 
       {donus && (
-        <p role="alert" className="mb-3 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+        <p role="alert" className="mb-3 rounded-md bg-uyari-acik p-2 text-sm text-uyari">
           {donus}
         </p>
       )}
       {veri && !veri.sablonVar && (
-        <p role="alert" className="mb-3 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+        <p role="alert" className="mb-3 rounded-md bg-uyari-acik p-2 text-sm text-uyari">
           Önce <Link href="/ayarlar/whatsapp-listesi" className="underline">Ayarlar</Link>&apos;da WhatsApp mesaj şablonunu tanımlayın.
         </p>
       )}
@@ -199,7 +199,7 @@ export function WhatsappListesi({ etiketler, donus }: { etiketler: string[]; don
       {siradaki && (
         <div className="mb-4 rounded-lg border border-ana/30 bg-ana-acik/40 p-4" aria-live="polite">
           <p className="text-xs font-medium text-soluk">Sıradaki işletme</p>
-          <p className={siradaki.isletmeAdi || !siradaki.google ? "text-lg font-semibold" : "text-lg text-soluk italic"}>
+          <p className={siradaki.isletmeAdi || !siradaki.google ? "text-xl font-semibold" : "text-xl text-soluk"}>
             {siradaki.isletmeAdi ?? (siradaki.google ? GOOGLE_ADSIZ : "İşletme adı girilmemiş")}
           </p>
           {!siradaki.isletmeAdi && siradaki.google && (

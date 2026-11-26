@@ -17,7 +17,8 @@ export const metadata: Metadata = { title: "Bölge tara" };
 const tek = (d: string | string[] | undefined) => (Array.isArray(d) ? d[0] : d);
 
 // Bölge tara: form + harita, altında seçili taramanın (?tarama=, yoksa en son sonuç bulan tarama) sonuçları.
-// Bu sunucu sayfası Places'a gitmez; kartlardaki ad, adres ve konum istemcide %80'e kadar otomatik gelir.
+// Bu sunucu sayfası da sonuç kartları da Places'a kendiliğinden gitmez: adı girilmemiş kayıtta yer tutucu ve
+// "Google'dan getir" (yalnızca o kayıt için, kullanıcı isteyince; sonuc-izgarasi.tsx).
 export default async function TaramaSayfasi({ searchParams }: PageProps<"/tarama">) {
   const { ctx } = await sayfaBaglami();
   const p = await searchParams;
@@ -81,7 +82,6 @@ export default async function TaramaSayfasi({ searchParams }: PageProps<"/tarama
             karar={karar}
             kararBaglantisi={Object.fromEntries(TARAMA_KARARLARI.map((k) => [k, baglanti(k)])) as Record<TaramaKarari, string>}
             sayfalama={{ sayfa: sonuc.sayfa, sayfaSayisi: sonuc.sayfaSayisi, toplam: sonuc.toplam, boyut: sonuc.boyut, taban: baglanti(karar) }}
-            otomatik={!kota.uyari && !kota.doldu}
           />
         )}
       </TaramaPaneli>

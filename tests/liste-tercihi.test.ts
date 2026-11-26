@@ -94,8 +94,9 @@ describe("açılır menü: dışarı tıklama ve Esc ile kapanma", () => {
       expect(oku(d), d).toMatch(/useDisariTiklama\(/);
     }
     for (const d of ["src/app/(app)/kayitlar/toplu-islem.tsx", "src/components/ret-onayi.tsx", "src/app/(app)/ayarlar/mesajlasma-ayarlari.tsx"]) {
-      expect(oku(d), d).toContain("onClick={pencereDisinaTiklaninca}");
+      expect(oku(d), d).toContain("<Diyalog");
     }
+    expect(oku("src/components/arayuz/diyalog.tsx")).toContain("onClick={pencereDisinaTiklaninca}");
     // Kapanan Filtreler panelinin içeriği DOM'da kalır (uygulanmamış seçim kaybolmaz, uygulanmaz).
     const panel = oku("src/components/arayuz/acilir-panel.tsx");
     expect(panel).toContain("hidden={!acik}");

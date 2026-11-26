@@ -118,7 +118,7 @@ export function AcilirPanel(props: { dugme: ReactNode; panelSinifi: string; chil
         {degisti && (
           <p className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-uyari-acik px-3 py-2 text-xs text-uyari" role="status">
             Uygulanmamış değişiklik var: listeye yansıması için &quot;Uygula&quot;ya basın.
-            <button type="button" className="font-semibold underline" onClick={geriAl}>
+            <button type="button" className="dugme-metin !text-uyari" onClick={geriAl}>
               Geri al
             </button>
           </p>

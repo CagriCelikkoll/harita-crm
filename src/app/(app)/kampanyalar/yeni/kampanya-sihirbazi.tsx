@@ -11,6 +11,7 @@
 // - Son adımın gövdesi bugünkü oluşturma API'siyle aynıdır; alıcı kuralları ve doğrulama sunucuda uygulanır.
 // - WhatsApp (API): onaylı şablon + değişken eşleme; özet test modunu, Meta limitinin payını ve tahmini Meta ücretini
 //   (yalnızca yönetici) gösterir.
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -225,11 +226,11 @@ export function KampanyaSihirbazi(props: {
             <li key={a.no} className="relative flex shrink-0 items-center gap-1.5" aria-current={durumu === "etkin" ? "step" : undefined}>
               {i > 0 && <span aria-hidden="true" className="h-px w-3 bg-kenar-alan sm:w-5" />}
               <span
-                className={`flex size-6 items-center justify-center rounded-full text-xs font-bold ${
+                className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
                   durumu === "tamam" ? "bg-ana text-white" : durumu === "etkin" ? "border-2 border-ana text-ana" : "border-2 border-kenar-alan text-soluk"
                 }`}
               >
-                {durumu === "tamam" ? <Simge ad="tik" boyut={12} kalinlik={3} /> : a.no}
+                {durumu === "tamam" ? <Simge ad="tik" boyut={14} kalinlik={3} /> : a.no}
               </span>
               <span
                 className={`whitespace-nowrap ${durumu === "bekliyor" ? "text-soluk" : "font-semibold"} ${durumu === "etkin" ? "" : "max-sm:sr-only"}`}
@@ -242,10 +243,10 @@ export function KampanyaSihirbazi(props: {
       </ol>
 
       <div className={onizlemeVar ? "flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6" : "flex flex-col gap-4"}>
-        <section className="min-w-0 rounded-kart border border-kenar bg-white" aria-labelledby="adim-baslik">
+        <section className="kart-cerceve min-w-0" aria-labelledby="adim-baslik">
           <div className="flex flex-col gap-5 p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="adim-baslik" className="text-xl font-bold">
+              <h2 id="adim-baslik" className="text-xl font-semibold">
                 {adim === 1 ? "Hangi kanaldan göndereceksiniz?" : adim === 2 ? "Kimlere gidecek?" : adim === 3 ? "Mesaj" : "Gözden geçir ve gönder"}
               </h2>
               {adim === 2 && kanal && (
@@ -269,15 +270,15 @@ export function KampanyaSihirbazi(props: {
                         setAliciOzeti(null);
                       }}
                       className={`flex flex-col items-start gap-2 rounded-kart border p-5 text-left ${
-                        secili ? "border-2 border-ana bg-ana-acik/40" : "border-kenar hover:bg-kart-alt"
+                        secili ? "border-2 border-ana bg-ana-acik/40" : "border-kenar hover:bg-uzerine-gelme active:bg-basili"
                       }`}
                     >
                       <span className="flex w-full items-center justify-between gap-2">
-                        <span className="text-base font-bold">{KANAL_ADLARI[k]}</span>
+                        <span className="text-base font-semibold">{KANAL_ADLARI[k]}</span>
                         <DurumRozeti ton={bagli ? "ana" : "notr"}>{bagli ? "Bağlı" : "Bağlı değil"}</DurumRozeti>
                       </span>
-                      <span className="text-[13px] text-soluk">{KANAL_ACIKLAMASI[k]}</span>
-                      {!bagli && <span className="text-[13px] text-uyari">Bağlanana kadar test modunda gönderilir (gerçek gönderim yapılmaz).</span>}
+                      <span className="text-ufak text-soluk">{KANAL_ACIKLAMASI[k]}</span>
+                      {!bagli && <span className="text-ufak text-uyari">Bağlanana kadar test modunda gönderilir (gerçek gönderim yapılmaz).</span>}
                     </button>
                   );
                 })}
@@ -299,7 +300,7 @@ export function KampanyaSihirbazi(props: {
                             setEslem({});
                           }}
                           className={`flex flex-col items-start gap-1 rounded-kart border px-4 py-3 text-left ${
-                            baglantiId === n.id ? "border-2 border-ana bg-ana-acik/40" : "border-kenar hover:bg-kart-alt"
+                            baglantiId === n.id ? "border-2 border-ana bg-ana-acik/40" : "border-kenar hover:bg-uzerine-gelme active:bg-basili"
                           }`}
                         >
                           <span className="font-semibold">{n.etiket}</span>
@@ -315,7 +316,7 @@ export function KampanyaSihirbazi(props: {
                   </div>
                 )}
                 {kanal && !saglayiciTanimli(kanal) && (
-                  <p className="text-[13px] text-soluk sm:col-span-3">
+                  <p className="text-ufak text-soluk sm:col-span-3">
                     <Link href={KANAL_AYARI[kanal]} className="text-ana underline">
                       {KANAL_ADLARI[kanal]} bağlantısını Ayarlar&apos;da kurun
                     </Link>
@@ -364,7 +365,7 @@ export function KampanyaSihirbazi(props: {
                   <HaricListesi satirlar={haricSatirlari(kanal, aliciOzeti.haricler).sifirdanBuyuk} />
                 )}
                 {wa && (
-                  <p className="text-[13px] text-soluk">
+                  <p className="text-ufak text-soluk">
                     WhatsApp&apos;ta gönderilecek kişi sayısı şablonun değişkenlerine ve WhatsApp izinlerine de bağlıdır; son adımda kesinleşir.
                   </p>
                 )}
@@ -494,7 +495,7 @@ export function KampanyaSihirbazi(props: {
       <div
         role="region"
         aria-label="Sihirbaz düğmeleri"
-        className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-t-kart border border-kenar bg-white/95 px-5 py-3 shadow-[0_-4px_14px_rgba(23,32,28,0.07)] backdrop-blur"
+        className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-t-kart border border-kenar bg-white/95 px-5 py-3 backdrop-blur"
       >
         {adim > 1 ? (
           <button type="button" className="dugme" disabled={mesgul} onClick={() => git((adim - 1) as AdimNo)}>
@@ -505,7 +506,7 @@ export function KampanyaSihirbazi(props: {
             Vazgeç
           </Link>
         )}
-        <div className="min-w-0 flex-1 text-[13px] max-sm:order-first max-sm:basis-full">
+        <div className="min-w-0 flex-1 text-ufak max-sm:order-first max-sm:basis-full">
           {hata ? (
             <p role="alert" className="text-tehlike">
               {hata}
@@ -556,11 +557,14 @@ function SecimGrubu(props: { id: string; baslik: string; children: ReactNode }) 
 function AliciRozeti(props: { wa: boolean; ozet: AliciOzeti | null; hata: string | null }) {
   const { ozet } = props;
   return (
-    <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 rounded-full bg-ana-acik px-3 py-1 text-[13px] font-semibold text-ana-koyu tabular-nums">
+    <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 rounded-full bg-ana-acik px-3 py-1 text-ufak font-semibold text-ana-koyu tabular-nums">
       {props.hata && !ozet ? (
         <span className="font-normal text-tehlike">{props.hata}</span>
       ) : !ozet ? (
-        <span className="font-normal">Hesaplanıyor…</span>
+        <span className="inline-flex items-center gap-1.5 font-normal">
+          <DonerGosterge boyut={14} />
+          Hesaplanıyor…
+        </span>
       ) : props.wa ? (
         <>≈ {sayiYaz(ozet.toplamAday)} kayıt filtreye uyuyor</>
       ) : (
@@ -574,9 +578,9 @@ function AliciRozeti(props: { wa: boolean; ozet: AliciOzeti | null; hata: string
 }
 
 function HaricListesi({ satirlar }: { satirlar: { neden: HaricNedeni; ad: string; n: number }[] }) {
-  if (satirlar.length === 0) return <p className="text-[13px] text-soluk">Hariç tutulan kayıt yok.</p>;
+  if (satirlar.length === 0) return <p className="text-ufak text-soluk">Hariç tutulan kayıt yok.</p>;
   return (
-    <ul aria-label="Hariç tutma nedenleri" className="flex flex-wrap gap-1.5 text-[13px]">
+    <ul aria-label="Hariç tutma nedenleri" className="flex flex-wrap gap-1.5 text-ufak">
       {satirlar.map((s) => (
         <li key={s.neden} className="rounded-full bg-ic-kutu px-2.5 py-0.5">
           {s.ad}: <strong className="tabular-nums">{sayiYaz(s.n)}</strong>
@@ -589,9 +593,9 @@ function HaricListesi({ satirlar }: { satirlar: { neden: HaricNedeni; ad: string
 /** Gönder adımının büyük sayı kartı. */
 function SayiKarti(props: { baslik: string; deger: string; children?: ReactNode; ton?: "ana" }) {
   return (
-    <div className={`flex min-w-0 flex-col rounded-[10px] px-4 py-3 ${props.ton === "ana" ? "bg-ana-acik" : "bg-ic-kutu"}`}>
-      <dt className="text-[13px] text-soluk">{props.baslik}</dt>
-      <dd className="text-2xl font-bold tabular-nums">{props.deger}</dd>
+    <div className={`flex min-w-0 flex-col rounded-xl px-4 py-3 ${props.ton === "ana" ? "bg-ana-acik" : "bg-ic-kutu"}`}>
+      <dt className="text-ufak text-soluk">{props.baslik}</dt>
+      <dd className="text-baslik font-semibold tabular-nums">{props.deger}</dd>
       {props.children && <dd className="mt-0.5 text-xs text-soluk">{props.children}</dd>}
     </div>
   );
@@ -642,7 +646,7 @@ function GonderAdimi(props: {
         </p>
       )}
 
-      <dl aria-label="Gönderim bilgileri" className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-[10px] border border-kenar px-4 py-2.5 text-[13px]">
+      <dl aria-label="Gönderim bilgileri" className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-kenar px-4 py-2.5 text-ufak">
         <BilgiOgesi ad="Kanal">{KANAL_ADLARI[ozet.kanal]}</BilgiOgesi>
         {w && (
           <>
@@ -661,7 +665,7 @@ function GonderAdimi(props: {
           {ozet.iysKontrolu ? (
             "Kontrol açık"
           ) : (
-            <span role="note" className="rounded bg-amber-50 px-1.5 font-medium text-amber-800">
+            <span role="note" className="rounded-md bg-uyari-acik px-1.5 font-medium text-uyari">
               {IYS_KAPALI_UYARISI}
             </span>
           )}
@@ -674,7 +678,7 @@ function GonderAdimi(props: {
         </p>
       )}
       {w && !ozet.sandbox && w.testModu && (
-        <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+        <p className="rounded-md bg-uyari-acik p-2 text-sm text-uyari">
           Bu numaranın test modu açık: kampanya yalnızca bu numaranın Ayarlar&apos;daki test numaralarına gider; diğer alıcılar &quot;test modu&quot;
           nedeniyle hariç tutuldu. Bu kampanyada gönderen bilgileri ve İYS numarası aranmaz.
         </p>
@@ -694,7 +698,7 @@ function GonderAdimi(props: {
         <p className="text-sm font-semibold">Hariç tutma nedenleri</p>
         <HaricListesi satirlar={nedenler.sifirdanBuyuk} />
         <details className="text-sm">
-          <summary className="cursor-pointer text-[13px] text-ana">Tüm nedenleri göster</summary>
+          <summary className="cursor-pointer text-ufak text-ana">Tüm nedenleri göster</summary>
           <table className="mt-1 w-full">
             <caption className="sr-only">
               Hariç tutulanlar ({sayiYaz(haric)} / {sayiYaz(ozet.toplamAday)} kayıt)
@@ -712,7 +716,7 @@ function GonderAdimi(props: {
       </div>
 
       {ozet.kanal === "sms" && (
-        <div className="rounded-[10px] border border-kenar p-4 text-sm">
+        <div className="rounded-xl border border-kenar p-4 text-sm">
           <p>
             Telefonu kayıtta olmayan, gönderim anında Google&apos;dan alınacak:{" "}
             <strong className="tabular-nums">{sayiYaz(ozet.placesTelefonGerekli)}</strong> kayıt
@@ -813,7 +817,7 @@ function SmsSayaci({ metin, altbilgi }: { metin: string; altbilgi: string }) {
     <div className="rounded-md bg-zemin p-2 text-xs" aria-live="polite">
       <p>
         <strong className="tabular-nums">{u.karakter}</strong> karakter ·{" "}
-        <strong className={`tabular-nums ${u.parca > 1 ? "text-amber-700" : ""}`}>{u.parca} SMS</strong> · kodlama:{" "}
+        <strong className={`tabular-nums ${u.parca > 1 ? "text-uyari" : ""}`}>{u.parca} SMS</strong> · kodlama:{" "}
         {KODLAMA_ADI[u.kodlama]} · bu parçada kalan {u.kalan}
       </p>
       <p className="mt-0.5 text-soluk">
@@ -967,20 +971,20 @@ function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: 
           // eslint-disable-next-line @next/next/no-img-element -- oturumlu API'den gelen dosya; next/image optimizasyonu kullanılmaz
           <img src={props.gorsel.adres} alt="Kampanya görseli" className="size-14 shrink-0 rounded-md border border-kenar object-cover" />
         ) : (
-          <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-md border border-dashed border-kenar-alan text-[11px] text-soluk">
+          <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-md border border-dashed border-kenar-alan text-xs text-soluk">
             Görsel
           </span>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {props.gorsel ? (
-            <p className="flex min-w-0 items-baseline gap-1 text-[13px]" aria-live="polite">
+            <p className="flex min-w-0 items-baseline gap-1 text-ufak" aria-live="polite">
               <span className="min-w-0 truncate font-medium" title={props.gorsel.dosyaAdi}>
                 {props.gorsel.dosyaAdi}
               </span>
               <span className="shrink-0 text-soluk">· {sayiYaz(Math.ceil(props.gorsel.boyut / 1024))} KB</span>
             </p>
           ) : (
-            <p className="text-[13px] text-soluk">{yukleniyor ? "Yükleniyor…" : "Henüz görsel yüklenmedi."}</p>
+            <p className="text-ufak text-soluk">{yukleniyor ? <DonerGosterge boyut={14} etiket="Yükleniyor…" /> : "Henüz görsel yüklenmedi."}</p>
           )}
           <div className="flex flex-wrap items-center gap-2">
             {/* relative: sr-only giriş kabın dışına taşmasın. */}
@@ -998,7 +1002,7 @@ function GorselYukleme(props: { gorsel: KampanyaGorselDto | null; onGorsel: (g: 
               />
             </label>
             {props.gorsel && (
-              <button type="button" className="text-[13px] text-tehlike underline" onClick={() => props.onGorsel(null)}>
+              <button type="button" className="dugme-metin text-ufak !text-tehlike" onClick={() => props.onGorsel(null)}>
                 Kaldır
               </button>
             )}

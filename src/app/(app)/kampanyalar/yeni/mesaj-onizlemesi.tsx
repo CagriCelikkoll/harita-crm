@@ -55,7 +55,7 @@ function Telefon(props: { ust: string; children: ReactNode; etiket: string; acik
         <span className="truncate text-sm font-semibold">{props.ust}</span>
       </div>
       <div className="flex min-h-48 flex-col gap-1.5 p-3">{props.children}</div>
-      <figcaption className="bg-white/70 px-3 py-1.5 text-center text-[11px] text-soluk">
+      <figcaption className="bg-white/70 px-3 py-1.5 text-center text-xs text-soluk">
         {props.aciklama}
         {props.ek}
       </figcaption>
@@ -75,7 +75,7 @@ export function WhatsappOnizlemesi(props: {
   if (!sablon) {
     return (
       <Telefon ust={props.numara || "WhatsApp"} etiket="WhatsApp önizlemesi" aciklama="Şablon seçilmedi">
-        <p className="m-auto max-w-[220px] text-center text-[13px] text-soluk">Mesaj adımında şablon seçince önizleme burada görünür.</p>
+        <p className="m-auto max-w-[220px] text-center text-ufak text-soluk">Mesaj adımında şablon seçince önizleme burada görünür.</p>
       </Telefon>
     );
   }
@@ -83,7 +83,7 @@ export function WhatsappOnizlemesi(props: {
   const butonlar = sablonButonlari(sablon);
   return (
     <Telefon ust={props.numara || "WhatsApp"} etiket="WhatsApp önizlemesi" aciklama="Örnek değerlerle; değişkenler vurgulu" ek={<YedekDegerler sablon={sablon} eslem={props.eslem} />}>
-      <div className="max-w-[92%] self-start overflow-hidden rounded-lg rounded-tl-none bg-white text-[13px] text-[#111b21] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
+      <div className="max-w-[92%] self-start overflow-hidden rounded-lg rounded-tl-none bg-white text-ufak text-[#111b21] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
         {bolumler.map((b, i) =>
           b.tur === "gorsel" ? (
             props.gorselAdresi ? (
@@ -105,7 +105,7 @@ export function WhatsappOnizlemesi(props: {
                 ) : (
                   <mark
                     key={j}
-                    className="rounded bg-amber-100 px-0.5 text-amber-900"
+                    className="rounded-md bg-uyari-acik px-0.5 text-uyari"
                     title={DEGISKEN_KAYNAK_ADLARI[props.eslem[degiskenAnahtari(x.degisken)]?.kaynak ?? "isletme_adi"]}
                   >
                     {ornekDeger(props.eslem[degiskenAnahtari(x.degisken)])}
@@ -115,12 +115,12 @@ export function WhatsappOnizlemesi(props: {
             </p>
           ),
         )}
-        <p className="px-2.5 pt-0.5 pb-1.5 text-right text-[11px] text-[#667781]">09:41</p>
+        <p className="px-2.5 pt-0.5 pb-1.5 text-right text-xs text-[#667781]">09:41</p>
       </div>
       {butonlar.length > 0 && (
         <ul aria-label="Şablon butonları" className="flex max-w-[92%] flex-col gap-1">
           {butonlar.map((b, i) => (
-            <li key={i} className="rounded-lg bg-white py-2 text-center text-[13px] font-medium text-[#008069] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
+            <li key={i} className="rounded-lg bg-white py-2 text-center text-ufak font-medium text-[#008069] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
               {b.text ?? BUTON_TURU_ADLARI[b.type] ?? b.type}
             </li>
           ))}
@@ -135,9 +135,9 @@ export function SablonAyrintilari(props: { sablon: SablonDto; eslem: DegiskenEsl
   const { sablon } = props;
   const butonlar = sablonButonlari(sablon);
   return (
-    <details className="rounded-[10px] border border-kenar bg-white text-sm">
+    <details className="rounded-xl border border-kenar bg-white text-sm">
       <summary className="cursor-pointer px-4 py-2.5 font-semibold">Şablon ayrıntıları</summary>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 border-t border-cizgi px-4 py-3 text-[13px]">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 border-t border-cizgi px-4 py-3 text-ufak">
         <dt className="text-soluk">Ad</dt>
         <dd className="break-words">{sablon.ad}</dd>
         <dt className="text-soluk">Kategori</dt>
@@ -180,7 +180,7 @@ export function SablonAyrintilari(props: { sablon: SablonDto; eslem: DegiskenEsl
       <div className="border-t border-cizgi px-4 py-3">
         <p className="mb-1 text-xs font-semibold text-soluk">Ham metin (Meta&apos;da onaylı; değiştirilemez)</p>
         {sablonParcalari(sablon.bilesenler).map((b, i) => (
-          <p key={i} className="text-[13px] whitespace-pre-wrap break-words">
+          <p key={i} className="text-ufak whitespace-pre-wrap break-words">
             <span className="mr-1 text-xs text-soluk">{BOLUM_ADLARI[b.tur]}:</span>
             {b.parcalar.map((x) => ("metin" in x ? x.metin : `{{${x.degisken.ad}}}`)).join("")}
           </p>
@@ -201,13 +201,13 @@ export function MetinOnizlemesi(props: {
 }) {
   const sms = props.kanal === "sms";
   return (
-    <figure aria-label={sms ? "SMS önizlemesi" : "E-posta önizlemesi"} className="flex flex-col gap-3 rounded-kart border border-kenar bg-white p-4 text-sm">
+    <figure aria-label={sms ? "SMS önizlemesi" : "E-posta önizlemesi"} className="kart flex flex-col gap-3 sm:!p-4 text-sm">
       <figcaption className="text-xs font-semibold text-soluk">{props.baslik}</figcaption>
       {sms ? (
         <p className="max-w-[92%] self-start rounded-2xl rounded-tl-sm bg-[#e9e9eb] px-3 py-2 whitespace-pre-wrap break-words">{props.adli || "—"}</p>
       ) : (
-        <div className="overflow-hidden rounded-[10px] border border-kenar">
-          <p className="border-b border-cizgi bg-kart-alt px-3 py-2 text-[13px]">
+        <div className="overflow-hidden rounded-xl border border-kenar">
+          <p className="border-b border-cizgi bg-kart-alt px-3 py-2 text-ufak">
             <span className="text-soluk">Konu:</span> <span className="font-semibold">{props.konu || "—"}</span>
           </p>
           <p className="px-3 py-2.5 whitespace-pre-wrap break-words">{props.adli || "—"}</p>
@@ -216,7 +216,7 @@ export function MetinOnizlemesi(props: {
       {props.adsiz !== null && (
         <div className="border-t border-cizgi pt-2">
           <p className="mb-1 text-xs font-semibold text-soluk">İşletme adı girilmemiş kayıtta</p>
-          <p className="text-[13px] whitespace-pre-wrap break-words text-metin-ikincil">{props.adsiz || "—"}</p>
+          <p className="text-ufak whitespace-pre-wrap break-words text-metin-ikincil">{props.adsiz || "—"}</p>
         </div>
       )}
     </figure>

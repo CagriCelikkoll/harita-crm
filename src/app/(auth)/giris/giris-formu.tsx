@@ -1,4 +1,5 @@
 "use client";
+import { Dugme } from "@/components/arayuz/dugme";
 import { useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authIstemci } from "@/lib/auth-istemci";
@@ -56,7 +57,7 @@ export function GirisFormu() {
               setMod(m);
               setHata(null);
             }}
-            className={`rounded px-3 py-1.5 text-sm font-medium ${mod === m ? "bg-white text-ana shadow-sm" : "text-soluk"}`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${mod === m ? "bg-white text-ana ring-1 ring-kenar" : "text-soluk"}`}
           >
             {m === "giris" ? "Giriş yap" : "Kayıt ol"}
           </button>
@@ -91,9 +92,9 @@ export function GirisFormu() {
             {hata}
           </p>
         )}
-        <button type="submit" className="dugme-ana mt-1" disabled={bekliyor || !hazir}>
-          {!hazir ? "Yükleniyor…" : bekliyor ? "Lütfen bekleyin…" : mod === "giris" ? "Giriş yap" : "Hesap oluştur"}
-        </button>
+        <Dugme type="submit" tur="ana" className="mt-1" yukleniyor={bekliyor || !hazir}>
+          {mod === "giris" ? "Giriş yap" : "Hesap oluştur"}
+        </Dugme>
       </form>
     </div>
   );

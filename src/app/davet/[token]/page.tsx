@@ -22,7 +22,7 @@ export default async function DavetSayfasi({ params }: PageProps<"/davet/[token]
           <p className="text-sm">Bu davet geçersiz, kullanılmış veya süresi dolmuş. Yöneticinizden yeni davet isteyin.</p>
         ) : (
           <>
-            <h1 className="text-lg font-semibold">{davet.tenantAd}</h1>
+            <h1 className="text-xl font-semibold">{davet.tenantAd}</h1>
             <p className="mt-1 mb-4 text-sm text-soluk">
               <strong>{davet.eposta}</strong> adresi bu çalışma alanına <strong>{ROL_ADLARI[davet.rol]}</strong> olarak
               davet edildi.

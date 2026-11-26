@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { RENK } from "@/lib/renk-belirtecleri";
 import "./globals.css";
 
 const plex = IBM_Plex_Sans({
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Harita CRM", statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { themeColor: "#0e6655" };
+export const viewport: Viewport = { themeColor: RENK.ana };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

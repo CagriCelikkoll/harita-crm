@@ -32,7 +32,7 @@ export default async function EkipSayfasi() {
               <span
                 aria-hidden="true"
                 className={`flex size-10 shrink-0 items-center justify-center rounded-full font-semibold ${
-                  u.rol === "yonetici" ? "bg-ana-acik text-ana-koyu" : "bg-[#eef0ec] text-metin-ikincil"
+                  u.rol === "yonetici" ? "bg-ana-acik text-ana-koyu" : "bg-notr-acik text-metin-ikincil"
                 }`}
               >
                 {basHarfler(u.ad)}
@@ -41,7 +41,7 @@ export default async function EkipSayfasi() {
                 <p className="truncate font-semibold">
                   {u.ad} {u.userId === ctx.userId && <span className="font-normal text-soluk">(siz)</span>}
                 </p>
-                <p className="truncate text-[13px] text-soluk">{u.eposta}</p>
+                <p className="truncate text-ufak text-soluk">{u.eposta}</p>
               </div>
               <DurumRozeti ton={u.rol === "yonetici" ? "ana" : "notr"}>{ROL_ADLARI[u.rol]}</DurumRozeti>
               {yonetici && u.userId !== ctx.userId && <UyeCikarFormu userId={u.userId} ad={u.ad} />}
@@ -59,7 +59,7 @@ export default async function EkipSayfasi() {
                 </span>
                 <div className="min-w-0 flex-[1_1_200px]">
                   <p className="truncate font-semibold">{d.eposta}</p>
-                  <p className="text-[13px] text-soluk">
+                  <p className="text-ufak text-soluk">
                     Davet gönderildi · {ROL_ADLARI[d.rol]} · son geçerlilik {tarihYaz(d.sonGecerlilik)}
                   </p>
                 </div>
@@ -81,12 +81,12 @@ export default async function EkipSayfasi() {
           <DavetFormu />
         </Kart>
       ) : (
-        <p className="text-[13px] text-soluk">Kişi davet etmek için yönetici yetkisi gerekir.</p>
+        <p className="text-ufak text-soluk">Kişi davet etmek için yönetici yetkisi gerekir.</p>
       )}
 
       <div className="flex flex-wrap gap-4">
         {(["yonetici", "uye"] as const).map((r) => (
-          <div key={r} className="min-w-0 flex-[1_1_260px] rounded-kart border border-kenar bg-white px-6 py-5">
+          <div key={r} className="kart min-w-0 flex-[1_1_260px]">
             <KartBaslikSade baslik={ROL_ADLARI[r]} aciklama={ROL_ACIKLAMALARI[r]} />
           </div>
         ))}
@@ -99,7 +99,7 @@ function KartBaslikSade(props: { baslik: string; aciklama: string }) {
   return (
     <>
       <p className="mb-1.5 font-semibold">{props.baslik}</p>
-      <p className="text-[13px] text-soluk">{props.aciklama}</p>
+      <p className="text-ufak text-soluk">{props.aciklama}</p>
     </>
   );
 }

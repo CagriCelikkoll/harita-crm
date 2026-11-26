@@ -382,7 +382,7 @@ describe("Bölge tara: sonuçlar (Grup 5)", () => {
     }
   });
 
-  it("ekran: form + harita, kategori çipleri, süre bilgisi; kartlarda İlgilen / Geç / Geri al; otomatik ad; eski adres yönlenir", () => {
+  it("ekran: form + harita, kategori çipleri, süre bilgisi; kartlarda İlgilen / Geç / Geri al; Google bilgisi yalnızca istenince; eski adres yönlenir", () => {
     const panel = oku("src/app/(app)/tarama/tarama-paneli.tsx");
     expect(panel).toContain("<SecimCipi");
     expect(panel).toContain("Tarama birkaç dakika sürebilir");
@@ -391,13 +391,17 @@ describe("Bölge tara: sonuçlar (Grup 5)", () => {
     expect(panel).toContain("router.push(`/tarama?tarama=${t.id}`, { scroll: false })");
     const izgara = oku("src/app/(app)/tarama/sonuc-izgarasi.tsx");
     for (const m of [">\n                      İlgilen", ">\n                      Geç", "Geri al", "Bu sayfadakileri geç", "<Sayfalama"]) expect(izgara).toContain(m);
-    expect(izgara).toContain("otomatikIdler: props.otomatik ? props.satirlar.filter((s) => !s.isletmeAdi)");
+    // Liste Google'dan kendiliğinden veri çekmez; kart başına "Google'dan getir" (aylık kullanımdan düşer).
+    expect(izgara).toContain("const google = useGoogleBilgisi(props.satirlar.map((s) => s.id));");
+    expect(izgara).not.toContain("otomatikIdler");
+    expect(izgara).toMatch(/"Google'dan getir"/);
+    expect(izgara).toContain("aylık kullanımdan düşer");
     expect(izgara).toContain("mesafeMetni(props.merkez, yer.konum)");
     // İlgilen ad girme alanı açmaz (Google adı ad alanının yanında görünmez).
     expect(izgara).not.toMatch(/name="isletmeAdi"|AD_GIRME_IPUCU/);
     const sayfa = oku("src/app/(app)/tarama/page.tsx");
     expect(sayfa).not.toMatch(/canliBilgiGetir|servisler\/canli-bilgi/);
-    expect(sayfa).toContain("otomatik={!kota.uyari && !kota.doldu}");
+    expect(sayfa).not.toContain("otomatik=");
     expect(oku("src/app/(app)/tarama/inceleme/page.tsx")).toContain(
       'redirect(tarama ? `/tarama?tarama=${encodeURIComponent(tarama)}` : "/kayitlar?grup=incelenmemis")',
     );

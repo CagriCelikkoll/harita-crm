@@ -33,7 +33,7 @@ export function AyarMenusu(props: {
                   <span className="flex items-center">
                     <span
                       aria-hidden="true"
-                      className={`size-2 rounded-full ${bagli ? "bg-[#2e9e6b]" : "border-2 border-pasif"}`}
+                      className={`size-2 rounded-full ${bagli ? "bg-basari" : "border-2 border-pasif"}`}
                     />
                     <span className="sr-only">{bagli ? "bağlı" : "bağlı değil"}</span>
                   </span>

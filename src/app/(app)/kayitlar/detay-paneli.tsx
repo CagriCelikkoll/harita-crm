@@ -10,6 +10,7 @@
 //   Google'daki ad altında küçük yazıyla ("Google'daki adı: …").
 // - İşlemlerden sonra yalnızca kullanıcı verisi ve olaylar yenilenir; Places'a yeniden gidilmez,
 //   liste de yeniden çekilmez (maliyet).
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { useCallback, useEffect, useState } from "react";
 import { bildir, SonucMesaji } from "@/components/bildirim";
 import { DurumRozeti, IZIN_TONU } from "@/components/arayuz/rozet";
@@ -67,7 +68,7 @@ const PANEL_SEKMELERI: { deger: PanelSekmesi; ad: string }[] = [
   { deger: "izin", ad: "İletişim izni" },
   { deger: "gecmis", ad: "Geçmiş" },
 ];
-const PANEL = "overflow-hidden rounded-kart border border-kenar bg-white max-xl:rounded-none max-xl:border-0 max-xl:min-h-full";
+const PANEL = "kart-cerceve max-xl:rounded-none max-xl:border-0 max-xl:min-h-full";
 
 /** Başarılı detay sonucu bellek önbelleğine; ad, adres ve konum liste önbelleğine de (aynı kayıt listede yeniden istenmez). */
 function onbellegeYaz(id: string, c: CanliSonuc) {
@@ -188,8 +189,20 @@ export function DetayPaneli(props: {
 
   if (yukleniyor) {
     return (
-      <aside className={`${PANEL} p-6 text-sm text-soluk`} aria-busy="true" aria-label="Kayıt ayrıntıları">
-        Yükleniyor…
+      <aside className={`${PANEL} flex flex-col gap-4 p-6`} aria-busy="true" aria-label="Kayıt ayrıntıları">
+        <DonerGosterge etiket="Yükleniyor…" />
+        {/* İskelet: başlık, düğmeler, sekmeler, alanlar */}
+        <div aria-hidden="true" className="flex animate-pulse flex-col gap-3 motion-reduce:animate-none">
+          <div className="h-5 w-2/3 rounded-md bg-ilerleme-zemin" />
+          <div className="h-3 w-1/3 rounded-md bg-ilerleme-zemin" />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="h-10 rounded-lg bg-ilerleme-zemin" />
+            <div className="h-10 rounded-lg bg-ilerleme-zemin" />
+          </div>
+          <div className="mt-2 h-10 rounded-lg bg-ilerleme-zemin" />
+          <div className="h-10 rounded-lg bg-ilerleme-zemin" />
+          <div className="h-10 rounded-lg bg-ilerleme-zemin" />
+        </div>
       </aside>
     );
   }
@@ -225,11 +238,11 @@ export function DetayPaneli(props: {
     <aside className={`${PANEL} flex flex-col xl:sticky xl:top-5`} aria-label="Kayıt ayrıntıları" id="kayit-detayi">
       <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className={`text-xl font-bold ${kayitliAdVar ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
-          {googleAdi && <span className="text-[13px] text-metin-ikincil">Google&apos;daki adı: {googleAdi}</span>}
-          <span className="text-[13px] text-soluk">{altBaslik}</span>
+          <h2 className={`text-xl font-semibold ${kayitliAdVar ? "" : "text-metin-ikincil"}`}>{baslik}</h2>
+          {googleAdi && <span className="text-ufak text-metin-ikincil">Google&apos;daki adı: {googleAdi}</span>}
+          <span className="text-ufak text-soluk">{altBaslik}</span>
           {veri.engelli && kayit.iletiIzni !== "ret" && (
-            <p className="mt-1 text-[13px] text-tehlike">
+            <p className="mt-1 text-ufak text-tehlike">
               <DurumRozeti ton="tehlike">Engelli</DurumRozeti> Bu kişinin adreslerinden biri engel listesinde (daha önce
               ret verilmiş); hiçbir kanaldan ileti gönderilmez.
             </p>
@@ -238,7 +251,7 @@ export function DetayPaneli(props: {
         <button
           type="button"
           aria-label="Ayrıntıları kapat"
-          className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-kenar bg-white hover:bg-zemin"
+          className="dugme-ikon border border-kenar bg-white"
           onClick={props.onKapat}
         >
           <Simge ad="kapat" boyut={16} />
@@ -408,7 +421,7 @@ export function DetayPaneli(props: {
           )}
           <MesajGoster mesaj={mesaj} alan="kayitNotu" />
 
-          <div className="flex flex-col gap-2.5 rounded-[10px] bg-ic-kutu p-4 text-sm">
+          <div className="flex flex-col gap-2.5 rounded-xl bg-ic-kutu p-4 text-sm">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">İletişim bilgileri</span>
@@ -444,7 +457,7 @@ export function DetayPaneli(props: {
                 <dt className="text-soluk">Web sitesi</dt>
                 <dd className="truncate">
                   {yer.webSitesi ? (
-                    <a href={yer.webSitesi} target="_blank" rel="noopener noreferrer" className="text-ana underline">
+                    <a href={yer.webSitesi} target="_blank" rel="noopener noreferrer" className="dugme-metin">
                       {yer.webSitesi.replace(/^https?:\/\//, "")}
                     </a>
                   ) : (
@@ -489,7 +502,7 @@ export function DetayPaneli(props: {
               </p>
             )}
             {yer?.googleMapsUri && (
-              <a href={yer.googleMapsUri} target="_blank" rel="noopener noreferrer" className="text-[13px] text-ana underline">
+              <a href={yer.googleMapsUri} target="_blank" rel="noopener noreferrer" className="text-ufak text-ana underline">
                 Google Haritalar&apos;da aç
               </a>
             )}
@@ -527,7 +540,7 @@ export function DetayPaneli(props: {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cizgi py-4">
             <div>
               <p className="font-semibold">E-posta ve SMS</p>
-              <p className="text-[13px] text-soluk">Alıcı türü: {ALICI_TURU_ADLARI[kayit.aliciTuru]}</p>
+              <p className="text-ufak text-soluk">Alıcı türü: {ALICI_TURU_ADLARI[kayit.aliciTuru]}</p>
             </div>
             <DurumRozeti ton={IZIN_TONU[kayit.iletiIzni]}>
               {kayit.iletiIzni === "ret" ? retMetni : ILETI_IZNI_ADLARI[kayit.iletiIzni]}
@@ -656,7 +669,7 @@ function KayitNotu(props: { notlar: string; mesgul: boolean; onKaydet: (notlar: 
       ) : (
         <>
           <p className="whitespace-pre-wrap">{props.notlar}</p>
-          <button type="button" className="mt-1 text-xs text-ana underline" onClick={() => setDuzenle(true)}>
+          <button type="button" className="dugme-metin mt-1 text-xs" onClick={() => setDuzenle(true)}>
             Düzenle
           </button>
         </>
@@ -677,12 +690,12 @@ function NotSatiri(props: {
       <div>
         <p className="whitespace-pre-wrap">{props.olay.aciklama}</p>
         <div className="mt-1 flex gap-3 text-xs">
-          <button type="button" className="text-ana underline" onClick={() => setDuzenle(true)}>
+          <button type="button" className="dugme-metin" onClick={() => setDuzenle(true)}>
             Düzenle
           </button>
           <button
             type="button"
-            className="text-tehlike underline"
+            className="dugme-metin !text-tehlike"
             disabled={props.mesgul}
             onClick={() => confirm("Not silinsin mi?") && void props.onSil()}
           >

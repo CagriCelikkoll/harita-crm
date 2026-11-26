@@ -1,4 +1,5 @@
 "use client";
+import { Dugme } from "@/components/arayuz/dugme";
 import { useState } from "react";
 
 export function CikisButonu({ belirtec }: { belirtec: string }) {
@@ -23,9 +24,9 @@ export function CikisButonu({ belirtec }: { belirtec: string }) {
   }
   return (
     <div className="mt-4 flex flex-col gap-2">
-      <button type="button" className="dugme-ana self-start" onClick={cik} disabled={durum === "gonderiliyor"}>
-        {durum === "gonderiliyor" ? "İşleniyor…" : "Abonelikten çık"}
-      </button>
+      <Dugme tur="ana" className="self-start" onClick={cik} yukleniyor={durum === "gonderiliyor"}>
+        Abonelikten çık
+      </Dugme>
       {durum === "hata" && (
         <p role="alert" className="text-sm text-tehlike">
           İşlem tamamlanamadı. Lütfen biraz sonra tekrar deneyin.

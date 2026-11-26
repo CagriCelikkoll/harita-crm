@@ -2,9 +2,9 @@ import { TARAMA_DURUM_ADLARI, type TaramaDurumu } from "@/lib/sabitler";
 
 const RENK: Record<TaramaDurumu, string> = {
   kuyrukta: "bg-zemin text-soluk",
-  calisiyor: "bg-amber-100 text-amber-800",
+  calisiyor: "bg-uyari-acik text-uyari",
   tamamlandi: "bg-ana-acik text-ana-koyu",
-  hata: "bg-red-100 text-tehlike",
+  hata: "bg-tehlike-acik text-tehlike",
 };
 
 export function TaramaDurumuRozeti({ durum }: { durum: TaramaDurumu }) {

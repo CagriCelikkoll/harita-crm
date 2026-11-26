@@ -5,6 +5,7 @@
 // Sunucudaki Places anahtarı (GOOGLE_PLACES_API_KEY) tarayıcıya hiç gönderilmez.
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState } from "react";
+import { DURUM_ISARET_RENGI, RENK } from "@/lib/renk-belirtecleri";
 import type { KayitDurumu } from "@/lib/sabitler";
 
 const ANAHTAR = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
@@ -48,13 +49,7 @@ export function haritaYuklemesiniBildir() {
 
 export type Isaret = { kayitId: string; durum: KayitDurumu; lat: number; lng: number };
 
-const DURUM_RENGI: Record<KayitDurumu, string> = {
-  yeni: "#0e6655",
-  iletisimde: "#2563eb",
-  gorusme: "#d97706",
-  kazanildi: "#15803d",
-  ilgilenmiyor: "#6b7280",
-};
+const DURUM_RENGI = DURUM_ISARET_RENGI;
 
 export function Harita(props: {
   merkez: google.maps.LatLngLiteral;
@@ -95,9 +90,9 @@ export function Harita(props: {
           map: m,
           center: props.merkez,
           radius: props.yaricapM,
-          strokeColor: "#0e6655",
+          strokeColor: RENK.ana,
           strokeWeight: 2,
-          fillColor: "#0e6655",
+          fillColor: RENK.ana,
           fillOpacity: 0.08,
           clickable: false,
         });

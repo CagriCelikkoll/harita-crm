@@ -5,7 +5,7 @@ import { useId } from "react";
 
 export function Kart({ children, className, etiket }: { children: React.ReactNode; className?: string; etiket?: string }) {
   return (
-    <section aria-label={etiket} className={`overflow-hidden rounded-kart border border-kenar bg-white ${className ?? ""}`}>
+    <section aria-label={etiket} className={`kart-cerceve ${className ?? ""}`}>
       {children}
     </section>
   );
@@ -16,10 +16,10 @@ export function KartBaslik(props: { baslik: string; aciklama?: React.ReactNode; 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-7 py-5">
       <div className="min-w-0">
-        <h3 id={props.id} className="text-base font-bold">
+        <h3 id={props.id} className="text-base font-semibold">
           {props.baslik}
         </h3>
-        {props.aciklama && <p className="text-[13px] text-soluk">{props.aciklama}</p>}
+        {props.aciklama && <p className="text-ufak text-soluk">{props.aciklama}</p>}
       </div>
       {props.children && <div className="flex flex-wrap gap-2">{props.children}</div>}
     </div>
@@ -49,7 +49,7 @@ export function AyarSatiri(props: { baslik: string; aciklama?: React.ReactNode; 
             {props.baslik}
           </p>
         )}
-        {props.aciklama && <div className="text-[13px] text-soluk">{props.aciklama}</div>}
+        {props.aciklama && <div className="text-ufak text-soluk">{props.aciklama}</div>}
       </div>
       <div className="min-w-0 flex-[2_1_340px]" role={props.alanId ? undefined : "group"} aria-labelledby={props.alanId ? undefined : baslikId}>
         {props.children}
@@ -64,7 +64,7 @@ export function KaydetCubugu({ aciklama, children }: { aciklama?: React.ReactNod
     <div
       className={`flex flex-wrap items-center gap-3 border-t border-cizgi bg-kart-alt px-7 py-4 ${aciklama ? "justify-between" : "justify-end"}`}
     >
-      {aciklama && <span className="text-[13px] text-soluk">{aciklama}</span>}
+      {aciklama && <span className="text-ufak text-soluk">{aciklama}</span>}
       <div className="flex flex-wrap gap-3">{children}</div>
     </div>
   );
@@ -76,7 +76,7 @@ export function AyarBolumu(props: { baslik: string; aciklama: string; eylem?: Re
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="mb-1 text-xl font-bold">{props.baslik}</h2>
+          <h2 className="mb-1 text-xl font-semibold">{props.baslik}</h2>
           <p className="text-soluk">{props.aciklama}</p>
         </div>
         {props.eylem}

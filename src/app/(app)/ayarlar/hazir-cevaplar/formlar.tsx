@@ -37,7 +37,7 @@ export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () =>
     <form action={eylem} className="border-t border-cizgi">
       {props.cevap && <input type="hidden" name="id" value={props.cevap.id} />}
       <fieldset disabled={bekliyor} className="flex flex-col gap-4 px-7 py-6">
-        <label htmlFor={`${on}-baslik`} className="flex flex-col gap-1.5 text-[13px] text-soluk">
+        <label htmlFor={`${on}-baslik`} className="flex flex-col gap-1.5 text-ufak text-soluk">
           Başlık (seçerken aranır)
           <input
             id={`${on}-baslik`}
@@ -50,7 +50,7 @@ export function HazirCevapFormu(props: { cevap?: HazirCevapDto; onVazgec?: () =>
             className="girdi"
           />
         </label>
-        <label htmlFor={`${on}-metin`} className="flex flex-col gap-1.5 text-[13px] text-soluk">
+        <label htmlFor={`${on}-metin`} className="flex flex-col gap-1.5 text-ufak text-soluk">
           Metin
           <textarea
             id={`${on}-metin`}
@@ -96,7 +96,7 @@ export function HazirCevapSatiri(props: { cevap: HazirCevapDto; yonetici: boolea
     <li className="flex flex-wrap items-start gap-4 border-t border-cizgi px-7 py-[18px]">
       <div className="min-w-0 flex-[1_1_260px]">
         <p className="font-semibold break-words">{cevap.baslik}</p>
-        <p className="line-clamp-3 text-[13px] break-words whitespace-pre-wrap text-metin-ikincil">{cevap.metin}</p>
+        <p className="line-clamp-3 text-ufak break-words whitespace-pre-wrap text-metin-ikincil">{cevap.metin}</p>
       </div>
       {props.yonetici && (
         <div className="flex items-center gap-2">

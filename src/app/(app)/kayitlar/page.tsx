@@ -170,7 +170,7 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
               Filtreler{suzgecSayisi > 0 && <span className="rozet ml-1">{suzgecSayisi}</span>}
             </>
           }
-          panelSinifi="absolute right-0 z-20 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-kart border border-kenar bg-white p-5 shadow-lg"
+          panelSinifi="absolute right-0 z-20 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-kart border border-kenar bg-white p-5 shadow-yukselti"
         >
           <form key={`suzgec-${sorgu}`} method="get" className="flex flex-col gap-3">
             {gizliAlanlar(["durum", "izin", "kaynak", "wa_izin", "etiket", "etiketsiz", "wa_kampanya", "ad"])}

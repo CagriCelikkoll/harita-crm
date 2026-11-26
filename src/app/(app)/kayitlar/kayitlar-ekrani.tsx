@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { Sayfalama } from "@/components/arayuz/sayfalama";
+import { Secim } from "@/components/arayuz/secim";
 import { GoogleAtfi } from "@/components/google-atfi";
 import {
   KAYIT_SAYFA_BOYUTLARI,
@@ -145,12 +146,12 @@ export function KayitlarEkrani(props: {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start gap-6">
-        <section aria-label="Kayıt listesi" className="min-w-0 flex-[999_1_560px] overflow-hidden rounded-kart border border-kenar bg-white">
+        <section aria-label="Kayıt listesi" className="kart-cerceve min-w-0 flex-[999_1_560px]">
           {ozet && (
             <div className="border-b border-cizgi px-5 py-3">
               <BilgiNotu>
                 <span role="status">Toplu işlem tamamlandı. {ozet}</span>{" "}
-                <button type="button" className="font-medium underline" onClick={() => setOzet(null)}>
+                <button type="button" className="dugme-metin" onClick={() => setOzet(null)}>
                   Kapat
                 </button>
               </BilgiNotu>
@@ -185,12 +186,12 @@ export function KayitlarEkrani(props: {
             bosListe={props.bosListe ?? null}
             secim={props.yonetici ? { secili: seciliIdler, degistir: secimDegistir, sayfayiDegistir } : undefined}
           />
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-kart-alt px-5 py-3.5 text-[13px] text-soluk">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-kart-alt px-5 py-3.5 text-ufak text-soluk">
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="flex items-center gap-1.5">
                 Sırala
-                <select
-                  className="rounded border border-kenar bg-white px-1.5 py-0.5 text-metin"
+                <Secim
+                  boyut="kompakt"
                   value={props.sira}
                   onChange={(e) => router.push(listeAdresi({ sira: e.target.value as KayitSirasi }))}
                 >
@@ -199,12 +200,12 @@ export function KayitlarEkrani(props: {
                       {KAYIT_SIRA_ADLARI[s]}
                     </option>
                   ))}
-                </select>
+                </Secim>
               </label>
               <label className="flex items-center gap-1.5">
                 Sayfa başına
-                <select
-                  className="rounded border border-kenar bg-white px-1.5 py-0.5 text-metin"
+                <Secim
+                  boyut="kompakt"
                   value={props.boyut}
                   onChange={(e) => router.push(listeAdresi({ boyut: Number(e.target.value) as KayitSayfaBoyutu }))}
                 >
@@ -213,7 +214,7 @@ export function KayitlarEkrani(props: {
                       {b}
                     </option>
                   ))}
-                </select>
+                </Secim>
               </label>
               <span>Listede yalnızca kayıtlı bilgiler görünür; Google bilgileri bir kaydı açınca getirilir, kaydedilmez.</span>
               <GoogleAtfi />
@@ -232,7 +233,7 @@ export function KayitlarEkrani(props: {
         {secili && (
           <div
             id="detay-alani"
-            className="min-w-0 flex-[1_1_380px] xl:max-w-[460px] max-xl:fixed max-xl:inset-y-0 max-xl:right-0 max-xl:z-30 max-xl:w-full max-xl:max-w-[460px] max-xl:overflow-y-auto max-xl:shadow-2xl"
+            className="min-w-0 flex-[1_1_380px] xl:max-w-[460px] max-xl:fixed max-xl:inset-y-0 max-xl:right-0 max-xl:z-30 max-xl:w-full max-xl:max-w-[460px] max-xl:overflow-y-auto max-xl:shadow-yukselti"
           >
             <DetayPaneli
               key={secili}

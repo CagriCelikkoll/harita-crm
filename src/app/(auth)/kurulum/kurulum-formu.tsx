@@ -1,4 +1,5 @@
 "use client";
+import { Dugme } from "@/components/arayuz/dugme";
 import { useActionState } from "react";
 import { calismaAlaniOlustur } from "@/app/eylemler/oturum";
 
@@ -15,9 +16,9 @@ export function KurulumFormu() {
           {durum.hata}
         </p>
       )}
-      <button type="submit" className="dugme-ana" disabled={bekliyor}>
-        {bekliyor ? "Oluşturuluyor…" : "Oluştur"}
-      </button>
+      <Dugme type="submit" tur="ana" yukleniyor={bekliyor}>
+        Oluştur
+      </Dugme>
     </form>
   );
 }

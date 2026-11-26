@@ -1,6 +1,7 @@
 // PWA bildirimi (manifest): ana ekrana eklenince gelen kutusu açılır, tarayıcı çubuğu olmadan. iPhone'da Web Push
 // yalnızca bu şekilde (ana ekrana eklenmiş uygulamada) çalışır.
 import type { MetadataRoute } from "next";
+import { RENK } from "@/lib/renk-belirtecleri";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -13,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/gelen-kutusu",
     scope: "/",
     display: "standalone",
-    background_color: "#f5f6f4",
-    theme_color: "#0e6655",
+    background_color: RENK.zemin,
+    theme_color: RENK.ana,
     icons: [
       { src: "/icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon/512", sizes: "512x512", type: "image/png", purpose: "any" },

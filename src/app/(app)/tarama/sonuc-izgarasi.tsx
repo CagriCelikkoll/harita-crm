@@ -1,24 +1,25 @@
 "use client";
 // Bölge tara > taramanın sonuçları (docs/tasarim/Tarama.dc.html): 280 px'lik kart ızgarası, kartta Google'daki ad,
 // adres ve merkeze mesafe; İlgilen / Geç, karar sonrası etiket ve Geri al.
-// Ad, adres ve konum kullanım %80'e ulaşana kadar otomatik gelir (eşik sunucuda), sonra kartta "Göster" kalır; yalnızca
-// bellekte tutulur (components/google-bilgisi.tsx). İlgilen'e basınca ad alanı açılmaz: işletmenin adı Kayıtlar'da,
+// Kartlar Google'dan kendiliğinden veri çekmez (listeyi açmak kullanım harcamaz): adı girilmemiş kayıtta nötr yer tutucu
+// ve "Google'dan getir" (yalnızca o kayıt için; "aylık kullanımdan düşer"). Getirilen ad, adres ve konum yalnızca
+// bellekte tutulur (components/google-bilgisi.tsx); önbellekte olan kayıt istek yapmadan gösterilir. İlgilen'e basınca ad alanı açılmaz: işletmenin adı Kayıtlar'da,
 // kendi kaydınıza yazılır (Google'daki ad bu alana aktarılmaz).
+import { Dugme } from "@/components/arayuz/dugme";
 import { useState } from "react";
 import Link from "next/link";
 import { Sayfalama } from "@/components/arayuz/sayfalama";
 import { useRouter } from "next/navigation";
-import { BilgiNotu } from "@/components/arayuz/not";
 import { GoogleEtiketi } from "@/components/arayuz/rozet";
 import { SekmeGrubu } from "@/components/arayuz/sekmeler";
 import { GoogleAtfi } from "@/components/google-atfi";
 import { useGoogleBilgisi } from "@/components/google-bilgisi";
 import { apiIstek } from "@/lib/api-istemci";
 import { mesafeMetni } from "@/lib/arayuz";
+import { googleKaynakNotu } from "@/lib/google-kaynak-notu";
 import { sayiYaz } from "@/lib/bicim";
 import {
   GOOGLE_ADSIZ,
-  OTOMATIK_GOSTERIM_SINIRI_METNI,
   TARAMA_KARAR_ADLARI,
   TARAMA_KARARLARI,
   type IncelemeDurumu,
@@ -38,13 +39,12 @@ export function SonucIzgarasi(props: {
   kararBaglantisi: Record<TaramaKarari, string>;
   /** Sayfalama: sayfasız adres (?tarama=&karar=), sayfa ?sonuc= parametresinde. */
   sayfalama: { sayfa: number; sayfaSayisi: number; toplam: number; boyut: number; taban: string };
-  otomatik: boolean;
 }) {
   const router = useRouter();
-  const google = useGoogleBilgisi(
-    props.satirlar.map((s) => s.id),
-    { otomatikIdler: props.otomatik ? props.satirlar.filter((s) => !s.isletmeAdi).map((s) => s.id) : [] },
-  );
+  // Otomatik istek yok: yalnızca önbellekte olanlar hemen görünür (istek yapılmaz); gerisi "Google'dan getir" ile.
+  const google = useGoogleBilgisi(props.satirlar.map((s) => s.id));
+  // Bu ekranda kullanıcının Google'dan getirdikleri (not: "aylık kullanımdan düşer"); diğerleri önbellekten.
+  const [getirilenler, setGetirilenler] = useState<ReadonlySet<string>>(new Set());
   const [kararlar, setKararlar] = useState<Record<string, IncelemeDurumu>>(() =>
     Object.fromEntries(props.satirlar.map((s) => [s.id, s.inceleme])),
   );
@@ -66,7 +66,7 @@ export function SonucIzgarasi(props: {
     <section aria-labelledby="sonuclar-baslik" className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h2 id="sonuclar-baslik" className="text-xl font-bold">
+          <h2 id="sonuclar-baslik" className="text-xl font-semibold">
             Son tarama: {props.baslik}
           </h2>
           <p className="text-soluk">
@@ -82,7 +82,6 @@ export function SonucIzgarasi(props: {
         />
       </div>
 
-      {google.otomatikKapali && <BilgiNotu ton="uyari">{OTOMATIK_GOSTERIM_SINIRI_METNI}</BilgiNotu>}
       {(hata || google.hata) && (
         <p role="alert" className="text-sm text-tehlike">
           {hata ?? google.hata}
@@ -90,7 +89,7 @@ export function SonucIzgarasi(props: {
       )}
 
       {props.satirlar.length === 0 ? (
-        <p className="rounded-kart border border-kenar bg-white p-6 text-soluk">Bu süzgeçte sonuç yok.</p>
+        <p className="kart text-soluk">Bu süzgeçte sonuç yok.</p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {props.satirlar.map((s) => {
@@ -108,35 +107,43 @@ export function SonucIzgarasi(props: {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-col gap-1">
                     {s.isletmeAdi ? (
-                      <span className="text-[15px] font-semibold">{s.isletmeAdi}</span>
+                      <span className="text-base font-semibold">{s.isletmeAdi}</span>
                     ) : yer ? (
-                      <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
+                      <span className="flex flex-wrap items-center gap-2 text-base font-semibold">
                         {yer.ad} <GoogleEtiketi />
                       </span>
                     ) : (
-                      <span className="text-soluk italic">{GOOGLE_ADSIZ}</span>
+                      <span className="text-soluk">{GOOGLE_ADSIZ}</span>
                     )}
-                    <span className="text-[13px] text-soluk">
-                      {yukleniyor ? (
-                        "Yükleniyor…"
-                      ) : b && "hata" in b ? (
-                        b.hata
-                      ) : yer ? (
-                        (yer.adres ?? "")
-                      ) : (
-                        <button
-                          type="button"
-                          className="font-medium text-ana underline-offset-2 hover:underline"
-                          onClick={() => void google.goster([s.id])}
-                          title="Google Haritalar'dan anlık gösterilir; saklanmaz"
-                        >
-                          Göster
-                        </button>
-                      )}
-                    </span>
+                    {yer ? (
+                      <>
+                        {yer.adres && <span className="text-ufak text-soluk">{yer.adres}</span>}
+                        <span role="note" className="text-xs text-soluk">
+                          {googleKaynakNotu(getirilenler.has(s.id) ? { tur: "google" } : { tur: "onbellek" })}
+                        </span>
+                      </>
+                    ) : b && "hata" in b ? (
+                      <span className="text-ufak text-soluk">{b.hata}</span>
+                    ) : (
+                      !s.isletmeAdi && (
+                        <span className="flex flex-wrap items-baseline gap-x-2 text-ufak">
+                          <Dugme
+                            tur="metin"
+                            yukleniyor={yukleniyor}
+                            onClick={() => {
+                              setGetirilenler((g) => new Set(g).add(s.id));
+                              void google.goster([s.id]);
+                            }}
+                          >
+                            {"Google'dan getir"}
+                          </Dugme>
+                          <span className="text-xs text-soluk">aylık kullanımdan düşer</span>
+                        </span>
+                      )
+                    )}
                   </div>
                   {yer?.konum && props.merkez && (
-                    <span className="text-[13px] whitespace-nowrap text-soluk">{mesafeMetni(props.merkez, yer.konum)}</span>
+                    <span className="text-ufak whitespace-nowrap text-soluk">{mesafeMetni(props.merkez, yer.konum)}</span>
                   )}
                 </div>
                 {karar === "incelenmedi" ? (
@@ -151,20 +158,15 @@ export function SonucIzgarasi(props: {
                 ) : (
                   <div className="flex items-center justify-between gap-2">
                     {karar === "ilgileniyor" ? (
-                      <Link href={`/kayitlar?grup=tum&secili=${s.id}`} className="text-[13px] font-semibold text-ana-koyu hover:underline">
+                      <Link href={`/kayitlar?grup=tum&secili=${s.id}`} className="text-ufak font-semibold text-ana-koyu hover:underline">
                         Kayıtlara eklendi
                       </Link>
                     ) : (
-                      <span className="text-[13px] text-soluk">Geçildi</span>
+                      <span className="text-ufak text-soluk">Geçildi</span>
                     )}
-                    <button
-                      type="button"
-                      className="h-8 px-2.5 text-[13px] text-ana hover:underline"
-                      disabled={mesgul}
-                      onClick={() => void isaretle([s.id], "incelenmedi")}
-                    >
+                    <Dugme tur="metin" className="text-ufak" disabled={mesgul} onClick={() => void isaretle([s.id], "incelenmedi")}>
                       Geri al
-                    </button>
+                    </Dugme>
                   </div>
                 )}
               </li>
@@ -174,8 +176,8 @@ export function SonucIzgarasi(props: {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-soluk">
-          İşletme bilgileri Google Haritalar&apos;dan anlık gösterilir. İlgilendikleriniz Kayıtlar&apos;a eklenir.
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ufak text-soluk">
+          Google bilgileri yalnızca istediğiniz kayıt için getirilir, kaydedilmez. İlgilendikleriniz Kayıtlar&apos;a eklenir.
           <GoogleAtfi />
         </span>
         <div className="flex flex-wrap gap-2">

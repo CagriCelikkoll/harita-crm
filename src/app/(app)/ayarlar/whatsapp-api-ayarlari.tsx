@@ -100,10 +100,10 @@ export function WhatsappApiAyarlari(props: {
       {/* Durum kartı */}
       <Kart className="flex flex-wrap items-center gap-5 px-7 py-6">
         <span className="flex size-[52px] shrink-0 items-center justify-center rounded-kart bg-ana-acik text-ana">
-          <Simge ad="whatsapp" boyut={26} />
+          <Simge ad="whatsapp" boyut={24} />
         </span>
         <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1.5">
-          <p className="text-base font-bold">
+          <p className="text-base font-semibold">
             {!b.tanimli
               ? "Yeni WhatsApp numarası"
               : n.gorunenNumara
@@ -147,7 +147,7 @@ export function WhatsappApiAyarlari(props: {
             </BilgiNotu>
           )}
           {(n.sonKontrol || n.sonHata) && (
-            <p className="text-[13px] text-soluk">
+            <p className="text-ufak text-soluk">
               {n.sonKontrol && `Son kontrol: ${tarihYaz(n.sonKontrol)}`}
               {n.sonHata && <span className="block text-tehlike">Son hata: {n.sonHata}</span>}
             </p>
@@ -238,7 +238,7 @@ export function WhatsappApiAyarlari(props: {
                       ? b.gonderenEksikleri.length ? (
                         <>
                           Önce{" "}
-                          <Link href="/ayarlar/gonderen" className="text-ana underline">
+                          <Link href="/ayarlar/gonderen" className="dugme-metin">
                             Gönderen bilgileri
                           </Link>
                           &apos;ni tamamlayın: {b.gonderenEksikleri.join(", ")}. Test modu kapalıyken her kampanya bunları ister.
@@ -313,7 +313,7 @@ export function WhatsappApiAyarlari(props: {
                 <li key={s.id} className="flex flex-wrap items-center gap-4 border-t border-cizgi px-7 py-4">
                   <div className="min-w-0 flex-[1_1_200px]">
                     <p className="font-semibold">{s.ad}</p>
-                    <p className="text-[13px] text-soluk">
+                    <p className="text-ufak text-soluk">
                       {SABLON_KATEGORI_ADLARI[s.kategori] ?? s.kategori} · {s.dil} ·{" "}
                       {s.destekNedeni ?? (s.degiskenler.length ? `${s.degiskenler.length} değişken` : "değişken yok")}
                     </p>
@@ -383,15 +383,15 @@ function PayVeTestNumaralari(props: { b: BaglantiDto; mesgul: boolean; kaydet: (
           <AyarSatiri baslik="Test numaraları" aciklama={`Test modunda mesajlar yalnızca bu numaralara gider. En fazla ${TEST_NUMARASI_AZAMI}.`}>
             <ul className="flex flex-wrap items-center gap-2" aria-label="Test numaraları">
               {numaralar.map((t) => (
-                <li key={t} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#f2f4f1] pr-1.5 pl-3 font-mono text-[13px]">
+                <li key={t} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-notr-acik pr-1.5 pl-3 font-mono text-ufak">
                   {t}
                   <button
                     type="button"
                     aria-label={`${t} numarasını kaldır`}
-                    className="flex size-7 items-center justify-center rounded-full text-soluk hover:bg-white"
+                    className="dugme-ikon !size-8 rounded-full"
                     onClick={() => setNumaralar(numaralar.filter((x) => x !== t))}
                   >
-                    <Simge ad="kapat" boyut={12} kalinlik={2.5} />
+                    <Simge ad="kapat" boyut={14} kalinlik={2.5} />
                   </button>
                 </li>
               ))}
@@ -432,7 +432,7 @@ function PayVeTestNumaralari(props: { b: BaglantiDto; mesgul: boolean; kaydet: (
 function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul: boolean; calistir: Calistir }) {
   const { b, temel, mesgul, calistir } = props;
   const etiket = "flex min-w-0 flex-col gap-1.5 text-sm font-semibold";
-  const aciklama = "text-[13px] font-normal text-soluk";
+  const aciklama = "text-ufak font-normal text-soluk";
   return (
     <div className="flex flex-col gap-5 pt-4">
       <form
@@ -516,22 +516,22 @@ function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul:
       {b.tanimli && (
         <dl className="grid gap-x-8 sm:grid-cols-2">
           <div className="border-b border-cizgi py-3.5 sm:col-span-2">
-            <dt className="text-[13px] text-soluk">Bildirim adresi (webhook)</dt>
+            <dt className="text-ufak text-soluk">Bildirim adresi (webhook)</dt>
             <dd className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[13px] break-all">{b.webhookAdresi}</span>
+              <span className="font-mono text-ufak break-all">{b.webhookAdresi}</span>
               {b.webhookAdresi && <KopyalaDugmesi metin={b.webhookAdresi} />}
             </dd>
-            <dd className="mt-1 text-[13px] text-soluk">
+            <dd className="mt-1 text-ufak text-soluk">
               Meta teslim, okundu ve ret bilgilerini bu adrese gönderir. Doğrulanmadan test modu kapatılamaz.
             </dd>
           </div>
           <div className="border-b border-cizgi py-3.5">
-            <dt className="text-[13px] text-soluk">Doğrulama anahtarı (verify token)</dt>
+            <dt className="text-ufak text-soluk">Doğrulama anahtarı (verify token)</dt>
             <dd className="mt-1 flex flex-wrap items-center gap-2">
               {b.verifyTokenTanimli ? "Bir kez gösterildi" : "Tanımlı değil"} ·
               <button
                 type="button"
-                className="text-ana underline"
+                className="dugme-metin"
                 disabled={mesgul}
                 onClick={() => {
                   if (confirm("Yeni doğrulama anahtarı üretilecek; Meta'daki değeri de güncellemeniz gerekir. Test modu yeniden açılır.")) {
@@ -544,11 +544,11 @@ function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul:
             </dd>
           </div>
           <div className="border-b border-cizgi py-3.5">
-            <dt className="text-[13px] text-soluk">Bildirim aboneliği</dt>
+            <dt className="text-ufak text-soluk">Bildirim aboneliği</dt>
             <dd className="mt-1">
               <button
                 type="button"
-                className="text-ana underline"
+                className="dugme-metin"
                 disabled={mesgul}
                 onClick={() => calistir(`${temel}/abonelik`, "POST", undefined, "Bildirim aboneliği etkin.")}
               >
@@ -571,7 +571,7 @@ function TeknikAyrintilar(props: { b: BaglantiDto; temel: string | null; mesgul:
           <li>Bu formu kaydedin; gösterilen doğrulama anahtarını ve bildirim adresini uygulamanızın Use cases → Customize → Configuration (eski arayüzde WhatsApp → Configuration) bölümündeki Webhook alanına girin; messages, message_template_status_update, phone_number_quality_update, business_capability_update ve user_preferences alanlarına abone olun.</li>
           <li>&quot;Aboneliği etkinleştir&quot; ve &quot;Bağlantıyı test et&quot;; ardından test modunda kendi numaranıza bir kampanya gönderin.</li>
         </ol>
-        <p className="mt-2 text-[13px] text-soluk">
+        <p className="mt-2 text-ufak text-soluk">
           Numaranız başka bir sağlayıcı ya da araçta kullanılıyorsa bu bağlantı onu bozmaz; Harita CRM ek abone olur. İlk
           gerçek kampanyayı küçük ve izinli bir listeyle yapın.
         </p>

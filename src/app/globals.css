@@ -1,12 +1,17 @@
 @import "tailwindcss";
 
-/* Renkler, ölçüler ve yazı tipleri: docs/tasarim/ taslakları (docs/plan-yeni-duzen.md, bölüm 1). */
+/* Renkler, ölçüler ve yazı tipleri: docs/tasarim/ taslakları (docs/plan-yeni-duzen.md, bölüm 1).
+   Kontrast (WCAG): kenar-alan beyazda 3,26:1 (alan sınırı ≥3:1); uzerine-gelme beyazdan 1,17:1; secili-satir beyazdan
+   1,23:1 ve soluk metinle 4,58:1; okundu giden balonda (ana-acik) 5,04:1; odak beyaz / zeminde 6,9 / 6,4:1 (koyu menüde
+   menu-vurgu, 6,9:1). */
 @theme inline {
   --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --color-ana: #0e6655;
   --color-ana-koyu: #0a4a3e;
   --color-ana-acik: #e3f1ec;
+  /* dugme-ana üzerine gelme (ana ile ana-koyu arası); basılı: ana-koyu. */
+  --color-ana-uzerine: #0c5b4c;
   --color-menu: #17201c;
   --color-menu-acik: #222d28;
   --color-menu-cizgi: #3b4a43;
@@ -18,7 +23,8 @@
   --color-ic-kutu: #f7f8f6;
   --color-segment: #e9ece7;
   --color-kenar: #e3e6e2;
-  --color-kenar-alan: #cfd5d0;
+  /* Form alanı ve ikincil düğme kenarı: beyazda 3,26:1, zeminde 3,01:1 (eski #cfd5d0: 1,49:1). */
+  --color-kenar-alan: #86918b;
   --color-cizgi: #eceeea;
   --color-metin: #17201c;
   --color-metin-ikincil: #3e4944;
@@ -29,7 +35,45 @@
   --color-tehlike: #a1261b;
   --color-tehlike-acik: #fbe5e2;
   --color-tehlike-kenar: #e7b7b1;
+  --color-tehlike-basili: #f6d3ce;
+  /* Etkileşim: odak halkası, üzerine gelme, basılı, seçili satır. */
+  --color-odak: #0e6655;
+  --color-uzerine-gelme: #e3f0ea;
+  --color-basili: #cfe4db;
+  --color-secili-satir: #d8ece4;
+  /* Bilgi (mavi) ve mor rozet / not; ilerleme çubuğu zemini; WhatsApp "okundu" işareti. */
+  --color-bilgi: #1d4f91;
+  --color-bilgi-acik: #e4ecf8;
+  --color-mor: #5b3a99;
+  --color-mor-acik: #eee8f8;
+  --color-ilerleme-zemin: #eef0ec;
+  --color-okundu: #1863c0;
+  /* Nötr rozet / çip zemini; uyarı dolgusu (çubuk, nokta); bağlı (başarılı) noktası. */
+  --color-notr-acik: #eef0ec;
+  --color-uyari-dolgu: #b45309;
+  --color-basari: #2e9e6b;
+  /* Koyu menü: yazı, kullanım çubuğu uyarı / dolu tonları (koyu zeminde okunur). */
+  --color-menu-yazi: #e8ece9;
+  --color-menu-uyari: #fbbf24;
+  --color-menu-tehlike: #f87171;
+  --color-menu-tehlike-metin: #fca5a5;
+
+  /* Yazı ölçeği: 12 / 13 / 14 / 16 / 20 / 28 px (xs / ufak / sm / base / xl / baslik). Ağırlık: 400 / 500 / 600. */
+  --text-ufak: 13px;
+  --text-baslik: 28px;
+  /* Köşe ölçeği: 6 / 8 / 10 / 14 / tam (md / lg / xl / kart / full). */
+  --radius-xl: 10px;
   --radius-kart: 14px;
+  /* Gölge: iki düzey — yok ve yükselti (açılır panel, pencere, çekmece, bildirim). */
+  --shadow-yukselti: 0 12px 32px -8px rgb(23 32 28 / 0.22), 0 2px 6px rgb(23 32 28 / 0.08);
+}
+
+/* Kalın yazı en fazla 600 (tarayıcı varsayılanı 700); katmanda: font-* sınıfları ezer. */
+@layer base {
+  b,
+  strong {
+    font-weight: 600;
+  }
 }
 
 /* Kaydırma çubuğunun yeri her zaman ayrılır: kısa içerikli sayfada çubuk kaybolunca düzen yana kaymaz. */
@@ -44,36 +88,182 @@ body {
   line-height: 1.45;
 }
 
+/* Onay kutusu ve radyo: tek görünüm, 18 px (katmansız: tek tek verilen size-4 / accent-ana sınıflarını da ezer).
+   İşaretli: ana zemin + beyaz tik; belirsiz (sayfadakilerin bir kısmı): çizgi. Dokunma hedefi: OnayKutusu / etiket. */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--color-kenar-alan);
+  background: #fff center / 12px no-repeat;
+  vertical-align: middle;
+}
+input[type="checkbox"] {
+  border-radius: 6px;
+}
+input[type="radio"] {
+  border-radius: 9999px;
+}
+input[type="checkbox"]:checked,
+input[type="checkbox"]:indeterminate,
+input[type="radio"]:checked {
+  border-color: var(--color-ana);
+  background-color: var(--color-ana);
+}
+input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5'/%3E%3C/svg%3E");
+}
+input[type="checkbox"]:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 6h6'/%3E%3C/svg%3E");
+}
+input[type="radio"]:checked {
+  box-shadow: inset 0 0 0 3px #fff;
+}
+input[type="checkbox"]:not(:disabled, :checked, :indeterminate):hover,
+input[type="radio"]:not(:disabled, :checked):hover {
+  border-color: var(--color-ana);
+  background-color: var(--color-uzerine-gelme);
+}
+input[type="checkbox"]:not(:disabled):active,
+input[type="radio"]:not(:disabled):active {
+  background-color: var(--color-basili);
+}
+
+@layer base {
+  /* Odak: tek biçim. Klavyeyle odaklanınca 2 px odak rengi halka + 2 px boşluk; fare tıklamasında halka çıkmaz.
+     Koyu zeminde (menü) halka rengi --odak-rengi ile açık tona çevrilir. Form alanları (girdi) kendi halkasını kullanır. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--odak-rengi, var(--color-odak));
+    outline-offset: 2px;
+  }
+
+  /* Durum geçişleri: yalnızca renk / zemin / kenar, 120 ms; hareket azaltma tercihinde geçiş yok. */
+  :where(a, button, summary, select, input, textarea, [role="tab"], tr) {
+    transition-property: color, background-color, border-color, box-shadow, text-decoration-color;
+    transition-duration: 120ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(a, button, summary, select, input, textarea, [role="tab"], tr) {
+      transition: none;
+    }
+  }
+
+  /* Devre dışı: tek stil (ham düğmeler ve çıplak select'ler dahil). */
+  :where(button, select, input, textarea):disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Üzerine gelme: select, summary, onay kutusu (ortak sınıf kullanmayanlar da). */
+  :where(select):not(:disabled):hover {
+    border-color: var(--color-soluk);
+  }
+  :where(summary) {
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  :where(summary):hover {
+    color: var(--color-ana-koyu);
+  }
+  :where(input[type="checkbox"], input[type="radio"]):not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Dokunma hedefi (≤ 640 px): bağlantı, düğme, sekme ve açılır kutu başlığı görünümü büyümeden en az 44×44 px
+     tıklanabilir alan (::after ile genişletilmiş hedef). Select ve tek satırlık girdiler 44 px yüksekliğe çıkar
+     (sahte öğe alamazlar); onay kutuları OnayKutusu bileşeniyle (44 px etiket alanı). */
+  @media (max-width: 640px) {
+    :where(a[href], button, summary, [role="tab"], label:has(input[type="checkbox"], input[type="radio"])):not(.absolute, .fixed, .sticky) {
+      position: relative;
+    }
+    /* Etiket içindeki onay kutusu / radyo: etiketin genişletilmiş alanına dokunmak kutuyu işaretler. */
+    :where(a[href], button, summary, [role="tab"], label:has(input[type="checkbox"], input[type="radio"]))::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      translate: -50% -50%;
+    }
+    :where(select, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"])) {
+      min-height: 44px;
+    }
+  }
+}
+
 /* Tailwind 4: @utility ile tanımlanan sınıflar birbirine @apply edilebilir.
-   Düğme ve alan yüksekliği 44 px, köşe 8 px; kart köşesi 14 px. */
+   Düğme ve alan yüksekliği 44 px, köşe 8 px; kart köşesi 14 px.
+   Durumlar: üzerine gelme (uzerine-gelme), basılı (bir ton koyu: basili / ana-koyu / tehlike-basili), devre dışı
+   (opacity .5, not-allowed; üzerine gelme ve basılı yok). Odak: yukarıdaki ortak halka. */
 @utility dugme {
   @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-kenar-alan
-    bg-white px-[18px] text-sm font-medium text-metin hover:bg-zemin focus-visible:outline-2
-    focus-visible:outline-offset-2 focus-visible:outline-ana disabled:cursor-not-allowed disabled:opacity-50;
+    bg-white px-[18px] text-sm font-medium text-metin not-disabled:hover:bg-uzerine-gelme not-disabled:active:bg-basili
+    disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility dugme-ana {
-  @apply dugme border-ana bg-ana px-5 font-semibold text-white hover:bg-ana-koyu;
+  @apply dugme border-ana bg-ana px-5 font-semibold text-white not-disabled:hover:bg-ana-uzerine not-disabled:active:bg-ana-koyu;
 }
 @utility dugme-tehlike {
-  @apply dugme border-tehlike-kenar font-semibold text-tehlike hover:bg-tehlike-acik;
+  @apply dugme border-tehlike-kenar font-semibold text-tehlike not-disabled:hover:bg-tehlike-acik
+    not-disabled:active:bg-tehlike-basili;
 }
-/* Satır içi ve kart başlığındaki ikincil eylemler (40 px). */
+/* Satır içi ve kart başlığındaki ikincil eylemler (40 px; telefonda dokunma hedefi 44 px). */
 @utility dugme-kucuk {
   @apply min-h-10 px-3.5;
 }
+/* Metin düğmesi (eski "underline" ham düğmeler): bağlantı görünümü, üzerine gelince zemin. */
+@utility dugme-metin {
+  @apply -mx-1 inline-flex cursor-pointer items-center gap-1 rounded-md px-1 font-medium text-ana underline-offset-2
+    not-disabled:hover:bg-uzerine-gelme not-disabled:hover:underline not-disabled:active:bg-basili disabled:cursor-not-allowed
+    disabled:opacity-50;
+}
+/* İkon düğmesi (kapat, kaldır, yanıtla…): 40 px kare; telefonda dokunma hedefi 44 px. */
+@utility dugme-ikon {
+  @apply inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-soluk
+    not-disabled:hover:bg-uzerine-gelme not-disabled:hover:text-metin not-disabled:active:bg-basili disabled:cursor-not-allowed
+    disabled:opacity-50;
+}
 @utility girdi {
   @apply min-h-11 w-full rounded-lg border border-kenar-alan bg-white px-3.5 py-2 text-sm text-metin
-    focus:border-ana focus:ring-2 focus:ring-ana/25 focus:outline-none disabled:bg-zemin disabled:text-soluk;
+    not-disabled:hover:border-soluk focus:border-odak focus:ring-2 focus:ring-odak/25 focus:outline-none
+    disabled:bg-zemin disabled:text-soluk;
 }
 @utility etiket {
   @apply flex flex-col gap-1.5 text-sm font-semibold text-metin;
 }
+/* Kart: tek görünüm (14 px köşe, kenar, beyaz), iç boşluk 24 px, telefonda 16 px. Kartlarda üzerine gelme yok. */
 @utility kart {
-  @apply rounded-kart border border-kenar bg-white p-6;
+  @apply rounded-kart border border-kenar bg-white p-6 max-sm:p-4;
+}
+/* İçi satırlı / tablolu kart (boşluğu satırlar verir). */
+@utility kart-cerceve {
+  @apply overflow-hidden rounded-kart border border-kenar bg-white;
+}
+/* Tablo satırı: üzerine gelince zemin + solda 3 px ana şerit; seçili satırda kalıcı (zemin secili-satir). */
+@utility satir {
+  @apply hover:bg-uzerine-gelme;
+  &:hover > :first-child {
+    box-shadow: inset 3px 0 0 var(--color-ana);
+  }
+}
+@utility satir-secili {
+  @apply bg-secili-satir hover:bg-secili-satir;
+  & > :first-child {
+    box-shadow: inset 3px 0 0 var(--color-ana);
+  }
 }
 @utility rozet {
   @apply inline-block rounded-full bg-ana-acik px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-ana-koyu;
 }
 @utility baslik {
-  @apply text-[28px] leading-tight font-bold tracking-[-0.01em] text-metin;
+  @apply text-baslik leading-tight font-semibold tracking-[-0.01em] text-metin;
 }

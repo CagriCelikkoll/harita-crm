@@ -13,7 +13,7 @@ export function kullanimDegisti() {
   window.dispatchEvent(new Event(OLAY));
 }
 
-const RENK = { normal: "bg-menu-vurgu", uyari: "bg-amber-400", doldu: "bg-red-400" } as const;
+const RENK = { normal: "bg-menu-vurgu", uyari: "bg-menu-uyari", doldu: "bg-menu-tehlike" } as const;
 
 export function KullanimGostergesi({ ilk }: { ilk: KullanimOzeti }) {
   const yol = usePathname();
@@ -38,8 +38,8 @@ export function KullanimGostergesi({ ilk }: { ilk: KullanimOzeti }) {
   }, [yol]);
 
   return (
-    <div className="flex flex-col gap-2 rounded-[10px] bg-menu-acik p-3.5">
-      <div className="flex justify-between text-[13px]">
+    <div className="flex flex-col gap-2 rounded-xl bg-menu-acik p-3.5">
+      <div className="flex justify-between text-ufak">
         <span className="text-menu-metin">Bu ayki kullanım</span>
         <span className="font-semibold tabular-nums">%{ozet.yuzde}</span>
       </div>
@@ -54,7 +54,7 @@ export function KullanimGostergesi({ ilk }: { ilk: KullanimOzeti }) {
       >
         <div className={`h-1.5 rounded-full ${RENK[ozet.seviye]}`} style={{ width: `${ozet.yuzde}%` }} />
       </div>
-      {ozet.seviye === "doldu" && <p className="text-xs text-red-300">Bu ayki kullanımınız doldu.</p>}
+      {ozet.seviye === "doldu" && <p className="text-xs text-menu-tehlike-metin">Bu ayki kullanımınız doldu.</p>}
     </div>
   );
 }

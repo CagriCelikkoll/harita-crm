@@ -79,7 +79,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
       {sekme === "whatsapp" ? (
         <WhatsappListesi etiketler={etiketleriListele(ctx)} donus={whatsappDonusMetni(tek(p.wa), tek(p.neden))} />
       ) : kampanyalar.length === 0 ? (
-        <section className="rounded-kart border border-kenar bg-white p-7">
+        <section className="kart">
           <p className="font-semibold">Henüz kampanya yok.</p>
           <p className="mt-1 text-soluk">
             <Link href="/kampanyalar/yeni" className="text-ana underline">
@@ -89,10 +89,10 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
           </p>
         </section>
       ) : (
-        <section aria-label="Kampanya listesi" className="overflow-hidden rounded-kart border border-kenar bg-white">
+        <section aria-label="Kampanya listesi" className="kart-cerceve">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-              <thead className="text-[13px] text-soluk">
+              <thead className="text-ufak text-soluk">
                 <tr>
                   <th className="border-b border-cizgi px-5 py-3.5 font-semibold">Kampanya</th>
                   <th className="border-b border-cizgi px-3 py-3.5 font-semibold">Kanal</th>
@@ -105,12 +105,12 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
                 {kampanyalar.map((k) => {
                   const hedef = k.sayilar.kuyrukta + k.sayilar.gonderiliyor + k.sayilar.gonderildi + k.sayilar.basarisiz;
                   return (
-                    <tr key={k.id} className="border-b border-[#f0f2ef] hover:bg-kart-alt">
+                    <tr key={k.id} className="satir border-b border-cizgi">
                       <td className="px-5 py-3">
                         <Link href={`/kampanyalar/${k.id}`} className="font-semibold text-metin hover:underline">
                           {k.ad}
                         </Link>
-                        <p className="text-[13px] text-soluk">
+                        <p className="text-ufak text-soluk">
                           {k.sayilar.haric > 0 && `${sayiYaz(k.sayilar.haric)} hariç`}
                           {k.sayilar.basarisiz > 0 && ` · ${sayiYaz(k.sayilar.basarisiz)} başarısız`}
                         </p>
@@ -128,7 +128,7 @@ export default async function KampanyalarSayfasi({ searchParams }: PageProps<"/k
                         <DurumRozeti ton={DURUM_TONU[k.durum] ?? "notr"}>{KAMPANYA_DURUM_ADLARI[k.durum]}</DurumRozeti>
                       </td>
                       <td className="min-w-40 px-3 py-3">
-                        <p className="mb-1 text-[13px] tabular-nums">
+                        <p className="mb-1 text-ufak tabular-nums">
                           {sayiYaz(k.sayilar.gonderildi)} / {sayiYaz(hedef)}
                         </p>
                         <IlerlemeCubugu yuzde={hedef ? (k.sayilar.gonderildi / hedef) * 100 : 0} etiket={`${k.ad}: gönderilen`} />

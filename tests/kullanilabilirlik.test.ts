@@ -201,7 +201,8 @@ describe("giriş formu ve geliştirme simgesi", () => {
   it("form hidrasyondan önce gönderilemez ve şifre URL'e düşmez (method=post); simge sağ altta", () => {
     const form = oku("src/app/(auth)/giris/giris-formu.tsx");
     expect(form).toContain('<form method="post" onSubmit={gonder}');
-    expect(form).toContain("disabled={bekliyor || !hazir}");
+    // Dugme `yukleniyor` düğmeyi devre dışı bırakır (+ aria-busy, döner gösterge).
+    expect(form).toContain("yukleniyor={bekliyor || !hazir}");
     expect(oku("next.config.ts")).toMatch(/devIndicators: \{ position: "bottom-right" \}/);
     expect(oku("src/app/(app)/tarama/tarama-paneli.tsx")).toContain("veri.toplam && haritaAnahtariVar");
     expect(oku("src/app/(app)/layout.tsx")).toContain("<BildirimAlani />");
@@ -234,13 +235,17 @@ describe("tarayıcı turu düzeltmeleri (Grup D)", () => {
 
   it("ret onay penceresi portalda, kendi formu yok; düğmeler dıştaki formu göndermez", () => {
     const ret = oku("src/components/ret-onayi.tsx");
-    expect(ret).toContain("createPortal(");
-    expect(ret).toContain("document.body");
-    expect(ret).not.toMatch(/<form/);
-    // Her düğme type="button": WhatsApp izni formunun içinde "Ret ver" dıştaki formu göndermemeli.
-    const dugmeler = ret.match(/<button\b[^>]*>/g) ?? [];
-    expect(dugmeler).toHaveLength(3);
-    for (const d of dugmeler) expect(d).toContain('type="button"');
+    // Pencere ortak Diyalog (portal, document.body, formsuz); düğmeler ortak Dugme (varsayılan type="button"):
+    // WhatsApp izni formunun içinde "Ret ver" dıştaki formu göndermemeli.
+    expect(ret).toContain("<Diyalog");
+    const diyalog = oku("src/components/arayuz/diyalog.tsx");
+    expect(diyalog).toContain("createPortal(");
+    expect(diyalog).toContain("document.body");
+    expect(ret + diyalog).not.toMatch(/<form/);
+    expect(ret).not.toMatch(/<button\b/);
+    expect(ret.match(/<Dugme\b/g)).toHaveLength(3);
+    expect(ret).not.toMatch(/<Dugme[^>]*type="submit"/);
+    expect(oku("src/components/arayuz/dugme.tsx")).toContain('type = "button"');
   });
 
   it("WhatsApp izni kaydedilince bildirim gösterilir (ret için ayrı metin)", () => {

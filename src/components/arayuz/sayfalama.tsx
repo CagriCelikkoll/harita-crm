@@ -70,7 +70,7 @@ export function Sayfalama(props: {
   }
 
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[13px] text-soluk ${props.className ?? ""}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-ufak text-soluk ${props.className ?? ""}`}>
       <span className="tabular-nums">{bilgi}</span>
       {sayfaSayisi > 1 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

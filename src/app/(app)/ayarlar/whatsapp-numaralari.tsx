@@ -39,7 +39,7 @@ export function WhatsappNumaralari(props: { ilk: BaglantiDto[]; ilkSablonlar: Re
             aria-selected={secili === n.id}
             onClick={() => setSecili(n.id!)}
             className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${
-              secili === n.id ? "border-ana bg-ana-acik text-ana" : "border-kenar bg-white hover:bg-kart-alt"
+              secili === n.id ? "border-ana bg-ana-acik text-ana" : "border-kenar bg-white hover:bg-uzerine-gelme active:bg-basili"
             }`}
           >
             {n.etiket}
@@ -59,13 +59,13 @@ export function WhatsappNumaralari(props: { ilk: BaglantiDto[]; ilkSablonlar: Re
             aria-selected={secili === YENI}
             onClick={() => setSecili(YENI)}
             className={`rounded-full border border-dashed px-4 py-2 text-sm font-semibold ${
-              secili === YENI ? "border-ana bg-ana-acik text-ana" : "border-kenar text-ana hover:bg-kart-alt"
+              secili === YENI ? "border-ana bg-ana-acik text-ana" : "border-kenar text-ana hover:bg-uzerine-gelme active:bg-basili"
             }`}
           >
             + Numara ekle
           </button>
         ) : (
-          <span className="text-[13px] text-soluk">En fazla {BAGLANTI_AZAMI} numara bağlanabilir.</span>
+          <span className="text-ufak text-soluk">En fazla {BAGLANTI_AZAMI} numara bağlanabilir.</span>
         )}
       </div>
       {b && (

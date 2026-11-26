@@ -4,10 +4,12 @@
 // WhatsApp izninde pencerede izin kaynağı ("Diğer" ise açıklama) ve beyan onay kutusu zorunludur. En fazla
 // TOPLU_ISLEM_AZAMI kayıt: fazlası seçiliyse uyarı gösterilir, işlem başlatılamaz (sunucu da 400 verir). Sonuç özeti
 // (kaç kayıt değişti, kaçı neden atlandı) üst bileşende gösterilir. Pencere document.body'ye taşınır (ret-onayi.tsx).
-import { useId, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useId, useState } from "react";
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
+import { Diyalog } from "@/components/arayuz/diyalog";
+import { Dugme } from "@/components/arayuz/dugme";
+import { Secim } from "@/components/arayuz/secim";
 import { apiIstek } from "@/lib/api-istemci";
-import { pencereDisinaTiklaninca } from "@/lib/disari-tiklama";
 import { sayiYaz } from "@/lib/bicim";
 import {
   ALICI_TURLERI,
@@ -78,7 +80,6 @@ export function onizlemeMetni(tur: IslemTuru, secili: number, s: TopluSonuc): st
   return `${sayiYaz(secili)} seçili · ${DEGISIM_ADLARI[tur](sayiYaz(s.degisen))}${atlanan ? `, ${sayiYaz(atlanan)} atlanacak: ${nedenMetni}` : ""}.`;
 }
 
-const bosAbone = () => () => {};
 
 export function TopluIslemCubugu(props: {
   /** Seçili kayıt sayısı ("filtreye uyan tümü" seçiliyse filtrenin toplamı). */
@@ -105,10 +106,8 @@ export function TopluIslemCubugu(props: {
   const [gonderiliyor, setGonderiliyor] = useState(false);
   // Onay penceresinin ön sayımı (null: istenmedi / alınamadı → yalnızca seçili sayı gösterilir).
   const [onizleme, setOnizleme] = useState<{ durum: "yukleniyor" } | { durum: "tamam"; sonuc: TopluSonuc } | null>(null);
-  const pencere = useRef<HTMLDialogElement>(null);
-  const baslikId = useId();
+  const [pencereAcik, setPencereAcik] = useState(false);
   const listeId = useId();
-  const tarayicida = useSyncExternalStore(bosAbone, () => true, () => false);
 
   // Sunucu ve tek kayıt düzenlemesiyle aynı biçim (trim + küçük harf).
   const temizEtiket = etiket.trim().toLowerCase();
@@ -136,7 +135,7 @@ export function TopluIslemCubugu(props: {
     if (y.ok) return setOnizleme({ durum: "tamam", sonuc: y.veri.sonuc });
     setOnizleme(null);
     if (y.durum === 409) {
-      pencere.current?.close();
+      setPencereAcik(false);
       setHata(y.hata);
       props.onSayiDegisti();
     }
@@ -153,7 +152,7 @@ export function TopluIslemCubugu(props: {
 
   async function uygula() {
     if (!onaylanabilir) return;
-    pencere.current?.close();
+    setPencereAcik(false);
     setGonderiliyor(true);
     setHata(null);
     const y = await apiIstek<{ sonuc: TopluSonuc }>("/api/kayitlar/toplu", { method: "POST", govde: { secim: props.secim, islem: islemGovdesi() } });
@@ -170,19 +169,19 @@ export function TopluIslemCubugu(props: {
   }
 
   return (
-    <div role="region" aria-label="Toplu işlem" className="flex flex-col gap-2 border-b border-cizgi bg-[#f1f7f5] px-5 py-3">
+    <div role="region" aria-label="Toplu işlem" className="flex flex-col gap-2 border-b border-cizgi bg-secili-satir px-5 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         <span className="font-semibold" aria-live="polite">
           {props.tumFiltre ? `Filtreye uyan tüm kayıtlar seçili (${n} kayıt)` : `${n} kayıt seçili`}
         </span>
         {props.tumunuOner && (
-          <button type="button" className="font-medium text-ana underline-offset-2 hover:underline" onClick={props.onTumFiltreSec}>
+          <Dugme tur="metin" onClick={props.onTumFiltreSec}>
             Filtreye uyan tümünü seç ({sayiYaz(props.toplam)} kayıt)
-          </button>
+          </Dugme>
         )}
-        <button type="button" className="text-soluk underline-offset-2 hover:underline" onClick={props.onTemizle}>
+        <Dugme tur="metin" className="!text-soluk" onClick={props.onTemizle}>
           Seçimi kaldır
-        </button>
+        </Dugme>
       </div>
       <form
         className="flex flex-wrap items-end gap-2"
@@ -190,31 +189,31 @@ export function TopluIslemCubugu(props: {
           e.preventDefault();
           if (!hazir || gonderiliyor) return;
           setBeyan(false); // beyan her işlemde yeniden onaylanır
-          pencere.current?.showModal();
+          setPencereAcik(true);
           void onizlemeAl();
         }}
       >
         <label className="etiket">
           İşlem
-          <select className="girdi" value={tur} onChange={(e) => setTur(e.target.value as IslemTuru)}>
+          <Secim value={tur} onChange={(e) => setTur(e.target.value as IslemTuru)}>
             {(Object.keys(ISLEM_ADLARI) as IslemTuru[]).map((t) => (
               <option key={t} value={t}>
                 {ISLEM_ADLARI[t]}
               </option>
             ))}
-          </select>
+          </Secim>
         </label>
         {tur === "whatsapp_izni" ? null : tur === "alici_turu" ? (
           <label className="etiket">
             Yeni alıcı türü
-            <select className="girdi" value={aliciTuru} onChange={(e) => setAliciTuru(e.target.value as AliciTuru | "")}>
+            <Secim value={aliciTuru} onChange={(e) => setAliciTuru(e.target.value as AliciTuru | "")}>
               <option value="">Seçin</option>
               {ALICI_TURLERI.map((a) => (
                 <option key={a} value={a}>
                   {ALICI_TURU_ADLARI[a]}
                 </option>
               ))}
-            </select>
+            </Secim>
           </label>
         ) : (
           <label className="etiket">
@@ -227,9 +226,9 @@ export function TopluIslemCubugu(props: {
             </datalist>
           </label>
         )}
-        <button type="submit" className="dugme-ana" disabled={!hazir || gonderiliyor}>
-          {gonderiliyor ? "Uygulanıyor…" : "Uygula"}
-        </button>
+        <Dugme type="submit" tur="ana" disabled={!hazir} yukleniyor={gonderiliyor}>
+          Uygula
+        </Dugme>
       </form>
       {tur === "alici_turu" && (
         <p className="text-xs text-soluk">RET vermiş ve engel listesindeki kayıtlar atlanır. WhatsApp izni ve ret bilgileri değişmez.</p>
@@ -250,81 +249,66 @@ export function TopluIslemCubugu(props: {
           {hata}
         </p>
       )}
-      {tarayicida &&
-        createPortal(
-          <dialog
-            ref={pencere}
-            onClick={pencereDisinaTiklaninca}
-            aria-labelledby={baslikId}
-            className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-kenar bg-white p-5 text-sm shadow-lg backdrop:bg-black/40"
-          >
-            <div className="flex flex-col gap-3">
-              <h2 id={baslikId} className="text-base font-semibold">
-                Toplu işlem: {ISLEM_ADLARI[tur]}
-              </h2>
-              <p>{onayMetni}</p>
-              <p role="status" aria-live="polite" className="rounded-md bg-ic-kutu px-3 py-2 font-medium">
-                {onizleme?.durum === "tamam"
-                  ? onizlemeMetni(tur, props.sayi, onizleme.sonuc)
-                  : onizleme?.durum === "yukleniyor"
-                    ? "Etkilenecek kayıtlar sayılıyor…"
-                    : `${n} seçili.`}
-              </p>
-              {degisecekYok && <p className="text-uyari">Seçili kayıtlarda değişecek bir şey yok.</p>}
-              {tur === "alici_turu" && <p className="text-soluk">RET vermiş ve engel listesindeki kayıtlara dokunulmaz.</p>}
-              {tur === "whatsapp_izni" && (
-                <>
-                  <label className="etiket">
-                    İzin kaynağı
-                    <select
-                      className="girdi"
-                      required
-                      value={izinKaynagi}
-                      onChange={(e) => setIzinKaynagi(e.target.value as IzinKaynagi | "")}
-                    >
-                      <option value="">Seçin</option>
-                      {TOPLU_IZIN_KAYNAKLARI.map((k) => (
-                        <option key={k} value={k}>
-                          {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {izinKaynagi === "diger" && (
-                    <label className="etiket">
-                      Açıklama (zorunlu)
-                      <textarea
-                        className="girdi"
-                        rows={2}
-                        maxLength={500}
-                        required
-                        value={izinAciklamasi}
-                        onChange={(e) => setIzinAciklamasi(e.target.value)}
-                      />
-                    </label>
-                  )}
-                  <label className="flex items-start gap-2">
-                    <input type="checkbox" className="mt-0.5 size-4 accent-ana" checked={beyan} onChange={(e) => setBeyan(e.target.checked)} />
-                    <span>{WHATSAPP_TOPLU_IZIN_BEYANI}</span>
-                  </label>
-                  <p className="text-soluk">
-                    Her kayda izin tarihi (şimdi), kaynak ve işlemi yapan kullanıcı yazılır; RET vermiş ve engel listesindeki kayıtlar
-                    atlanır.
-                  </p>
-                </>
-              )}
-              <div className="flex justify-end gap-2">
-                <button type="button" className="dugme" autoFocus onClick={() => pencere.current?.close()}>
-                  Vazgeç
-                </button>
-                <button type="button" className="dugme-ana" disabled={!onaylanabilir} onClick={uygula}>
-                  Onayla
-                </button>
-              </div>
-            </div>
-          </dialog>,
-          document.body,
+      <Diyalog
+        acik={pencereAcik}
+        onKapat={() => setPencereAcik(false)}
+        baslik={`Toplu işlem: ${ISLEM_ADLARI[tur]}`}
+        eylemler={
+          <>
+            <Dugme onClick={() => setPencereAcik(false)}>Vazgeç</Dugme>
+            <Dugme tur="ana" disabled={!onaylanabilir} onClick={uygula}>
+              Onayla
+            </Dugme>
+          </>
+        }
+      >
+        <p>{onayMetni}</p>
+        <p role="status" aria-live="polite" className="rounded-md bg-ic-kutu px-3 py-2 font-medium">
+          {onizleme?.durum === "tamam"
+            ? onizlemeMetni(tur, props.sayi, onizleme.sonuc)
+            : onizleme?.durum === "yukleniyor"
+              ? <DonerGosterge boyut={14} etiket="Etkilenecek kayıtlar sayılıyor…" />
+              : `${n} seçili.`}
+        </p>
+        {degisecekYok && <p className="text-uyari">Seçili kayıtlarda değişecek bir şey yok.</p>}
+        {tur === "alici_turu" && <p className="text-soluk">RET vermiş ve engel listesindeki kayıtlara dokunulmaz.</p>}
+        {tur === "whatsapp_izni" && (
+          <>
+            <label className="etiket">
+              İzin kaynağı
+              <Secim required value={izinKaynagi} onChange={(e) => setIzinKaynagi(e.target.value as IzinKaynagi | "")}>
+                <option value="">Seçin</option>
+                {TOPLU_IZIN_KAYNAKLARI.map((k) => (
+                  <option key={k} value={k}>
+                    {WHATSAPP_IZIN_KAYNAK_ADLARI[k]}
+                  </option>
+                ))}
+              </Secim>
+            </label>
+            {izinKaynagi === "diger" && (
+              <label className="etiket">
+                Açıklama (zorunlu)
+                <textarea
+                  className="girdi"
+                  rows={2}
+                  maxLength={500}
+                  required
+                  value={izinAciklamasi}
+                  onChange={(e) => setIzinAciklamasi(e.target.value)}
+                />
+              </label>
+            )}
+            <label className="flex items-start gap-2">
+              <input type="checkbox" className="mt-0.5" checked={beyan} onChange={(e) => setBeyan(e.target.checked)} />
+              <span>{WHATSAPP_TOPLU_IZIN_BEYANI}</span>
+            </label>
+            <p className="text-soluk">
+              Her kayda izin tarihi (şimdi), kaynak ve işlemi yapan kullanıcı yazılır; RET vermiş ve engel listesindeki kayıtlar
+              atlanır.
+            </p>
+          </>
         )}
+      </Diyalog>
     </div>
   );
 }

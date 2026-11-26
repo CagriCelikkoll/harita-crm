@@ -11,7 +11,7 @@ function Durum({ durum }: { durum: FormDurumu }) {
     <>
       {durum.hata && <SonucMesaji key={durum.hata} tur="hata" metin={durum.hata} />}
       {durum.tamam && <SonucMesaji key={durum.tamam} tur="tamam" metin={durum.tamam} />}
-      {durum.baglanti && <input readOnly aria-label="Davet bağlantısı" value={durum.baglanti} className="girdi font-mono text-[13px]" onFocus={(e) => e.currentTarget.select()} />}
+      {durum.baglanti && <input readOnly aria-label="Davet bağlantısı" value={durum.baglanti} className="girdi font-mono text-ufak" onFocus={(e) => e.currentTarget.select()} />}
     </>
   );
 }
@@ -51,7 +51,7 @@ export function AlanAdiFormu(props: { ad: string; duzenlenebilir: boolean; giris
       </fieldset>
       <AyarSatiri baslik="Giriş adresi" aciklama="Ekibiniz bu adresten giriş yapar.">
         <div className="flex flex-wrap gap-2">
-          <span className="flex min-h-11 min-w-0 flex-[1_1_220px] items-center overflow-hidden rounded-lg border border-kenar bg-ic-kutu px-3.5 font-mono text-[13px] whitespace-nowrap">
+          <span className="flex min-h-11 min-w-0 flex-[1_1_220px] items-center overflow-hidden rounded-lg border border-kenar bg-ic-kutu px-3.5 font-mono text-ufak whitespace-nowrap">
             {props.girisAdresi}
           </span>
           <KopyalaDugmesi metin={props.girisAdresi} />
@@ -162,11 +162,11 @@ export function DavetFormu() {
       <fieldset disabled={bekliyor}>
         <AyarSatiri baslik="Kişi davet et" aciklama="Davet bağlantısı 7 gün geçerlidir.">
           <div className="flex flex-wrap gap-3">
-            <label className="flex min-w-0 flex-[2_1_220px] flex-col gap-1.5 text-[13px] text-soluk">
+            <label className="flex min-w-0 flex-[2_1_220px] flex-col gap-1.5 text-ufak text-soluk">
               E-posta
               <input name="eposta" type="email" required className="girdi" />
             </label>
-            <label className="flex min-w-0 flex-[1_1_140px] flex-col gap-1.5 text-[13px] text-soluk">
+            <label className="flex min-w-0 flex-[1_1_140px] flex-col gap-1.5 text-ufak text-soluk">
               Rol
               <select name="rol" defaultValue="uye" className="girdi">
                 {ROLLER.map((r) => (

@@ -13,11 +13,11 @@ type Secenek<T extends string> = { deger: T; ad: string; sayi?: number; href?: s
 
 export function SekmeGrubu<T extends string>(props: { etiket: string; secenekler: Secenek<T>[]; secili: T; onSec?: (d: T) => void }) {
   return (
-    <div role="group" aria-label={props.etiket} className="inline-flex flex-wrap gap-0.5 rounded-[10px] bg-segment p-1">
+    <div role="group" aria-label={props.etiket} className="inline-flex flex-wrap gap-0.5 rounded-xl bg-segment p-1">
       {props.secenekler.map((s) => {
         const secili = s.deger === props.secili;
-        const sinif = `inline-flex h-9 items-center gap-1.5 rounded-[7px] px-3.5 text-sm ${
-          secili ? "bg-white font-semibold text-metin shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-metin-ikincil hover:text-metin"
+        const sinif = `inline-flex h-9 items-center gap-1.5 rounded-md px-3.5 text-sm ${
+          secili ? "bg-white font-semibold text-metin ring-1 ring-kenar" : "text-metin-ikincil hover:bg-uzerine-gelme hover:text-metin active:bg-basili"
         }`;
         const icerik = (
           <>
@@ -75,8 +75,8 @@ export function Sekmeler<T extends string>(props: {
               props.onSec(props.sekmeler[yeni].deger);
               dugmeler.current[yeni]?.focus();
             }}
-            className={`-mb-px h-11 border-b-2 px-3 text-sm ${
-              secili ? "border-ana font-semibold text-ana-koyu" : "border-transparent text-soluk hover:text-metin"
+            className={`-mb-px h-11 rounded-t-md border-b-2 px-3 text-sm ${
+              secili ? "border-ana font-semibold text-ana-koyu" : "border-transparent text-soluk hover:bg-uzerine-gelme hover:text-metin active:bg-basili"
             }`}
           >
             {s.ad}
@@ -95,7 +95,9 @@ export function SecimCipi(props: { secili: boolean; onClick: () => void; childre
       disabled={props.disabled}
       onClick={props.onClick}
       className={`h-[38px] rounded-full border px-3.5 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
-        props.secili ? "border-ana bg-ana font-semibold text-white" : "border-kenar-alan bg-white text-metin hover:bg-zemin"
+        props.secili
+          ? "border-ana bg-ana font-semibold text-white not-disabled:hover:bg-ana-uzerine not-disabled:active:bg-ana-koyu"
+          : "border-kenar-alan bg-white text-metin not-disabled:hover:bg-uzerine-gelme not-disabled:active:bg-basili"
       }`}
     >
       {props.children}

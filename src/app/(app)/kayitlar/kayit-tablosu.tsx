@@ -5,6 +5,7 @@
 // sıralaması da aynı anahtarı kullanır (repo/kayitlar.ts gorunenAd). Google ayrıntısı yalnızca bir kaydın ayrıntı
 // paneli açılınca getirilir (detay-paneli.tsx).
 import Link from "next/link";
+import { OnayKutusu } from "@/components/arayuz/onay-kutusu";
 import { DURUM_TONU, DurumRozeti, IZIN_TONU } from "@/components/arayuz/rozet";
 import { Simge } from "@/components/arayuz/simge";
 import { tarihYaz } from "@/lib/bicim";
@@ -53,8 +54,8 @@ function IsletmeHucresi({ s }: { s: TabloSatiri }) {
   const ikinciSatir = s.isletmeAdi?.trim() && s.yetkiliAdi?.trim() ? s.yetkiliAdi : KAYIT_KAYNAK_ADLARI[s.kaynak];
   return (
     <>
-      <span className={adVar ? "font-semibold" : "text-soluk italic"}>{satirAdi(s)}</span>
-      <span className="text-[13px] text-soluk">{ikinciSatir}</span>
+      <span className={adVar ? "font-semibold" : "text-soluk"}>{satirAdi(s)}</span>
+      <span className="text-ufak text-soluk">{ikinciSatir}</span>
     </>
   );
 }
@@ -96,19 +97,14 @@ export function KayitTablosu(props: {
       {/* relative: hücrelerdeki sr-only (mutlak konumlu) metinler kaydırma kabının dışına, sayfaya taşmasın. */}
       <div className="relative overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-          <thead className="text-[13px] text-soluk">
+          <thead className="text-ufak text-soluk">
             <tr>
               {secim && (
                 <th className="w-0 border-b border-cizgi py-3.5 pr-0 pl-5">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-ana"
-                    aria-label="Sayfadakilerin tümünü seç"
-                    title="Sayfadakilerin tümünü seç"
+                  <OnayKutusu
+                    etiket="Sayfadakilerin tümünü seç"
                     checked={sayfaSecili}
-                    ref={(el) => {
-                      if (el) el.indeterminate = sayfaKismen;
-                    }}
+                    belirsiz={sayfaKismen}
                     onChange={(e) => secim.sayfayiDegistir(e.target.checked)}
                   />
                 </th>
@@ -124,13 +120,12 @@ export function KayitTablosu(props: {
             {props.satirlar.map((s) => {
               const secili = s.id === props.seciliId;
               return (
-                <tr key={s.id} className={`border-b border-[#f0f2ef] ${secili ? "bg-[#f1f7f5]" : "hover:bg-kart-alt"}`}>
+                <tr key={s.id} className={`border-b border-cizgi ${secili ? "satir-secili" : "satir"}`}>
                   {secim && (
                     <td className="w-0 py-3 pr-0 pl-5 align-top">
-                      <input
-                        type="checkbox"
-                        className="mt-1.5 size-4 accent-ana"
-                        aria-label={`Seç: ${satirAdi(s)}`}
+                      <OnayKutusu
+                        className="mt-1"
+                        etiket={`Seç: ${satirAdi(s)}`}
                         checked={secim.secili.has(s.id)}
                         onChange={() => secim.degistir(s.id)}
                       />
@@ -171,7 +166,7 @@ export function KayitTablosu(props: {
                       <DurumRozeti ton={IZIN_TONU[s.iletiIzni]}>{ILETI_IZNI_ADLARI[s.iletiIzni]}</DurumRozeti>
                       {s.whatsappIzni === "var" && (
                         <span title="WhatsApp izni var" className="inline-flex size-[22px] items-center justify-center rounded-full bg-ana-acik text-ana">
-                          <Simge ad="whatsapp" boyut={12} kalinlik={2.5} />
+                          <Simge ad="whatsapp" boyut={14} kalinlik={2.5} />
                           <span className="sr-only">WhatsApp izni var</span>
                         </span>
                       )}

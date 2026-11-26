@@ -68,7 +68,7 @@ const YOLLAR = {
 
 export type SimgeAdi = keyof typeof YOLLAR;
 
-export function Simge({ ad, boyut = 18, kalinlik = 2, className }: { ad: SimgeAdi; boyut?: number; kalinlik?: number; className?: string }) {
+export function Simge({ ad, boyut = 16, kalinlik = 2, className }: { ad: SimgeAdi; boyut?: 14 | 16 | 20 | 24 | 32 | 48; kalinlik?: number; className?: string }) {
   return (
     <svg
       width={boyut}

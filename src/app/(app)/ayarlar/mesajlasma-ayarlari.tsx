@@ -2,16 +2,17 @@
 // Ayarlar → Gönderen bilgileri, Saatler ve sınırlar, WhatsApp listesi, SMS ve E-posta bölümleri.
 // Her bölüm ayrı sayfadadır; API'ler değişmedi (/api/ayarlar/ileti, /api/ayarlar/saglayicilar/*).
 // Sağlayıcı kimlik bilgileri sunucudan hiçbir zaman geri gelmez: yalnızca "tanımlı / tanımlı değil".
-import { useId, useRef, useState } from "react";
+import { useState } from "react";
 import { IstatistikKutusu } from "@/components/arayuz/gosterge";
 import { AyarSatiri, Kart, KaydetCubugu } from "@/components/arayuz/kart";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { SonucMesaji } from "@/components/bildirim";
 import { DenetimGecmisi } from "@/components/denetim-gecmisi";
+import { Diyalog } from "@/components/arayuz/diyalog";
+import { Dugme } from "@/components/arayuz/dugme";
 import { apiIstek } from "@/lib/api-istemci";
 import { iysDegeriAdi } from "@/lib/denetim";
-import { pencereDisinaTiklaninca } from "@/lib/disari-tiklama";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import {
   IYS_KAPALI_UYARISI,
@@ -149,12 +150,11 @@ export function GonderenAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
  */
 export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: boolean }) {
   const { a, mesaj, mesgul, gonder } = useAyarlar(props.ilk);
-  const pencere = useRef<HTMLDialogElement>(null);
-  const baslikId = useId();
+  const [pencereAcik, setPencereAcik] = useState(false);
   const [onay, setOnay] = useState(false);
   const son = a.iysKontroluSonDegisiklik;
   const kapat = () => {
-    pencere.current?.close();
+    setPencereAcik(false);
     setOnay(false);
   };
   return (
@@ -176,7 +176,7 @@ export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: 
             disabled={!props.yonetici || mesgul}
             onChange={(e) => {
               if (e.target.checked) void gonder("/api/ayarlar/iys-kontrolu", "POST", { acik: true });
-              else pencere.current?.showModal();
+              else setPencereAcik(true);
             }}
             className="size-5 shrink-0 accent-ana"
           />
@@ -189,37 +189,20 @@ export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: 
           <BilgiNotu ton="uyari">{IYS_KAPALI_UYARISI}</BilgiNotu>
         </div>
       )}
-      {!props.yonetici && <p className="px-7 pb-4 text-[13px] text-soluk">{SALT_OKUNUR}</p>}
+      {!props.yonetici && <p className="px-7 pb-4 text-ufak text-soluk">{SALT_OKUNUR}</p>}
       {/* Bütün açma / kapama kayıtları (denetim kaydı); yalnızca yönetici. */}
       {props.yonetici && <DenetimGecmisi olay={DENETIM_IYS_KONTROLU} degerAdi={iysDegeriAdi} className="px-7 pb-4" />}
       <MesajSatiri mesaj={mesaj} />
-      <dialog
-        ref={pencere}
-        onClick={pencereDisinaTiklaninca}
-        aria-labelledby={baslikId}
-        onClose={() => setOnay(false)}
-        className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-lg border border-kenar bg-white p-5 text-sm shadow-lg backdrop:bg-black/40"
-      >
-        <div className="flex flex-col gap-3">
-          <h2 id={baslikId} className="text-base font-semibold">
-            İYS kontrolü kapatılsın mı?
-          </h2>
-          <p>
-            Kapalıyken bireysel kişilere WhatsApp kampanyası ve şablonu İYS beyanı aranmadan gönderilir. WhatsApp izni,
-            ret / engel listesi, test modu, gönderim saatleri ve limitler aynen uygulanır. Bu değişiklik adınız ve tarihle
-            denetim kaydına yazılır.
-          </p>
-          <label className="flex cursor-pointer items-start gap-3">
-            <input type="checkbox" checked={onay} onChange={(e) => setOnay(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-ana" />
-            <span>{IYS_KAPATMA_ONAY_METNI}</span>
-          </label>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="dugme" autoFocus onClick={kapat}>
-              Vazgeç
-            </button>
-            <button
-              type="button"
-              className="dugme-tehlike"
+      <Diyalog
+        acik={pencereAcik}
+        onKapat={kapat}
+        genislik="orta"
+        baslik="İYS kontrolü kapatılsın mı?"
+        eylemler={
+          <>
+            <Dugme onClick={kapat}>Vazgeç</Dugme>
+            <Dugme
+              tur="tehlike"
               disabled={!onay || mesgul}
               onClick={() => {
                 kapat();
@@ -227,10 +210,20 @@ export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: 
               }}
             >
               İYS kontrolünü kapat
-            </button>
-          </div>
-        </div>
-      </dialog>
+            </Dugme>
+          </>
+        }
+      >
+        <p>
+          Kapalıyken bireysel kişilere WhatsApp kampanyası ve şablonu İYS beyanı aranmadan gönderilir. WhatsApp izni,
+          ret / engel listesi, test modu, gönderim saatleri ve limitler aynen uygulanır. Bu değişiklik adınız ve tarihle
+          denetim kaydına yazılır.
+        </p>
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={onay} onChange={(e) => setOnay(e.target.checked)} className="mt-0.5" />
+          <span>{IYS_KAPATMA_ONAY_METNI}</span>
+        </label>
+      </Diyalog>
     </Kart>
   );
 }
@@ -314,7 +307,7 @@ export function WhatsappListesiAyarlari(props: { ilk: MesajlasmaAyarlariDto; yon
             alanId="wa-sablon"
           >
             <textarea id="wa-sablon" value={sablon} onChange={(e) => setSablon(e.target.value)} rows={4} maxLength={1000} className="girdi" />
-            <div className="mt-3 rounded-[10px] bg-ic-kutu p-4">
+            <div className="mt-3 rounded-xl bg-ic-kutu p-4">
               <p className="mb-1 text-xs font-semibold text-soluk">Önizleme</p>
               <p className="whitespace-pre-wrap break-words">{ornek}</p>
             </div>
@@ -376,21 +369,21 @@ export function SmsAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
               aciklama={sms.tanimli ? "Tanımlı. Değiştirmek için üç alanı da yeniden girin; şifre bir daha gösterilmez." : "Netgsm kullanıcı kodu, API şifresi ve onaylı başlığınız."}
             >
               <div className="flex flex-wrap gap-3">
-                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-[13px] text-soluk">
+                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-ufak text-soluk">
                   Netgsm kullanıcı kodu
                   <input name="kullanici" required maxLength={40} className="girdi" autoComplete="off" />
                 </label>
-                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-[13px] text-soluk">
+                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-ufak text-soluk">
                   API şifresi
                   <input name="sifre" type="password" required maxLength={200} className="girdi" autoComplete="new-password" />
                 </label>
-                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-[13px] text-soluk">
+                <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5 text-ufak text-soluk">
                   SMS başlığı
                   <input name="baslik" required maxLength={11} className="girdi font-mono" placeholder="Ör. EGEEMLAK" />
                 </label>
               </div>
               {sms.tanimli && (
-                <label className="mt-3 flex items-center gap-2 text-[13px]">
+                <label className="mt-3 flex items-center gap-2 text-ufak">
                   <input type="checkbox" name="webhookYenile" className="accent-ana" /> Gelen SMS adresini de yenile (eski adres çalışmaz)
                 </label>
               )}
@@ -400,7 +393,7 @@ export function SmsAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
             <div className="px-7 pb-4">
               <BilgiNotu ton="uyari">
                 <p className="font-semibold">Gelen SMS adresi (yalnızca şimdi gösterilir)</p>
-                <input readOnly value={webhookAdresi} className="girdi mt-2 font-mono text-[13px]" aria-label="Gelen SMS adresi" onFocus={(e) => e.currentTarget.select()} />
+                <input readOnly value={webhookAdresi} className="girdi mt-2 font-mono text-ufak" aria-label="Gelen SMS adresi" onFocus={(e) => e.currentTarget.select()} />
                 <p className="mt-2">
                   Bu adresi Netgsm panelinde gelen SMS yönlendirmesi olarak tanımlayın; RET yanıtları böyle işlenir. Adres
                   gizlidir, kaybederseniz yenileyin.
@@ -470,7 +463,7 @@ function SmsGonderimAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
 export function EpostaAyarlari(props: { ilk: MesajlasmaAyarlariDto }) {
   const { a, mesaj, mesgul, gonder, surum } = useAyarlar(props.ilk);
   const smtp = a.saglayicilar.eposta;
-  const etiket = "flex min-w-0 flex-col gap-1.5 text-[13px] text-soluk";
+  const etiket = "flex min-w-0 flex-col gap-1.5 text-ufak text-soluk";
   return (
     <Kart>
       <BaglantiSatiri tanimli={smtp.tanimli} guncellemeTarihi={smtp.guncellemeTarihi} tanimsizMetni="Bağlanana kadar e-posta kampanyaları test modunda kalır (gerçek gönderim yapılmaz)." />

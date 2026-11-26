@@ -2,6 +2,7 @@
 // Yanıt kutusunun hazır cevap seçicisi: liste her açılışta sunucudan alınır (Ayarlar'daki değişiklik hemen görünür).
 // Arama başlıkta ve metinde; ok tuşları ve Enter ile seçilir, Esc kapatır. Seçilen metin yanıt kutusuna konur;
 // gönderim kullanıcı "Gönder"e basınca her zamanki yoldan yapılır.
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { apiIstek } from "@/lib/api-istemci";
@@ -33,7 +34,7 @@ export function HazirCevapSecici(props: { onSec: (metin: string) => void; onKapa
   const secili = Math.min(etkin, Math.max(sonuc.length - 1, 0));
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-kenar bg-white p-3 shadow-sm" role="dialog" aria-label="Hazır cevap seç">
+    <div className="flex flex-col gap-2 rounded-lg border border-kenar bg-white p-3" role="dialog" aria-label="Hazır cevap seç">
       <input
         ref={aramaRef}
         type="search"
@@ -68,7 +69,7 @@ export function HazirCevapSecici(props: { onSec: (metin: string) => void; onKapa
       {hata ? (
         <p className="text-sm text-tehlike">{hata}</p>
       ) : !cevaplar ? (
-        <p className="text-sm text-soluk">Yükleniyor…</p>
+        <DonerGosterge etiket="Yükleniyor…" />
       ) : cevaplar.length === 0 ? (
         <p className="text-sm text-soluk">
           Henüz hazır cevap yok.{" "}

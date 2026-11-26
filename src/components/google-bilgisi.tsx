@@ -3,6 +3,7 @@
 // durumunda ve en fazla 30 dakikalık bellek önbelleğinde (lib/google-onbellegi.ts) tutulur; tarayıcı depolamasına
 // (localStorage / sessionStorage / IndexedDB) ve sunucuya yazılmaz. Önbellekte olan kayıt için Google'a yeniden
 // gidilmez. Arayüzde maliyet ya da birim gösterilmez (kullanım yalnızca menüdeki yüzde göstergesinde).
+import { Dugme } from "@/components/arayuz/dugme";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { kullanimDegisti } from "@/components/kullanim-gostergesi";
 import { apiIstek } from "@/lib/api-istemci";
@@ -99,14 +100,14 @@ export function GoogleBilgisiHucresi(props: {
     );
   }
   return (
-    <button
-      type="button"
-      className="text-xs font-medium text-ana underline-offset-2 hover:underline disabled:opacity-50"
-      disabled={props.yukleniyor}
+    <Dugme
+      tur="metin"
+      className="text-xs"
+      yukleniyor={props.yukleniyor}
       onClick={() => props.onGoster([props.id])}
       title="Google Haritalar'dan anlık gösterilir; saklanmaz"
     >
-      {props.yukleniyor ? "Yükleniyor…" : "Göster"}
-    </button>
+      Göster
+    </Dugme>
   );
 }

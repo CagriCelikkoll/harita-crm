@@ -153,18 +153,18 @@ export function KampanyaDetayi({
       </SayfaBasligi>
 
       <div className="flex max-w-[1100px] flex-col gap-6">
-        <section aria-label="Durum" className="flex flex-col gap-5 rounded-kart border border-kenar bg-white p-7">
+        <section aria-label="Durum" className="kart flex flex-col gap-5">
           <div className="flex flex-wrap items-center gap-2">
             <DurumRozeti ton={k.durum === "tamamlandi" ? "ana" : k.durum === "duraklatildi" ? "uyari" : k.durum === "calisiyor" ? "mavi" : "notr"}>
               {KAMPANYA_DURUM_ADLARI[k.durum]}
             </DurumRozeti>
             {k.sandbox && <DurumRozeti ton="uyari">Test modu: gerçek gönderim yok</DurumRozeti>}
             {k.durum === "zamanlandi" && k.planlananTarih && (
-              <span className="text-[13px] text-soluk">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</span>
+              <span className="text-ufak text-soluk">Planlanan başlangıç: {tarihYaz(k.planlananTarih)}</span>
             )}
           </div>
           {k.durum === "duraklatildi" && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] bg-tehlike-acik p-4 text-sm text-tehlike">
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-tehlike-acik p-4 text-sm text-tehlike">
               <p>{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Kampanya sistem tarafından duraklatıldı."}</p>
               <button type="button" className="dugme dugme-kucuk" disabled={mesgul} onClick={() => void islem("devam")}>
                 Devam ettir (yönetici)
@@ -193,7 +193,7 @@ export function KampanyaDetayi({
             ))}
           </div>
           {(s.gonderiliyor > 0 || s.iptal > 0) && (
-            <p className="-mt-2 text-[13px] text-soluk">
+            <p className="-mt-2 text-ufak text-soluk">
               {MESAJ_DURUM_ADLARI.gonderiliyor}: {sayiYaz(s.gonderiliyor)} · {MESAJ_DURUM_ADLARI.iptal}: {sayiYaz(s.iptal)}
             </p>
           )}
@@ -228,7 +228,7 @@ export function KampanyaDetayi({
           )}
         </section>
 
-        <section className="overflow-hidden rounded-kart border border-kenar bg-white" aria-label="Kampanya ayrıntıları">
+        <section className="kart-cerceve" aria-label="Kampanya ayrıntıları">
           <div className="px-7 pt-2">
             <Sekmeler etiket="Kampanya ayrıntıları" onEk={`kampanya-${k.id}`} sekmeler={DETAY_SEKMELERI} secili={sekme} onSec={setSekme} />
           </div>
@@ -275,7 +275,7 @@ export function KampanyaDetayi({
                     <col className="w-[28%]" />
                     <col />
                   </colgroup>
-                  <thead className="text-[13px] text-soluk">
+                  <thead className="text-ufak text-soluk">
                     <tr className="border-b border-cizgi">
                       <th className="py-2.5 pr-3 text-left font-semibold">Kayıt</th>
                       <th className="py-2.5 pr-3 text-left font-semibold">Durum</th>
@@ -284,17 +284,22 @@ export function KampanyaDetayi({
                   </thead>
                   <tbody>
                     {veri.mesajlar.map((m) => (
-                      <tr key={m.id} className="border-b border-cizgi align-top last:border-0">
+                      <tr key={m.id} className="satir border-b border-cizgi align-top last:border-0">
                         <td className="py-2.5 pr-3">
+                          {/* Adı girilmemiş Google kaydı: sade soluk metin (bağlantı kayda gider) + yanında "Göster". */}
                           <Link
                             href={`/kayitlar?grup=tum&secili=${m.leadId}`}
-                            className={m.isletmeAdi || m.kaynak !== "google" ? "text-ana underline" : "text-soluk italic underline"}
+                            className={
+                              m.isletmeAdi || m.kaynak !== "google"
+                                ? "text-ana underline"
+                                : "text-soluk underline-offset-2 hover:text-metin hover:underline"
+                            }
                           >
                             {m.isletmeAdi || (m.kaynak === "google" ? GOOGLE_ADSIZ : (m.yetkiliAdi ?? "(adsız kişi)"))}
                           </Link>
                           {/* Google adı yalnızca istenince ve yalnızca bellekte; mesaja yazılmaz. */}
                           {!m.isletmeAdi && m.kaynak === "google" && (
-                            <span className="block">
+                            <span className="ml-2 inline-block">
                               <GoogleBilgisiHucresi
                                 id={m.leadId}
                                 alan="ad"
@@ -314,7 +319,7 @@ export function KampanyaDetayi({
                           {m.hata && <span className="block text-tehlike">{m.hata}</span>}
                           {m.durum === "kuyrukta" && m.sonrakiDeneme && <span className="block">Sonraki deneme: {tarihYaz(m.sonrakiDeneme)}</span>}
                           {m.sandboxIcerik && (
-                            <button type="button" className="text-ana underline" onClick={() => setAcik(acik === m.id ? null : m.id)}>
+                            <button type="button" className="dugme-metin" onClick={() => setAcik(acik === m.id ? null : m.id)}>
                               {acik === m.id ? "Mesajı gizle" : "Kaydedilen mesajı göster"}
                             </button>
                           )}
@@ -355,10 +360,10 @@ export function KampanyaDetayi({
                   <span className="text-soluk">Konu:</span> <span className="font-semibold">{k.konu}</span>
                 </p>
               )}
-              <p className="text-[13px] text-soluk">
+              <p className="text-ufak text-soluk">
                 {k.kanal === "whatsapp_api" ? "Meta'da onaylı şablon" : "Mesaj şablonu ({isletme} kaydın kendi işletme adıyla dolar)"}
               </p>
-              <p className="whitespace-pre-wrap break-words rounded-[10px] bg-ic-kutu p-4">{k.sablon}</p>
+              <p className="whitespace-pre-wrap break-words rounded-xl bg-ic-kutu p-4">{k.sablon}</p>
             </div>
           )}
 
@@ -369,7 +374,7 @@ export function KampanyaDetayi({
                   <span aria-hidden="true" className="mt-1.5 size-2.5 shrink-0 rounded-full bg-ana" />
                   <div>
                     <p>Oluşturuldu</p>
-                    <p className="text-[13px] text-soluk">{tarihYaz(k.olusturmaTarihi)}</p>
+                    <p className="text-ufak text-soluk">{tarihYaz(k.olusturmaTarihi)}</p>
                   </div>
                 </li>
                 {k.planlananTarih && (
@@ -377,7 +382,7 @@ export function KampanyaDetayi({
                     <span aria-hidden="true" className="mt-1.5 size-2.5 shrink-0 rounded-full bg-pasif" />
                     <div>
                       <p>Planlanan başlangıç</p>
-                      <p className="text-[13px] text-soluk">{tarihYaz(k.planlananTarih)}</p>
+                      <p className="text-ufak text-soluk">{tarihYaz(k.planlananTarih)}</p>
                     </div>
                   </li>
                 )}
@@ -386,7 +391,7 @@ export function KampanyaDetayi({
                   <div>
                     <p>Şu anki durum: {KAMPANYA_DURUM_ADLARI[k.durum]}</p>
                     {k.durum === "duraklatildi" && (
-                      <p className="text-[13px] text-soluk">{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Sistem tarafından duraklatıldı."}</p>
+                      <p className="text-ufak text-soluk">{DURAKLATMA_NEDEN_ADLARI[k.duraklatmaNedeni ?? ""] ?? "Sistem tarafından duraklatıldı."}</p>
                     )}
                   </div>
                 </li>
@@ -434,7 +439,7 @@ function KisiDurumu({ m }: { m: MesajDto }) {
 function IsciDurumu(props: { sonNabiz: string | null; simdi: string; yonetici: boolean }) {
   const d = isciDurumu(props.sonNabiz ? new Date(props.sonNabiz) : null, new Date(props.simdi));
   return (
-    <div className={`rounded-[10px] p-4 text-sm ${d.uyari && props.yonetici ? "bg-tehlike-acik text-tehlike" : "bg-ic-kutu"}`} role={d.uyari ? "alert" : "status"}>
+    <div className={`rounded-xl p-4 text-sm ${d.uyari && props.yonetici ? "bg-tehlike-acik text-tehlike" : "bg-ic-kutu"}`} role={d.uyari ? "alert" : "status"}>
       <p>{d.metin}</p>
       {d.uyari &&
         (props.yonetici ? (

@@ -22,26 +22,26 @@ export default async function KullanimSayfasi() {
   const { ctx } = await ayarBolumuBaglami("kullanim");
   const ozet = kullanimOzeti(kotaDurumu(ctx));
   const dokum = kullanimDokumu(ctx);
-  const renk = ozet.seviye === "doldu" ? "bg-tehlike" : ozet.seviye === "uyari" ? "bg-amber-500" : "bg-ana";
+  const renk = ozet.seviye === "doldu" ? "bg-tehlike" : ozet.seviye === "uyari" ? "bg-uyari-dolgu" : "bg-ana";
 
   return (
     <AyarBolumu baslik="Kullanım ve paket" aciklama="Bu ay işletme bilgilerini görüntülemek, bölge taramak ve haritayı açmak için ne kadar kullandığınız.">
       <Kart className="flex flex-col gap-5 p-7">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="mb-1 text-[13px] text-soluk">Bu ayki kullanım</p>
-            <p className="text-4xl leading-none font-bold tabular-nums">%{ozet.yuzde}</p>
+            <p className="mb-1 text-ufak text-soluk">Bu ayki kullanım</p>
+            <p className="text-baslik leading-none font-semibold tabular-nums">%{ozet.yuzde}</p>
           </div>
-          <p className="text-[13px] text-soluk">{kotaDonemiMetni(ayAnahtari())}</p>
+          <p className="text-ufak text-soluk">{kotaDonemiMetni(ayAnahtari())}</p>
         </div>
         <IlerlemeCubugu yuzde={ozet.yuzde} etiket="Bu ayki kullanım" kalin renk={renk} />
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 pt-1">
           {KALEMLER.map((k) => (
-            <div key={k.anahtar} className="flex flex-col gap-1 rounded-[10px] bg-ic-kutu p-4">
+            <div key={k.anahtar} className="flex flex-col gap-1 rounded-xl bg-ic-kutu p-4">
               <p className="flex justify-between gap-2 font-semibold">
                 {k.ad} <span className="tabular-nums">%{dokum[k.anahtar]}</span>
               </p>
-              <p className="mb-1.5 text-[13px] text-soluk">{k.aciklama}</p>
+              <p className="mb-1.5 text-ufak text-soluk">{k.aciklama}</p>
               <IlerlemeCubugu yuzde={dokum[k.anahtar]} etiket={`${k.ad}: bu ayki kullanımın payı`} zemin="bg-kenar" />
             </div>
           ))}
@@ -61,10 +61,10 @@ export default async function KullanimSayfasi() {
 
       <Kart className="flex flex-wrap items-center justify-between gap-4 px-7 py-6">
         <div>
-          <p className="text-[13px] text-soluk">Aylık kullanım sınırı</p>
-          <p className="text-lg font-bold">Çalışma alanınıza tanımlı sınır</p>
+          <p className="text-ufak text-soluk">Aylık kullanım sınırı</p>
+          <p className="text-xl font-semibold">Çalışma alanınıza tanımlı sınır</p>
         </div>
-        <p className="max-w-sm text-[13px] text-soluk">{SINIR_ARTIRMA_METNI}</p>
+        <p className="max-w-sm text-ufak text-soluk">{SINIR_ARTIRMA_METNI}</p>
       </Kart>
     </AyarBolumu>
   );

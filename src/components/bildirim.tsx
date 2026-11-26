@@ -42,8 +42,8 @@ export function BildirimAlani() {
       {liste.map((b) => (
         <p
           key={b.id}
-          className={`pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-md ${
-            b.tur === "hata" ? "border-tehlike/40 bg-red-50 text-tehlike" : "border-ana/30 bg-white text-ana"
+          className={`pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-yukselti ${
+            b.tur === "hata" ? "border-tehlike/40 bg-tehlike-acik text-tehlike" : "border-ana/30 bg-white text-ana"
           }`}
         >
           {b.tur === "tamam" ? "✓ " : ""}

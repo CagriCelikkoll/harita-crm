@@ -36,7 +36,7 @@ export default async function VeriSaklamaSayfasi() {
           baslik="Gelen medyanın kapladığı alan"
           aciklama="Alan dolunca yeni fotoğraf, belge ve sesler indirilmez (sohbette “telefondan bakın” görünür). Saklama süresini kısaltmak yer açar."
         >
-          <p className={`text-[13px] ${doluluk >= 0.9 ? "font-semibold text-tehlike" : "text-metin-ikincil"}`}>
+          <p className={`text-ufak ${doluluk >= 0.9 ? "font-semibold text-tehlike" : "text-metin-ikincil"}`}>
             {boyutYaz(medya.bayt)} / {boyutYaz(MEDYA_KOTA_BAYT)} ({sayiYaz(medya.adet)} dosya)
             {doluluk >= 1 ? " — alan doldu, yeni medya indirilmiyor." : doluluk >= 0.9 ? " — alan dolmak üzere." : ""}
           </p>
@@ -49,7 +49,7 @@ export default async function VeriSaklamaSayfasi() {
           </a>
         </AyarSatiri>
         <AyarSatiri baslik="Google Haritalar bilgileri" aciklama="Bu çalışma alanı için otomatik uygulanır.">
-          <p className="text-[13px] text-metin-ikincil">
+          <p className="text-ufak text-metin-ikincil">
             İşletme adı, adres, telefon gibi Google bilgileri hiç saklanmaz; her görüntülemede anlık gösterilir.
             Google&apos;dan gelen konumlar ve tarama merkezleri en fazla {PLACES_KONUM_SAKLAMA_GUN} gün tutulur ve sonra
             otomatik silinir.

@@ -26,9 +26,9 @@ export default async function TopluGecmisiSayfasi() {
       {!yonetici ? (
         <BilgiNotu>Toplu işlem geçmişini yalnızca yönetici görebilir.</BilgiNotu>
       ) : kayitlar.length === 0 ? (
-        <section className="rounded-kart border border-kenar bg-white p-7 text-soluk">Henüz toplu işlem yapılmadı.</section>
+        <section className="kart text-soluk">Henüz toplu işlem yapılmadı.</section>
       ) : (
-        <section aria-label="Toplu işlem geçmişi" className="overflow-hidden rounded-kart border border-kenar bg-white">
+        <section aria-label="Toplu işlem geçmişi" className="kart-cerceve">
           <div className="relative overflow-x-auto">
             <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-sm break-words">
               <colgroup>
@@ -38,7 +38,7 @@ export default async function TopluGecmisiSayfasi() {
                 <col className="w-[14%]" />
                 <col />
               </colgroup>
-              <thead className="text-[13px] text-soluk">
+              <thead className="text-ufak text-soluk">
                 <tr>
                   <th className="border-b border-cizgi px-5 py-3 font-semibold">Tarih</th>
                   <th className="border-b border-cizgi px-3 py-3 font-semibold">Kişi</th>
@@ -51,19 +51,19 @@ export default async function TopluGecmisiSayfasi() {
                 {kayitlar.map((k) => {
                   const o = topluDenetimOzeti(k.deger, k.aciklama);
                   return (
-                    <tr key={k.id} className="border-b border-[#f0f2ef] align-top last:border-0">
+                    <tr key={k.id} className="border-b border-cizgi align-top last:border-0">
                       <td className="px-5 py-3 whitespace-nowrap">{tarihYaz(k.tarih)}</td>
                       <td className="px-3 py-3">{k.kullaniciAdi ?? "Silinmiş kullanıcı"}</td>
                       <td className="px-3 py-3">
                         <span className="font-semibold">{o.islem}</span>
-                        {o.ayrinti && o.ayrinti !== o.islem && <span className="block text-[13px] text-soluk">{o.ayrinti}</span>}
-                        {o.secim && <span className="block text-[13px] text-soluk">{o.secim}</span>}
+                        {o.ayrinti && o.ayrinti !== o.islem && <span className="block text-ufak text-soluk">{o.ayrinti}</span>}
+                        {o.secim && <span className="block text-ufak text-soluk">{o.secim}</span>}
                       </td>
                       <td className="px-3 py-3 tabular-nums">
                         {o.hedef !== null && o.degisen !== null ? (
                           <>
                             {sayiYaz(o.degisen)} değişti
-                            <span className="block text-[13px] text-soluk">{sayiYaz(o.hedef)} seçili</span>
+                            <span className="block text-ufak text-soluk">{sayiYaz(o.hedef)} seçili</span>
                           </>
                         ) : (
                           "—"
@@ -75,7 +75,7 @@ export default async function TopluGecmisiSayfasi() {
                         ) : (
                           <>
                             {o.izinKaynagi ?? "—"}
-                            <span className={`block text-[13px] ${o.beyan ? "text-ana" : "text-tehlike"}`}>
+                            <span className={`block text-ufak ${o.beyan ? "text-ana" : "text-tehlike"}`}>
                               {o.beyan ? "Beyan onaylandı" : "Beyan kaydı yok"}
                             </span>
                           </>

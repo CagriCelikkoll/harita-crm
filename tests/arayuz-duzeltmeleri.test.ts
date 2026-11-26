@@ -105,7 +105,7 @@ describe("Kayıtlar tablosu", () => {
     expect(h).toContain('<span class="sr-only">WhatsApp izni var</span>');
     expect(h).not.toMatch(/>Göster<|Google bilgilerini göster|Yükleniyor/);
     expect(h).toMatch(/font-semibold">Can Örnek<\/span><span[^>]*>Google tarama<\/span>/);
-    expect(h).toMatch(/text-soluk italic">Google kaydı · ad girilmemiş<\/span>/);
+    expect(h).toMatch(/class="text-soluk">Google kaydı · ad girilmemiş<\/span>/); // sade soluk metin (italik değil)
     expect(h).toMatch(/font-semibold">Ege Emlak<\/span><span[^>]*>Ayşe<\/span>/);
   });
 });
@@ -120,7 +120,7 @@ describe("kampanya sihirbazı", () => {
   it("görsel: tarayıcı dosya girişi gizli; yüklüyken ad + boyut ve 'Görseli değiştir', yokken 'Görsel seç'", () => {
     expect(s).toMatch(/<label className=\{`dugme dugme-kucuk relative cursor-pointer[^`]*`\}>\s*\{props\.gorsel \? "Görseli değiştir" : "Görsel seç"\}/);
     // Telefonda alt çubuğun açıklaması düğmelerin arasına sıkışmaz: kendi satırında, üstte.
-    expect(s).toContain('<div className="min-w-0 flex-1 text-[13px] max-sm:order-first max-sm:basis-full">');
+    expect(s).toContain('<div className="min-w-0 flex-1 text-ufak max-sm:order-first max-sm:basis-full">');
     expect(s).toMatch(/accept="image\/jpeg,image\/png"[\s\S]{0,300}className="sr-only"/);
     expect(s).toContain('<span className="shrink-0 text-soluk">· {sayiYaz(Math.ceil(props.gorsel.boyut / 1024))} KB</span>');
     expect(s).not.toContain('className="girdi text-[13px]"');
@@ -248,7 +248,7 @@ describe("Kayıtlar: Filtreler paneli yüksekliği, boş liste, toplu işlem ön
     expect(onizlemeMetni("etiket_ekle", 2, { hedef: 2, degisen: 2, atlanan: sifir, bulunamayan: 0 })).toBe("2 seçili · 2 kayda eklenecek.");
     const t = oku("src/app/(app)/kayitlar/toplu-islem.tsx");
     expect(t).toContain("govde: { onizleme: true, secim: props.secim, islem }");
-    expect(t).toMatch(/pencere\.current\?\.showModal\(\);\s*void onizlemeAl\(\);/);
+    expect(t).toMatch(/setPencereAcik\(true\);\s*void onizlemeAl\(\);/);
   });
 });
 

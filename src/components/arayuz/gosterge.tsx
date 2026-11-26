@@ -1,10 +1,10 @@
 // İstatistik kutusu (küçük başlık + büyük değer) ve ilerleme çubuğu.
 export function IstatistikKutusu(props: { baslik: string; deger: React.ReactNode; aciklama?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className="rounded-[10px] bg-ic-kutu px-4 py-3.5">
-      <p className="text-[13px] text-soluk">{props.baslik}</p>
-      <p className="text-xl font-bold tabular-nums">{props.deger}</p>
-      {props.aciklama && <p className="mt-1 text-[13px] text-soluk">{props.aciklama}</p>}
+    <div className="rounded-xl bg-ic-kutu px-4 py-3.5">
+      <p className="text-ufak text-soluk">{props.baslik}</p>
+      <p className="text-xl font-semibold tabular-nums">{props.deger}</p>
+      {props.aciklama && <p className="mt-1 text-ufak text-soluk">{props.aciklama}</p>}
       {props.children}
     </div>
   );
@@ -21,7 +21,7 @@ export function IlerlemeCubugu(props: { yuzde: number; etiket: string; kalin?: b
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={yuzde}
-      className={`${yukseklik} overflow-hidden rounded-full ${props.zemin ?? "bg-[#eef0ec]"}`}
+      className={`${yukseklik} overflow-hidden rounded-full ${props.zemin ?? "bg-ilerleme-zemin"}`}
     >
       <div className={`${yukseklik} rounded-full ${props.renk ?? "bg-ana"}`} style={{ width: `${yuzde}%` }} />
     </div>

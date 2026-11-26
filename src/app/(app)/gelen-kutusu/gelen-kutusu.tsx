@@ -8,6 +8,8 @@
 // mesajında "Tekrar dene".
 // Liste süzgeci (numara, Açık / Kapalı, atama; arama hariç) adreste ve kullanıcı + çalışma alanı başına tercih olarak
 // tutulur (lib/liste-tercihi): adreste süzgeç yoksa kayıtlı tercih uygulanır.
+import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
+import { Dugme } from "@/components/arayuz/dugme";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { bildir } from "@/components/bildirim";
@@ -260,7 +262,9 @@ export function GelenKutusu(props: {
             onNotlar={(n) => setAyrinti((x) => (x ? { ...x, notlar: n } : x))}
           />
         ) : seciliId ? (
-          <div className="kart text-sm text-soluk">Yükleniyor…</div>
+          <div className="kart" aria-busy="true">
+            <DonerGosterge etiket="Yükleniyor…" />
+          </div>
         ) : (
           <div className="kart flex flex-1 items-center justify-center text-sm text-soluk">Soldan bir sohbet seçin.</div>
         )}
@@ -277,10 +281,10 @@ function ListeSuzgeci(props: { liste: SohbetListesi; filtre: Filtre; setFiltre: 
       type="button"
       aria-pressed={filtre.numara === id}
       onClick={() => setFiltre({ ...filtre, numara: id })}
-      className={`flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[13px] ${filtre.numara === id ? "bg-ana font-semibold text-white" : "bg-segment text-metin-ikincil"}`}
+      className={`flex min-h-9 items-center gap-1.5 rounded-full px-3 text-ufak ${filtre.numara === id ? "bg-ana font-semibold text-white hover:bg-ana-uzerine active:bg-ana-koyu" : "bg-segment text-metin-ikincil hover:bg-uzerine-gelme active:bg-basili"}`}
     >
       {ad}
-      {sayi ? <span className={`rounded-full px-1.5 text-xs font-bold ${filtre.numara === id ? "bg-white/25" : "bg-ana text-white"}`}>{sayi}</span> : null}
+      {sayi ? <span className={`rounded-full px-1.5 text-xs font-semibold ${filtre.numara === id ? "bg-white/25" : "bg-ana text-white"}`}>{sayi}</span> : null}
     </button>
   );
   return (
@@ -294,7 +298,7 @@ function ListeSuzgeci(props: { liste: SohbetListesi; filtre: Filtre; setFiltre: 
       <div className="flex gap-2">
         <select
           aria-label="Durum"
-          className="girdi !min-h-9 !w-auto !py-1"
+          className="girdi !w-auto !py-1 sm:!min-h-9"
           value={filtre.durum}
           onChange={(e) => setFiltre({ ...filtre, durum: e.target.value as Filtre["durum"] })}
         >
@@ -304,7 +308,7 @@ function ListeSuzgeci(props: { liste: SohbetListesi; filtre: Filtre; setFiltre: 
         </select>
         <select
           aria-label="Atama"
-          className="girdi !min-h-9 !w-auto !py-1"
+          className="girdi !w-auto !py-1 sm:!min-h-9"
           value={filtre.atanan}
           onChange={(e) => setFiltre({ ...filtre, atanan: e.target.value as Filtre["atanan"] })}
         >
@@ -315,7 +319,7 @@ function ListeSuzgeci(props: { liste: SohbetListesi; filtre: Filtre; setFiltre: 
       </div>
       <input
         type="search"
-        className="girdi !min-h-9"
+        className="girdi sm:!min-h-9"
         placeholder="Ad ya da telefon ara"
         aria-label="Sohbet ara"
         value={filtre.q}
@@ -355,19 +359,19 @@ function SohbetSatiri(props: { s: SohbetOzetiDto; secili: boolean; simdi: number
         className={`flex w-full flex-col gap-1 border-b border-cizgi px-4 py-3 text-left ${props.secili ? "bg-ana-acik" : "hover:bg-zemin"}`}
       >
         <span className="flex items-center gap-2">
-          <span className={`min-w-0 flex-1 truncate text-sm ${s.okunmamis ? "font-bold" : "font-semibold"}`}>{s.ad}</span>
+          <span className={`min-w-0 flex-1 truncate text-sm ${s.okunmamis ? "font-semibold" : "font-semibold"}`}>{s.ad}</span>
           <span className="shrink-0 text-xs text-soluk">{kisaZaman(s.sonMesajTarihi)}</span>
         </span>
         <span className="flex items-center gap-2">
-          <span className={`min-w-0 flex-1 truncate text-[13px] ${s.okunmamis ? "text-metin" : "text-soluk"}`}>{s.sonMesaj ?? "—"}</span>
+          <span className={`min-w-0 flex-1 truncate text-ufak ${s.okunmamis ? "text-metin" : "text-soluk"}`}>{s.sonMesaj ?? "—"}</span>
           {s.okunmamis > 0 && (
-            <span className="shrink-0 rounded-full bg-ana px-1.5 text-xs font-bold text-white" aria-label={`${s.okunmamis} okunmamış`}>
+            <span className="shrink-0 rounded-full bg-ana px-1.5 text-xs font-semibold text-white" aria-label={`${s.okunmamis} okunmamış`}>
               {s.okunmamis}
             </span>
           )}
         </span>
         <span className="flex flex-wrap items-center gap-1.5 text-xs text-soluk">
-          {props.cokNumara && <span className="rounded bg-segment px-1.5">{s.numara}</span>}
+          {props.cokNumara && <span className="rounded-md bg-segment px-1.5">{s.numara}</span>}
           {kalan ? <span title="24 saatlik yanıt penceresinin kalanı">⏱ {kalan}</span> : <span>Pencere kapalı</span>}
           {s.atananAd && <span>· {s.atananAd}</span>}
           {s.durum === "kapali" && <span>· Kapalı</span>}
@@ -456,7 +460,7 @@ function SohbetEkrani(props: {
           {s.reklamdan && <DurumRozeti ton="notr">Reklamdan yazdı</DurumRozeti>}
           <select
             aria-label="Atanan kişi"
-            className="girdi !min-h-9 !w-auto !py-1"
+            className="girdi !w-auto !py-1 sm:!min-h-9"
             value={s.atananKullanici ?? ""}
             onChange={(e) => void guncelle({ atananKullanici: e.target.value || null })}
           >
@@ -516,10 +520,10 @@ function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: Sohb
   if (s.retVerdi) return null;
   // İYS kontrolü kapalıysa İYS beyanı aranmaz: eksik sayılmaz (uyarı gösterilir).
   const iysEksik = s.iysKontrolu && s.izin === "var" && s.bireysel && !s.iysBeyani;
-  const iysUyarisi = !s.iysKontrolu && <p className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">{IYS_KAPALI_UYARISI}</p>;
+  const iysUyarisi = !s.iysKontrolu && <p className="rounded-md bg-uyari-acik px-2 py-1 text-xs font-medium text-uyari">{IYS_KAPALI_UYARISI}</p>;
   if (s.izin === "var" && !iysEksik) {
     return (
-      <aside className="kart flex flex-col gap-1 text-[13px]" aria-label="Pazarlama izni">
+      <aside className="kart flex flex-col gap-1 text-ufak" aria-label="Pazarlama izni">
         <h2 className="text-sm font-semibold">Pazarlama izni</h2>
         {iysUyarisi}
         <p>
@@ -538,7 +542,7 @@ function PazarlamaIzni(props: { s: SohbetAyrintisi["sohbet"]; onSohbet: (s: Sohb
     bildir(iysEksik ? "İYS beyanı kaydedildi." : "Pazarlama izni kaydedildi.");
   };
   return (
-    <aside className="kart flex flex-col gap-2 text-[13px]" aria-label="Pazarlama izni">
+    <aside className="kart flex flex-col gap-2 text-ufak" aria-label="Pazarlama izni">
       <h2 className="text-sm font-semibold">Pazarlama izni</h2>
       {iysUyarisi}
       {iysEksik ? (
@@ -593,7 +597,7 @@ function TeslimIsareti({ m }: { m: SohbetMesajiDto }) {
   if (d === "belirsiz") return <span className="font-semibold text-uyari">{TESLIM_ADLARI.belirsiz}</span>;
   const isaret = d === "read" ? "✓✓" : d === "delivered" ? "✓✓" : "✓";
   return (
-    <span className={d === "read" ? "text-[#1d6fd1]" : "text-soluk"} title={TESLIM_ADLARI[d] ?? d} aria-label={TESLIM_ADLARI[d] ?? d}>
+    <span className={d === "read" ? "text-okundu" : "text-soluk"} title={TESLIM_ADLARI[d] ?? d} aria-label={TESLIM_ADLARI[d] ?? d}>
       {isaret}
     </span>
   );
@@ -605,7 +609,7 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
   const ad = MESAJ_TUR_ADLARI[tur];
   if (medya.durum !== "indirildi" || !medya.gorunum) {
     return (
-      <div className="mb-1 rounded bg-segment px-2 py-1 text-xs text-metin-ikincil">
+      <div className="mb-1 rounded-md bg-segment px-2 py-1 text-xs text-metin-ikincil">
         [{ad}] {medya.neden ?? "görüntülenemiyor, telefondan bakın"}
       </div>
     );
@@ -646,7 +650,7 @@ function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto[
       </div>
     );
   }
-  return <div className="mb-1 rounded bg-segment px-2 py-1.5">{indirme}</div>;
+  return <div className="mb-1 rounded-md bg-segment px-2 py-1.5">{indirme}</div>;
 }
 
 /** Alıntı kutusu: yanıtlanan mesaj (tıklayınca ona kayar). */
@@ -683,7 +687,7 @@ export function WhatsappMetni({ metin }: { metin: string }) {
   return (
     <>
       {parcalar.map((p, i) => {
-        if (p.length > 6 && p.startsWith("```") && p.endsWith("```")) return <code key={i} className="font-mono text-[13px]">{p.slice(3, -3)}</code>;
+        if (p.length > 6 && p.startsWith("```") && p.endsWith("```")) return <code key={i} className="font-mono text-ufak">{p.slice(3, -3)}</code>;
         if (p.length > 2 && /\S/.test(p.slice(1, -1))) {
           if (p.startsWith("*") && p.endsWith("*")) return <strong key={i}>{p.slice(1, -1)}</strong>;
           if (p.startsWith("_") && p.endsWith("_")) return <em key={i}>{p.slice(1, -1)}</em>;
@@ -725,7 +729,7 @@ function SablonIletisi({ metin, gorsel }: { metin: string; gorsel: string | null
       {p.butonlar.length > 0 && (
         <ul aria-label="Şablon butonları" className="-mx-3 mt-1 border-t border-black/10">
           {p.butonlar.map((b, i) => (
-            <li key={i} className="border-b border-black/10 px-3 py-1.5 text-center text-[13px] font-medium text-ana-koyu last:border-b-0">
+            <li key={i} className="border-b border-black/10 px-3 py-1.5 text-center text-ufak font-medium text-ana-koyu last:border-b-0">
               {b}
             </li>
           ))}
@@ -744,14 +748,14 @@ function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m:
   const metin = m.medya?.dosyaAdi && m.metin === m.medya.dosyaAdi ? null : m.metin;
   return (
     <div id={`mesaj-${m.id}`} className={`group flex items-center gap-1 ${giden ? "flex-row-reverse" : ""}`}>
-      <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm shadow-sm ${giden ? "bg-ana-acik" : "bg-white"}`}>
+      <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${giden ? "bg-ana-acik" : "bg-white"}`}>
         {etiket && <div className="mb-0.5 text-xs font-semibold text-ana-koyu">{etiket}</div>}
         {m.yanit && <Alinti yanit={m.yanit} giden={giden} />}
         {m.medya ? (
           <MedyaGosterimi medya={m.medya} tur={m.tur} />
         ) : (
           medya && (
-            <div className="mb-1 rounded bg-segment px-2 py-1 text-xs text-metin-ikincil">
+            <div className="mb-1 rounded-md bg-segment px-2 py-1 text-xs text-metin-ikincil">
               [{MESAJ_TUR_ADLARI[m.tur]}] görüntülenemiyor, telefondan bakın
             </div>
           )
@@ -766,24 +770,24 @@ function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m:
           <p className="text-soluk italic">[{MESAJ_TUR_ADLARI[m.tur]}]</p>
         ) : null}
         {giden && m.teslimDurumu === "failed" && m.hataMetni && (
-          <p role="alert" className="mt-1 rounded bg-tehlike-acik px-2 py-1 text-xs text-tehlike">
+          <p role="alert" className="mt-1 rounded-md bg-tehlike-acik px-2 py-1 text-xs text-tehlike">
             {m.hataMetni}
           </p>
         )}
-        <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-soluk">
+        <div className="mt-1 flex items-center justify-end gap-1.5 text-xs text-soluk">
           {m.tekrarDenenebilir && (
-            <button
-              type="button"
-              className="mr-auto font-semibold text-ana-koyu underline"
-              disabled={deneniyor}
+            <Dugme
+              tur="metin"
+              className="mr-auto"
+              yukleniyor={deneniyor}
               onClick={async () => {
                 setDeneniyor(true);
                 await onTekrar(m);
                 setDeneniyor(false);
               }}
             >
-              {deneniyor ? "Gönderiliyor…" : "Tekrar dene"}
-            </button>
+              Tekrar dene
+            </Dugme>
           )}
           <span title={tarihYaz(m.tarih)}>{saatYaz(m.tarih)}</span>
           {giden && <TeslimIsareti m={m} />}
@@ -792,7 +796,7 @@ function Balon({ m, onYanitla, onTekrar }: { m: SohbetMesajiDto; onYanitla?: (m:
       {onYanitla && yanitlanabilirMi(m) && (
         <button
           type="button"
-          className="rounded-full p-1.5 text-soluk hover:bg-white hover:text-ana-koyu focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+          className="dugme-ikon !size-8 rounded-full focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
           aria-label="Yanıtla"
           title="Yanıtla"
           onClick={() => onYanitla(m)}
@@ -983,7 +987,7 @@ function YazmaAlani(props: {
               <span className="font-semibold text-ana-koyu">Yanıtlanıyor: {props.yanitlanan.yon === "giden" ? "Siz" : "Müşteri"}</span>
               <p className="line-clamp-2 break-words text-metin-ikincil">{mesajOzeti(props.yanitlanan)}</p>
             </div>
-            <button type="button" className="rounded p-0.5 hover:bg-white" aria-label="Yanıtı iptal et" onClick={props.onYanitIptal}>
+            <button type="button" className="dugme-ikon !size-7" aria-label="Yanıtı iptal et" onClick={props.onYanitIptal}>
               <Simge ad="kapat" boyut={14} />
             </button>
           </div>
@@ -1030,9 +1034,9 @@ function YazmaAlani(props: {
                 {sablonAcik ? "Şablonu kapat" : "Şablon gönder"}
               </button>
             )}
-            <button type="submit" className="dugme-ana" disabled={gonderiliyor || (ekVar ? reddedilenVar : !metin.trim())}>
-              {gonderiliyor ? "Gönderiliyor…" : ekVar ? `Gönder (${ek.ekler.filter((e) => !e.onHata).length} dosya)` : "Gönder"}
-            </button>
+            <Dugme type="submit" tur="ana" yukleniyor={gonderiliyor} disabled={ekVar ? reddedilenVar : !metin.trim()}>
+              {ekVar ? `Gönder (${ek.ekler.filter((e) => !e.onHata).length} dosya)` : "Gönder"}
+            </Dugme>
           </div>
         </div>
       </form>
@@ -1108,7 +1112,7 @@ function Notlar(props: { sohbetId: string; notlar: SohbetNotuDto[]; onNotlar: (n
       {props.notlar.length ? (
         <ul className="flex flex-col gap-2">
           {props.notlar.map((n) => (
-            <li key={n.id} className="rounded-lg bg-zemin p-2 text-[13px]">
+            <li key={n.id} className="rounded-lg bg-zemin p-2 text-ufak">
               <p className="break-words whitespace-pre-wrap">{n.metin}</p>
               <p className="mt-1 text-xs text-soluk">
                 {n.kullanici ?? "Silinmiş kullanıcı"} · {tarihYaz(n.tarih)}
@@ -1117,7 +1121,7 @@ function Notlar(props: { sohbetId: string; notlar: SohbetNotuDto[]; onNotlar: (n
           ))}
         </ul>
       ) : (
-        <p className="text-[13px] text-soluk">Henüz not yok.</p>
+        <p className="text-ufak text-soluk">Henüz not yok.</p>
       )}
       <form
         className="flex flex-col gap-2"

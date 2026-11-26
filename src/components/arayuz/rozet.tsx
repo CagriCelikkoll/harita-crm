@@ -5,11 +5,11 @@ export type RozetTonu = "ana" | "notr" | "uyari" | "tehlike" | "mavi" | "mor";
 
 const TONLAR: Record<RozetTonu, string> = {
   ana: "bg-ana-acik text-ana-koyu",
-  notr: "bg-[#eef0ec] text-metin-ikincil",
+  notr: "bg-notr-acik text-metin-ikincil",
   uyari: "bg-uyari-acik text-uyari",
   tehlike: "bg-tehlike-acik text-tehlike",
-  mavi: "bg-[#e4ecf8] text-[#1d4f91]",
-  mor: "bg-[#eee8f8] text-[#5b3a99]",
+  mavi: "bg-bilgi-acik text-bilgi",
+  mor: "bg-mor-acik text-mor",
 };
 
 /** Kayıt durumlarının ve ileti izninin rozet renkleri (taslaktaki eşleme). */
@@ -26,10 +26,10 @@ export const IZIN_TONU: Record<IletiIzni, RozetTonu> = { onayli: "ana", bekliyor
 export const TON_DOLGUSU: Record<RozetTonu, string> = {
   ana: "bg-ana",
   notr: "bg-pasif",
-  uyari: "bg-[#b45309]",
+  uyari: "bg-uyari-dolgu",
   tehlike: "bg-tehlike",
-  mavi: "bg-[#1d4f91]",
-  mor: "bg-[#5b3a99]",
+  mavi: "bg-bilgi",
+  mor: "bg-mor",
 };
 
 export function DurumRozeti({ ton = "ana", children, title }: { ton?: RozetTonu; children: React.ReactNode; title?: string }) {
@@ -43,7 +43,7 @@ export function DurumRozeti({ ton = "ana", children, title }: { ton?: RozetTonu;
 /** Google Haritalar'dan anlık gösterilen (saklanmayan) bilginin yanındaki küçük etiket. */
 export function GoogleEtiketi() {
   return (
-    <span className="inline-block rounded bg-[#eef0ec] px-[7px] py-px align-middle text-[11px] font-semibold text-soluk">
+    <span className="inline-block rounded-md bg-notr-acik px-[7px] py-px align-middle text-xs font-semibold text-soluk">
       Google
     </span>
   );
