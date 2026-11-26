@@ -1,7 +1,7 @@
 // Kampanya sihirbazı ve kampanya ayrıntısının görünüm hesapları (saf işlevler; DOM ve veritabanı yok). İş kuralı
 // içermez: sunucunun döndürdüğü özet / teslim sayılarını ekranda gösterilecek biçime çevirir.
 import { HARIC_NEDEN_ADLARI, HARIC_NEDENLERI, type HaricNedeni, type KuyrukKanali } from "./mesajlasma";
-import { teslimHataAciklamasi } from "./whatsapp-api";
+import { teslimHataAciklamasi, teslimHataMetni } from "./whatsapp-api";
 
 /** Yalnızca WhatsApp kanalında anlamlı olan hariç tutma nedenleri. */
 const WHATSAPP_NEDENLERI = new Set<HaricNedeni>(["whatsapp_izni_yok", "iys_beyani_yok", "whatsapp_yok", "test_modu", "degisken_bos"]);
@@ -36,12 +36,8 @@ export const TESLIM_ADLARI: Record<string, string> = {
   failed: "Teslim edilemedi",
 };
 
-/** Sık görülen teslim hata kodlarının kısa açıklaması (lib/whatsapp-api'dekilere ek). */
-const EK_KOD_ACIKLAMALARI: Record<number, string> = {
-  131026: "numarada WhatsApp yok",
-  131049: "Meta teslim etmedi (pazarlama sınırı)",
-};
-export const teslimKoduAciklamasi = (kod: number) => teslimHataAciklamasi(kod) ?? EK_KOD_ACIKLAMALARI[kod] ?? null;
+/** Teslim hata kodunun kısa açıklaması (tek kaynak: lib/whatsapp-api TESLIM_HATA_ACIKLAMALARI; bilinmiyorsa null). */
+export const teslimKoduAciklamasi = (kod: number) => teslimHataAciklamasi(kod);
 
 /**
  * Alıcı satırının Durum sütunu: mesajın Meta'dan gelen son durumu teslim edildi / okundu / teslim edilemedi ise o
@@ -50,11 +46,10 @@ export const teslimKoduAciklamasi = (kod: number) => teslimHataAciklamasi(kod) ?
  */
 export function kisiTeslimDurumu(teslimDurumu: string | null, kod: number | null): { durum: "delivered" | "read" | "failed"; ad: string; kod: string | null } | null {
   if (teslimDurumu !== "delivered" && teslimDurumu !== "read" && teslimDurumu !== "failed") return null;
-  const aciklama = teslimDurumu === "failed" && kod !== null ? teslimKoduAciklamasi(kod) : null;
   return {
     durum: teslimDurumu,
     ad: TESLIM_ADLARI[teslimDurumu],
-    kod: teslimDurumu === "failed" && kod !== null ? `${kod}${aciklama ? `: ${aciklama}` : ""}` : null,
+    kod: teslimDurumu === "failed" && kod !== null ? teslimHataMetni(kod) : null,
   };
 }
 

@@ -112,6 +112,11 @@ export default async function KayitlarSayfasi({ searchParams }: PageProps<"/kayi
         alanlar={KAYIT_TERCIH_ALANLARI}
       />
       <SayfaBasligi baslik="Kayıtlar" aciklama="İlgilendiğiniz işletmeler ve kişiler. Bir satıra tıklayınca ayrıntılar sağda açılır.">
+        {ctx.rol === "yonetici" && (
+          <Link href="/kayitlar/toplu-gecmisi" className="dugme">
+            Toplu işlem geçmişi
+          </Link>
+        )}
         <Link href="/kayitlar/ice-aktar" className="dugme">
           İçe aktar
         </Link>

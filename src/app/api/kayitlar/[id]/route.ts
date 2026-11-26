@@ -9,6 +9,7 @@ import { apiBaglami } from "@/server/oturum";
 import { KayitKuraliHatasi } from "@/server/repo/baglam";
 import { kayitGetir, kayitGuncelle, kayitSil } from "@/server/repo/kayitlar";
 import { engelliKayitlar } from "@/server/repo/engel-listesi";
+import { iletiAyarlariGetir } from "@/server/repo/ileti-ayarlari";
 import { kotaDurumu } from "@/server/repo/kullanim";
 import { olaylariListele } from "@/server/repo/olaylar";
 import { cagriBirimi } from "@/server/places/istemci";
@@ -54,6 +55,8 @@ export async function GET(istek: Request, { params }: RouteContext<"/api/kayitla
       whatsapp: whatsappKisiDto(whatsappKisisiGetir(ctx, kayit.id)),
       // Kendi adreslerinden biri engel listesinde (ör. ret vermiş bir adresle eklenmiş kişi): hiçbir kanaldan gönderilmez.
       engelli: engelliKayitlar(ctx, [kayit]).has(kayit.id),
+      // Çalışma alanının İYS kontrolü: kapalıysa panel "İYS beyanı yok" uyarısı göstermez.
+      iysKontrolu: iletiAyarlariGetir(ctx).iysKontrolu,
       olaylar: olaylariListele(ctx, kayit.id).map(olayDto),
       canli,
       canliAtlandi,

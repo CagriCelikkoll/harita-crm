@@ -230,6 +230,17 @@ export const ZORUNLU_ONAY_METNI =
  */
 export const IYS_KAPATMA_ONAY_METNI = "Ticari elektronik iletiler için İYS kaydı ve alıcı onaylarından işletmemiz sorumludur.";
 export const IYS_KAPALI_UYARISI = "İYS kontrolü kapalı; yasal sorumluluk işletmenizdedir.";
+
+/**
+ * Kayıt ayrıntısında bireysel kişinin WhatsApp izni satırına eklenen İYS durumu. Çalışma alanında İYS kontrolü
+ * kapalıysa İYS beyanı aranmadığından "beyan yok" uyarısı geçersizdir: yalnızca nötr not.
+ */
+export const iysDurumMetni = (iysKontrolu: boolean, iysBeyani: boolean) =>
+  !iysKontrolu
+    ? " · İYS kontrolü kapalı"
+    : iysBeyani
+      ? " · İYS beyanı var"
+      : " · İYS beyanı yok (kampanyaya yalnızca test modunda, test numarasıysa girer)";
 /** Denetim kaydının olay adı. */
 export const DENETIM_IYS_KONTROLU = "iys_kontrolu";
 

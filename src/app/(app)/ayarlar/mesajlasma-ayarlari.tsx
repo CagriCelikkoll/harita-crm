@@ -8,11 +8,14 @@ import { AyarSatiri, Kart, KaydetCubugu } from "@/components/arayuz/kart";
 import { BilgiNotu } from "@/components/arayuz/not";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { SonucMesaji } from "@/components/bildirim";
+import { DenetimGecmisi } from "@/components/denetim-gecmisi";
 import { apiIstek } from "@/lib/api-istemci";
+import { iysDegeriAdi } from "@/lib/denetim";
 import { pencereDisinaTiklaninca } from "@/lib/disari-tiklama";
 import { sayiYaz, tarihYaz } from "@/lib/bicim";
 import {
   IYS_KAPALI_UYARISI,
+  DENETIM_IYS_KONTROLU,
   IYS_KAPATMA_ONAY_METNI,
   pencereDakikasi,
   pencereSaati,
@@ -187,6 +190,8 @@ export function IysKontroluAyari(props: { ilk: MesajlasmaAyarlariDto; yonetici: 
         </div>
       )}
       {!props.yonetici && <p className="px-7 pb-4 text-[13px] text-soluk">{SALT_OKUNUR}</p>}
+      {/* Bütün açma / kapama kayıtları (denetim kaydı); yalnızca yönetici. */}
+      {props.yonetici && <DenetimGecmisi olay={DENETIM_IYS_KONTROLU} degerAdi={iysDegeriAdi} className="px-7 pb-4" />}
       <MesajSatiri mesaj={mesaj} />
       <dialog
         ref={pencere}

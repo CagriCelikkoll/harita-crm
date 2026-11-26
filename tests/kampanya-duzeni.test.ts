@@ -311,7 +311,8 @@ describe("alıcı bazında Meta teslim durumu", () => {
   it("Durum sütunu: Meta'nın son durumu (kodlu kısa açıklama) varsa o, yoksa mesaj durumu", () => {
     expect(kisiTeslimDurumu("read", null)).toEqual({ durum: "read", ad: "Okundu", kod: null });
     expect(kisiTeslimDurumu("failed", 131026)).toEqual({ durum: "failed", ad: "Teslim edilemedi", kod: "131026: numarada WhatsApp yok" });
-    expect(kisiTeslimDurumu("failed", 999)).toMatchObject({ kod: "999" });
+    expect(kisiTeslimDurumu("failed", 999)).toMatchObject({ kod: "Meta hata kodu 999" });
+    expect(kisiTeslimDurumu("failed", 130472)).toMatchObject({ kod: expect.stringMatching(/^130472: Meta.nın pazarlama deneyi/) });
     expect(kisiTeslimDurumu("sent", null)).toBeNull();
     expect(kisiTeslimDurumu(null, null)).toBeNull();
 

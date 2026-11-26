@@ -25,6 +25,7 @@ import { googleKaynakNotu, type GoogleKaynagi } from "@/lib/google-kaynak-notu";
 import {
   ALICI_TURLERI,
   ALICI_TURU_ADLARI,
+  iysDurumMetni,
   WHATSAPP_IZIN_KAYNAK_ADLARI,
   WHATSAPP_IZIN_KAYNAKLARI,
   WHATSAPP_IZNI_ADLARI,
@@ -55,6 +56,8 @@ type DetayVerisi = {
   /** Bu istekte Places'a gidildiyse harcanan birim (api/kayitlar/[id]). */
   canliBirim?: number;
   engelli: boolean;
+  /** Çalışma alanının İYS kontrolü (Ayarlar > Gönderen bilgileri); kapalıysa İYS beyanı uyarıları gösterilmez. */
+  iysKontrolu: boolean;
 };
 
 type Mesaj = { tur: "hata" | "tamam"; metin: string; alan: string } | null;
@@ -104,7 +107,7 @@ export function DetayPaneli(props: {
           setMesaj({ tur: "hata", metin: s.hata, alan: "genel" });
           return;
         }
-        setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli });
+        setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli, iysKontrolu: s.veri.iysKontrolu !== false });
         const c = onceki ?? s.veri.canli ?? null;
         setCanli(c);
         setCanliAtlandi(c ? undefined : s.veri.canliAtlandi);
@@ -138,7 +141,7 @@ export function DetayPaneli(props: {
   const yenile = useCallback(async () => {
     const s = await apiIstek<DetayVerisi>(`/api/kayitlar/${id}`);
     if (s.ok) {
-      setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli });
+      setVeri({ kayit: s.veri.kayit, whatsapp: s.veri.whatsapp, olaylar: s.veri.olaylar, engelli: s.veri.engelli, iysKontrolu: s.veri.iysKontrolu !== false });
       onKayitDegisti(s.veri.kayit, { whatsappIzni: s.veri.whatsapp.izin, engelli: s.veri.engelli });
     } else if (s.durum === 404) {
       setBulunamadi(true);
@@ -553,6 +556,7 @@ export function DetayPaneli(props: {
             retMetni={retMetni}
             whatsapp={veri.whatsapp}
             bireysel={kayit.aliciTuru === "bireysel"}
+            iysKontrolu={veri.iysKontrolu}
             onDegisti={yenile}
           />
         </div>
@@ -798,6 +802,8 @@ function WhatsappIzinBolumu(props: {
   retMetni: string;
   whatsapp: WhatsappKisiDto;
   bireysel: boolean;
+  /** Kapalıysa "İYS beyanı yok" uyarısı yerine nötr "İYS kontrolü kapalı" notu. */
+  iysKontrolu: boolean;
   onDegisti: () => Promise<void>;
 }) {
   const w = props.whatsapp;
@@ -834,7 +840,7 @@ function WhatsappIzinBolumu(props: {
         {/* Ret verilmişse eski izin kaynağı gösterilmez. */}
         {w.izin !== "ret" && w.izinKaynagi && ` · ${WHATSAPP_IZIN_KAYNAK_ADLARI[w.izinKaynagi]}`}
         {w.izin !== "ret" && w.izinTarihi && ` · ${tarihYaz(w.izinTarihi)}`}
-        {w.izin === "var" && props.bireysel && (w.iysBeyani ? " · İYS beyanı var" : " · İYS beyanı yok (kampanyaya yalnızca test modunda, test numarasıysa girer)")}
+        {w.izin === "var" && props.bireysel && iysDurumMetni(props.iysKontrolu, w.iysBeyani)}
       </p>
       {w.izinNotu && <p className="text-soluk">{w.izinNotu}</p>}
       {w.whatsappYokTarihi && <p className="text-tehlike">Meta bu numarada WhatsApp olmadığını bildirdi.</p>}

@@ -207,8 +207,7 @@ export function KampanyaDetayi({
                       <ul aria-label="Hata kodları" className="mt-1 flex flex-col gap-0.5 text-xs text-tehlike">
                         {t.kodlar.map((x) => (
                           <li key={x.kod}>
-                            {x.kod}
-                            {x.aciklama ? ` (${x.aciklama})` : ""}: <span className="tabular-nums">{sayiYaz(x.n)}</span>
+                            {x.aciklama ? `${x.kod} (${x.aciklama})` : `Meta hata kodu ${x.kod}`}: <span className="tabular-nums">{sayiYaz(x.n)}</span>
                           </li>
                         ))}
                       </ul>

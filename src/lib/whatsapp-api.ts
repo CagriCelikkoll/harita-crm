@@ -298,13 +298,50 @@ export function gorselHataMesaji(kod: number | null, ayrinti?: string | null): s
   return `${neden}${meta}${ek}. Görselin JPEG ya da PNG ve en fazla 5 MB olduğunu kontrol edin; kampanyayı devam ettirince görsel yeniden yüklenir.`;
 }
 
-/** Kampanya ayrıntısında teslim hata kodunun kısa açıklaması (bilinmiyorsa null). */
+/**
+ * Meta teslim / gönderim hata kodlarının kısa Türkçe açıklamaları (WhatsApp Cloud API hata kodu listesi). Kampanya
+ * ayrıntısındaki teslim kartları ve alıcı satırları kullanır; listede olmayan kod "Meta hata kodu X" gösterilir.
+ */
+export const TESLIM_HATA_ACIKLAMALARI: Readonly<Record<number, string>> = {
+  130429: "gönderim hızı sınırı aşıldı",
+  130472: "Meta'nın pazarlama deneyi — Meta bu kişiye bilerek teslim etmedi, ücret alınmaz",
+  131000: "Meta tarafında beklenmeyen hata",
+  131005: "erişim izni reddedildi",
+  131008: "zorunlu parametre eksik",
+  131009: "parametre değeri geçersiz",
+  131016: "Meta hizmeti geçici olarak kullanılamıyor",
+  131021: "alıcı, gönderen numarayla aynı",
+  131026: "numarada WhatsApp yok",
+  131031: "WhatsApp hesabı kilitli",
+  131042: "Meta hesabında ödeme sorunu",
+  131045: "numara kaydı / sertifika sorunu",
+  131047: "24 saatlik yanıt penceresi kapalı; yalnızca onaylı şablon gönderilebilir",
+  131048: "spam sınırı: numaranın ileti sınırına takıldı",
+  131049: "Meta teslim etmedi (pazarlama sınırı)",
+  131050: "kişi pazarlama iletilerini durdurdu",
+  131051: "desteklenmeyen ileti türü",
+  131052: "görsel indirilemedi",
+  131053: "görsel işlenemedi",
+  131056: "aynı kişiye çok sık ileti gönderildi",
+  132000: "şablon değişken sayısı uyuşmuyor",
+  132001: "şablon bulunamadı (ad ya da dil)",
+  132007: "şablon içeriği Meta kurallarına aykırı",
+  132012: "şablon değişken biçimi uyuşmuyor",
+  132015: "şablon duraklatıldı (düşük kalite)",
+  132016: "şablon devre dışı bırakıldı",
+  133010: "numara Cloud API'ye kayıtlı değil",
+};
+
+/** Teslim hata kodunun kısa açıklaması (bilinmiyorsa null). */
 export function teslimHataAciklamasi(kod: number | null | undefined): string | null {
-  if (kod === 131053) return "görsel işlenemedi";
-  if (kod === 131052) return "görsel indirilemedi";
-  if (kod === 133010) return "numara Cloud API'ye kayıtlı değil";
-  return null;
+  return kod == null ? null : (TESLIM_HATA_ACIKLAMALARI[kod] ?? null);
 }
+
+/** Ekranda gösterilen hata: "131026: numarada WhatsApp yok"; bilinmeyen kod "Meta hata kodu 999". */
+export const teslimHataMetni = (kod: number) => {
+  const aciklama = teslimHataAciklamasi(kod);
+  return aciklama ? `${kod}: ${aciklama}` : `Meta hata kodu ${kod}`;
+};
 
 // --- Kampanya: şablon değişkenlerinin değerleri ---
 

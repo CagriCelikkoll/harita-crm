@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { DENETIM_TOPLU_KAYIT } from "@/lib/denetim";
 import {
   ILETI_IZNI_ADLARI,
   KAYIT_DURUM_ADLARI,
@@ -586,7 +587,6 @@ export type TopluSonuc = {
   bulunamayan: number;
 };
 
-const DENETIM_TOPLU_KAYIT = "toplu_kayit_islemi";
 
 /**
  * Seçilen kayıtlara toplu işlem (yalnızca yönetici; YetkiHatasi). Tek transaction; yalnızca bu çalışma alanının
