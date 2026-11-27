@@ -225,6 +225,13 @@
       "when": 1795704569040,
       "tag": "0031_yonlendirme",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795783889352,
+      "tag": "0032_gelen_kutusu_arsiv",
+      "breakpoints": true
     }
   ]
 }

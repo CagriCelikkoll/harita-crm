@@ -12,7 +12,7 @@ function sutunlar(tablo: string): string[] {
 
 const BEYAZ_LISTE: Record<string, string[]> = {
   tenants: ["id", "ad", "slug", "veri_saklama_gun", "aylik_places_kotasi", "olusturma_tarihi"], // ad = çalışma alanı adı
-  memberships: ["user_id", "tenant_id", "rol", "olusturma_tarihi"],
+  memberships: ["user_id", "tenant_id", "rol", "olusturma_tarihi", "gonderim_geri_al" /* 0032: kullanıcı tercihi */],
   invitations: ["id", "tenant_id", "eposta", "rol", "token", "davet_eden", "son_gecerlilik", "kabul_tarihi", "olusturma_tarihi"],
   scans: [
     "id", "tenant_id", "olusturan",
@@ -51,6 +51,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
     "whatsapp_sablonu", "whatsapp_gunluk_sinir",
     "mesaj_saklama_gun", "medya_saklama_gun", "okundu_bildirimi", // gelen kutusu (0020)
     "iys_kontrolu", // 0027
+    "otomatik_kapatma_gun", // 0032: gelen kutusu sessiz sohbetleri kapatma
   ],
   // Denetim kaydı (0027): ayar değişikliğinin kim / ne zaman / ne (kullanıcı adı anlık kopya).
   denetim_kayitlari: ["id", "tenant_id", "kullanici_id", "kullanici_adi", "olay", "deger", "aciklama", "tarih"],
@@ -98,6 +99,7 @@ const BEYAZ_LISTE: Record<string, string[]> = {
   sohbetler: [
     "id", "tenant_id", "baglanti_id", "lead_id", "durum", "atanan_kullanici", "son_mesaj_tarihi", "son_gelen_tarihi",
     "okunmamis", "bot_sus_bitis", "surum", "olusturma_tarihi",
+    "teklif_istegi_tarihi", // 0032: fiyat teklifi butonu (Meta buton yükü; metin değil)
   ],
   sohbet_mesajlari: [
     "id", "tenant_id", "sohbet_id", "yon", "kaynak", "wamid", "istemci_kimligi", "tur", "metin", "medya_id",

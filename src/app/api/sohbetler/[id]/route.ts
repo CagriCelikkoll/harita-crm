@@ -1,11 +1,21 @@
 // Sohbet ayrıntısı (son mesajlar, iç notlar, üyeler, şablonlar). ?once=<ISO tarih>: daha eski mesajlar.
 // PATCH { durum?: "acik" | "kapali", atananKullanici?: string | null }: kapat / yeniden aç, ata (yalnızca bu çalışma
 // alanının üyesine). Başka çalışma alanının sohbeti 404.
+// DELETE { onay: "<sohbetin adı>" }: sohbeti yalnızca Harita CRM'den kalıcı olarak siler (yalnızca yönetici; müşterinin
+// telefonundaki mesajlar silinmez). Kayıt, izin / RET ve kampanya istatistikleri korunur; denetim kaydına yazılır.
 import { NextResponse } from "next/server";
 import { ayniKaynakMi, bulunamadi, gecersiz, yasak, yetkisiz } from "@/server/api-yardimci";
 import { apiBaglami } from "@/server/oturum";
 import { KayitKuraliHatasi } from "@/server/repo/baglam";
-import { eskiMesajlar, sohbetAyrintisi, SohbetDegisikligi, sohbetiGuncelle } from "@/server/servisler/gelen-kutusu";
+import {
+  eskiMesajlar,
+  GelenKutusuHatasi,
+  SilmeGirdisi,
+  sohbetAyrintisi,
+  SohbetDegisikligi,
+  sohbetiGuncelle,
+  sohbetiSil,
+} from "@/server/servisler/gelen-kutusu";
 
 const BASLIK = { "Cache-Control": "no-store" };
 
@@ -38,4 +48,19 @@ export async function PATCH(istek: Request, { params }: RouteContext<"/api/sohbe
     throw hata;
   }
   return NextResponse.json(sohbetAyrintisi(ctx, id), { headers: BASLIK });
+}
+
+export async function DELETE(istek: Request, { params }: RouteContext<"/api/sohbetler/[id]">) {
+  if (!ayniKaynakMi(istek)) return yasak();
+  const ctx = await apiBaglami();
+  if (!ctx) return yetkisiz();
+  const { id } = await params;
+  const sonuc = SilmeGirdisi.safeParse(await istek.json().catch(() => null));
+  if (!sonuc.success) return gecersiz("Onay için sohbetin adını yazın.");
+  try {
+    return NextResponse.json({ silindi: sohbetiSil(ctx, id, sonuc.data.onay) }, { headers: BASLIK });
+  } catch (hata) {
+    if (hata instanceof GelenKutusuHatasi) return NextResponse.json({ hata: hata.message }, { status: hata.durum });
+    throw hata;
+  }
 }

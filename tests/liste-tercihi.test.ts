@@ -178,13 +178,13 @@ describe("liste tercihleri: kayıt, geri yükleme, adres önceliği", () => {
 
   it("Gelen kutusu: tercih biçimi gidiş-dönüş; olmayan / tek numara ve bozuk değer varsayılana düşer", () => {
     const numaralar = ["n1", "n2"];
-    const f = { numara: "n2", durum: "" as const, atanan: "ben" as const, q: "ali" };
+    const f = { numara: "n2", durum: "" as const, atanan: "ben" as const, cipler: ["cevap_bekleyen" as const, "ret" as const], q: "ali" };
     const t = gelenKutusuTercihi(f);
-    expect(t).toEqual({ numara: "n2", durum: "tum", atanan: "ben" });
+    expect(t).toEqual({ numara: "n2", durum: "tum", atanan: "ben", cip: "cevap_bekleyen,ret" });
     expect(gelenKutusuFiltresiCoz((a) => t[a], numaralar)).toEqual({ ...f, q: "" });
     // Varsayılanın adresi de "tercihsiz" değildir (durum her zaman yazılır).
     expect(Object.keys(gelenKutusuTercihi(VARSAYILAN_GELEN_KUTUSU_FILTRESI)).some((a) => (GELEN_KUTUSU_TERCIH_ALANLARI as readonly string[]).includes(a))).toBe(true);
-    expect(gelenKutusuFiltresiCoz(sozluk({ numara: "silinmis", durum: "x", atanan: "baskasi" }), numaralar)).toEqual(VARSAYILAN_GELEN_KUTUSU_FILTRESI);
+    expect(gelenKutusuFiltresiCoz(sozluk({ numara: "silinmis", durum: "x", atanan: "baskasi", cip: "olmayan,,x" }), numaralar)).toEqual(VARSAYILAN_GELEN_KUTUSU_FILTRESI);
     // Tek numarada sekme görünmez: kayıtlı numara listeyi gizlice daraltmaz.
     expect(gelenKutusuFiltresiCoz(sozluk({ numara: "n1" }), ["n1"]).numara).toBe("");
     // Başka çalışma alanından kalan tercih (numara bu alanda yok) uygulanmaz.

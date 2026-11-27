@@ -997,6 +997,27 @@ const gelenKutusuTestleri: Record<keyof typeof gelenKutusu, () => void> = {
   medyaGetir: () => {
     expect(gelenKutusu.medyaGetir(A, bMedya.id)).toBeNull();
   },
+  cipSayilari: () => {
+    // B'nin okunmamış / cevap bekleyen sohbeti A'nın sayılarına girmez.
+    expect(Object.values(gelenKutusu.cipSayilari(A)).every((n) => n === 0)).toBe(true);
+    expect(gelenKutusu.sohbetleriListele(A, { cipler: ["okunmamis", "cevap_bekleyen", "teklif", "pencere", "ret"].slice(0, 1) as ["okunmamis"] }).toplam).toBe(0);
+  },
+  sohbetleriKapat: () => {
+    expect(gelenKutusu.sohbetleriKapat(A, [bSohbet.id])).toBe(0);
+  },
+  sohbetSil: () => {
+    // A yönetici olsa da B'nin sohbeti bulunamaz; hiçbir satır silinmez (bDegismedi).
+    expect(gelenKutusu.sohbetSil(A, bSohbet.id, { ad: "x", numara: "y" })).toBeNull();
+  },
+  gonderimGeriAlGetir: () => {
+    expect(gelenKutusu.gonderimGeriAlGetir(B)).toBe(true);
+  },
+  gonderimGeriAlAyarla: () => {
+    // A yalnızca kendi üyeliğini değiştirir; B'nin kullanıcısının tercihi değişmez.
+    gelenKutusu.gonderimGeriAlAyarla(A, false);
+    expect(gelenKutusu.gonderimGeriAlGetir(B)).toBe(true);
+    gelenKutusu.gonderimGeriAlAyarla(A, true);
+  },
   medyaKullanimi: () => {
     // B'nin gelen fotoğrafı (1234) + kampanya görseli (99): ortak medya kotası.
     expect(gelenKutusu.medyaKullanimi(B)).toEqual({ bayt: 1333, adet: 2 });

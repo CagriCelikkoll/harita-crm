@@ -33,6 +33,7 @@ const varsayilan = (tenantId: string): IletiAyarlari => ({
   medyaSaklamaGun: VARSAYILAN_MEDYA_SAKLAMA_GUN,
   okunduBildirimi: true,
   iysKontrolu: true,
+  otomatikKapatmaGun: null,
   guncellemeTarihi: new Date(0),
 });
 
@@ -60,6 +61,8 @@ export type IletiAyarDegisikligi = Partial<{
   mesajSaklamaGun: number;
   medyaSaklamaGun: number;
   okunduBildirimi: boolean;
+  /** Gelen kutusu otomatik kapatma (3 / 7 / 14 gün sessizlik); null = kapalı. */
+  otomatikKapatmaGun: number | null;
 }>;
 
 /** Yalnızca yönetici. Onay zaten verilmişse ilk onay zamanı ve onaylayan korunur. */

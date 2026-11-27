@@ -5,18 +5,26 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { WHATSAPP_TESLIM_SIRASI } from "@/lib/whatsapp-api";
+import { DENETIM_SOHBET_SILME } from "@/lib/denetim";
 import {
   MESAJ_SAYFA_BOYUTU,
   medyaIndirilir,
+  PENCERE_MS,
+  PENCERE_UYARI_MS,
+  SOHBET_CIPLERI,
   SOHBET_SAYFA_BOYUTU,
+  TOPLU_KAPATMA_AZAMI,
   type MesajKaynagi,
+  type SohbetCipi,
   type SohbetDurumu,
   type SohbetMesajTuru,
 } from "@/lib/gelen-kutusu";
 import { db } from "../db";
 import {
   bildirimKuyrugu,
+  denetimKayitlari,
   gelenKutusuSurumu,
+  leadEvents,
   kampanyalar,
   leads,
   memberships,
@@ -29,7 +37,7 @@ import {
   type SohbetMedyasi,
   type SohbetMesaji,
 } from "../db/schema";
-import { KayitKuraliHatasi, likeKacir, type TenantContext } from "./baglam";
+import { KayitKuraliHatasi, likeKacir, yoneticiOlmali, type TenantContext } from "./baglam";
 
 export type { Sohbet, SohbetMedyasi, SohbetMesaji };
 
@@ -105,6 +113,8 @@ export type GelenMesajGirdisi = {
   yanitWamid?: string | null;
   /** WhatsApp profil adı: kayıtta ad yoksa bildirimde gösterilir (bildirim kuyruğuna yazılır). */
   profilAdi?: string | null;
+  /** Müşteri teklif / ilgi butonuna bastı (Meta buton yükünden; lib/gelen-kutusu teklifIlgiButonuMu). */
+  teklifIstegi?: boolean;
 };
 
 /**
@@ -160,6 +170,7 @@ export function gelenMesajYaz(ctx: TenantContext, g: GelenMesajGirdisi, simdi = 
         okunmamis: sql`${sohbetler.okunmamis} + 1`,
         sonGelenTarihi: sql`max(coalesce(${sohbetler.sonGelenTarihi}, 0), ${tarih.getTime()})`,
         sonMesajTarihi: sql`max(coalesce(${sohbetler.sonMesajTarihi}, 0), ${tarih.getTime()})`,
+        ...(g.teklifIstegi ? { teklifIstegiTarihi: sql`max(coalesce(${sohbetler.teklifIstegiTarihi}, 0), ${tarih.getTime()})` } : {}),
         surum,
       })
       .where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, sohbet.id)))
@@ -334,6 +345,9 @@ export type SohbetFiltresi = {
   arama?: string;
   /** Yalnızca bu sohbetler (değişiklik ucu). */
   idler?: string[];
+  /** Çipler (hepsi VE ile; lib/gelen-kutusu SOHBET_CIPLERI). "pencere" şimdiye göre hesaplanır. */
+  cipler?: SohbetCipi[];
+  simdi?: Date;
   sayfa?: number;
 };
 
@@ -347,10 +361,37 @@ export type SohbetSatiri = Sohbet & {
   sonIcerikSilindi: boolean | null;
   /** Son ileti belge / medyaysa dosya adı (liste önizlemesi: "📎 Belge: dosya.pdf"). */
   sonDosyaAdi?: string | null;
+  /** Kişi RET verdi (kaydın ileti izni ya da WhatsApp izni "ret"). */
+  ret?: boolean;
 };
+
+/** Kişi RET verdi: kaydın ileti izni ya da WhatsApp izni. */
+const RET_KOSULU = sql`(${leads.iletiIzni} = 'ret' or exists (select 1 from whatsapp_kisileri w where w.tenant_id = ${sohbetler.tenantId} and w.lead_id = ${sohbetler.leadId} and w.izin = 'ret'))`;
+
+/** Çipin SQL koşulu (sohbetler + leads birleşimi üzerinde). */
+function cipKosulu(cip: SohbetCipi, simdi: Date): SQL {
+  switch (cip) {
+    case "okunmamis":
+      return sql`${sohbetler.okunmamis} > 0`;
+    case "cevap_bekleyen":
+      // Müşterinin son mesajından sonra (aynı an dahil) gönderilmiş bir giden mesaj yok; Meta'nın "iletilemedi" dediği
+      // giden mesaj yanıt sayılmaz (müşteri hâlâ bekliyor).
+      return sql`(${sohbetler.sonGelenTarihi} is not null and not exists (select 1 from sohbet_mesajlari m where m.tenant_id = ${sohbetler.tenantId} and m.sohbet_id = ${sohbetler.id} and m.yon = 'giden' and m.tarih >= ${sohbetler.sonGelenTarihi} and coalesce(m.teslim_durumu, '') <> 'failed'))`;
+    case "teklif":
+      return sql`${sohbetler.teklifIstegiTarihi} is not null`;
+    case "pencere": {
+      // Açık sohbet; pencere hâlâ açık ve bitmesine PENCERE_UYARI_MS'den az var: son gelen ∈ (şimdi − 24 sa, şimdi − 21 sa].
+      const t = simdi.getTime();
+      return sql`(${sohbetler.durum} = 'acik' and ${sohbetler.sonGelenTarihi} > ${t - PENCERE_MS} and ${sohbetler.sonGelenTarihi} <= ${t - PENCERE_MS + PENCERE_UYARI_MS})`;
+    }
+    case "ret":
+      return RET_KOSULU;
+  }
+}
 
 function sohbetKosulu(ctx: TenantContext, f: SohbetFiltresi): SQL | undefined {
   const kosul: (SQL | undefined)[] = [eq(sohbetler.tenantId, ctx.tenantId)];
+  for (const c of new Set(f.cipler ?? [])) kosul.push(cipKosulu(c, f.simdi ?? new Date()));
   if (f.baglantiId) kosul.push(eq(sohbetler.baglantiId, f.baglantiId));
   if (f.durum) kosul.push(eq(sohbetler.durum, f.durum));
   if (f.atanan === "yok") kosul.push(isNull(sohbetler.atananKullanici));
@@ -396,6 +437,7 @@ export function sohbetleriListele(ctx: TenantContext, f: SohbetFiltresi = {}): {
       sonMetin: sql<string | null>`${sonMesaj("metin")}`,
       sonIcerikSilindi: sql<number | null>`${sonMesaj("icerik_silindi")}`,
       sonDosyaAdi: sql<string | null>`${sonDosyaAdi}`,
+      ret: sql<number>`${RET_KOSULU}`,
     })
     .from(sohbetler)
     .innerJoin(leads, and(eq(leads.tenantId, sohbetler.tenantId), eq(leads.id, sohbetler.leadId)))
@@ -423,9 +465,29 @@ export function sohbetleriListele(ctx: TenantContext, f: SohbetFiltresi = {}): {
       sonMetin: s.sonMetin,
       sonIcerikSilindi: s.sonIcerikSilindi === null ? null : Boolean(s.sonIcerikSilindi),
       sonDosyaAdi: s.sonDosyaAdi,
+      ret: Boolean(s.ret),
     })),
     toplam,
   };
+}
+
+/**
+ * Çip sayıları: her çip için, süzgecin geri kalanıyla (numara, durum, atama, arama; seçili diğer çipler hariç) kaç
+ * sohbet. Tek sorgu.
+ */
+export function cipSayilari(ctx: TenantContext, f: SohbetFiltresi = {}): Record<SohbetCipi, number> {
+  const simdi = f.simdi ?? new Date();
+  const kosul = sohbetKosulu(ctx, { ...f, cipler: [], idler: undefined });
+  const secim = Object.fromEntries(
+    SOHBET_CIPLERI.map((c) => [c, sql<number>`coalesce(sum(case when ${cipKosulu(c, simdi)} then 1 else 0 end), 0)`]),
+  ) as Record<SohbetCipi, SQL<number>>;
+  const r = db
+    .select(secim)
+    .from(sohbetler)
+    .innerJoin(leads, and(eq(leads.tenantId, sohbetler.tenantId), eq(leads.id, sohbetler.leadId)))
+    .where(kosul)
+    .get();
+  return Object.fromEntries(SOHBET_CIPLERI.map((c) => [c, Number(r?.[c] ?? 0)])) as Record<SohbetCipi, number>;
 }
 
 /** Numara başına okunmamış toplamı (rozetler). Satırda tutulan sayı toplanır, mesaj sayımı yapılmaz. */
@@ -593,6 +655,126 @@ export function sohbetGuncelle(
       .returning()
       .get()!;
   });
+}
+
+/**
+ * Toplu kapatma ("Seçilenleri kapat"): bu çalışma alanının verilen açık sohbetleri kapanır (en fazla
+ * TOPLU_KAPATMA_AZAMI); başka çalışma alanının ya da zaten kapalı sohbet sayılmaz. Tek sürüm. Kapanan sayısı döner.
+ * Müşteri yeniden yazınca sohbet kendiliğinden açılır (gelenMesajYaz).
+ */
+export function sohbetleriKapat(ctx: TenantContext, idler: string[]): number {
+  const hedef = [...new Set(idler)].slice(0, TOPLU_KAPATMA_AZAMI);
+  if (!hedef.length) return 0;
+  return db.transaction(() => {
+    const kosul = and(eq(sohbetler.tenantId, ctx.tenantId), inArray(sohbetler.id, hedef), eq(sohbetler.durum, "acik"));
+    const n = db.select({ n: sql<number>`count(*)` }).from(sohbetler).where(kosul).get()?.n ?? 0;
+    if (!n) return 0;
+    const surum = surumAl(ctx);
+    return db.update(sohbetler).set({ durum: "kapali", surum }).where(kosul).returning({ id: sohbetler.id }).all().length;
+  });
+}
+
+/** Silme sonucu: silinen satır sayıları ve diskten silinecek medya dosyalarının göreli yolları. */
+export type SohbetSilmeSonucu = { mesaj: number; medya: number; not: number; dosyalar: string[] };
+
+/**
+ * Sohbeti yalnızca Harita CRM'den kalıcı olarak siler (yalnızca yönetici): mesajlar, medya satırları, iç notlar ve
+ * bildirim kuyruğu (bileşik yabancı anahtarla, aynı işlemde). Kayıt (lead), WhatsApp izni / RET, engel listesi ve
+ * kampanya istatistikleri (message_queue) korunur. Kayda olay ve çalışma alanının denetim kaydına satır yazılır.
+ * Dosyaların diskten silinmesi çağıranın işidir (dönen yollar; kalan dosyayı günlük medya bakımı da siler).
+ * Son 24 saatte bu sohbetten temsilcinin gönderdiği şablon varsa silinmez (409): Meta limitinin payı bu iletilerden
+ * sayılır (repo/kuyruk whatsappSon24Saat). Sohbet yoksa null.
+ */
+export function sohbetSil(ctx: TenantContext, id: string, g: { ad: string; numara: string }, simdi = new Date()): SohbetSilmeSonucu | null {
+  yoneticiOlmali(ctx);
+  return db.transaction(() => {
+    const sohbet = sohbetGetir(ctx, id);
+    if (!sohbet) return null;
+    const ayni = and(eq(sohbetMesajlari.tenantId, ctx.tenantId), eq(sohbetMesajlari.sohbetId, id));
+    const yeniSablon = db
+      .select({ n: sql<number>`count(*)` })
+      .from(sohbetMesajlari)
+      .where(
+        and(
+          ayni,
+          eq(sohbetMesajlari.yon, "giden"),
+          eq(sohbetMesajlari.kaynak, "temsilci"),
+          eq(sohbetMesajlari.tur, "template"),
+          gt(sohbetMesajlari.tarih, new Date(simdi.getTime() - 24 * 3_600_000)),
+        ),
+      )
+      .get()?.n;
+    if (yeniSablon) {
+      throw new KayitKuraliHatasi("Bu sohbetten son 24 saatte şablon gönderildi; Meta gönderim limiti hesabı bozulmasın diye 24 saat sonra silebilirsiniz.", 409);
+    }
+    const mesaj = db.select({ n: sql<number>`count(*)` }).from(sohbetMesajlari).where(ayni).get()?.n ?? 0;
+    const medyalar = db
+      .select({ yol: sohbetMedyalari.yol })
+      .from(sohbetMedyalari)
+      .innerJoin(sohbetMesajlari, and(eq(sohbetMesajlari.tenantId, sohbetMedyalari.tenantId), eq(sohbetMesajlari.id, sohbetMedyalari.mesajId)))
+      .where(ayni)
+      .all();
+    const not =
+      db
+        .select({ n: sql<number>`count(*)` })
+        .from(sohbetNotlari)
+        .where(and(eq(sohbetNotlari.tenantId, ctx.tenantId), eq(sohbetNotlari.sohbetId, id)))
+        .get()?.n ?? 0;
+    // Satırlar bileşik yabancı anahtarlarla (ON DELETE CASCADE) silinir: mesajlar → medya, notlar, bildirim kuyruğu.
+    db.delete(sohbetler).where(and(eq(sohbetler.tenantId, ctx.tenantId), eq(sohbetler.id, id))).run();
+    surumAl(ctx);
+    const kullaniciAdi = db.select({ ad: user.name }).from(user).where(eq(user.id, ctx.userId)).get()?.ad ?? null;
+    const ozet = `"${g.ad}" (numara: ${g.numara}): ${mesaj} mesaj, ${medyalar.length} dosya, ${not} iç not`;
+    db.insert(denetimKayitlari)
+      .values({
+        id: crypto.randomUUID(),
+        tenantId: ctx.tenantId,
+        kullaniciId: ctx.userId || null,
+        kullaniciAdi,
+        olay: DENETIM_SOHBET_SILME,
+        deger: id,
+        aciklama: `Sohbet yalnızca Harita CRM'den silindi ${ozet}. Kayıt, izin / RET bilgisi ve kampanya istatistikleri korundu.`,
+        tarih: simdi,
+      })
+      .run();
+    db.insert(leadEvents)
+      .values({
+        id: crypto.randomUUID(),
+        tenantId: ctx.tenantId,
+        leadId: sohbet.leadId,
+        tur: "whatsapp_gelen",
+        aciklama: `Gelen kutusu sohbeti Harita CRM'den silindi (numara: ${g.numara}; silen: ${kullaniciAdi ?? "yönetici"}). Müşterinin telefonundaki mesajlar silinmedi.`,
+        kullaniciId: ctx.userId || null,
+        sistem: true,
+      })
+      .run();
+    return { mesaj, medya: medyalar.length, not, dosyalar: medyalar.map((m) => m.yol).filter((y): y is string => Boolean(y)) };
+  });
+}
+
+// --- Kullanıcı tercihi ---
+
+/** Gönderimi geri al (kullanıcının bu çalışma alanındaki tercihi; üyelik yoksa açık varsayılır). */
+export function gonderimGeriAlGetir(ctx: TenantContext): boolean {
+  return (
+    db
+      .select({ g: memberships.gonderimGeriAl })
+      .from(memberships)
+      .where(and(eq(memberships.tenantId, ctx.tenantId), eq(memberships.userId, ctx.userId)))
+      .get()?.g ?? true
+  );
+}
+
+/** Kullanıcı kendi tercihini değiştirir (yalnızca kendi üyeliği). Üyelik yoksa false. */
+export function gonderimGeriAlAyarla(ctx: TenantContext, acik: boolean): boolean {
+  return (
+    db
+      .update(memberships)
+      .set({ gonderimGeriAl: acik })
+      .where(and(eq(memberships.tenantId, ctx.tenantId), eq(memberships.userId, ctx.userId)))
+      .returning({ u: memberships.userId })
+      .all().length > 0
+  );
 }
 
 // --- İç notlar ---

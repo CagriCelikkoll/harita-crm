@@ -6,13 +6,17 @@
 // Dosya gönderme (ekler.tsx): ataş menüsü, sürükle-bırak, yapıştırma; her dosya ayrı mesaj, açıklama ilkine. Bir mesajın
 // "Yanıtla"sı gönderimde context.message_id olur; alıntı kutusu gelen ve giden yanıtlarda görünür. Gönderilemeyen medya
 // mesajında "Tekrar dene".
-// Liste süzgeci (numara, Açık / Kapalı, atama; arama hariç) adreste ve kullanıcı + çalışma alanı başına tercih olarak
-// tutulur (lib/liste-tercihi): adreste süzgeç yoksa kayıtlı tercih uygulanır.
+// Liste süzgeci (numara, Açık / Kapalı, atama, çipler; arama hariç) adreste ve kullanıcı + çalışma alanı başına tercih
+// olarak tutulur (lib/liste-tercihi): adreste süzgeç yoksa kayıtlı tercih uygulanır. Çipler (Okunmamış, Cevap bekleyen,
+// Teklif / ilgi, Penceresi kapanmak üzere, RET verenler) birlikte kullanılabilir; telefonda yatay kayar.
+// Listede çoklu seçim ve "Seçilenleri kapat"; yönetici sohbeti yalnızca Harita CRM'den silebilir (adı yazarak onay).
+// Gönderimi geri al (kullanıcı tercihi): metin ve dosya GERI_AL_MS tarayıcıda bekler (lib/geri-al).
 import { DonerGosterge } from "@/components/arayuz/doner-gosterge";
 import { Dugme } from "@/components/arayuz/dugme";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { bildir } from "@/components/bildirim";
+import { Diyalog } from "@/components/arayuz/diyalog";
 import { DurumRozeti } from "@/components/arayuz/rozet";
 import { Simge } from "@/components/arayuz/simge";
 import { apiIstek } from "@/lib/api-istemci";
@@ -20,23 +24,31 @@ import { useDisariTiklama } from "@/lib/disari-tiklama";
 import { boyutYaz, tarihYaz } from "@/lib/bicim";
 import {
   ACIKLAMA_AZAMI,
+  GERI_AL_MS,
   gelenKutusuFiltresiCoz,
   gelenKutusuTercihi,
   MEDYA_TURLERI,
   MESAJ_TUR_ADLARI,
   mesajOzeti,
   NOT_AZAMI,
-  PENCERE_MS,
+  pencereKalanMs,
+  pencereKapanmakUzere,
   RET_UYARISI,
   sablonParcala,
+  silmeOnayiDogruMu,
+  SOHBET_CIP_ADLARI,
+  SOHBET_CIPLERI,
+  SOHBET_SILME_UYARISI,
   TESLIM_ADLARI,
   YANIT_AZAMI,
   type GelenKutusuFiltresi,
   type MedyaDto,
   type SohbetMesajiDto,
   type SohbetNotuDto,
+  type SohbetCipi,
   type SohbetOzetiDto,
 } from "@/lib/gelen-kutusu";
+import { gecikmeliGonderici, type Bekleyen, type GecikmeliGonderici } from "@/lib/geri-al";
 import { hazirCevapDoldur, yanitaEkle } from "@/lib/hazir-cevaplar";
 import { GELEN_KUTUSU_TERCIH_ALANLARI, tarayiciDeposu, tercihAnahtari, tercihOku, tercihYaz } from "@/lib/liste-tercihi";
 import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
@@ -53,6 +65,7 @@ const sorgu = (f: Filtre, ek: Record<string, string> = {}) => {
   if (f.numara) p.set("numara", f.numara);
   if (f.durum) p.set("durum", f.durum);
   if (f.atanan) p.set("atanan", f.atanan);
+  if (f.cipler.length) p.set("cip", f.cipler.join(","));
   if (f.q.trim()) p.set("q", f.q.trim());
   for (const [k, v] of Object.entries(ek)) p.set(k, v);
   return p.toString();
@@ -72,12 +85,14 @@ function kisaZaman(iso: string | null) {
     : t.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "Europe/Istanbul" });
 }
 
-/** 24 saat penceresinin kalanı ("5 sa", "40 dk"); kapalıysa null. */
+/** 24 saat penceresinin kalanı ("5 sa", "2 sa 10 dk", "40 dk"); kapalıysa null. */
 function pencereKalan(sonGelen: string | null, simdi: number): string | null {
-  if (!sonGelen) return null;
-  const kalan = new Date(sonGelen).getTime() + PENCERE_MS - simdi;
-  if (kalan <= 0) return null;
-  return kalan >= 3_600_000 ? `${Math.floor(kalan / 3_600_000)} sa` : `${Math.max(1, Math.floor(kalan / 60_000))} dk`;
+  const kalan = pencereKalanMs(sonGelen, simdi);
+  if (kalan === null) return null;
+  const sa = Math.floor(kalan / 3_600_000);
+  const dk = Math.max(1, Math.floor((kalan % 3_600_000) / 60_000));
+  if (sa >= 3) return `${sa} sa`;
+  return sa > 0 ? `${sa} sa ${dk} dk` : `${dk} dk`;
 }
 
 function mesajlariBirlestir(eski: SohbetMesajiDto[], yeni: SohbetMesajiDto[]) {
@@ -95,6 +110,9 @@ export function GelenKutusu(props: {
   ilkFiltre: Filtre;
   /** Adreste süzgeç parametresi vardı: kayıtlı tercih uygulanmaz. */
   adresteFiltre: boolean;
+  /** Kullanıcı tercihi: gönderimi GERI_AL_MS beklet. */
+  gonderimGeriAl: boolean;
+  yonetici: boolean;
 }) {
   const [filtre, setFiltre] = useState<Filtre>(props.ilkFiltre);
   const [liste, setListe] = useState(props.ilk);
@@ -163,16 +181,17 @@ export function GelenKutusu(props: {
   const tercihHazir = useRef(false);
   const { tenantId, kullaniciId, adresteFiltre } = props;
   const numaraIdleri = props.ilk.numaralar.map((n) => n.id).join(",");
+  const cipAnahtari = filtre.cipler.join(",");
   useEffect(() => {
     const depo = tarayiciDeposu();
     const anahtar = tercihAnahtari("gelen-kutusu", tenantId, kullaniciId);
-    const f = { numara: filtre.numara, durum: filtre.durum, atanan: filtre.atanan, q: "" };
+    const f = { numara: filtre.numara, durum: filtre.durum, atanan: filtre.atanan, cipler: cipAnahtari ? (cipAnahtari.split(",") as SohbetCipi[]) : [], q: "" };
     if (!tercihHazir.current) {
       tercihHazir.current = true;
       const kayitli = adresteFiltre ? null : tercihOku(depo, anahtar, GELEN_KUTUSU_TERCIH_ALANLARI);
       if (kayitli) {
         const k = gelenKutusuFiltresiCoz((a) => kayitli[a], numaraIdleri ? numaraIdleri.split(",") : []);
-        if (k.numara !== f.numara || k.durum !== f.durum || k.atanan !== f.atanan) {
+        if (k.numara !== f.numara || k.durum !== f.durum || k.atanan !== f.atanan || k.cipler.join(",") !== cipAnahtari) {
           // Kayıtlı tercih bir kez, açılışta uygulanır; değişiklik bir sonraki çizimde kaydedilir.
           // eslint-disable-next-line react-hooks/set-state-in-effect -- tarayıcı depolaması yalnızca istemcide okunur
           setFiltre((x) => ({ ...k, q: x.q }));
@@ -186,7 +205,7 @@ export function GelenKutusu(props: {
     for (const a of GELEN_KUTUSU_TERCIH_ALANLARI) adres.searchParams.delete(a);
     for (const [a, d] of Object.entries(t)) adres.searchParams.set(a, d);
     if (adres.href !== window.location.href) window.history.replaceState(null, "", adres);
-  }, [filtre.numara, filtre.durum, filtre.atanan, tenantId, kullaniciId, adresteFiltre, numaraIdleri]);
+  }, [filtre.numara, filtre.durum, filtre.atanan, cipAnahtari, tenantId, kullaniciId, adresteFiltre, numaraIdleri]);
 
   // Süzgeç değişince liste hemen yenilenir.
   const ilkRender = useRef(true);
@@ -240,13 +259,49 @@ export function GelenKutusu(props: {
 
   const secili = ayrinti && ayrinti.sohbet.id === seciliId ? ayrinti : null;
 
+  // Çoklu seçim ("Seç" → satırlar onay kutulu; "Seçilenleri kapat").
+  const [secimModu, setSecimModu] = useState(false);
+  const [secilenler, setSecilenler] = useState<string[]>([]);
+  const [kapatiliyor, setKapatiliyor] = useState(false);
+  const secimiBitir = () => {
+    setSecimModu(false);
+    setSecilenler([]);
+  };
+  const secilenleriKapat = async () => {
+    if (!secilenler.length) return;
+    setKapatiliyor(true);
+    const y = await apiIstek<{ kapatilan: number }>("/api/sohbetler/kapat", { method: "POST", govde: { idler: secilenler } });
+    setKapatiliyor(false);
+    if (!y.ok) return bildir(y.hata, "hata");
+    bildir(y.veri.kapatilan ? `${y.veri.kapatilan} sohbet kapatıldı.` : "Seçilenlerin hepsi zaten kapalıydı.");
+    secimiBitir();
+    void listeYukle(filtreRef.current);
+    if (seciliRef.current && secilenler.includes(seciliRef.current)) void ayrintiYukle(seciliRef.current);
+  };
+
   return (
     // Telefonda tek sütun minmax(0,1fr): sütun tanımı olmazsa "auto" sütun en uzun bölünmez metne (son mesajdaki uzun
     // bağlantı) göre genişler ve sayfa yatayda taşar.
     <div className="grid min-h-[70dvh] grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)]">
       <section aria-label="Sohbetler" className={`${seciliId ? "hidden lg:flex" : "flex"} kart min-w-0 flex-col gap-3 !p-0`}>
         <ListeSuzgeci liste={liste} filtre={filtre} setFiltre={setFiltre} />
-        <SohbetListesiGorunumu liste={liste} seciliId={seciliId} simdi={simdi} onSec={sohbetAc} />
+        <SecimCubugu
+          secimModu={secimModu}
+          secilen={secilenler.length}
+          tumu={liste.sohbetler.filter((x) => x.durum === "acik").map((x) => x.id)}
+          kapatiliyor={kapatiliyor}
+          onBasla={() => setSecimModu(true)}
+          onTumu={(idler) => setSecilenler(idler)}
+          onKapat={() => void secilenleriKapat()}
+          onVazgec={secimiBitir}
+        />
+        <SohbetListesiGorunumu
+          liste={liste}
+          seciliId={seciliId}
+          simdi={simdi}
+          onSec={sohbetAc}
+          secim={secimModu ? { idler: secilenler, degistir: (id) => setSecilenler((x) => (x.includes(id) ? x.filter((i) => i !== id) : [...x, id])) } : null}
+        />
       </section>
 
       <section aria-label="Sohbet" className={`${seciliId ? "flex" : "hidden lg:flex"} min-w-0 flex-col`}>
@@ -256,9 +311,16 @@ export function GelenKutusu(props: {
             a={secili}
             simdi={simdi}
             kullaniciId={props.kullaniciId}
+            gonderimGeriAl={props.gonderimGeriAl}
+            yonetici={props.yonetici}
             onGeri={() => {
               setSeciliId(null);
               setAyrinti(null);
+            }}
+            onSilindi={() => {
+              setSeciliId(null);
+              setAyrinti(null);
+              void listeYukle(filtreRef.current);
             }}
             onDegisti={(a) => setAyrinti(a)}
             onSohbetAc={sohbetAc}
@@ -330,11 +392,75 @@ function ListeSuzgeci(props: { liste: SohbetListesi; filtre: Filtre; setFiltre: 
         maxLength={100}
         onChange={(e) => setFiltre({ ...filtre, q: e.target.value })}
       />
+      {/* Çipler birlikte kullanılabilir (VE); sayı: süzgecin geri kalanıyla. Tek satır, yatay kayar (telefonda ve dar liste
+          sütununda alt alta dizilip listeyi aşağı itmesin); kenarda yarım görünen çip kaydırılabileceğini gösterir. */}
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:thin]" role="group" aria-label="Hızlı süzgeçler">
+        {SOHBET_CIPLERI.map((c) => {
+          const acik = filtre.cipler.includes(c);
+          const sayi = liste.cipSayilari?.[c] ?? 0;
+          return (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={acik}
+              onClick={() => setFiltre({ ...filtre, cipler: SOHBET_CIPLERI.filter((x) => (x === c ? !acik : filtre.cipler.includes(x))) })}
+              className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-ufak whitespace-nowrap ${
+                acik ? "border-ana bg-ana-acik font-semibold text-ana-koyu hover:bg-ana-acik active:bg-basili" : "border-kenar bg-white text-metin-ikincil hover:bg-uzerine-gelme active:bg-basili"
+              }`}
+            >
+              {SOHBET_CIP_ADLARI[c]}
+              <span className={`rounded-full px-1.5 text-xs font-semibold tabular-nums ${sayi ? (acik ? "bg-ana text-white" : "bg-segment text-metin") : "text-soluk"}`}>{sayi}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function SohbetListesiGorunumu(props: { liste: SohbetListesi; seciliId: string | null; simdi: number; onSec: (id: string) => void }) {
+/** Liste üstünde çoklu seçim: "Seç" → "N seçili · Tümünü seç · Seçilenleri kapat · Vazgeç". */
+function SecimCubugu(props: {
+  secimModu: boolean;
+  secilen: number;
+  tumu: string[];
+  kapatiliyor: boolean;
+  onBasla: () => void;
+  onTumu: (idler: string[]) => void;
+  onKapat: () => void;
+  onVazgec: () => void;
+}) {
+  if (!props.secimModu) {
+    return (
+      <div className="-mt-3 flex justify-end border-b border-cizgi px-4 py-1.5">
+        <button type="button" className="dugme-metin text-ufak" onClick={props.onBasla}>
+          Seç
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="-mt-3 flex flex-wrap items-center gap-2 border-b border-cizgi bg-secili-satir px-4 py-2 text-ufak" role="toolbar" aria-label="Seçili sohbetler">
+      <span className="font-semibold" aria-live="polite">
+        {props.secilen} seçili
+      </span>
+      <button type="button" className="dugme-metin" onClick={() => props.onTumu(props.tumu)} disabled={!props.tumu.length}>
+        Açıkların tümü
+      </button>
+      <span className="ml-auto flex gap-2">
+        <button type="button" className="dugme-kucuk" onClick={props.onVazgec}>
+          Vazgeç
+        </button>
+        <Dugme tur="ana" boyut="kucuk" yukleniyor={props.kapatiliyor} disabled={!props.secilen} onClick={props.onKapat}>
+          Seçilenleri kapat
+        </Dugme>
+      </span>
+    </div>
+  );
+}
+
+type Secim = { idler: string[]; degistir: (id: string) => void } | null;
+
+function SohbetListesiGorunumu(props: { liste: SohbetListesi; seciliId: string | null; simdi: number; onSec: (id: string) => void; secim: Secim }) {
   if (!props.liste.sohbetler.length) {
     return <p className="p-4 text-sm text-soluk">Bu süzgeçle sohbet yok. Müşteri WhatsApp numaranıza yazınca burada görünür.</p>;
   }
@@ -342,7 +468,16 @@ function SohbetListesiGorunumu(props: { liste: SohbetListesi; seciliId: string |
   return (
     <ul className="flex flex-col overflow-y-auto lg:max-h-[70dvh]">
       {props.liste.sohbetler.map((s) => (
-        <SohbetSatiri key={s.id} s={s} secili={s.id === props.seciliId} simdi={props.simdi} cokNumara={cokNumara} onSec={props.onSec} />
+        <SohbetSatiri
+          key={s.id}
+          s={s}
+          secili={s.id === props.seciliId}
+          simdi={props.simdi}
+          cokNumara={cokNumara}
+          onSec={props.onSec}
+          isaretli={props.secim ? props.secim.idler.includes(s.id) : null}
+          onIsaretle={props.secim?.degistir}
+        />
       ))}
       {props.liste.toplam > props.liste.sohbetler.length && (
         <li className="p-3 text-center text-xs text-soluk">İlk {props.liste.sohbetler.length} sohbet gösteriliyor; aramayla daraltın.</li>
@@ -351,17 +486,35 @@ function SohbetListesiGorunumu(props: { liste: SohbetListesi; seciliId: string |
   );
 }
 
-function SohbetSatiri(props: { s: SohbetOzetiDto; secili: boolean; simdi: number; cokNumara: boolean; onSec: (id: string) => void }) {
+function SohbetSatiri(props: {
+  s: SohbetOzetiDto;
+  secili: boolean;
+  simdi: number;
+  cokNumara: boolean;
+  onSec: (id: string) => void;
+  /** Seçim modunda işaretli mi (seçim modu değilse null). */
+  isaretli: boolean | null;
+  onIsaretle?: (id: string) => void;
+}) {
   const { s } = props;
   const kalan = pencereKalan(s.sonGelenTarihi, props.simdi);
+  // Penceresi kapanmak üzere (açık sohbet, < 3 saat): kalan süre uyarı rozetiyle.
+  const kapaniyor = s.durum === "acik" && pencereKapanmakUzere(s.sonGelenTarihi, props.simdi);
+  const secimde = props.isaretli !== null;
   return (
     <li>
       <button
         type="button"
-        onClick={() => props.onSec(s.id)}
-        aria-current={props.secili ? "true" : undefined}
-        className={`flex w-full flex-col gap-1 border-b border-cizgi px-4 py-3 text-left ${props.secili ? "satir-secili" : "satir"}`}
+        onClick={() => (secimde ? props.onIsaretle?.(s.id) : props.onSec(s.id))}
+        aria-current={!secimde && props.secili ? "true" : undefined}
+        aria-pressed={secimde ? Boolean(props.isaretli) : undefined}
+        className={`flex w-full items-start gap-3 border-b border-cizgi px-4 py-3 text-left ${secimde ? (props.isaretli ? "satir-secili" : "satir") : props.secili ? "satir-secili" : "satir"}`}
       >
+        {secimde && (
+          // Görsel onay kutusu: dokunma hedefi satırın kendisi (düğme); ekran okuyucu aria-pressed'i okur.
+          <input type="checkbox" tabIndex={-1} aria-hidden="true" readOnly checked={Boolean(props.isaretli)} className="pointer-events-none mt-0.5" />
+        )}
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center gap-2">
           <span className={`min-w-0 flex-1 truncate text-sm ${s.okunmamis ? "font-semibold" : "font-semibold"}`}>{s.ad}</span>
           <span className="shrink-0 text-xs text-soluk">{kisaZaman(s.sonMesajTarihi)}</span>
@@ -376,9 +529,20 @@ function SohbetSatiri(props: { s: SohbetOzetiDto; secili: boolean; simdi: number
         </span>
         <span className="flex flex-wrap items-center gap-1.5 text-xs text-soluk">
           {props.cokNumara && <span className="rounded-md bg-segment px-1.5">{s.numara}</span>}
-          {kalan ? <span title="24 saatlik yanıt penceresinin kalanı">⏱ {kalan}</span> : <span>Pencere kapalı</span>}
+          {kapaniyor ? (
+            <span className="rounded-full bg-uyari-acik px-2 font-semibold text-uyari" title="24 saatlik yanıt penceresi kapanmak üzere">
+              ⏱ {kalan} kaldı
+            </span>
+          ) : kalan ? (
+            <span title="24 saatlik yanıt penceresinin kalanı">⏱ {kalan}</span>
+          ) : (
+            <span>Pencere kapalı</span>
+          )}
+          {s.teklifIstegi && <span className="rounded-full bg-ana-acik px-2 font-semibold text-ana-koyu">{SOHBET_CIP_ADLARI.teklif}</span>}
+          {s.ret && <span className="rounded-full bg-tehlike-acik px-2 font-semibold text-tehlike">RET</span>}
           {s.atananAd && <span>· {s.atananAd}</span>}
           {s.durum === "kapali" && <span>· Kapalı</span>}
+        </span>
         </span>
       </button>
     </li>
@@ -389,7 +553,10 @@ function SohbetEkrani(props: {
   a: SohbetAyrintisi;
   simdi: number;
   kullaniciId: string;
+  gonderimGeriAl: boolean;
+  yonetici: boolean;
   onGeri: () => void;
+  onSilindi: () => void;
   onDegisti: (a: SohbetAyrintisi) => void;
   /** Başka sohbeti aç (Şablon gönder sonrası yeni kişinin sohbeti; yönlendiren sohbet bağlantısı). */
   onSohbetAc: (id: string) => void;
@@ -434,6 +601,7 @@ function SohbetEkrani(props: {
   const pencereAcik = Boolean(s.pencereBitis && new Date(s.pencereBitis).getTime() > props.simdi);
   const [yanitlanan, setYanitlanan] = useState<SohbetMesajiDto | null>(null);
   const yanitlanabilir = pencereAcik && !s.numaraKilitli;
+  const [silmeAcik, setSilmeAcik] = useState(false);
 
   const tekrarDene = async (m: SohbetMesajiDto) => {
     const y = await apiIstek<GonderimSonucu>(`/api/sohbetler/${s.id}/mesaj/${m.id}/tekrar`, { method: "POST" });
@@ -491,7 +659,13 @@ function SohbetEkrani(props: {
           <button type="button" className="dugme-kucuk" onClick={() => void guncelle({ durum: s.durum === "acik" ? "kapali" : "acik" })}>
             {s.durum === "acik" ? "Kapat" : "Yeniden aç"}
           </button>
+          {props.yonetici && (
+            <button type="button" className="dugme-tehlike dugme-kucuk" onClick={() => setSilmeAcik(true)}>
+              Sil
+            </button>
+          )}
         </header>
+        {props.yonetici && <SilmePenceresi acik={silmeAcik} sohbetId={s.id} ad={s.ad} onKapat={() => setSilmeAcik(false)} onSilindi={props.onSilindi} />}
 
         <div
           ref={liste}
@@ -515,7 +689,15 @@ function SohbetEkrani(props: {
           ))}
         </div>
 
-        <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} yanitlanan={yanitlanan} onYanitIptal={() => setYanitlanan(null)} />
+        <YazmaAlani
+          a={a}
+          pencereAcik={pencereAcik}
+          geriAlMs={props.gonderimGeriAl ? GERI_AL_MS : 0}
+          onMesaj={props.onMesaj}
+          yanitlanan={yanitlanan}
+          onYanitla={setYanitlanan}
+          onYanitIptal={() => setYanitlanan(null)}
+        />
       </div>
 
       <div className="flex min-w-0 flex-col gap-4 self-start">
@@ -523,6 +705,69 @@ function SohbetEkrani(props: {
         <Notlar sohbetId={s.id} notlar={a.notlar} onNotlar={props.onNotlar} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Sohbeti yalnızca Harita CRM'den kalıcı olarak silme (yalnızca yönetici): uyarı metni ve sohbetin adını yazarak onay.
+ * Kayıt, izin / RET ve kampanya istatistikleri korunur; denetim kaydına yazılır (sunucu).
+ */
+function SilmePenceresi(props: { acik: boolean; sohbetId: string; ad: string; onKapat: () => void; onSilindi: () => void }) {
+  const [onay, setOnay] = useState("");
+  const [siliniyor, setSiliniyor] = useState(false);
+  const [hata, setHata] = useState<string | null>(null);
+  const dogru = silmeOnayiDogruMu(onay, props.ad);
+  const kapat = () => {
+    setOnay("");
+    setHata(null);
+    props.onKapat();
+  };
+  const sil = async () => {
+    setSiliniyor(true);
+    setHata(null);
+    const y = await apiIstek<{ silindi: { mesaj: number; medya: number; not: number } }>(`/api/sohbetler/${props.sohbetId}`, {
+      method: "DELETE",
+      govde: { onay },
+    });
+    setSiliniyor(false);
+    if (!y.ok) return setHata(y.hata);
+    bildir(`Sohbet silindi (${y.veri.silindi.mesaj} mesaj, ${y.veri.silindi.medya} dosya, ${y.veri.silindi.not} not).`);
+    kapat();
+    props.onSilindi();
+  };
+  return (
+    <Diyalog
+      acik={props.acik}
+      onKapat={kapat}
+      baslik="Sohbeti sil"
+      genislik="orta"
+      eylemler={
+        <>
+          <button type="button" className="dugme" onClick={kapat}>
+            Vazgeç
+          </button>
+          <Dugme tur="tehlike" yukleniyor={siliniyor} disabled={!dogru} onClick={() => void sil()}>
+            Kalıcı olarak sil
+          </Dugme>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="rounded-md bg-tehlike-acik px-3 py-2 font-medium text-tehlike">{SOHBET_SILME_UYARISI}</p>
+        <p className="text-metin-ikincil">Mesajlar, dosyalar ve iç notlar silinir. Kişinin kaydı, izin / RET bilgisi ve kampanya istatistikleri korunur.</p>
+        <label className="etiket">
+          <span>
+            Onaylamak için sohbetin adını yazın: <span className="font-semibold text-metin">{props.ad}</span>
+          </span>
+          <input className="girdi" value={onay} autoComplete="off" onChange={(e) => setOnay(e.target.value)} maxLength={300} />
+        </label>
+        {hata && (
+          <p role="alert" className="text-tehlike">
+            {hata}
+          </p>
+        )}
+      </div>
+    </Diyalog>
   );
 }
 
@@ -852,11 +1097,44 @@ function Balon({
   );
 }
 
+/** Bekletilen gönderim (Geri al): metin ya da ekler; açıklama / metin ve yanıtlanan mesaj geri alınınca yerine konur. */
+type BekleyenGonderim = { tur: "metin" | "ek"; metin: string; yanitlanan: SohbetMesajiDto | null };
+
+/** Bekleyen gönderimin çubuğu: geri sayım, "Şimdi gönder" ve "Geri al". */
+function GeriAlCubugu(props: { bekleyen: Bekleyen<BekleyenGonderim>; onGeriAl: () => void; onHemen: () => void }) {
+  const [simdi, setSimdi] = useState(() => Date.now());
+  useEffect(() => {
+    const z = setInterval(() => setSimdi(Date.now()), 250);
+    return () => clearInterval(z);
+  }, []);
+  const kalan = Math.max(0, Math.ceil((props.bekleyen.bitis - simdi) / 1000));
+  const v = props.bekleyen.veri;
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-ana bg-ana-acik px-3 py-2 text-ufak">
+      <span className="min-w-0 flex-1">
+        <span className="font-semibold text-ana-koyu">
+          {v.tur === "ek" ? "Dosyalar" : "Mesaj"} {kalan} sn içinde gönderilecek
+        </span>
+        {v.metin && <span className="block truncate text-metin-ikincil">{v.metin}</span>}
+      </span>
+      <button type="button" className="dugme-metin" onClick={props.onHemen}>
+        Şimdi gönder
+      </button>
+      <button type="button" className="dugme dugme-kucuk" onClick={props.onGeriAl}>
+        Geri al
+      </button>
+    </div>
+  );
+}
+
 function YazmaAlani(props: {
   a: SohbetAyrintisi;
   pencereAcik: boolean;
+  /** Gönderimi geri al süresi (0: kapalı, hemen gönderilir). */
+  geriAlMs: number;
   onMesaj: (m: SohbetMesajiDto) => void;
   yanitlanan: SohbetMesajiDto | null;
+  onYanitla: (m: SohbetMesajiDto) => void;
   onYanitIptal: () => void;
 }) {
   const s = props.a.sohbet;
@@ -888,17 +1166,21 @@ function YazmaAlani(props: {
    * Ekleri sırayla gönderir (her biri ayrı mesaj). İlk gönderimde açıklama ve yanıtlanan mesaj ilk dosyaya sabitlenir;
    * bir dosya gönderilemezse durulur (sıra bozulmasın), o dosyada "Tekrar dene" görünür.
    */
-  const ekleriGonder = async () => {
+  const ekleriGonder = async (bekletilen?: { aciklama: string; yanitlananId: string | null }) => {
     const bekleyen = ek.ref.current.filter((e) => !e.onHata && e.durum !== "yukleniyor");
     if (!bekleyen.length) return;
     const ilk = bekleyen[0];
     if (ilk.aciklama === undefined) {
-      const aciklama = metin.trim();
-      ek.guncelle(ilk.kimlik, { aciklama, yanitlananId: props.yanitlanan?.id ?? null });
+      // Geri al süresi dolunca: açıklama ve yanıtlanan, bekletmeye alınırken kaydedilenlerdir (yazı alanı boşaltılmıştı).
+      const aciklama = bekletilen ? bekletilen.aciklama : metin.trim();
+      const yanitlananId = bekletilen ? bekletilen.yanitlananId : (props.yanitlanan?.id ?? null);
+      ek.guncelle(ilk.kimlik, { aciklama, yanitlananId });
       ilk.aciklama = aciklama;
-      ilk.yanitlananId = props.yanitlanan?.id ?? null;
-      setMetin("");
-      props.onYanitIptal();
+      ilk.yanitlananId = yanitlananId;
+      if (!bekletilen) {
+        setMetin("");
+        props.onYanitIptal();
+      }
     }
     setGonderiliyor(true);
     for (const e of bekleyen) {
@@ -953,6 +1235,51 @@ function YazmaAlani(props: {
     return true;
   };
 
+  // --- Gönderimi geri al: bekleme yalnızca tarayıcıda (lib/geri-al). Sayfa kapanır ya da bağlantı koparsa gitmez;
+  // uygulama içinde başka sohbete / sayfaya geçilince bekleyen hemen gönderilir (yazılan kaybolmasın).
+  const [bekleyen, setBekleyen] = useState<Bekleyen<BekleyenGonderim> | null>(null);
+  const bekleyeniGonder = useRef<(v: BekleyenGonderim) => void>(() => {});
+  const gonderici = useRef<GecikmeliGonderici<BekleyenGonderim> | null>(null);
+  const { geriAlMs } = props;
+  useEffect(() => {
+    const g = gecikmeliGonderici<BekleyenGonderim>({ sureMs: geriAlMs, gonder: (v) => bekleyeniGonder.current(v), degisti: setBekleyen });
+    gonderici.current = g;
+    // Sohbetten / sayfadan uygulama içinde çıkılınca bekleyen hemen gönderilir.
+    return () => g.hemen();
+  }, [geriAlMs]);
+  const geriKoy = (v: BekleyenGonderim) => {
+    setMetin((m) => (m.trim() ? `${v.metin}
+${m}` : v.metin));
+    if (v.yanitlanan) props.onYanitla(v.yanitlanan);
+  };
+  useEffect(() => {
+    bekleyeniGonder.current = (v) => {
+      if (!navigator.onLine) {
+        geriKoy(v);
+        bildir("Bağlantı yok: mesaj gönderilmedi, yazı alanına geri kondu.", "hata");
+        return;
+      }
+      if (v.tur === "ek") return void ekleriGonder({ aciklama: v.metin, yanitlananId: v.yanitlanan?.id ?? null });
+      void gonder({ tur: "metin", metin: v.metin, yanitlananId: v.yanitlanan?.id ?? null }).then((tamam) => {
+        if (!tamam) geriKoy(v);
+      });
+    };
+  });
+  const geriAl = () => {
+    const v = gonderici.current?.geriAl();
+    if (!v) return;
+    geriKoy(v);
+    requestAnimationFrame(() => yanitRef.current?.focus());
+  };
+  /** Gönder: geri al açıksa bekletmeye alınır, yazı alanı ve yanıt kutusu boşalır. */
+  const bekletVeyaGonder = (v: BekleyenGonderim) => {
+    const g = gonderici.current;
+    if (!g) return;
+    setMetin("");
+    props.onYanitIptal();
+    g.baslat(v);
+  };
+
   if (s.numaraKilitli) {
     return <p className="border-t border-cizgi bg-tehlike-acik px-4 py-3 text-sm text-tehlike">{s.numaraKilitli}</p>;
   }
@@ -998,9 +1325,11 @@ function YazmaAlani(props: {
           if (ekVar) {
             if (reddedilenVar) return bildir("Gönderilemeyen dosyaları kaldırın.", "hata");
             if (metin.trim().length > ACIKLAMA_AZAMI) return bildir(`Açıklama en fazla ${ACIKLAMA_AZAMI} karakter olabilir.`, "hata");
+            if (props.geriAlMs > 0) return bekletVeyaGonder({ tur: "ek", metin: metin.trim(), yanitlanan: props.yanitlanan });
             return void ekleriGonder();
           }
           if (!metin.trim()) return;
+          if (props.geriAlMs > 0) return bekletVeyaGonder({ tur: "metin", metin, yanitlanan: props.yanitlanan });
           if (await gonder({ tur: "metin", metin, yanitlananId: props.yanitlanan?.id ?? null })) {
             setMetin("");
             props.onYanitIptal();
@@ -1021,6 +1350,7 @@ function YazmaAlani(props: {
           ek.ekle([...e.dataTransfer.files]);
         }}
       >
+        {bekleyen && <GeriAlCubugu bekleyen={bekleyen} onGeriAl={geriAl} onHemen={() => gonderici.current?.hemen()} />}
         {surukleniyor && (
           <p className="rounded-lg border-2 border-dashed border-ana bg-ana-acik px-3 py-4 text-center text-sm font-medium text-ana-koyu">
             Dosyaları buraya bırakın

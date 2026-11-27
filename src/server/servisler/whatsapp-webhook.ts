@@ -62,7 +62,7 @@ import {
 } from "../repo/whatsapp-kisileri";
 import { sablonDurumuYaz } from "../repo/whatsapp-sablonlari";
 import { gelenMesajYaz, mesajTeslimDurumuYaz } from "../repo/gelen-kutusu";
-import { MEDYA_TURLERI, sohbetMesajTuru } from "@/lib/gelen-kutusu";
+import { teklifIlgiButonuMu, MEDYA_TURLERI, sohbetMesajTuru } from "@/lib/gelen-kutusu";
 import { whatsappBaglantisiCoz } from "./whatsapp-api";
 
 export const WEBHOOK_AZAMI_BAYT = 1024 * 1024;
@@ -437,6 +437,11 @@ class Isleyici {
           // Tepki (reaction) kendi message_id'sini taşır; alıntı yalnızca yanıtlarda.
           yanitWamid: m.type !== "reaction" ? (m.context?.id ?? null) : null,
           profilAdi: kisi?.profile?.name ?? null,
+          // Teklif / ilgi butonu: yalnızca Meta'nın buton yükünden (şablon hızlı yanıtında payload, etkileşimli butonda
+          // id); ekrandaki metin (text / title) ve müşterinin yazdığı metin dikkate alınmaz.
+          teklifIstegi:
+            (m.type === "button" && teklifIlgiButonuMu(m.button?.payload)) ||
+            (m.type === "interactive" && teklifIlgiButonuMu(m.interactive?.button_reply?.id)),
         },
         this.simdi,
       );

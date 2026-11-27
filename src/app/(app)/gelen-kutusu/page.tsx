@@ -3,6 +3,7 @@ import { SayfaBasligi } from "@/components/sayfa-basligi";
 import { sayfaBaglami } from "@/server/oturum";
 import { gelenKutusuFiltresiCoz, gelenKutusuTercihi } from "@/lib/gelen-kutusu";
 import { GELEN_KUTUSU_TERCIH_ALANLARI } from "@/lib/liste-tercihi";
+import { gonderimGeriAlGetir } from "@/server/repo/gelen-kutusu";
 import { baglantilariListele } from "@/server/repo/whatsapp-baglantilari";
 import { sohbetFiltresiCoz, sohbetListesi } from "@/server/servisler/gelen-kutusu";
 import { GelenKutusu } from "./gelen-kutusu";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Gelen kutusu" };
 
 // WhatsApp sohbetleri: herkes tüm sohbetleri görür; atama yalnızca sorumluluğu gösterir. Canlı yenileme kısa yoklamayla
 // (görünür sekmede 3 sn, arka planda 20 sn). ?sohbet=<id> ile belirli sohbet açılır. Liste süzgeci adreste
-// (?numara=&durum=acik|kapali|tum&atanan=ben|yok); adreste yoksa istemci kayıtlı tercihi uygular (lib/liste-tercihi).
+// (?numara=&durum=acik|kapali|tum&atanan=ben|yok&cip=okunmamis,cevap_bekleyen,…); adreste yoksa istemci kayıtlı tercihi uygular (lib/liste-tercihi).
 export default async function GelenKutusuSayfasi({ searchParams }: PageProps<"/gelen-kutusu">) {
   const { ctx, oturum } = await sayfaBaglami();
   const sp = await searchParams;
@@ -29,6 +30,8 @@ export default async function GelenKutusuSayfasi({ searchParams }: PageProps<"/g
         tenantId={ctx.tenantId}
         ilkFiltre={ilkFiltre}
         adresteFiltre={adresteFiltre}
+        gonderimGeriAl={gonderimGeriAlGetir(ctx)}
+        yonetici={ctx.rol === "yonetici"}
       />
     </>
   );

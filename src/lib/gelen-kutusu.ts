@@ -246,6 +246,10 @@ export type SohbetOzetiDto = {
   sonMesajTarihi: string | null;
   sonGelenTarihi: string | null;
   okunmamis: number;
+  /** Müşteri teklif / ilgi butonlarından birine bastı (son basış; TEKLIF_ILGI_BUTONLARI). */
+  teklifIstegi: string | null;
+  /** Kişi RET verdi (kayıt ya da WhatsApp izni). */
+  ret: boolean;
   surum: number;
 };
 
@@ -383,14 +387,72 @@ export function mesajOzeti(m: { tur: SohbetMesajTuru; metin: string | null; icer
   }
 }
 
-/** Gelen kutusu liste süzgeci (arama hariç adreste ve liste tercihinde tutulur; lib/liste-tercihi). */
-export type GelenKutusuFiltresi = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; q: string };
-export const VARSAYILAN_GELEN_KUTUSU_FILTRESI: GelenKutusuFiltresi = { numara: "", durum: "acik", atanan: "", q: "" };
+// --- Liste çipleri (numara / durum / atama süzgecine ek; birlikte kullanılabilir: hepsi VE ile bağlanır) ---
 
 /**
- * Adres / tercih biçiminden süzgeç: durum=acik|kapali|tum, atanan=ben|yok, numara=<bağlantı>. Numara yalnızca
- * çalışma alanında hâlâ varsa ve birden çok numara varsa (sekmeler yalnızca o zaman görünür) uygulanır: görünmeyen bir
- * süzgeç listeyi sessizce daraltmasın.
+ * okunmamis: okunmamış mesajı var; cevap_bekleyen: müşterinin son mesajından sonra (gönderilemeyen hariç) giden mesaj
+ * yok; teklif: müşteri şablondaki teklif / ilgi butonlarından birine bastı (TEKLIF_ILGI_BUTONLARI, Meta'nın buton yükünden);
+ * pencere: açık sohbet, 24 saat penceresinin bitmesine PENCERE_UYARI_MS'den az kaldı; ret: kişi RET verdi.
+ */
+export const SOHBET_CIPLERI = ["okunmamis", "cevap_bekleyen", "teklif", "pencere", "ret"] as const;
+export type SohbetCipi = (typeof SOHBET_CIPLERI)[number];
+export const SOHBET_CIP_ADLARI: Record<SohbetCipi, string> = {
+  okunmamis: "Okunmamış",
+  cevap_bekleyen: "Cevap bekleyen",
+  teklif: "Teklif / ilgi",
+  pencere: "Penceresi kapanmak üzere",
+  ret: "RET verenler",
+};
+
+/** "Penceresi kapanmak üzere": 24 saat penceresinin bitmesine bundan az kalan açık sohbetler (listede kalan süre rozeti). */
+export const PENCERE_UYARI_MS = 3 * 3_600_000;
+
+/** Pencere açıksa kalan süre (ms); kapalıysa ya da hiç yazmadıysa null. */
+export function pencereKalanMs(sonGelen: Date | string | null | undefined, simdi: number): number | null {
+  if (!sonGelen) return null;
+  const kalan = new Date(sonGelen).getTime() + PENCERE_MS - simdi;
+  return kalan > 0 ? kalan : null;
+}
+export const pencereKapanmakUzere = (sonGelen: Date | string | null | undefined, simdi: number) => {
+  const k = pencereKalanMs(sonGelen, simdi);
+  return k !== null && k < PENCERE_UYARI_MS;
+};
+
+/**
+ * "Teklif / ilgi" süzgecine ve rozetine giren buton yükleri (tek yer): fiyat teklifi, katalog, numune, bilgi bırakma. Şablondaki hızlı yanıt butonunda yük verilmediyse
+ * Meta yük olarak butonun metnini gönderir; etkileşimli butonda yanıt kimliği (id) kullanılır. Tanıma yalnızca bu yükten
+ * yapılır, ekranda görünen metinden (button.text / title) ya da müşterinin yazdığı metinden yapılmaz. Karşılaştırma
+ * büyük/küçük harf ve fazla boşluk duyarsız.
+ */
+export const TEKLIF_ILGI_BUTONLARI = [
+  "Fiyat teklifi istiyorum",
+  "Fiyat teklifi al",
+  "Teklif istiyorum",
+  "Fiyat bilgisi istiyorum",
+  "Katalog gönderin",
+  "Numune istiyorum",
+  "Bilgileri yazacağım",
+  "fiyat_teklifi",
+] as const;
+
+const yukSade = (s: string) => s.normalize("NFC").toLocaleLowerCase("tr").replace(/\s+/g, " ").trim();
+const TEKLIF_ILGI_YUKLERI = new Set(TEKLIF_ILGI_BUTONLARI.map(yukSade));
+export const teklifIlgiButonuMu = (yuk: string | null | undefined): boolean => Boolean(yuk && TEKLIF_ILGI_YUKLERI.has(yukSade(yuk)));
+
+/** Gelen kutusu liste süzgeci (arama hariç adreste ve liste tercihinde tutulur; lib/liste-tercihi). */
+export type GelenKutusuFiltresi = { numara: string; durum: "acik" | "kapali" | ""; atanan: "" | "ben" | "yok"; cipler: SohbetCipi[]; q: string };
+export const VARSAYILAN_GELEN_KUTUSU_FILTRESI: GelenKutusuFiltresi = { numara: "", durum: "acik", atanan: "", cipler: [], q: "" };
+
+/** "okunmamis,cevap_bekleyen" → tanınan çipler (SOHBET_CIPLERI sırasıyla, tekrarsız). */
+export function ciplerCoz(deger: string | null | undefined): SohbetCipi[] {
+  const istenen = new Set((deger ?? "").split(","));
+  return SOHBET_CIPLERI.filter((c) => istenen.has(c));
+}
+
+/**
+ * Adres / tercih biçiminden süzgeç: durum=acik|kapali|tum, atanan=ben|yok, numara=<bağlantı>, cip=<çip,…>. Numara
+ * yalnızca çalışma alanında hâlâ varsa ve birden çok numara varsa (sekmeler yalnızca o zaman görünür) uygulanır:
+ * görünmeyen bir süzgeç listeyi sessizce daraltmasın.
  */
 export function gelenKutusuFiltresiCoz(al: (ad: string) => string | null | undefined, numaralar: readonly string[]): GelenKutusuFiltresi {
   const numara = al("numara") ?? "";
@@ -400,11 +462,40 @@ export function gelenKutusuFiltresiCoz(al: (ad: string) => string | null | undef
     numara: numaralar.length > 1 && numaralar.includes(numara) ? numara : "",
     durum: durum === "kapali" ? "kapali" : durum === "tum" ? "" : "acik",
     atanan: atanan === "ben" || atanan === "yok" ? atanan : "",
+    cipler: ciplerCoz(al("cip")),
     q: "",
   };
 }
 
 /** Süzgecin adres / tercih biçimi (arama hariç). Durum her zaman yazılır: adres hiçbir zaman "tercihsiz" görünmez. */
 export function gelenKutusuTercihi(f: GelenKutusuFiltresi): Record<string, string> {
-  return { ...(f.numara ? { numara: f.numara } : {}), durum: f.durum || "tum", ...(f.atanan ? { atanan: f.atanan } : {}) };
+  return {
+    ...(f.numara ? { numara: f.numara } : {}),
+    durum: f.durum || "tum",
+    ...(f.atanan ? { atanan: f.atanan } : {}),
+    ...(f.cipler.length ? { cip: f.cipler.join(",") } : {}),
+  };
 }
+
+// --- Gönderimi geri al, arşiv, silme ---
+
+/** Metin ve medya gönderimi bu kadar bekletilir (tarayıcıda); bu sürede "Geri al" ile Meta'ya hiç gitmez. */
+export const GERI_AL_MS = 5000;
+
+/** Otomatik kapatma: bu kadar gün sessiz kalan (hiç mesaj olmayan) açık sohbet günlük bakımda kapanır; null = kapalı. */
+export const OTOMATIK_KAPATMA_GUNLERI = [3, 7, 14] as const;
+export type OtomatikKapatmaGunu = (typeof OTOMATIK_KAPATMA_GUNLERI)[number];
+export const otomatikKapatmaGunuMu = (n: unknown): n is OtomatikKapatmaGunu => (OTOMATIK_KAPATMA_GUNLERI as readonly unknown[]).includes(n);
+
+/** Toplu kapatmada bir istekte en fazla sohbet. */
+export const TOPLU_KAPATMA_AZAMI = 200;
+
+/** Sohbet silme onay penceresinin metni (yalnızca yönetici). */
+export const SOHBET_SILME_UYARISI =
+  "Bu sohbet ve dosyaları yalnızca Harita CRM'den kalıcı olarak silinir; müşterinin telefonundaki mesajlar silinmez.";
+
+/** Silme onayı: kullanıcının yazdığı ad sohbetin adıyla (büyük/küçük harf ve fazla boşluk duyarsız) aynı mı. */
+export const silmeOnayiDogruMu = (yazilan: string, ad: string) => {
+  const sade = (s: string) => s.normalize("NFC").toLocaleLowerCase("tr").replace(/\s+/g, " ").trim();
+  return sade(yazilan) !== "" && sade(yazilan) === sade(ad);
+};

@@ -30,6 +30,8 @@ export const AYAR_GRUPLARI: { ad: string; bolumler: AyarBolumuTanimi[] }[] = [
       { yol: "saatler", ad: "Saatler ve sınırlar", yalnizcaYonetici: false },
       { yol: "whatsapp-listesi", ad: "WhatsApp listesi", yalnizcaYonetici: false },
       { yol: "hazir-cevaplar", ad: "Hazır cevaplar", yalnizcaYonetici: false },
+      // Kişisel "Gönderimi geri al" herkes; otomatik kapatmayı yalnızca yönetici değiştirir.
+      { yol: "gelen-kutusu", ad: "Gelen kutusu", yalnizcaYonetici: false },
     ],
   },
   {

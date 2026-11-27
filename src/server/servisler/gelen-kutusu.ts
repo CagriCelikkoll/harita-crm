@@ -24,6 +24,7 @@ import path from "node:path";
 import { z } from "zod";
 import {
   ACIKLAMA_AZAMI,
+  ciplerCoz,
   MEDYA_KOTA_BAYT,
   medyaGonderimHataMetni,
   MESAJ_SAYFA_BOYUTU,
@@ -33,7 +34,10 @@ import {
   pencereAcik,
   pencereBitisi,
   mesajOzeti,
+  silmeOnayiDogruMu,
+  TOPLU_KAPATMA_AZAMI,
   YANIT_AZAMI,
+  type SohbetCipi,
   type SohbetAyrintiDto,
   type SohbetDurumu,
   type SohbetMesajiDto,
@@ -58,10 +62,11 @@ import {
 import { gunAnahtari } from "@/lib/zaman";
 import { adresOzeti, telefonNormallestir } from "../messaging/adres";
 import { aliciDegerlendir } from "../messaging/alici-kurallari";
-import type { TenantContext } from "../repo/baglam";
+import { KayitKuraliHatasi, YetkiHatasi, type TenantContext } from "../repo/baglam";
 import { retIsle } from "../repo/engel-listesi";
 import {
   atanabilirUyeler,
+  cipSayilari,
   degisenSohbetler,
   gelenKutusuSurumuGetir,
   gidenMesajYaz,
@@ -74,7 +79,9 @@ import {
   okunmamisSayilari,
   sohbetGetir,
   sohbetGuncelle,
+  sohbetleriKapat,
   sohbetleriListele,
+  sohbetSil,
   sohbetMesajlariGetir,
   type SohbetFiltresi,
   type SohbetMesajiSatiri,
@@ -127,6 +134,8 @@ function ozetDto(s: SohbetSatiri, etiketler: Map<string, string>): SohbetOzetiDt
     sonMesajTarihi: s.sonMesajTarihi?.toISOString() ?? null,
     sonGelenTarihi: s.sonGelenTarihi?.toISOString() ?? null,
     okunmamis: s.okunmamis,
+    teklifIstegi: s.teklifIstegiTarihi?.toISOString() ?? null,
+    ret: Boolean(s.ret),
     surum: s.surum,
   };
 }
@@ -166,12 +175,15 @@ export type SohbetListesi = {
   /** Numara kimliği → okunmamış; "toplam" anahtarı hepsinin toplamı. */
   okunmamis: Record<string, number>;
   numaralar: { id: string; etiket: string }[];
+  /** Çip sayıları: süzgecin geri kalanıyla (seçili diğer çipler hariç). */
+  cipSayilari: Record<SohbetCipi, number>;
   surum: number;
 };
 
-export function sohbetListesi(ctx: TenantContext, f: SohbetFiltresi): SohbetListesi {
+export function sohbetListesi(ctx: TenantContext, filtre: SohbetFiltresi, simdi = new Date()): SohbetListesi {
   // Sürüm sorgulardan ÖNCE okunur: arada gelen değişiklik bir sonraki yoklamada yeniden gelir (kaybolmaz).
   const surum = gelenKutusuSurumuGetir(ctx);
+  const f = { ...filtre, simdi: filtre.simdi ?? simdi };
   const e = etiketler(ctx);
   const { satirlar, toplam } = sohbetleriListele(ctx, f);
   const sayilar = okunmamisSayilari(ctx);
@@ -182,6 +194,7 @@ export function sohbetListesi(ctx: TenantContext, f: SohbetFiltresi): SohbetList
     toplam,
     okunmamis,
     numaralar: [...e].map(([id, etiket]) => ({ id, etiket })),
+    cipSayilari: cipSayilari(ctx, f),
     surum,
   };
 }
@@ -267,7 +280,7 @@ export type Degisiklikler =
 export function degisiklikler(ctx: TenantContext, sonra: number, f: SohbetFiltresi, sohbetId: string | null, simdi = new Date()): Degisiklikler {
   const surum = gelenKutusuSurumuGetir(ctx);
   if (surum <= sonra) return { degisti: false, surum };
-  const liste = sohbetListesi(ctx, f);
+  const liste = sohbetListesi(ctx, f, simdi);
   let sohbet = null;
   if (sohbetId && degisenSohbetler(ctx, sonra).includes(sohbetId)) {
     sohbet = {
@@ -314,6 +327,47 @@ export const SohbetDegisikligi = z
 
 export function sohbetiGuncelle(ctx: TenantContext, id: string, d: { durum?: SohbetDurumu; atananKullanici?: string | null }) {
   return sohbetGuncelle(ctx, id, d);
+}
+
+export const TopluKapatmaGirdisi = z
+  .object({ idler: z.array(z.string().min(1).max(64)).min(1, "Sohbet seçin.").max(TOPLU_KAPATMA_AZAMI, `Bir seferde en fazla ${TOPLU_KAPATMA_AZAMI} sohbet kapatılabilir.`) })
+  .strict();
+
+/** "Seçilenleri kapat": herkes (atama gibi); yalnızca bu çalışma alanının açık sohbetleri. Kapanan sayısı. */
+export function sohbetleriTopluKapat(ctx: TenantContext, idler: string[]): { kapatilan: number } {
+  return { kapatilan: sohbetleriKapat(ctx, idler) };
+}
+
+export const SilmeGirdisi = z.object({ onay: z.string().max(300) }).strict();
+
+/**
+ * Sohbeti yalnızca Harita CRM'den kalıcı olarak siler (yalnızca yönetici; onay: sohbetin adı yazılmalı). Mesajlar,
+ * medya dosyaları ve iç notlar silinir; kayıt, izin / RET ve kampanya istatistikleri korunur; denetim kaydına yazılır.
+ */
+export function sohbetiSil(ctx: TenantContext, id: string, onay: string, simdi = new Date()): { mesaj: number; medya: number; not: number } {
+  if (ctx.rol !== "yonetici") throw new GelenKutusuHatasi("Sohbeti yalnızca yönetici silebilir.", 403);
+  const satir = sohbetleriListele(ctx, { idler: [id] }).satirlar[0];
+  if (!satir) throw new GelenKutusuHatasi("Sohbet bulunamadı.", 404);
+  const ad = kisiAdi(satir);
+  if (!silmeOnayiDogruMu(onay, ad)) throw new GelenKutusuHatasi(`Onay için sohbetin adını aynen yazın: ${ad}`, 400);
+  let sonuc: ReturnType<typeof sohbetSil>;
+  try {
+    sonuc = sohbetSil(ctx, id, { ad, numara: etiketler(ctx).get(satir.baglantiId) ?? numaraEtiketi(null) }, simdi);
+  } catch (h) {
+    if (h instanceof YetkiHatasi) throw new GelenKutusuHatasi("Sohbeti yalnızca yönetici silebilir.", 403);
+    if (h instanceof KayitKuraliHatasi) throw new GelenKutusuHatasi(h.message, h.durum);
+    throw h;
+  }
+  if (!sonuc) throw new GelenKutusuHatasi("Sohbet bulunamadı.", 404);
+  // Dosyalar işlemden sonra silinir; silinemeyen kalırsa günlük medya bakımı (artakalan) siler.
+  for (const yol of sonuc.dosyalar) {
+    try {
+      fs.rmSync(medyaTamYolu(yol), { force: true });
+    } catch {
+      // geçersiz yol ya da erişim hatası: bakım temizler
+    }
+  }
+  return { mesaj: sonuc.mesaj, medya: sonuc.medya, not: sonuc.not };
 }
 
 export const NotGirdisi = z.object({ metin: z.string().trim().min(1, "Not boş olamaz.").max(NOT_AZAMI, `Not en fazla ${NOT_AZAMI} karakter olabilir.`) }).strict();
@@ -851,6 +905,7 @@ export function sohbetFiltresiCoz(ctx: TenantContext, p: URLSearchParams): Sohbe
     baglantiId: p.get("numara") || undefined,
     durum: durum === "acik" || durum === "kapali" ? durum : undefined,
     atanan: atanan === "ben" ? ctx.userId : atanan === "yok" ? "yok" : undefined,
+    cipler: ciplerCoz(p.get("cip")),
     arama: p.get("q")?.slice(0, 100) || undefined,
     sayfa: Math.max(1, Number(p.get("sayfa") ?? 1) || 1),
   };

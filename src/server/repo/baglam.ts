@@ -31,7 +31,7 @@ export class YetkiHatasi extends Error {
 export class KayitKuraliHatasi extends Error {
   constructor(
     mesaj: string,
-    readonly durum: 400 | 403,
+    readonly durum: 400 | 403 | 409,
   ) {
     super(mesaj);
     this.name = "KayitKuraliHatasi";

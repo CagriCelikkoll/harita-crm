@@ -82,6 +82,8 @@ export const memberships = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     rol: text("rol", { enum: ROLLER }).notNull(),
+    // Kullanıcı tercihi (0032): gelen kutusunda metin ve medya gönderimi GERI_AL_MS bekletilir ("Geri al").
+    gonderimGeriAl: integer("gonderim_geri_al", { mode: "boolean" }).notNull().default(true),
     olusturmaTarihi: zaman("olusturma_tarihi").notNull().default(simdi),
   },
   (t) => [primaryKey({ columns: [t.userId, t.tenantId] }), index("memberships_tenant_idx").on(t.tenantId)],
@@ -382,6 +384,8 @@ export const iletiAyarlari = sqliteTable("ileti_ayarlari", {
   // İYS kontrolü (0027): kapalıyken WhatsApp kampanya / şablonunda bireysel alıcı için İYS beyanı aranmaz (izin, ret,
   // engel, test modu, saat ve limit aynen). Değişiklikler denetim_kayitlari'na yazılır.
   iysKontrolu: integer("iys_kontrolu", { mode: "boolean" }).notNull().default(true),
+  // Gelen kutusu otomatik kapatma (0032): bu kadar gün sessiz kalan açık sohbet günlük bakımda kapanır; null = kapalı.
+  otomatikKapatmaGun: integer("otomatik_kapatma_gun"),
   guncellemeTarihi: zaman("guncelleme_tarihi").notNull().default(simdi),
 });
 
@@ -736,6 +740,8 @@ export const sohbetler = sqliteTable(
     sonMesajTarihi: zaman("son_mesaj_tarihi"),
     sonGelenTarihi: zaman("son_gelen_tarihi"),
     okunmamis: integer("okunmamis").notNull().default(0),
+    // Müşteri şablondaki teklif / ilgi butonlarından birine bastı (0032; son basış, Meta buton yükünden: TEKLIF_ILGI_BUTONLARI).
+    teklifIstegiTarihi: zaman("teklif_istegi_tarihi"),
     // Bot (C grubu): bu ana kadar susar.
     botSusBitis: zaman("bot_sus_bitis"),
     // gelen_kutusu_surumu imleci: sohbet satırını değiştiren son işlem.

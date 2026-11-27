@@ -1,10 +1,22 @@
 // Zamanlanmış bakım işleri (npm run cleanup) ve uygulama başlangıcı. Kiracılar arası çalışır;
 // HTTP'den çağrılmaz.
-import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { PLACES_KONUM_SAKLAMA_GUN, YARIM_KALDI_MESAJI } from "@/lib/sabitler";
 import { db } from "../../db";
 import { VARSAYILAN_MESAJ_SAKLAMA_GUN } from "@/lib/gelen-kutusu";
-import { iceAktarmalar, invitations, leads, placeLocations, scans, sohbetMesajlari, tenants, whatsappGelenKimlikleri } from "../../db/schema";
+import {
+  gelenKutusuSurumu,
+  iceAktarmalar,
+  iletiAyarlari,
+  invitations,
+  leads,
+  placeLocations,
+  scans,
+  sohbetler,
+  sohbetMesajlari,
+  tenants,
+  whatsappGelenKimlikleri,
+} from "../../db/schema";
 import { ICE_AKTARMA_OTURUM_DAKIKA } from "@/lib/ice-aktarma";
 import { yarimKalanKosulu } from "./tarama-kosulu";
 
@@ -106,6 +118,49 @@ export function temizlikYap(simdi = new Date()) {
       .returning({ id: sohbetMesajlari.id })
       .all().length;
 
-    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma, silinenGelenKimlik, bosaltilanMesaj };
+    // 8) Gelen kutusu otomatik kapatma (ileti_ayarlari.otomatik_kapatma_gun; null = kapalı).
+    const kapatilanSohbet = sessizSohbetleriKapat(simdi, tx);
+
+    return { silinenKonum, temizlenenMerkez, silinenKayit, silinenDavet, kapatilanIceAktarma, silinenGelenKimlik, bosaltilanMesaj, kapatilanSohbet };
   });
+}
+
+/**
+ * Otomatik kapatma: ayarı açık (3 / 7 / 14 gün) her çalışma alanında, o kadar gündür hiç mesaj olmayan (gelen ya da
+ * giden; hiç mesajı yoksa açılış anından sayılır) açık sohbetler kapanır. Çalışma alanı başına tek sürüm: açık gelen
+ * kutuları canlı yenilemeyle görür. Müşteri yeniden yazınca sohbet kendiliğinden açılır. Kapanan sayısı döner.
+ */
+export function sessizSohbetleriKapat(simdi = new Date(), tx: Pick<typeof db, "select" | "update" | "insert"> = db): number {
+  let toplam = 0;
+  const alanlar = tx
+    .select({ tenantId: iletiAyarlari.tenantId, gun: iletiAyarlari.otomatikKapatmaGun })
+    .from(iletiAyarlari)
+    .where(isNotNull(iletiAyarlari.otomatikKapatmaGun))
+    .all();
+  for (const a of alanlar) {
+    if (!a.gun || a.gun < 1) continue;
+    const sinir = simdi.getTime() - a.gun * GUN_MS;
+    const idler = tx
+      .select({ id: sohbetler.id })
+      .from(sohbetler)
+      .where(and(eq(sohbetler.tenantId, a.tenantId), eq(sohbetler.durum, "acik"), sql`coalesce(${sohbetler.sonMesajTarihi}, ${sohbetler.olusturmaTarihi}) < ${sinir}`))
+      .all()
+      .map((r) => r.id);
+    if (!idler.length) continue;
+    const surum = tx
+      .insert(gelenKutusuSurumu)
+      .values({ tenantId: a.tenantId, surum: 1 })
+      .onConflictDoUpdate({ target: gelenKutusuSurumu.tenantId, set: { surum: sql`${gelenKutusuSurumu.surum} + 1` } })
+      .returning({ surum: gelenKutusuSurumu.surum })
+      .get().surum;
+    for (let i = 0; i < idler.length; i += 500) {
+      toplam += tx
+        .update(sohbetler)
+        .set({ durum: "kapali", surum })
+        .where(and(eq(sohbetler.tenantId, a.tenantId), inArray(sohbetler.id, idler.slice(i, i + 500))))
+        .returning({ id: sohbetler.id })
+        .all().length;
+    }
+  }
+  return toplam;
 }

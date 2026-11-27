@@ -5,8 +5,11 @@ import { DENETIM_IYS_KONTROLU } from "./mesajlasma";
 /** Toplu kayıt işleminin denetim olayı (repo/kayitlar.ts kayitlariTopluGuncelle yazar). */
 export const DENETIM_TOPLU_KAYIT = "toplu_kayit_islemi";
 
+/** Gelen kutusunda sohbetin (yalnızca Harita CRM'den) silinmesi (repo/gelen-kutusu.ts sohbetSil yazar). */
+export const DENETIM_SOHBET_SILME = "sohbet_silme";
+
 /** Listelenebilen denetim olayları (/api/denetim?olay=). */
-export const GECMIS_OLAYLARI = [DENETIM_IYS_KONTROLU, DENETIM_TOPLU_KAYIT] as const;
+export const GECMIS_OLAYLARI = [DENETIM_IYS_KONTROLU, DENETIM_TOPLU_KAYIT, DENETIM_SOHBET_SILME] as const;
 export type GecmisOlayi = (typeof GECMIS_OLAYLARI)[number];
 
 /** İstemciye giden denetim satırı. */
