@@ -92,8 +92,8 @@ export function HazirCevapSecici(props: { onSec: (metin: string) => void; onKapa
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => props.onSec(c.metin)}
             >
-              <p className="text-sm font-semibold break-words">{c.baslik}</p>
-              <p className="line-clamp-2 text-xs break-words whitespace-pre-wrap text-metin-ikincil">{c.metin}</p>
+              <p className="text-sm font-semibold wrap-anywhere">{c.baslik}</p>
+              <p className="line-clamp-2 text-xs wrap-anywhere whitespace-pre-wrap text-metin-ikincil">{c.metin}</p>
             </li>
           ))}
         </ul>

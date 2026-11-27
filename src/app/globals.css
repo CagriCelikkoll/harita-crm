@@ -202,6 +202,18 @@ input[type="radio"]:not(:disabled):active {
   }
 }
 
+/* iOS Safari 16 px'ten küçük yazılı alana odaklanınca sayfayı yakınlaştırır ve geri almaz (PWA'da ekran kaymış kalır).
+   Telefonda (≤ 640 px) tüm yazı alanları en az 16 px. Katmansız: text-sm / text-xs gibi yardımcı sınıfları ezer.
+   Yükseklik zaten 44 px (yukarıda), görünüm değişmez; yalnızca yazı 14 → 16 px. Kullanıcının yakınlaştırması açık
+   kalır (viewport'ta maximum-scale / user-scalable yok). */
+@media (max-width: 640px) {
+  input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"], [type="range"], [type="color"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* Tailwind 4: @utility ile tanımlanan sınıflar birbirine @apply edilebilir.
    Düğme ve alan yüksekliği 44 px, köşe 8 px; kart köşesi 14 px.
    Durumlar: üzerine gelme (uzerine-gelme), basılı (bir ton koyu: basili / ana-koyu / tehlike-basili), devre dışı

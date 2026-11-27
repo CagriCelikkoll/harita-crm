@@ -10,7 +10,7 @@ import { toplamOkunmamis } from "@/server/servisler/gelen-kutusu";
 export default async function UygulamaLayout({ children }: LayoutProps<"/">) {
   const b = await sayfaBaglami();
   return (
-    <div className="min-h-screen md:flex">
+    <div className="min-h-dvh md:flex">
       <Menu
         kullaniciAdi={b.oturum.user.name}
         kullaniciEposta={b.oturum.user.email}

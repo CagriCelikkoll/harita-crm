@@ -284,7 +284,7 @@ export function SablonGonderPenceresi(props: {
                   {guncelOzet.ozet.onizleme && (
                     <div>
                       <p className="mb-1 font-semibold">Gidecek metin</p>
-                      <p className="rounded-md border border-kenar bg-white px-3 py-2 break-words whitespace-pre-wrap">{guncelOzet.ozet.onizleme}</p>
+                      <p className="rounded-md border border-kenar bg-white px-3 py-2 wrap-anywhere whitespace-pre-wrap">{guncelOzet.ozet.onizleme}</p>
                     </div>
                   )}
                   {guncelOzet.ozet.tahminiUcretUsd !== null && (

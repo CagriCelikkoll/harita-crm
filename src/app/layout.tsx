@@ -24,7 +24,10 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Harita CRM", statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { themeColor: RENK.ana };
+// width=device-width, initial-scale=1; kullanıcının yakınlaştırması engellenmez (maximum-scale / user-scalable yok).
+// resizes-content: Android Chrome'da klavye açılınca düzen alanı (dvh) küçülür, yazma alanı ve Gönder görünür kalır
+// (iOS bu ayarı yok sayar; orada gelen kutusu visualViewport ile kaydırır).
+export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content", themeColor: RENK.ana };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

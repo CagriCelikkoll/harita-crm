@@ -241,8 +241,10 @@ export function GelenKutusu(props: {
   const secili = ayrinti && ayrinti.sohbet.id === seciliId ? ayrinti : null;
 
   return (
-    <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)]">
-      <section aria-label="Sohbetler" className={`${seciliId ? "hidden lg:flex" : "flex"} kart flex-col gap-3 !p-0`}>
+    // Telefonda tek sütun minmax(0,1fr): sütun tanımı olmazsa "auto" sütun en uzun bölünmez metne (son mesajdaki uzun
+    // bağlantı) göre genişler ve sayfa yatayda taşar.
+    <div className="grid min-h-[70dvh] grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section aria-label="Sohbetler" className={`${seciliId ? "hidden lg:flex" : "flex"} kart min-w-0 flex-col gap-3 !p-0`}>
         <ListeSuzgeci liste={liste} filtre={filtre} setFiltre={setFiltre} />
         <SohbetListesiGorunumu liste={liste} seciliId={seciliId} simdi={simdi} onSec={sohbetAc} />
       </section>
@@ -338,7 +340,7 @@ function SohbetListesiGorunumu(props: { liste: SohbetListesi; seciliId: string |
   }
   const cokNumara = props.liste.numaralar.length > 1;
   return (
-    <ul className="flex flex-col overflow-y-auto lg:max-h-[70vh]">
+    <ul className="flex flex-col overflow-y-auto lg:max-h-[70dvh]">
       {props.liste.sohbetler.map((s) => (
         <SohbetSatiri key={s.id} s={s} secili={s.id === props.seciliId} simdi={props.simdi} cokNumara={cokNumara} onSec={props.onSec} />
       ))}
@@ -442,7 +444,7 @@ function SohbetEkrani(props: {
   };
 
   return (
-    <div className="grid min-h-[70vh] content-start gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+    <div className="grid min-h-[70dvh] grid-cols-[minmax(0,1fr)] content-start gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
       {/* Geniş ekranda kart ekran yüksekliğiyle sınırlı: ek eklenince yazma alanı büyür, mesaj listesi küçülür; "Gönder"
           görünür alanın altına inmez. */}
       <div className="kart flex min-w-0 flex-col !p-0 lg:h-[calc(100dvh-9rem)] lg:min-h-[520px]">
@@ -493,7 +495,7 @@ function SohbetEkrani(props: {
 
         <div
           ref={liste}
-          className="flex max-h-[60vh] min-h-[320px] flex-1 flex-col gap-2 overflow-y-auto bg-zemin px-4 py-4 lg:max-h-none lg:min-h-[160px]"
+          className="flex max-h-[60dvh] min-h-[min(320px,45dvh)] flex-1 flex-col gap-2 overflow-y-auto bg-zemin px-4 py-4 lg:max-h-none lg:min-h-[160px]"
           onScroll={(e) => {
             const el = e.currentTarget;
             altta.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
@@ -516,7 +518,7 @@ function SohbetEkrani(props: {
         <YazmaAlani a={a} pencereAcik={pencereAcik} onMesaj={props.onMesaj} yanitlanan={yanitlanan} onYanitIptal={() => setYanitlanan(null)} />
       </div>
 
-      <div className="flex flex-col gap-4 self-start">
+      <div className="flex min-w-0 flex-col gap-4 self-start">
         <PazarlamaIzni key={s.id} s={s} onSohbet={(sohbet) => props.onDegisti({ ...a, sohbet })} />
         <Notlar sohbetId={s.id} notlar={a.notlar} onNotlar={props.onNotlar} />
       </div>
@@ -618,6 +620,20 @@ function TeslimIsareti({ m }: { m: SohbetMesajiDto }) {
   );
 }
 
+/**
+ * Telefonda yazma alanına odaklanınca klavye açılır (görünür alan küçülür): formun alt kenarı (Gönder) görünür alanın
+ * altında kalırsa sayfa o kadar kaydırılır. visualViewport klavyeyi hesaba katar (iOS düzen alanını küçültmez).
+ */
+function gonderGorunsun(form: HTMLFormElement | null) {
+  if (!form || !window.matchMedia("(max-width: 640px)").matches) return;
+  window.setTimeout(() => {
+    const g = window.visualViewport;
+    const alt = g ? g.offsetTop + g.height : window.innerHeight;
+    const fark = form.getBoundingClientRect().bottom - alt + 8;
+    if (fark > 0) window.scrollBy({ top: fark, behavior: "smooth" });
+  }, 350);
+}
+
 /** Gelen fotoğraf (satır içi), ses ve video (oynatıcı) ve belge (indirme bağlantısı); indirilemediyse nedeni. */
 function MedyaGosterimi({ medya, tur }: { medya: MedyaDto; tur: SohbetMesajiDto["tur"] }) {
   const adres = `/api/medya/${medya.id}`;
@@ -674,7 +690,7 @@ function Alinti({ yanit, giden }: { yanit: NonNullable<SohbetMesajiDto["yanit"]>
   const icerik = (
     <>
       {kim && <span className="block font-semibold text-ana-koyu">{kim}</span>}
-      <span className="line-clamp-2 break-words">{yanit.ozet}</span>
+      <span className="line-clamp-2 wrap-anywhere">{yanit.ozet}</span>
     </>
   );
   const sinif = `mb-1 block w-full rounded-md border-l-4 border-ana px-2 py-1 text-left text-xs text-metin-ikincil ${giden ? "bg-white/70" : "bg-zemin"}`;
@@ -734,13 +750,13 @@ function SablonIletisi({ metin, gorsel }: { metin: string; gorsel: string | null
       {p.baslikMedyasi && p.baslikMedyasi !== "Görsel" && (
         <div className="rounded-md bg-segment px-2 py-1 text-xs text-metin-ikincil">{p.baslikMedyasi}</div>
       )}
-      {p.baslik && <p className="font-semibold break-words">{p.baslik}</p>}
+      {p.baslik && <p className="font-semibold wrap-anywhere">{p.baslik}</p>}
       {p.govde && (
-        <p className="break-words whitespace-pre-wrap">
+        <p className="wrap-anywhere whitespace-pre-wrap">
           <WhatsappMetni metin={p.govde} />
         </p>
       )}
-      {p.altbilgi && <p className="text-xs break-words text-soluk">{p.altbilgi}</p>}
+      {p.altbilgi && <p className="text-xs wrap-anywhere text-soluk">{p.altbilgi}</p>}
       {p.butonlar.length > 0 && (
         <ul aria-label="Şablon butonları" className="-mx-3 mt-1 border-t border-black/10">
           {p.butonlar.map((b, i) => (
@@ -793,7 +809,7 @@ function Balon({
           <SablonIletisi metin={metin} gorsel={m.sablonGorseli ?? null} />
         ) : metin ? (
           // Gelen mesajdaki Türkiye cep numaraları tıklanabilir (Kayıtlarda aç / Kişi olarak ekle / Şablon gönder / Kopyala).
-          <p className="break-words whitespace-pre-wrap">{giden ? metin : <NumaraliMetin metin={metin} sohbetId={sohbetId} onSohbetAc={onSohbetAc} />}</p>
+          <p className="wrap-anywhere whitespace-pre-wrap">{giden ? metin : <NumaraliMetin metin={metin} sohbetId={sohbetId} onSohbetAc={onSohbetAc} />}</p>
         ) : !medya ? (
           <p className="text-soluk italic">[{MESAJ_TUR_ADLARI[m.tur]}]</p>
         ) : null}
@@ -1014,7 +1030,7 @@ function YazmaAlani(props: {
           <div className="flex items-start gap-2 rounded-md border-l-4 border-ana bg-zemin px-3 py-2 text-xs">
             <div className="min-w-0 flex-1">
               <span className="font-semibold text-ana-koyu">Yanıtlanıyor: {props.yanitlanan.yon === "giden" ? "Siz" : "Müşteri"}</span>
-              <p className="line-clamp-2 break-words text-metin-ikincil">{mesajOzeti(props.yanitlanan)}</p>
+              <p className="line-clamp-2 wrap-anywhere text-metin-ikincil">{mesajOzeti(props.yanitlanan)}</p>
             </div>
             <button type="button" className="dugme-ikon !size-7" aria-label="Yanıtı iptal et" onClick={props.onYanitIptal}>
               <Simge ad="kapat" boyut={14} />
@@ -1047,11 +1063,13 @@ function YazmaAlani(props: {
               e.currentTarget.form?.requestSubmit();
             }
           }}
+          onFocus={(e) => gonderGorunsun(e.currentTarget.form)}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-soluk">
-            Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"} · Enter gönderir, Shift+Enter satır ·
-            Dosyayı sürükleyip bırakabilir ya da yapıştırabilirsiniz
+            Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"}
+            {/* Telefonda klavye açıkken Gönder yazma alanının hemen altında kalsın: masaüstü ipuçları gizli. */}
+            <span className="max-sm:hidden"> · Enter gönderir, Shift+Enter satır · Dosyayı sürükleyip bırakabilir ya da yapıştırabilirsiniz</span>
           </span>
           <div className="flex flex-wrap gap-2">
             <EkDugmesi disabled={gonderiliyor} onDosyalar={ek.ekle} />
@@ -1142,7 +1160,7 @@ function Notlar(props: { sohbetId: string; notlar: SohbetNotuDto[]; onNotlar: (n
         <ul className="flex flex-col gap-2">
           {props.notlar.map((n) => (
             <li key={n.id} className="rounded-lg bg-zemin p-2 text-ufak">
-              <p className="break-words whitespace-pre-wrap">{n.metin}</p>
+              <p className="wrap-anywhere whitespace-pre-wrap">{n.metin}</p>
               <p className="mt-1 text-xs text-soluk">
                 {n.kullanici ?? "Silinmiş kullanıcı"} · {tarihYaz(n.tarih)}
               </p>

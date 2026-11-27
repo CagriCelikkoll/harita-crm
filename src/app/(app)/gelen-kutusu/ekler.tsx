@@ -174,7 +174,7 @@ export function EkDugmesi(props: { disabled?: boolean; onDosyalar: (d: File[]) =
 export function EkSeridi(props: { ekler: Ek[]; gonderiliyor: boolean; onKaldir: (kimlik: string) => void; onTekrar: (kimlik: string) => void }) {
   if (!props.ekler.length) return null;
   return (
-    <ul className="flex gap-2 overflow-x-auto pb-1" aria-label="Eklenen dosyalar">
+    <ul className="flex min-w-0 gap-2 overflow-x-auto pb-1" aria-label="Eklenen dosyalar">
       {props.ekler.map((e) => (
         <li
           key={e.kimlik}
