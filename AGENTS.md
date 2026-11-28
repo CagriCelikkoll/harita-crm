@@ -11,3 +11,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Araç kuralı (kalıcı)
 
 npx, npm exec, pnpm dlx gibi komutlarla projede kurulu olmayan hiçbir aracı indirme ya da çalıştırma. Biçim denetimi için `npm run lint` kullan. Yeni bir araç gerekiyorsa önce sor.
+
+Testler yalnızca `npm run test` / `npm test` ile çalıştırılır.

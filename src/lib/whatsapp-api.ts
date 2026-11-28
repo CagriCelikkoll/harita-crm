@@ -135,7 +135,7 @@ export const SABLON_KATEGORILERI = ["MARKETING", "UTILITY", "AUTHENTICATION"] as
 export type SablonKategorisi = (typeof SABLON_KATEGORILERI)[number];
 export const SABLON_KATEGORI_ADLARI: Record<string, string> = {
   MARKETING: "Pazarlama",
-  UTILITY: "Hizmet",
+  UTILITY: "Fayda",
   AUTHENTICATION: "Doğrulama",
 };
 

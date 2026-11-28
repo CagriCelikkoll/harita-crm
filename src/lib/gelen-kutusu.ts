@@ -418,6 +418,48 @@ export const pencereKapanmakUzere = (sonGelen: Date | string | null | undefined,
   return k !== null && k < PENCERE_UYARI_MS;
 };
 
+/** Kalan süre metni: "14 sa 20 dk", "14 sa", "20 dk" (1 dakikadan az kalsa da "1 dk"). */
+export function kalanSureMetni(ms: number): string {
+  const dakika = Math.max(1, Math.floor(ms / 60_000));
+  const sa = Math.floor(dakika / 60);
+  const dk = dakika % 60;
+  if (!sa) return `${dk} dk`;
+  return dk ? `${sa} sa ${dk} dk` : `${sa} sa`;
+}
+
+export const PENCERE_KAPALI_METNI = "Müşteri 24 saattir yazmadı — yalnızca onaylı şablon gönderilebilir";
+export const PENCERE_HIC_ACILMADI_METNI = "Müşteri henüz yazmadı — yalnızca onaylı şablon gönderilebilir";
+/** Pencere kapalıyken müşteri yazınca (canlı yenileme) sohbet ekranında bir kez. */
+export const PENCERE_ACILDI_BILDIRIMI = "Müşteri yazdı: 24 saatlik pencere açıldı, serbest mesaj gönderebilirsiniz.";
+
+export type PencereDurumu = { acik: true; kalanMs: number; metin: string } | { acik: false; kalanMs: null; metin: string };
+
+/**
+ * Açık sohbet ekranında her zaman görünen 24 saat penceresi durumu (kişinin bu numaraya son yazdığı andan itibaren).
+ * Açık: "Serbest mesaj: 14 sa 20 dk kaldı"; kapalı: PENCERE_KAPALI_METNI (kişi hiç yazmadıysa PENCERE_HIC_ACILMADI_METNI).
+ */
+export function pencereDurumu(sonGelen: Date | string | null | undefined, simdi: number): PencereDurumu {
+  const kalan = pencereKalanMs(sonGelen, simdi);
+  if (kalan !== null) return { acik: true, kalanMs: kalan, metin: `Serbest mesaj: ${kalanSureMetni(kalan)} kaldı` };
+  return { acik: false, kalanMs: null, metin: sonGelen ? PENCERE_KAPALI_METNI : PENCERE_HIC_ACILMADI_METNI };
+}
+
+/** Konuşmayı yeniden başlatmada önerilen şablon kategorisi: Fayda (Utility). */
+export const ONERILEN_SABLON_KATEGORISI = "UTILITY";
+export const FAYDA_SABLONU_YOK_METNI = "Meta'da bir Fayda şablonu oluşturun (ör. talep_hazir)";
+const KATEGORI_SIRASI: Record<string, number> = { UTILITY: 0, MARKETING: 1, AUTHENTICATION: 2 };
+
+/**
+ * Pencere kapalıyken gönderilebilecek şablonların sırası: Fayda (Utility) en üstte ve "önerilen", sonra Pazarlama,
+ * Doğrulama ve diğerleri; aynı kategoride ada göre. Liste sunucudan yalnızca kullanılabilir şablonlarla gelir.
+ */
+export function yenidenBaslatmaSablonlari<T extends { ad: string; kategori: string }>(sablonlar: readonly T[]): { sablon: T; onerilen: boolean }[] {
+  const sira = (k: string) => KATEGORI_SIRASI[k.toUpperCase()] ?? 3;
+  return [...sablonlar]
+    .sort((a, b) => sira(a.kategori) - sira(b.kategori) || a.ad.localeCompare(b.ad, "tr"))
+    .map((sablon) => ({ sablon, onerilen: sablon.kategori.toUpperCase() === ONERILEN_SABLON_KATEGORISI }));
+}
+
 /**
  * "Teklif / ilgi" süzgecine ve rozetine giren buton yükleri (tek yer): fiyat teklifi, katalog, numune, bilgi bırakma. Şablondaki hızlı yanıt butonunda yük verilmediyse
  * Meta yük olarak butonun metnini gönderir; etkileşimli butonda yanıt kimliği (id) kullanılır. Tanıma yalnızca bu yükten

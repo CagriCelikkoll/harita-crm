@@ -291,6 +291,53 @@ describe("24 saat penceresi ve şablon", () => {
   });
 });
 
+describe("pencere kapalıyken konuşmayı yeniden başlatma", () => {
+  it("ayrıntıda pencere kapalı, Fayda şablonu önerilen ve en üstte; şablon gider ama pencere açılmaz; müşteri yazınca pencere açılır ve metin gider", async () => {
+    const { pencereDurumu, PENCERE_KAPALI_METNI, yenidenBaslatmaSablonlari } = await import("@/lib/gelen-kutusu");
+    const { ctx, n } = await alan("YenidenBaslat");
+    const k = kisi(ctx, "0532 310 00 01");
+    const yazildi = new Date(Date.now() - 30 * SAAT);
+    await yaz(n, "905323100001", "Fiyat alabilir miyim?", { zaman: yazildi });
+    const s = sohbetiBul(ctx, n, k.id);
+
+    const a = servis.sohbetAyrintisi(ctx, s.id)!;
+    expect(a.sohbet.pencereBitis).toBeNull();
+    expect(pencereDurumu(a.sohbet.sonGelenTarihi, Date.now())).toEqual({ acik: false, kalanMs: null, metin: PENCERE_KAPALI_METNI });
+    // Kullanılabilir şablonlar (abonelik butonu olmayan pazarlama listelenmez): Fayda en üstte ve önerilen.
+    const liste = yenidenBaslatmaSablonlari(a.sablonlar);
+    expect(liste.map((x) => [x.sablon.ad, x.onerilen])).toEqual([
+      ["randevu_hatirlatma", true],
+      ["kampanya_tanitim", false],
+    ]);
+    expect((await metinGonder(s.id, "Serbest")).status).toBe(400);
+    expect((await sablonGonder(s.id, liste[0].sablon.id, RANDEVU)).status).toBe(201);
+    expect(mockWhatsapp.gonderilenler.map((g) => g.sablonAdi)).toEqual(["randevu_hatirlatma"]);
+    // Giden şablon pencereyi açmaz.
+    expect(servis.sohbetAyrintisi(ctx, s.id)!.sohbet.pencereBitis).toBeNull();
+
+    await yaz(n, "905323100001", "Teşekkürler, bakıyorum");
+    const b = servis.sohbetAyrintisi(ctx, s.id)!;
+    expect(b.sohbet.pencereBitis).not.toBeNull();
+    expect(pencereDurumu(b.sohbet.sonGelenTarihi, Date.now())).toMatchObject({ acik: true, metin: expect.stringMatching(/^Serbest mesaj: 2[34] sa( \d+ dk)? kaldı$/) });
+    expect((await metinGonder(s.id, "Size özel teklifimiz…")).status).toBe(201);
+  });
+
+  it("test modunda şablon yalnızca test numarasına (pencere kapalıyken de); dışındakine 403 ve hiçbir şey gitmez", async () => {
+    const { ctx, n } = await alan("YenidenBaslatTest", { testModu: true });
+    wa.testNumaralariKaydet(ctx, n.id, ["0532 310 00 02"]);
+    const test = kisi(ctx, "0532 310 00 02");
+    const diger = kisi(ctx, "0532 310 00 03");
+    const eski = new Date(Date.now() - 30 * SAAT);
+    await yaz(n, "905323100002", "a", { zaman: eski });
+    await yaz(n, "905323100003", "b", { zaman: eski });
+    const r = await sablonGonder(sohbetiBul(ctx, n, diger.id).id, sablon(ctx, n).id, RANDEVU);
+    expect(r.status).toBe(403);
+    expect(mockWhatsapp.gonderilenler).toHaveLength(0);
+    expect((await sablonGonder(sohbetiBul(ctx, n, test.id).id, sablon(ctx, n).id, RANDEVU)).status).toBe(201);
+    expect(mockWhatsapp.gonderilenler.map((g) => g.alici.deger)).toEqual(["905323100002"]);
+  });
+});
+
 describe("kampanya mesajı ve teslim durumu", () => {
   it("kampanya mesajı sohbete kapalı düşer; teslim durumu hem kuyruğa hem sohbete, yalnızca ileri; müşteri cevap verince açılır", async () => {
     const { ctx, n } = await alan("Kampanya");

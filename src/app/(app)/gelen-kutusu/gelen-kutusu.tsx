@@ -2,7 +2,7 @@
 // Gelen kutusu ekranı: solda sohbet listesi (numara ve durum süzgeci, arama), sağda sohbet (balonlar, yazma alanı ya da
 // şablon seçici, atama, kapat / yeniden aç) ve iç notlar. Telefonda liste ve sohbet ayrı ekran.
 // Canlı yenileme: imleçli kısa yoklama (/api/gelen-kutusu/degisiklikler): görünür sekmede 3 sn, arka planda 20 sn.
-// Kurallar sunucudadır; arayüz yalnızca yol gösterir (pencere kapalıyken yazma alanı yerine şablon seçici; RET uyarısı).
+// Kurallar sunucudadır; arayüz yalnızca yol gösterir (pencere durumu çubuğu; pencere kapalıyken yazma alanı yerine "Konuşmayı yeniden başlat" ve Fayda öncelikli şablon seçici; RET uyarısı).
 // Dosya gönderme (ekler.tsx): ataş menüsü, sürükle-bırak, yapıştırma; her dosya ayrı mesaj, açıklama ilkine. Bir mesajın
 // "Yanıtla"sı gönderimde context.message_id olur; alıntı kutusu gelen ve giden yanıtlarda görünür. Gönderilemeyen medya
 // mesajında "Tekrar dene".
@@ -31,6 +31,10 @@ import {
   MESAJ_TUR_ADLARI,
   mesajOzeti,
   NOT_AZAMI,
+  FAYDA_SABLONU_YOK_METNI,
+  PENCERE_ACILDI_BILDIRIMI,
+  PENCERE_UYARI_MS,
+  pencereDurumu,
   pencereKalanMs,
   pencereKapanmakUzere,
   RET_UYARISI,
@@ -41,8 +45,10 @@ import {
   SOHBET_SILME_UYARISI,
   TESLIM_ADLARI,
   YANIT_AZAMI,
+  yenidenBaslatmaSablonlari,
   type GelenKutusuFiltresi,
   type MedyaDto,
+  type PencereDurumu,
   type SohbetMesajiDto,
   type SohbetNotuDto,
   type SohbetCipi,
@@ -52,7 +58,7 @@ import { gecikmeliGonderici, type Bekleyen, type GecikmeliGonderici } from "@/li
 import { hazirCevapDoldur, yanitaEkle } from "@/lib/hazir-cevaplar";
 import { GELEN_KUTUSU_TERCIH_ALANLARI, tarayiciDeposu, tercihAnahtari, tercihOku, tercihYaz } from "@/lib/liste-tercihi";
 import { IYS_KAPALI_UYARISI } from "@/lib/mesajlasma";
-import { degiskenAnahtari, sablonMetni } from "@/lib/whatsapp-api";
+import { degiskenAnahtari, SABLON_KATEGORI_ADLARI, sablonMetni } from "@/lib/whatsapp-api";
 import type { Degisiklikler, GonderimSonucu, SohbetAyrintisi, SohbetListesi } from "@/server/servisler/gelen-kutusu";
 import { EkDugmesi, ekGonder, EkSeridi, panoDosyalari, useEkler } from "./ekler";
 import { HazirCevapSecici } from "./hazir-cevap-secici";
@@ -598,7 +604,15 @@ function SohbetEkrani(props: {
     if (y.veri.mesajlar.length < 100) setDahaEski(false);
   };
 
-  const pencereAcik = Boolean(s.pencereBitis && new Date(s.pencereBitis).getTime() > props.simdi);
+  // 24 saat penceresi: kişinin bu numaraya son yazdığı andan itibaren (sunucu aynı kuralı gönderimde yeniden denetler).
+  const pencere = pencereDurumu(s.sonGelenTarihi, props.simdi);
+  const pencereAcik = pencere.acik;
+  // Pencere kapalıyken müşteri yazdı (canlı yenileme): bildirim; yazma alanı kendiliğinden geri gelir.
+  const oncekiPencere = useRef(pencereAcik);
+  useEffect(() => {
+    if (!oncekiPencere.current && pencereAcik) bildir(PENCERE_ACILDI_BILDIRIMI);
+    oncekiPencere.current = pencereAcik;
+  }, [pencereAcik]);
   const [yanitlanan, setYanitlanan] = useState<SohbetMesajiDto | null>(null);
   const yanitlanabilir = pencereAcik && !s.numaraKilitli;
   const [silmeAcik, setSilmeAcik] = useState(false);
@@ -689,8 +703,10 @@ function SohbetEkrani(props: {
           ))}
         </div>
 
+        <PencereDurumCubugu durum={pencere} />
         <YazmaAlani
           a={a}
+          yonetici={props.yonetici}
           pencereAcik={pencereAcik}
           geriAlMs={props.gonderimGeriAl ? GERI_AL_MS : 0}
           onMesaj={props.onMesaj}
@@ -1127,8 +1143,21 @@ function GeriAlCubugu(props: { bekleyen: Bekleyen<BekleyenGonderim>; onGeriAl: (
   );
 }
 
+/** Açık sohbet ekranında her zaman görünen pencere durumu (lib/gelen-kutusu pencereDurumu). */
+function PencereDurumCubugu({ durum }: { durum: PencereDurumu }) {
+  const kapaniyor = durum.acik && durum.kalanMs < PENCERE_UYARI_MS;
+  const renk = !durum.acik || kapaniyor ? "bg-uyari-acik text-uyari" : "bg-zemin text-metin-ikincil";
+  return (
+    <p className={`flex items-center gap-2 border-t border-cizgi px-4 py-1.5 text-ufak ${renk}`} data-pencere={durum.acik ? "acik" : "kapali"}>
+      <span aria-hidden="true">{durum.acik ? "⏱" : "🔒"}</span>
+      <span className="min-w-0 wrap-anywhere">{durum.metin}</span>
+    </p>
+  );
+}
+
 function YazmaAlani(props: {
   a: SohbetAyrintisi;
+  yonetici: boolean;
   pencereAcik: boolean;
   /** Gönderimi geri al süresi (0: kapalı, hemen gönderilir). */
   geriAlMs: number;
@@ -1306,12 +1335,7 @@ ${m}` : v.metin));
         </p>
       );
     }
-    return (
-      <div className="flex flex-col gap-2 border-t border-cizgi p-4">
-        <p className="text-sm text-uyari">24 saatlik pencere kapalı; serbest metin gönderilemez. Onaylı bir şablon seçin.</p>
-        <SablonSecici a={props.a} gonderiliyor={gonderiliyor} onGonder={(g) => gonder({ tur: "sablon", ...g })} />
-      </div>
-    );
+    return <YenidenBaslat a={props.a} yonetici={props.yonetici} gonderiliyor={gonderiliyor} onGonder={(g) => gonder({ tur: "sablon", ...g })} />;
   }
 
   return (
@@ -1396,11 +1420,9 @@ ${m}` : v.metin));
           onFocus={(e) => gonderGorunsun(e.currentTarget.form)}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-soluk">
-            Pencere {s.pencereBitis ? `${tarihYaz(s.pencereBitis)} tarihine kadar açık` : "kapalı"}
-            {/* Telefonda klavye açıkken Gönder yazma alanının hemen altında kalsın: masaüstü ipuçları gizli. */}
-            <span className="max-sm:hidden"> · Enter gönderir, Shift+Enter satır · Dosyayı sürükleyip bırakabilir ya da yapıştırabilirsiniz</span>
-          </span>
+          {/* Pencere durumu üstteki çubukta. Telefonda klavye açıkken Gönder yazma alanının hemen altında kalsın: masaüstü
+              ipuçları gizli. */}
+          <span className="text-xs text-soluk max-sm:hidden">Enter gönderir, Shift+Enter satır · Dosyayı sürükleyip bırakabilir ya da yapıştırabilirsiniz</span>
           <div className="flex flex-wrap gap-2">
             <EkDugmesi disabled={gonderiliyor} onDosyalar={ek.ekle} />
             <button ref={hazirDugme} type="button" className="dugme-kucuk" aria-expanded={hazirAcik} onClick={() => setHazirAcik((x) => !x)}>
@@ -1419,19 +1441,93 @@ ${m}` : v.metin));
       </form>
       {sablonAcik && s.izin === "var" && (
         <div className="border-t border-cizgi p-4">
-          <SablonSecici a={props.a} gonderiliyor={gonderiliyor} onGonder={(g) => gonder({ tur: "sablon", ...g })} />
+          <SablonSecici a={props.a} yonetici={props.yonetici} gonderiliyor={gonderiliyor} onGonder={(g) => gonder({ tur: "sablon", ...g })} />
         </div>
       )}
     </div>
   );
 }
 
-function SablonSecici(props: { a: SohbetAyrintisi; gonderiliyor: boolean; onGonder: (g: { sablonId: string; degiskenler: Record<string, string> }) => Promise<boolean> }) {
-  const [sablonId, setSablonId] = useState("");
+type SablonGonderimi = { sablonId: string; degiskenler: Record<string, string> };
+
+/**
+ * Pencere kapalıyken yazma alanının yerinde: "Konuşmayı yeniden başlat" → bu numaranın WABA'sındaki kullanılabilir
+ * şablonlar (Fayda en üstte, önerilen), önizleme ve gönder. Kurallar (RET, izin/İYS, test modu, sınırlar, WABA eşleşmesi)
+ * sunucuda şablon gönderiminde denetlenir; engel nedeni bildirimde görünür.
+ */
+function YenidenBaslat(props: { a: SohbetAyrintisi; yonetici: boolean; gonderiliyor: boolean; onGonder: (g: SablonGonderimi) => Promise<boolean> }) {
+  const [acik, setAcik] = useState(false);
+  if (!acik) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-cizgi p-4">
+        <p className="min-w-0 flex-[1_1_16rem] text-sm text-metin-ikincil">Serbest mesaj gönderilemez. Onaylı bir şablonla konuşmayı yeniden başlatabilirsiniz.</p>
+        <button type="button" className="dugme-ana" onClick={() => setAcik(true)}>
+          Konuşmayı yeniden başlat
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="border-t border-cizgi p-4">
+      <SablonSecici
+        a={props.a}
+        yonetici={props.yonetici}
+        gonderiliyor={props.gonderiliyor}
+        onIptal={() => setAcik(false)}
+        onGonder={async (g) => {
+          const tamam = await props.onGonder(g);
+          if (tamam) setAcik(false);
+          return tamam;
+        }}
+      />
+    </div>
+  );
+}
+
+/** Fayda şablonu yoksa yönlendirme; yönetici şablonları yenileme sayfasına gider. */
+function FaydaSablonuYonlendirmesi(props: { yonetici: boolean; hicSablonYok: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-uyari/30 bg-uyari-acik px-3 py-2 text-sm text-uyari">
+      <p>
+        {props.hicSablonYok ? "Bu numaranın WhatsApp hesabında kullanılabilir şablon yok. " : "Fayda şablonu yok. "}
+        <span className="font-semibold">{FAYDA_SABLONU_YOK_METNI}</span>; onaylandıktan sonra şablonları yenileyin.
+      </p>
+      {props.yonetici ? (
+        <Link href="/ayarlar/whatsapp" className="self-start text-ufak font-semibold underline">
+          Ayarlar → WhatsApp (Meta) → Şablonları yenile
+        </Link>
+      ) : (
+        <p className="text-ufak">Şablonları bir yönetici yeniler (Ayarlar → WhatsApp (Meta)).</p>
+      )}
+    </div>
+  );
+}
+
+function SablonSecici(props: {
+  a: SohbetAyrintisi;
+  yonetici: boolean;
+  gonderiliyor: boolean;
+  onGonder: (g: SablonGonderimi) => Promise<boolean>;
+  onIptal?: () => void;
+}) {
+  // Fayda (Utility) en üstte ve önerilen; ilk önerilen hazır seçili gelir (gönderim yine "Şablonu gönder" ile).
+  const liste = useMemo(() => yenidenBaslatmaSablonlari(props.a.sablonlar), [props.a.sablonlar]);
+  const [sablonId, setSablonId] = useState(() => (liste[0]?.onerilen ? liste[0].sablon.id : ""));
   const [degerler, setDegerler] = useState<Record<string, string>>({});
   const sablon = props.a.sablonlar.find((x) => x.id === sablonId) ?? null;
-  if (!props.a.sablonlar.length) {
-    return <p className="text-sm text-soluk">Bu numaranın WhatsApp hesabında kullanılabilir şablon yok (Ayarlar → WhatsApp → Şablonları yenile).</p>;
+  const faydaVar = liste.some((x) => x.onerilen);
+  const iptal = props.onIptal && (
+    <button type="button" className="dugme" onClick={props.onIptal}>
+      Vazgeç
+    </button>
+  );
+  if (!liste.length) {
+    return (
+      <div className="flex flex-col gap-2">
+        <FaydaSablonuYonlendirmesi yonetici={props.yonetici} hicSablonYok />
+        {iptal && <div className="self-end">{iptal}</div>}
+      </div>
+    );
   }
   const eksik = sablon ? sablon.degiskenler.some((d) => !degerler[degiskenAnahtari(d)]?.trim()) : true;
   return (
@@ -1446,17 +1542,35 @@ function SablonSecici(props: { a: SohbetAyrintisi; gonderiliyor: boolean; onGond
         }
       }}
     >
-      <label className="etiket">
-        Şablon
-        <select className="girdi" value={sablonId} onChange={(e) => (setSablonId(e.target.value), setDegerler({}))}>
-          <option value="">Seçin</option>
-          {props.a.sablonlar.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.ad} ({x.dil}, {x.kategori})
-            </option>
+      {!faydaVar && <FaydaSablonuYonlendirmesi yonetici={props.yonetici} hicSablonYok={false} />}
+      <fieldset className="flex flex-col gap-1">
+        <legend className="etiket mb-1">Şablon</legend>
+        {/* Çok şablon varsa liste kendi içinde kayar; azken kaydırma çubuğu çıkmasın. */}
+        <ul className={`flex flex-col gap-1 p-0.5 ${liste.length > 4 ? "max-h-56 overflow-y-auto overscroll-contain" : ""}`} aria-label="Kullanılabilir şablonlar">
+          {liste.map(({ sablon: x, onerilen }) => (
+            <li key={x.id}>
+              <label
+                className={`flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border px-3 py-2 text-sm ${
+                  x.id === sablonId ? "border-ana bg-ana-acik" : "border-kenar bg-white hover:bg-uzerine-gelme"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="sablon"
+                  value={x.id}
+                  checked={x.id === sablonId}
+                  onChange={() => (setSablonId(x.id), setDegerler({}))}
+                />
+                <span className="min-w-0 flex-[1_1_10rem] wrap-anywhere font-medium">{x.ad}</span>
+                <span className="text-ufak text-soluk">
+                  {SABLON_KATEGORI_ADLARI[x.kategori] ?? x.kategori} · {x.dil}
+                </span>
+                {onerilen && <DurumRozeti ton="ana">Önerilen</DurumRozeti>}
+              </label>
+            </li>
           ))}
-        </select>
-      </label>
+        </ul>
+      </fieldset>
       {sablon?.degiskenler.map((d) => {
         const k = degiskenAnahtari(d);
         return (
@@ -1467,13 +1581,18 @@ function SablonSecici(props: { a: SohbetAyrintisi; gonderiliyor: boolean; onGond
         );
       })}
       {sablon && (
-        <div className="rounded-lg bg-zemin p-3 text-sm whitespace-pre-wrap" aria-label="Önizleme">
-          {sablonMetni(sablon.bilesenler, degerler)}
+        <div className="flex flex-col rounded-lg bg-zemin p-3" aria-label="Önizleme">
+          <div className="max-w-[85%] self-end rounded-xl bg-ana-acik px-3 py-2 text-sm">
+            <SablonIletisi metin={sablonMetni(sablon.bilesenler, degerler)} gorsel={null} />
+          </div>
         </div>
       )}
-      <button type="submit" className="dugme-ana self-end" disabled={!sablon || eksik || props.gonderiliyor}>
-        Şablonu gönder
-      </button>
+      <div className="flex flex-wrap justify-end gap-2">
+        {iptal}
+        <Dugme type="submit" tur="ana" yukleniyor={props.gonderiliyor} disabled={!sablon || eksik}>
+          Şablonu gönder
+        </Dugme>
+      </div>
     </form>
   );
 }
